@@ -232,6 +232,8 @@ class ScoutWatchlistTest extends TestCase
         $scout = Position::factory()->scout()->create([
             'ticker' => 'AAPL',
             'entry_price' => 100.50,
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
             'latest_sma_50' => 98.00,
@@ -245,6 +247,8 @@ class ScoutWatchlistTest extends TestCase
             ->assertOk()
             ->assertSee('Sluipschutter Scorecard')
             ->assertSee('Marktdata & Indicatoren')
+            ->assertSee('SMA 20 (5 dagen geleden)')
+            ->assertSee('SMA 50')
             ->assertSee('Live Rating')
             ->assertSeeHtml('scout-scorecard-hud')
             ->assertSeeHtml('scout-scorecard-criterion')
@@ -257,6 +261,8 @@ class ScoutWatchlistTest extends TestCase
         $user = User::factory()->create();
         $scout = Position::factory()->scout()->create([
             'entry_price' => 100.50,
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
             'latest_sma_50' => 98.00,
@@ -277,6 +283,8 @@ class ScoutWatchlistTest extends TestCase
         $user = User::factory()->create();
         $scout = Position::factory()->scout()->create([
             'entry_price' => 100.50,
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
             'latest_sma_50' => 98.00,

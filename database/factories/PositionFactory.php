@@ -50,6 +50,8 @@ class PositionFactory extends Factory
             'entry_price' => null,
             'quantity' => null,
             'current_sl' => null,
+            'signal_high' => null,
+            'signal_low' => null,
         ]);
     }
 

@@ -97,6 +97,10 @@ class AdminPanelProvider extends PanelProvider
                 fn (): string => <<<'CSS'
                     <style>
                         @media (min-width: 1024px) {
+                            .position-form-columns.fi-grid {
+                                align-items: stretch;
+                            }
+
                             .position-form-columns .fi-grid > .fi-grid-col {
                                 display: flex;
                                 flex-direction: column;
@@ -113,8 +117,16 @@ class AdminPanelProvider extends PanelProvider
                                 height: auto;
                             }
 
+                            .position-form-setup-grid {
+                                display: flex;
+                                flex-direction: column;
+                                gap: 1rem;
+                                align-self: start;
+                                width: 100%;
+                            }
+
                             .position-form-journal-section {
-                                flex: 1;
+                                align-self: stretch;
                             }
 
                             .position-form-journal-section .fi-section {

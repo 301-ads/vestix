@@ -6,7 +6,8 @@ class ScoutSetupScorecard
 {
     /**
      * @param  array{
-     *     entry_price?: float|null,
+     *     signal_low?: float|null,
+     *     latest_close_price?: float|null,
      *     latest_sma_20?: float|null,
      *     sma_20_five_days_ago?: float|null,
      *     latest_sma_50?: float|null,
@@ -61,18 +62,18 @@ class ScoutSetupScorecard
      */
     private static function scoreTrampoline(array $inputs): array
     {
-        $entry = self::toFloat($inputs['entry_price'] ?? null);
+        $landing = self::resolveTrampolineLandingPrice($inputs);
         $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
 
-        if ($entry === null || $sma === null || $sma <= 0) {
+        if ($landing === null || $sma === null || $sma <= 0) {
             return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Data ontbreekt');
         }
 
-        if ($entry < $sma) {
+        if ($landing < $sma) {
             return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Koers onder SMA 20 — trampoline gebroken');
         }
 
-        $distance = (($entry - $sma) / $sma) * 100;
+        $distance = (($landing - $sma) / $sma) * 100;
 
         if ($distance <= 1.5) {
             return self::criterion('trampoline', 'Trampoline-afstand', 2, 2, 'pass', sprintf('%.2f%% van SMA — perfecte landing', $distance));
@@ -176,14 +177,20 @@ class ScoutSetupScorecard
             $reasons[] = 'RSI oververhit (>70) — geen A-setup mogelijk';
         }
 
-        $entry = self::toFloat($inputs['entry_price'] ?? null);
+        $landing = self::resolveTrampolineLandingPrice($inputs);
         $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
 
-        if ($entry !== null && $sma !== null && $entry < $sma) {
+        if ($landing !== null && $sma !== null && $landing < $sma) {
             $reasons[] = 'Koers onder SMA 20 — trampoline gebroken';
         }
 
         return $reasons;
+    }
+
+    private static function resolveTrampolineLandingPrice(array $inputs): ?float
+    {
+        return self::toFloat($inputs['signal_low'] ?? null)
+            ?? self::toFloat($inputs['latest_close_price'] ?? null);
     }
 
     /**

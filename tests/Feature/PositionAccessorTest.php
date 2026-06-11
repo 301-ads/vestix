@@ -30,6 +30,26 @@ class PositionAccessorTest extends TestCase
         $this->assertNull($position->new_sl);
     }
 
+    public function test_buy_stop_calculates_high_plus_ten_percent_atr(): void
+    {
+        $this->assertEquals(68.13, Position::computeBuyStop(68.00, 1.30));
+    }
+
+    public function test_buy_stop_returns_null_without_inputs(): void
+    {
+        $this->assertNull(Position::computeBuyStop(null, 1.30));
+        $this->assertNull(Position::computeBuyStop(68.00, null));
+        $this->assertNull(Position::computeBuyStop('', 1.30));
+        $this->assertNull(Position::computeBuyStop(68.00, ''));
+    }
+
+    public function test_buy_stop_returns_null_for_non_positive_inputs(): void
+    {
+        $this->assertNull(Position::computeBuyStop(0, 1.30));
+        $this->assertNull(Position::computeBuyStop(68.00, 0));
+        $this->assertNull(Position::computeBuyStop(-1.00, 1.30));
+    }
+
     public function test_action_command_is_awaiting_data_without_close(): void
     {
         $position = Position::factory()->make([

@@ -103,7 +103,8 @@ class EditPosition extends EditRecord
         $record = $this->getRecord();
 
         return ScoutSetupScorecard::evaluate([
-            'entry_price' => $this->data['entry_price'] ?? $record->entry_price,
+            'signal_low' => $this->data['signal_low'] ?? $record->signal_low,
+            'latest_close_price' => $this->data['latest_close_price'] ?? $record->latest_close_price,
             'latest_sma_20' => $this->data['latest_sma_20'] ?? $record->latest_sma_20,
             'sma_20_five_days_ago' => $this->data['sma_20_five_days_ago'] ?? $record->sma_20_five_days_ago,
             'latest_sma_50' => $this->data['latest_sma_50'] ?? $record->latest_sma_50,

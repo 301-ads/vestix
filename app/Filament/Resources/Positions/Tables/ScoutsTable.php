@@ -80,7 +80,11 @@ class ScoutsTable
 
     private static function setupGradeLabel(Position $record): ?string
     {
-        if ($record->entry_price === null || $record->latest_sma_20 === null || $record->scout_rsi === null) {
+        if (
+            ($record->signal_low === null && $record->latest_close_price === null)
+            || $record->latest_sma_20 === null
+            || $record->scout_rsi === null
+        ) {
             return null;
         }
 
@@ -89,7 +93,11 @@ class ScoutsTable
 
     private static function setupGradeColor(Position $record): string
     {
-        if ($record->entry_price === null || $record->latest_sma_20 === null || $record->scout_rsi === null) {
+        if (
+            ($record->signal_low === null && $record->latest_close_price === null)
+            || $record->latest_sma_20 === null
+            || $record->scout_rsi === null
+        ) {
             return 'gray';
         }
 

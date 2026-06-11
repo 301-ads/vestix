@@ -5,15 +5,16 @@ namespace App\Filament\Resources\Positions\Schemas;
 use App\Models\Position;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ScoutSetupScorecard;
-use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Callout;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Icon;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 
@@ -31,91 +32,14 @@ class PositionForm
                     ->columnSpanFull()
                     ->extraAttributes(['class' => 'position-form-columns'])
                     ->schema([
-                        Section::make()
+                        Grid::make(1)
                             ->columnSpan(['lg' => 2])
-                            ->compact()
-                            ->divided()
+                            ->extraAttributes(['class' => 'position-form-setup-grid'])
                             ->schema([
-                                Grid::make(2)
-                                    ->schema([
-                                        TextInput::make('ticker')
-                                            ->label('Ticker')
-                                            ->required()
-                                            ->maxLength(10)
-                                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? strtoupper($state) : null),
-                                        TextInput::make('quantity')
-                                            ->label(function (?Position $record, string $operation) use ($isScoutForm): string {
-                                                return $isScoutForm($record, $operation) ? 'Gepland aantal' : 'Aantal';
-                                            })
-                                            ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
-                                                return ! $isScoutForm($record, $operation);
-                                            })
-                                            ->numeric()
-                                            ->inputMode('decimal')
-                                            ->step('any')
-                                            ->minValue(0.000001)
-                                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace(',', '.', $state) : null)
-                                            ->rules(function (?Position $record, string $operation) use ($isScoutForm): array {
-                                                return $isScoutForm($record, $operation)
-                                                    ? ['nullable', 'numeric', 'min:0.000001']
-                                                    : ['required', 'numeric', 'min:0.000001'];
-                                            })
-                                            ->live(onBlur: true),
-                                        TextInput::make('entry_price')
-                                            ->label(function (?Position $record, string $operation) use ($isScoutForm): string {
-                                                return $isScoutForm($record, $operation) ? 'Geplande entry' : 'Entry prijs';
-                                            })
-                                            ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
-                                                return ! $isScoutForm($record, $operation);
-                                            })
-                                            ->numeric()
-                                            ->prefix('$')
-                                            ->minValue(0.01)
-                                            ->rules(function (?Position $record, string $operation) use ($isScoutForm): array {
-                                                return $isScoutForm($record, $operation)
-                                                    ? ['nullable', 'numeric', 'min:0.01']
-                                                    : ['required', 'numeric', 'min:0.01'];
-                                            })
-                                            ->live(onBlur: true),
-                                        TextInput::make('current_sl')
-                                            ->label('Huidige stop-loss')
-                                            ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
-                                                return ! $isScoutForm($record, $operation);
-                                            })
-                                            ->visible(function (?Position $record, string $operation) use ($isScoutForm): bool {
-                                                return ! $isScoutForm($record, $operation);
-                                            })
-                                            ->numeric()
-                                            ->prefix('$')
-                                            ->minValue(0.01)
-                                            ->live(onBlur: true),
-                                    ]),
-                                Grid::make(3)
-                                    ->visible(fn (?Position $record): bool => $record?->status !== 'closed')
-                                    ->schema([
-                                        TextInput::make('latest_close_price')
-                                            ->label('Close prijs')
-                                            ->numeric()
-                                            ->prefix('$')
-                                            ->live(),
-                                        TextInput::make('latest_sma_20')
-                                            ->label('SMA 20')
-                                            ->numeric()
-                                            ->prefix('$')
-                                            ->live(onBlur: true),
-                                        TextInput::make('latest_atr_14')
-                                            ->label('ATR 14')
-                                            ->numeric()
-                                            ->prefix('$')
-                                            ->live(onBlur: true),
-                                    ]),
+                                self::setupDetailsSection($isScoutForm),
+                                self::buyStopSection($isScoutForm),
                             ]),
                         Section::make('Trade Journal')
-                            ->description(function (?Position $record, string $operation) use ($isScoutForm): string {
-                                return $isScoutForm($record, $operation)
-                                    ? 'Waarom is dit een A+ setup? Documenteer je analyse vóór aankoop.'
-                                    : 'Waarom nam je deze trade? Bewaar je setup voor latere analyse.';
-                            })
                             ->columnSpan(['lg' => 1])
                             ->compact()
                             ->extraAttributes(['class' => 'position-form-journal-section'])
@@ -131,13 +55,11 @@ class PositionForm
                                 self::chartScreenshotField(
                                     field: 'entry_chart_screenshot_path',
                                     label: 'TradingView — entry',
-                                    helperText: 'Upload je chart op het moment van entry/setup. Sleep een nieuw bestand hierheen om te vervangen. '.ChartScreenshotUpload::maxSizeLabel(),
                                     imageLabel: 'TradingView entry chart',
                                 ),
                                 self::chartScreenshotField(
                                     field: 'exit_chart_screenshot_path',
                                     label: 'TradingView — exit',
-                                    helperText: 'Chart bij sluiten van de trade (ook via Archiveer-modal). Sleep een nieuw bestand hierheen om te vervangen. '.ChartScreenshotUpload::maxSizeLabel(),
                                     imageLabel: 'TradingView exit chart',
                                     visible: fn (?Position $record): bool => $record?->status === 'closed',
                                 ),
@@ -145,6 +67,157 @@ class PositionForm
                     ]),
                 self::scoutScorecardSection(),
             ]);
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function setupDetailsSection(callable $isScoutForm): Section
+    {
+        return Section::make()
+            ->heading(fn (?Position $record, string $operation): ?string => $isScoutForm($record, $operation) ? 'Setup' : null)
+            ->compact()
+            ->divided()
+            ->schema([
+                Grid::make(2)
+                    ->schema([
+                        TextInput::make('ticker')
+                            ->label('Ticker')
+                            ->required()
+                            ->maxLength(10)
+                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? strtoupper($state) : null),
+                        TextInput::make('quantity')
+                            ->label(function (?Position $record, string $operation) use ($isScoutForm): string {
+                                return $isScoutForm($record, $operation) ? 'Gepland aantal' : 'Aantal';
+                            })
+                            ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
+                                return ! $isScoutForm($record, $operation);
+                            })
+                            ->numeric()
+                            ->inputMode('decimal')
+                            ->step('any')
+                            ->minValue(0.000001)
+                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace(',', '.', $state) : null)
+                            ->rules(function (?Position $record, string $operation) use ($isScoutForm): array {
+                                return $isScoutForm($record, $operation)
+                                    ? ['nullable', 'numeric', 'min:0.000001']
+                                    : ['required', 'numeric', 'min:0.000001'];
+                            })
+                            ->live(onBlur: true),
+                        TextInput::make('entry_price')
+                            ->label(function (?Position $record, string $operation) use ($isScoutForm): string {
+                                return $isScoutForm($record, $operation) ? 'Geplande entry' : 'Entry prijs';
+                            })
+                            ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
+                                return ! $isScoutForm($record, $operation);
+                            })
+                            ->numeric()
+                            ->prefix('$')
+                            ->minValue(0.01)
+                            ->rules(function (?Position $record, string $operation) use ($isScoutForm): array {
+                                return $isScoutForm($record, $operation)
+                                    ? ['nullable', 'numeric', 'min:0.01']
+                                    : ['required', 'numeric', 'min:0.01'];
+                            })
+                            ->live(onBlur: true),
+                        TextInput::make('current_sl')
+                            ->label('Huidige stop-loss')
+                            ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
+                                return ! $isScoutForm($record, $operation);
+                            })
+                            ->visible(function (?Position $record, string $operation) use ($isScoutForm): bool {
+                                return ! $isScoutForm($record, $operation);
+                            })
+                            ->numeric()
+                            ->prefix('$')
+                            ->minValue(0.01)
+                            ->live(onBlur: true),
+                    ]),
+                Grid::make(3)
+                    ->visible(fn (?Position $record): bool => $record?->status !== 'closed')
+                    ->schema([
+                        TextInput::make('latest_close_price')
+                            ->label('Close prijs')
+                            ->numeric()
+                            ->prefix('$')
+                            ->live(),
+                        TextInput::make('latest_sma_20')
+                            ->label('SMA 20')
+                            ->numeric()
+                            ->prefix('$')
+                            ->live(onBlur: true),
+                        TextInput::make('latest_atr_14')
+                            ->label('ATR 14')
+                            ->numeric()
+                            ->prefix('$')
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
+                                if (blank($get('signal_high')) && blank($record?->signal_high)) {
+                                    return;
+                                }
+
+                                self::syncBuyStopFromInputs($set, $get, $record);
+                            }),
+                    ]),
+            ]);
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function buyStopSection(callable $isScoutForm): Section
+    {
+        return Section::make('Executie & Valstrik')
+            ->afterLabel([
+                Icon::make('heroicon-o-information-circle')
+                    ->tooltip(
+                        "Low: Low van de signaalkaars (TradingView) — bepaalt trampoline-scorecard.\n"
+                        ."High: hoogste punt van de signaalkaars.\n"
+                        ."Buy-Stop: High + 10% × ATR 14 (ATR staat in Setup).\n"
+                        .'Zet de Buy-Stop exact zo in je broker.'
+                    )
+                    ->color('gray'),
+            ])
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
+            ->compact()
+            ->columns(3)
+            ->schema([
+                TextInput::make('signal_low')
+                    ->label('Low (Signaalkaars)')
+                    ->numeric()
+                    ->prefix('$')
+                    ->minValue(0.01)
+                    ->live(onBlur: true),
+                TextInput::make('signal_high')
+                    ->label('High (Signaalkaars)')
+                    ->numeric()
+                    ->prefix('$')
+                    ->minValue(0.01)
+                    ->live(onBlur: true)
+                    ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record))
+                    ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record)),
+                TextInput::make('advised_entry')
+                    ->label('Geadviseerde Buy-Stop')
+                    ->prefix('$')
+                    ->readOnly()
+                    ->dehydrated(false)
+                    ->extraInputAttributes(['style' => 'font-weight: bold; color: #10b981;']),
+            ]);
+    }
+
+    private static function syncBuyStopFromInputs(Set $set, Get $get, ?Position $record): void
+    {
+        $buyStop = Position::computeBuyStop(
+            $get('signal_high') ?? $record?->signal_high,
+            $get('latest_atr_14') ?? $record?->latest_atr_14,
+        );
+
+        if ($buyStop === null) {
+            return;
+        }
+
+        $set('advised_entry', $buyStop);
+        $set('entry_price', $buyStop);
     }
 
     private static function scoutScorecardSection(): Grid
@@ -155,7 +228,7 @@ class PositionForm
             ->columnSpanFull()
             ->schema([
                 Section::make('Marktdata & Indicatoren')
-                    ->description('RSI en volume voor de scorecard — auto ingevuld bij Data ophalen')
+                    ->description('Auto ingevul / Handmatig overschrijfbaar')
                     ->columnSpan(['default' => 12, 'lg' => 4])
                     ->schema([
                         TextInput::make('scout_rsi')
@@ -165,11 +238,21 @@ class PositionForm
                             ->maxValue(100)
                             ->helperText('Auto ingevuld bij Data ophalen — handmatig overschrijfbaar')
                             ->live(debounce: 300),
+                        TextInput::make('sma_20_five_days_ago')
+                            ->label('SMA 20 (5 dagen geleden)')
+                            ->numeric()
+                            ->prefix('$')
+                            // ->helperText('Nodig voor SMA trend — uit TradingView of handmatig')
+                            ->live(debounce: 300),
+                        TextInput::make('latest_sma_50')
+                            ->label('SMA 50')
+                            ->numeric()
+                            ->prefix('$')
+                            // ->helperText('Nodig voor SMA trend — uit TradingView of handmatig')
+                            ->live(debounce: 300),
                         Toggle::make('bounce_volume_above_average')
                             ->label('Volume op bounce-dag hoger dan 30-daags gemiddelde')
                             ->live(),
-                        Hidden::make('sma_20_five_days_ago'),
-                        Hidden::make('latest_sma_50'),
                     ]),
                 Section::make('Sluipschutter Scorecard')
                     ->description('Objectieve setup-beoordeling (max 7 punten)')
@@ -694,7 +777,6 @@ class PositionForm
     private static function chartScreenshotField(
         string $field,
         string $label,
-        string $helperText,
         string $imageLabel,
         ?callable $visible = null,
     ): Grid {
@@ -713,7 +795,6 @@ class PositionForm
                     ->columnSpanFull(),
                 ChartScreenshotUpload::make($field)
                     ->label($label)
-                    ->helperText($helperText)
                     ->extraFieldWrapperAttributes(['class' => 'position-form-chart-upload'])
                     ->columnSpanFull(),
             ]);
@@ -722,7 +803,8 @@ class PositionForm
     private static function scorecardInputs(Get $get, ?Position $record): array
     {
         return [
-            'entry_price' => $get('entry_price') ?? $record?->entry_price,
+            'signal_low' => $get('signal_low') ?? $record?->signal_low,
+            'latest_close_price' => $get('latest_close_price') ?? $record?->latest_close_price,
             'latest_sma_20' => $get('latest_sma_20') ?? $record?->latest_sma_20,
             'sma_20_five_days_ago' => $get('sma_20_five_days_ago') ?? $record?->sma_20_five_days_ago,
             'latest_sma_50' => $get('latest_sma_50') ?? $record?->latest_sma_50,

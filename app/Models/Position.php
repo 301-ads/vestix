@@ -29,6 +29,8 @@ class Position extends Model
             'latest_sma_50' => 'decimal:2',
             'sma_20_five_days_ago' => 'decimal:2',
             'latest_atr_14' => 'decimal:2',
+            'signal_high' => 'decimal:2',
+            'signal_low' => 'decimal:2',
             'scout_rsi' => 'decimal:2',
             'bounce_volume_above_average' => 'boolean',
             'telegram_alert_sent_at' => 'datetime',
@@ -224,6 +226,22 @@ class Position extends Model
         return round((float) $sma - (0.5 * (float) $atr), 2);
     }
 
+    public static function computeBuyStop(mixed $high, mixed $atr): ?float
+    {
+        if ($high === null || $atr === null || $high === '' || $atr === '') {
+            return null;
+        }
+
+        $high = (float) $high;
+        $atr = (float) $atr;
+
+        if ($high <= 0 || $atr <= 0) {
+            return null;
+        }
+
+        return round($high + (0.10 * $atr), 2);
+    }
+
     public static function resolveActionCommand(mixed $close, mixed $currentSl, mixed $sma, mixed $atr): string
     {
         if ($close === null || $close === '') {
@@ -381,7 +399,8 @@ class Position extends Model
     public function evaluateSetupScore(?array $overrides = null): array
     {
         $inputs = [
-            'entry_price' => $overrides['entry_price'] ?? $this->entry_price,
+            'signal_low' => $overrides['signal_low'] ?? $this->signal_low,
+            'latest_close_price' => $overrides['latest_close_price'] ?? $this->latest_close_price,
             'latest_sma_20' => $overrides['latest_sma_20'] ?? $this->latest_sma_20,
             'sma_20_five_days_ago' => $overrides['sma_20_five_days_ago'] ?? $this->sma_20_five_days_ago,
             'latest_sma_50' => $overrides['latest_sma_50'] ?? $this->latest_sma_50,

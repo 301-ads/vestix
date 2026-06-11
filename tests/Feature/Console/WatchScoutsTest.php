@@ -208,6 +208,8 @@ class WatchScoutsTest extends TestCase
             'ticker' => $ticker,
             'status' => 'scout',
             'entry_price' => $entryPrice,
+            'signal_low' => $entryPrice,
+            'latest_close_price' => $entryPrice,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
             'latest_sma_50' => 98.00,

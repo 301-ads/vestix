@@ -4,7 +4,9 @@ namespace Tests\Feature\Filament;
 
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Positions\Pages\CreatePosition;
+use App\Filament\Resources\Positions\Pages\CreateScout;
 use App\Filament\Resources\Positions\Pages\EditPosition;
+use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListPositions;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Models\Position;
@@ -475,5 +477,95 @@ class PositionResourceTest extends TestCase
             ->assertSee('$462.50');
 
         $this->assertEquals(462.50, (float) $position->fresh()->latest_close_price);
+    }
+
+    public function test_scout_edit_auto_syncs_entry_price_from_buy_stop_formula(): void
+    {
+        $user = User::factory()->create();
+        $scout = Position::factory()->scout()->create([
+            'ticker' => 'EQR',
+            'latest_atr_14' => 1.30,
+            'latest_sma_20' => 67.00,
+        ]);
+
+        $this->actingAs($user);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->assertSee('Executie & Valstrik')
+            ->assertSee('Geadviseerde Buy-Stop')
+            ->fillForm([
+                'signal_high' => 68.00,
+                'latest_atr_14' => 1.30,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $scout->refresh();
+
+        $this->assertEquals(68.00, (float) $scout->signal_high);
+        $this->assertEquals(68.13, (float) $scout->entry_price);
+    }
+
+    public function test_scout_entry_price_can_be_manually_overridden_after_buy_stop_sync(): void
+    {
+        $user = User::factory()->create();
+        $scout = Position::factory()->scout()->create([
+            'ticker' => 'EQR',
+            'signal_high' => 68.00,
+            'latest_atr_14' => 1.30,
+            'entry_price' => 68.13,
+        ]);
+
+        $this->actingAs($user);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->fillForm([
+                'entry_price' => 69.50,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $scout->refresh();
+
+        $this->assertEquals(69.50, (float) $scout->entry_price);
+    }
+
+    public function test_scout_buy_stop_recalculates_entry_price_when_signal_high_changes(): void
+    {
+        $user = User::factory()->create();
+        $scout = Position::factory()->scout()->create([
+            'ticker' => 'EQR',
+            'signal_high' => 68.00,
+            'latest_atr_14' => 1.30,
+            'entry_price' => 68.13,
+        ]);
+
+        $this->actingAs($user);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->fillForm([
+                'signal_high' => 70.00,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $scout->refresh();
+
+        $this->assertEquals(70.13, (float) $scout->entry_price);
+    }
+
+    public function test_create_scout_shows_buy_stop_section(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+
+        Livewire::test(CreateScout::class)
+            ->assertSee('Setup')
+            ->assertSee('Executie & Valstrik')
+            ->assertSee('High (Signaalkaars)')
+            ->assertSee('Low (Signaalkaars)')
+            ->assertDontSee('Gebruikt het ATR 14-veld hierboven')
+            ->assertDontSee('Low van de signaalkaars — gebruikt voor trampoline-scorecard');
     }
 }
