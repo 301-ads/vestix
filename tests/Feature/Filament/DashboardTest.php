@@ -47,7 +47,7 @@ class DashboardTest extends TestCase
         });
     }
 
-    public function test_force_sync_marks_sync_as_in_progress(): void
+    public function test_force_sync_does_not_leave_stale_sync_flag_before_command_runs(): void
     {
         Process::fake();
 
@@ -58,7 +58,7 @@ class DashboardTest extends TestCase
         Livewire::test(Dashboard::class)
             ->callAction('sync_api');
 
-        $this->assertTrue(\App\Support\MarketDataFreshness::isSyncInProgress());
+        $this->assertFalse(\App\Support\MarketDataFreshness::isSyncInProgress());
     }
 
     public function test_force_sync_stores_database_notification(): void

@@ -13,7 +13,7 @@ class BackgroundArtisan
     public static function dispatch(string $command, array $parameters = []): void
     {
         $arguments = [
-            PHP_BINARY,
+            self::resolvePhpBinary(),
             base_path('artisan'),
             $command,
         ];
@@ -57,5 +57,20 @@ class BackgroundArtisan
             'command' => $command,
             'parameters' => $parameters,
         ]);
+    }
+
+    private static function resolvePhpBinary(): string
+    {
+        $configured = config('app.php_binary');
+
+        if (is_string($configured) && $configured !== '') {
+            return $configured;
+        }
+
+        if (! str_contains(PHP_BINARY, 'fpm')) {
+            return PHP_BINARY;
+        }
+
+        return 'php';
     }
 }

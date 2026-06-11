@@ -38,8 +38,6 @@ class Dashboard extends BaseDashboard
                 ->action(function (): void {
                     $userId = auth()->id();
 
-                    MarketDataFreshness::markSyncStarted();
-
                     BackgroundArtisan::dispatch('swng:fetch-data', [
                         'user-id' => $userId,
                     ]);

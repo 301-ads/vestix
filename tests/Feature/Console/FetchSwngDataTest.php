@@ -104,6 +104,14 @@ class FetchSwngDataTest extends TestCase
         $this->assertFalse(\App\Support\MarketDataFreshness::isSyncInProgress());
     }
 
+    public function test_stale_sync_flag_is_cleared_automatically(): void
+    {
+        Cache::put('swng:sync_in_progress', now()->subMinutes(25)->toIso8601String(), now()->addHour());
+
+        $this->assertFalse(\App\Support\MarketDataFreshness::isSyncInProgress());
+        $this->assertNull(Cache::get('swng:sync_in_progress'));
+    }
+
     public function test_command_sends_completion_notification_to_user(): void
     {
         $user = User::factory()->create();

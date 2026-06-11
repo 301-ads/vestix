@@ -11,7 +11,19 @@ class MarketDataFreshness
 {
     public static function isSyncInProgress(): bool
     {
-        return Cache::has('swng:sync_in_progress');
+        $startedAt = self::resolveTimestamp(Cache::get('swng:sync_in_progress'));
+
+        if ($startedAt === null) {
+            return false;
+        }
+
+        if ($startedAt->lessThan(now()->subMinutes(20))) {
+            self::markSyncFinished();
+
+            return false;
+        }
+
+        return true;
     }
 
     public static function markSyncStarted(): void
