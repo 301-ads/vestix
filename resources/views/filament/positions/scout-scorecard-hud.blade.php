@@ -1,0 +1,37 @@
+@php
+    use Filament\Support\View\Components\BadgeComponent;
+    use Filament\Widgets\View\Components\StatsOverviewWidgetComponent\StatComponent\DescriptionComponent;
+    use Illuminate\View\ComponentAttributeBag;
+
+    $scoreColor = $scoreColor ?? 'gray';
+    $hasHardFail = ! empty($score['hardFailReasons']);
+@endphp
+
+<div @class([
+    'scout-scorecard-hud',
+    'scout-scorecard-hud--hard-fail' => $hasHardFail,
+])>
+    <div class="scout-scorecard-hud-main">
+        <span class="scout-scorecard-hud-label">Live Rating</span>
+        <div class="scout-scorecard-hud-score-row">
+            <span
+                {{
+                    (new ComponentAttributeBag)
+                        ->class(['scout-scorecard-hud-score', 'fi-wi-stats-overview-stat-value'])
+                        ->color(DescriptionComponent::class, $scoreColor)
+                }}
+            >
+                {{ $score['totalPoints'] }}
+            </span>
+            <span class="scout-scorecard-hud-max">/{{ $score['maxPoints'] }}</span>
+        </div>
+    </div>
+
+    <div class="scout-scorecard-hud-grade">
+        <span {{ (new ComponentAttributeBag)->color(BadgeComponent::class, $scoreColor)->class(['fi-badge', 'fi-size-lg']) }}>
+            <span class="fi-badge-label-ctn">
+                <span class="fi-badge-label">{{ $score['gradeLabel'] }}</span>
+            </span>
+        </span>
+    </div>
+</div>

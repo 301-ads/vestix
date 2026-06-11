@@ -1,0 +1,239 @@
+<?php
+
+namespace App\Support;
+
+class ScoutSetupScorecard
+{
+    /**
+     * @param  array{
+     *     entry_price?: float|null,
+     *     latest_sma_20?: float|null,
+     *     sma_20_five_days_ago?: float|null,
+     *     latest_sma_50?: float|null,
+     *     scout_rsi?: float|null,
+     *     bounce_volume_above_average?: bool|null,
+     * }  $inputs
+     * @return array{
+     *     totalPoints: int,
+     *     maxPoints: int,
+     *     grade: string,
+     *     gradeLabel: string,
+     *     hardFailReasons: array<int, string>,
+     *     criteria: array<int, array{
+     *         key: string,
+     *         label: string,
+     *         points: int,
+     *         maxPoints: int,
+     *         status: string,
+     *         detail: string,
+     *     }>,
+     * }
+     */
+    public static function evaluate(array $inputs): array
+    {
+        $criteria = [
+            self::scoreTrampoline($inputs),
+            self::scoreSmaDirection($inputs),
+            self::scoreRsi($inputs),
+            self::scoreVolume($inputs),
+        ];
+
+        $totalPoints = array_sum(array_column($criteria, 'points'));
+        $maxPoints = array_sum(array_column($criteria, 'maxPoints'));
+
+        $hardFailReasons = self::resolveHardFailReasons($inputs);
+
+        [$grade, $gradeLabel] = self::resolveGrade($totalPoints, $hardFailReasons);
+
+        return [
+            'totalPoints' => $totalPoints,
+            'maxPoints' => $maxPoints,
+            'grade' => $grade,
+            'gradeLabel' => $gradeLabel,
+            'hardFailReasons' => $hardFailReasons,
+            'criteria' => $criteria,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
+    private static function scoreTrampoline(array $inputs): array
+    {
+        $entry = self::toFloat($inputs['entry_price'] ?? null);
+        $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
+
+        if ($entry === null || $sma === null || $sma <= 0) {
+            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Data ontbreekt');
+        }
+
+        if ($entry < $sma) {
+            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Koers onder SMA 20 — trampoline gebroken');
+        }
+
+        $distance = (($entry - $sma) / $sma) * 100;
+
+        if ($distance <= 1.5) {
+            return self::criterion('trampoline', 'Trampoline-afstand', 2, 2, 'pass', sprintf('%.2f%% van SMA — perfecte landing', $distance));
+        }
+
+        if ($distance <= 3.0) {
+            return self::criterion('trampoline', 'Trampoline-afstand', 1, 2, 'warn', sprintf('%.2f%% van SMA — suboptimaal', $distance));
+        }
+
+        return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', sprintf('%.2f%% van SMA — te ver weggeschoten', $distance));
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
+    private static function scoreSmaDirection(array $inputs): array
+    {
+        $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
+        $fiveDaysAgo = self::toFloat($inputs['sma_20_five_days_ago'] ?? null);
+        $sma50 = self::toFloat($inputs['latest_sma_50'] ?? null);
+
+        if ($latest === null || $fiveDaysAgo === null || $sma50 === null) {
+            $detail = match (true) {
+                $latest !== null && $fiveDaysAgo === null => 'Haal marktdata op voor 5-daagse SMA',
+                $latest !== null && $sma50 === null => 'Haal marktdata op voor SMA 50',
+                default => 'Data ontbreekt',
+            };
+
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', $detail);
+        }
+
+        if ($latest < $fiveDaysAgo) {
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', 'Dalende SMA over 5 dagen — geen opwaartse trend');
+        }
+
+        if ($latest <= $sma50) {
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', 'SMA 20 onder SMA 50 — korte trend doorboort lange trend');
+        }
+
+        if ($latest === $fiveDaysAgo) {
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 2, 2, 'pass', 'Flat over 5 dagen + boven SMA 50');
+        }
+
+        return self::criterion('sma_direction', 'SMA trend (20/50)', 2, 2, 'pass', 'Stijgende trend + SMA 20 > SMA 50');
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
+    private static function scoreRsi(array $inputs): array
+    {
+        $rsi = self::toFloat($inputs['scout_rsi'] ?? null);
+
+        if ($rsi === null) {
+            return self::criterion('rsi', 'RSI sweet spot', 0, 2, 'fail', 'Data ontbreekt');
+        }
+
+        if ($rsi > 70) {
+            return self::criterion('rsi', 'RSI sweet spot', 0, 2, 'fail', sprintf('RSI %.1f — oververhit (>70)', $rsi));
+        }
+
+        if ($rsi >= 45 && $rsi <= 55) {
+            return self::criterion('rsi', 'RSI sweet spot', 2, 2, 'pass', sprintf('RSI %.1f — ultieme cooldown zone', $rsi));
+        }
+
+        if ($rsi > 55 && $rsi <= 65) {
+            return self::criterion('rsi', 'RSI sweet spot', 1, 2, 'warn', sprintf('RSI %.1f — nog momentum', $rsi));
+        }
+
+        return self::criterion('rsi', 'RSI sweet spot', 0, 2, 'fail', sprintf('RSI %.1f — buiten sweet spot', $rsi));
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
+    private static function scoreVolume(array $inputs): array
+    {
+        $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
+
+        if ($confirmed) {
+            return self::criterion('volume', 'Volume bevestiging', 1, 1, 'pass', 'Volume boven 30-daags gemiddelde');
+        }
+
+        return self::criterion('volume', 'Volume bevestiging', 0, 1, 'fail', 'Nog niet bevestigd');
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array<int, string>
+     */
+    private static function resolveHardFailReasons(array $inputs): array
+    {
+        $reasons = [];
+
+        $rsi = self::toFloat($inputs['scout_rsi'] ?? null);
+
+        if ($rsi !== null && $rsi > 70) {
+            $reasons[] = 'RSI oververhit (>70) — geen A-setup mogelijk';
+        }
+
+        $entry = self::toFloat($inputs['entry_price'] ?? null);
+        $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
+
+        if ($entry !== null && $sma !== null && $entry < $sma) {
+            $reasons[] = 'Koers onder SMA 20 — trampoline gebroken';
+        }
+
+        return $reasons;
+    }
+
+    /**
+     * @param  array<int, string>  $hardFailReasons
+     * @return array{0: string, 1: string}
+     */
+    private static function resolveGrade(int $totalPoints, array $hardFailReasons): array
+    {
+        if ($hardFailReasons !== []) {
+            return ['B/C', 'B/C Setup'];
+        }
+
+        if ($totalPoints === 7) {
+            return ['A+', 'A+ SETUP'];
+        }
+
+        if ($totalPoints >= 5) {
+            return ['A-', 'A- Setup'];
+        }
+
+        return ['B/C', 'B/C Setup'];
+    }
+
+    /**
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
+    private static function criterion(
+        string $key,
+        string $label,
+        int $points,
+        int $maxPoints,
+        string $status,
+        string $detail,
+    ): array {
+        return [
+            'key' => $key,
+            'label' => $label,
+            'points' => $points,
+            'maxPoints' => $maxPoints,
+            'status' => $status,
+            'detail' => $detail,
+        ];
+    }
+
+    private static function toFloat(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (float) $value;
+    }
+}
