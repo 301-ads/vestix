@@ -216,6 +216,38 @@ class ScoutWatchlistTest extends TestCase
         $this->assertEquals(52.00, (float) $scout->scout_rsi);
     }
 
+    public function test_fetch_market_data_on_create_scout_fills_form_without_saving(): void
+    {
+        $this->authenticateFilament();
+
+        $this->mock(AlphaVantageService::class, function ($mock): void {
+            $mock->shouldReceive('fetchGlobalQuote')->once()->with('MSFT')->andReturn([
+                'close' => 78.20,
+                'high' => 79.00,
+                'low' => 76.50,
+            ]);
+            $mock->shouldReceive('fetchSma20Pair')->once()->with('MSFT')->andReturn([
+                'latest' => 77.50,
+                'five_days_ago' => 77.00,
+            ]);
+            $mock->shouldReceive('fetchSma50')->once()->with('MSFT')->andReturn(75.00);
+            $mock->shouldReceive('fetchAtr14')->once()->with('MSFT')->andReturn(2.80);
+            $mock->shouldReceive('fetchRsi14')->once()->with('MSFT')->andReturn(52.00);
+        });
+
+        Livewire::test(CreateScout::class)
+            ->fillForm(['ticker' => 'MSFT'])
+            ->callAction('fetch_market_data')
+            ->assertFormSet([
+                'latest_close_price' => 78.20,
+                'latest_sma_20' => 77.50,
+                'latest_atr_14' => 2.80,
+                'scout_rsi' => 52.00,
+            ]);
+
+        $this->assertDatabaseCount('positions', 0);
+    }
+
     public function test_create_scout_page_shows_scorecard(): void
     {
         $this->authenticateFilament();

@@ -179,8 +179,16 @@ class VestixDataTransferTest extends TestCase
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
         Position::factory()->for($user)->create(['squad_id' => $squad->id]);
 
-        $older = storage_path('app/'.VestixDataTransfer::EXPORT_DIRECTORY.'/2026-01-01_000000');
-        $newer = storage_path('app/'.VestixDataTransfer::EXPORT_DIRECTORY.'/2026-01-02_000000');
+        $exportRoot = storage_path('app/'.VestixDataTransfer::EXPORT_DIRECTORY);
+
+        if (File::isDirectory($exportRoot)) {
+            foreach (File::directories($exportRoot) as $directory) {
+                File::deleteDirectory($directory);
+            }
+        }
+
+        $older = $exportRoot.'/2026-01-01_000000';
+        $newer = $exportRoot.'/2026-01-02_000000';
 
         Artisan::call('vestix:export-data', ['--path' => $older]);
         Artisan::call('vestix:export-data', ['--path' => $newer]);
@@ -193,7 +201,5 @@ class VestixDataTransferTest extends TestCase
         $this->artisan('vestix:import-data')->assertSuccessful();
 
         $this->assertDatabaseCount('users', 1);
-
-        File::deleteDirectory(dirname($older));
     }
 }

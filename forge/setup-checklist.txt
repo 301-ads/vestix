@@ -56,8 +56,13 @@ Data migreren vanuit lokaal (optioneel)
   [ ] Login met bestaand lokaal account — skip vestix:create-user
 
 Scheduler (Forge → Site → Scheduler)
-  [ ] Cron active: * * * * * php artisan schedule:run
-  [ ] Verify: php artisan schedule:list
+  [ ] Nieuwe scheduled job toevoegen (of controleren dat deze bestaat):
+        Command: php artisan schedule:run
+        User: forge
+        Frequency: Every minute (* * * * *)
+        Path: /home/forge/vestix.io/current
+  [ ] Verify via SSH: cd /home/forge/vestix.io/current && php artisan schedule:list
+      (vestix:fetch-data + vestix:watch-scouts moeten zichtbaar zijn)
 
 First admin (SSH) — alleen bij schone installatie ZONDER data-import
   [ ] php artisan vestix:create-user you@example.com --name="You" --password="..." --squad="Alpha Squad"

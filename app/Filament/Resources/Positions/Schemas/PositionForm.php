@@ -258,9 +258,10 @@ class PositionForm
             ->afterLabel([
                 Icon::make('heroicon-o-information-circle')
                     ->tooltip(
-                        "Low: Low van de signaalkaars (TradingView) — herkent rejection bounce in scorecard.\n"
+                        "Low/High: dagkaars (1D) van de bounce in TradingView — niet intraday.\n"
+                        ."Low: laagste punt van die dagkaars (trampoline-scorecard).\n"
                         ."Close: slotkoers bepaalt of trampoline gebroken is (Close < SMA 20 = geblokkeerd).\n"
-                        ."High: hoogste punt van de signaalkaars.\n"
+                        ."High: hoogste punt van die dagkaars.\n"
                         ."Buy-Stop: High + 10% × ATR 14 (ATR staat in Setup).\n"
                         .'Zet de Buy-Stop exact zo in je broker.'
                     )
@@ -276,7 +277,7 @@ class PositionForm
                     ->numeric()
                     ->prefix('$')
                     ->minValue(0.01)
-                    ->helperText('Low van de laatste bounce-kaars.')
+                    ->helperText('Laagste punt van de bounce-dagkaars (TradingView, timeframe 1D).')
                     ->live(onBlur: true),
                 TextInput::make('signal_high')
                     ->label('High (Signaalkaars)')
@@ -284,7 +285,7 @@ class PositionForm
                     ->numeric()
                     ->prefix('$')
                     ->minValue(0.01)
-                    ->helperText('High van de laatste bounce-kaars.')
+                    ->helperText('Hoogste punt van de bounce-dagkaars (TradingView, timeframe 1D).')
                     ->live(onBlur: true)
                     ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record))
                     ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record)),
@@ -337,7 +338,7 @@ class PositionForm
             ->columnSpanFull()
             ->schema([
                 Section::make('Marktdata & Indicatoren')
-                    ->description('Auto ingevul / Handmatig overschrijfbaar')
+                    ->description('Klik "Data ophalen" rechtsboven, of vul handmatig in')
                     ->columnSpan(['default' => 12, 'lg' => 4])
                     ->schema([
                         TextInput::make('scout_rsi')

@@ -552,7 +552,7 @@ class PositionResourceTest extends TestCase
             ->assertSee('Executie & Valstrik')
             ->assertSee('High (Signaalkaars)')
             ->assertSee('Low (Signaalkaars)')
-            ->assertDontSee('Gebruikt het ATR 14-veld hierboven')
-            ->assertDontSee('Low van de signaalkaars — gebruikt voor trampoline-scorecard');
+            ->assertSee('bounce-dagkaars (TradingView, timeframe 1D)')
+            ->assertSee('Data ophalen');
     }
 }
