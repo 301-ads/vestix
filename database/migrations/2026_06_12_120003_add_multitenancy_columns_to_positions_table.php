@@ -140,7 +140,19 @@ return new class extends Migration
         }
 
         if (DB::getDriverName() === 'mysql') {
+            try {
+                Schema::table('positions', function (Blueprint $table) {
+                    $table->dropForeign(['user_id']);
+                });
+            } catch (\Throwable) {
+                // Foreign key may already be absent during a partial retry.
+            }
+
             DB::statement('ALTER TABLE positions MODIFY user_id BIGINT UNSIGNED NOT NULL');
+
+            Schema::table('positions', function (Blueprint $table) {
+                $table->foreign('user_id')->references('id')->on('users')->restrictOnDelete();
+            });
 
             return;
         }
