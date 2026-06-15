@@ -12,7 +12,7 @@ Site (Forge → Create Site)
   [ ] Web directory: /public
   [ ] Database created (note credentials)
   [ ] SSL: Let's Encrypt (DNS A-record must point to server first)
-  [ ] Git: 301-ads/vestix (of davyvanbokhoven/swng.trade), branch main
+  [ ] Git: git@github.com:301-ads/vestix.git, branch main
   [ ] Deploy on push: optional
 
 Environment (Forge → Site → Environment)
