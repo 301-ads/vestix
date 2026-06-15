@@ -35,11 +35,29 @@ Deployment (Forge → Site → Deployment)
   [ ] Paste contents of forge/deploy.sh into Deploy Script
   [ ] Run first deploy (Deploy Now)
 
+Data migreren vanuit lokaal (optioneel)
+  [ ] Zelfde APP_KEY als lokaal in Forge Environment (vereist voor api_credentials)
+  [ ] Nog GEEN vestix:create-user draaien — users komen uit import
+
+  Lokaal:
+  [ ] php artisan vestix:export-data
+  [ ] tar -czf vestix-export.tar.gz storage/app/vestix-export/
+  [ ] tar -czf vestix-storage.tar.gz storage/app/public/users storage/app/public/position-charts storage/app/public/ticker-logos
+  [ ] scp vestix-export.tar.gz vestix-storage.tar.gz forge@vestix.io:/home/forge/vestix.io/
+
+  Op productie (SSH, na eerste deploy + migrations):
+  [ ] cd /home/forge/vestix.io
+  [ ] tar -xzf vestix-export.tar.gz
+  [ ] tar -xzf vestix-storage.tar.gz
+  [ ] php artisan vestix:import-data storage/app/vestix-export/<timestamp>
+  [ ] php artisan storage:link --force
+  [ ] Login met bestaand lokaal account — skip vestix:create-user
+
 Scheduler (Forge → Site → Scheduler)
   [ ] Cron active: * * * * * php artisan schedule:run
   [ ] Verify: php artisan schedule:list
 
-First admin (SSH)
+First admin (SSH) — alleen bij schone installatie ZONDER data-import
   [ ] php artisan vestix:create-user you@example.com --name="You" --password="..." --squad="Alpha Squad"
   [ ] Or register at /admin/register
 
