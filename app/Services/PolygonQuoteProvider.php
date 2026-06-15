@@ -64,4 +64,19 @@ class PolygonQuoteProvider implements QuoteProvider
             return null;
         }
     }
+
+    public function fetchSessionQuote(string $ticker): ?array
+    {
+        $price = $this->fetchLivePrice($ticker);
+
+        if ($price === null) {
+            return null;
+        }
+
+        return [
+            'close' => $price,
+            'high' => null,
+            'low' => null,
+        ];
+    }
 }

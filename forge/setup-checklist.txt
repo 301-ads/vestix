@@ -29,7 +29,11 @@ Environment (Forge → Site → Environment)
         DB_DATABASE=vestix
         DB_USERNAME=forge
         DB_PASSWORD=<het gegenereerde wachtwoord>
-  [ ] Fill overige keys: API keys, mail, PHP_BINARY
+  [ ] Fill API keys in Environment:
+        POLYGON_API_KEY=...     (historische daily bars, onbeperkt/dag)
+        FINNHUB_API_KEY=...     (primaire verse slotkoers, geen daglimiet)
+        ALPHA_VANTAGE_API_KEY=... (fallback quote, max 25/dag gratis)
+  [ ] Fill overige keys: mail, PHP_BINARY
 
 Deployment (Forge → Site → Deployment)
   [ ] Zero-downtime deploy script: zie forge/deploy.sh

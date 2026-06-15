@@ -8,22 +8,63 @@ use Illuminate\Support\Facades\Log;
 class FallbackQuoteProvider implements QuoteProvider
 {
     public function __construct(
-        private PolygonQuoteProvider $polygon,
+        private FinnhubQuoteProvider $finnhub,
         private AlphaVantageQuoteProvider $alphaVantage,
+        private PolygonQuoteProvider $polygon,
     ) {}
 
     public function fetchLivePrice(string $ticker): ?float
     {
-        $price = $this->polygon->fetchLivePrice($ticker);
+        $quote = $this->fetchSessionQuoteWithProvider($ticker);
 
-        if ($price !== null) {
-            return $price;
+        return $quote['close'] ?? null;
+    }
+
+    public function fetchSessionQuote(string $ticker): ?array
+    {
+        $quote = $this->fetchSessionQuoteWithProvider($ticker);
+
+        if ($quote === null) {
+            return null;
         }
 
-        Log::info('Polygon quote unavailable — falling back to Alpha Vantage.', [
-            'ticker' => $ticker,
-        ]);
+        return [
+            'close' => $quote['close'],
+            'high' => $quote['high'],
+            'low' => $quote['low'],
+            'provider' => $quote['provider'],
+        ];
+    }
 
-        return $this->alphaVantage->fetchLivePrice($ticker);
+    /**
+     * @return array{close: float, high: float|null, low: float|null, provider: string}|null
+     */
+    public function fetchSessionQuoteWithProvider(string $ticker): ?array
+    {
+        $providers = [
+            ['name' => 'finnhub', 'provider' => $this->finnhub],
+            ['name' => 'alpha_vantage', 'provider' => $this->alphaVantage],
+            ['name' => 'polygon', 'provider' => $this->polygon],
+        ];
+
+        foreach ($providers as $entry) {
+            $quote = $entry['provider']->fetchSessionQuote($ticker);
+
+            if ($quote !== null && isset($quote['close'])) {
+                return [
+                    'close' => $quote['close'],
+                    'high' => $quote['high'] ?? null,
+                    'low' => $quote['low'] ?? null,
+                    'provider' => $entry['name'],
+                ];
+            }
+
+            Log::info('Quote provider unavailable — trying next fallback.', [
+                'ticker' => $ticker,
+                'provider' => $entry['name'],
+            ]);
+        }
+
+        return null;
     }
 }

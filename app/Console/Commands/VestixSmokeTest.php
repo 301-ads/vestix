@@ -154,7 +154,12 @@ class VestixSmokeTest extends Command
         }
 
         if (blank(config('vestix.polygon.api_key'))) {
-            $this->warn('POLYGON_API_KEY ontbreekt — scout-watcher en asset-sync beperkt.');
+            $this->warn('POLYGON_API_KEY ontbreekt — historische daily bars en asset-sync beperkt.');
+            $warnings++;
+        }
+
+        if (blank(config('vestix.finnhub.api_key'))) {
+            $this->warn('FINNHUB_API_KEY ontbreekt — primaire quote-fallback niet beschikbaar.');
             $warnings++;
         }
 

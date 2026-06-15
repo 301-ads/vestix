@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\DailyBarProvider;
 use App\Models\Position;
 use Illuminate\Support\Facades\Cache;
 
@@ -10,7 +11,7 @@ class MarketDataFetcher
     public function __construct(
         private AlphaVantageService $alphaVantage,
         private PolygonMarketDataService $polygonMarketData,
-        private PolygonDailyBarService $polygonDailyBars,
+        private DailyBarProvider $dailyBars,
     ) {}
 
     /**
@@ -139,7 +140,7 @@ class MarketDataFetcher
      */
     private function resolveVolumeData(string $ticker, float $sma20, ?bool $existingVolumeConfirmed): ?array
     {
-        $bars = $this->polygonDailyBars->fetchRecentBars($ticker);
+        $bars = $this->dailyBars->fetchRecentBars($ticker);
 
         if ($bars === null) {
             return null;

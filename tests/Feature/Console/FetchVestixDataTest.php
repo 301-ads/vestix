@@ -9,6 +9,7 @@ use App\Support\MarketDataFreshness;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\MarketDataTestTime;
 use Tests\Support\PolygonFixtures;
 use Tests\TestCase;
 
@@ -47,11 +48,20 @@ class FetchVestixDataTest extends TestCase
             'vestix.alpha_vantage.intra_request_delay' => 0,
             'vestix.polygon.api_key' => null,
             'vestix.polygon.rate_limit_delay' => 0,
+            'vestix.finnhub.api_key' => null,
         ]);
+
+        MarketDataTestTime::freezeBeforeUsMarketClose();
 
         Cache::forget('vestix:last_api_fetch');
         Cache::forget('vestix:sync_in_progress');
         Cache::lock(MarketDataFetcher::syncLockKey())->forceRelease();
+    }
+
+    protected function tearDown(): void
+    {
+        MarketDataTestTime::reset();
+        parent::tearDown();
     }
 
     public function test_command_sets_cache_when_no_open_positions(): void
@@ -114,7 +124,14 @@ class FetchVestixDataTest extends TestCase
 
         Http::fake([
             'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
-            '*' => Http::sequence()
+            'www.alphavantage.co/*' => Http::sequence()
+                ->push([
+                    'Global Quote' => [
+                        '03. high' => '79.50',
+                        '04. low' => '76.80',
+                        '05. price' => '78.20',
+                    ],
+                ])
                 ->push([
                     'Global Quote' => [
                         '03. high' => '79.50',
@@ -256,7 +273,8 @@ class FetchVestixDataTest extends TestCase
 
         Http::fake([
             'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
-            '*' => Http::sequence()
+            'www.alphavantage.co/*' => Http::sequence()
+                ->push(['Note' => 'Daily series unavailable in test.'])
                 ->push(['Global Quote' => ['05. price' => '78.20']])
                 ->push([
                     'Technical Analysis: SMA' => [
@@ -291,7 +309,8 @@ class FetchVestixDataTest extends TestCase
 
         Http::fake([
             'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
-            '*' => Http::sequence()
+            'www.alphavantage.co/*' => Http::sequence()
+                ->push(['Note' => 'Daily series unavailable in test.'])
                 ->push(['Global Quote' => ['05. price' => '78.20']])
                 ->push(['Note' => 'API rate limit reached.'])
                 ->push(['Technical Analysis: ATR' => ['2024-01-03' => ['ATR' => '2.80']]]),
@@ -340,6 +359,7 @@ class FetchVestixDataTest extends TestCase
         Http::fake([
             'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
             'www.alphavantage.co/*' => Http::sequence()
+                ->push(['Note' => 'Daily series unavailable in test.'])
                 ->push(['Global Quote' => ['05. price' => '100.50']])
                 ->push(['Technical Analysis: SMA' => $this->smaSeries()])
                 ->push(['Technical Analysis: SMA' => ['2024-01-06' => ['SMA' => '95.00']]])

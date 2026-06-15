@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Contracts\DailyBarProvider;
 use App\Contracts\QuoteProvider;
 use App\Models\Position;
 use App\Models\Squad;
 use App\Policies\PositionPolicy;
 use App\Policies\SquadPolicy;
+use App\Services\FallbackDailyBarProvider;
 use App\Services\FallbackQuoteProvider;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse as RegistrationResponseContract;
@@ -24,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(QuoteProvider::class, FallbackQuoteProvider::class);
+        $this->app->bind(DailyBarProvider::class, FallbackDailyBarProvider::class);
         $this->app->bind(LoginResponseContract::class, LoginResponse::class);
         $this->app->bind(RegistrationResponseContract::class, RegistrationResponse::class);
     }

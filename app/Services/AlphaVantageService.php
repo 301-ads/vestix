@@ -97,6 +97,26 @@ class AlphaVantageService
         return $this->latestIndicatorValue($data, 'Technical Analysis: ATR', 'ATR');
     }
 
+    /**
+     * @return array<string, array{open: string, high: string, low: string, close: string, volume: string}>|null
+     */
+    public function fetchDailyTimeSeries(string $ticker): ?array
+    {
+        $data = $this->request([
+            'function' => 'TIME_SERIES_DAILY_ADJUSTED',
+            'symbol' => $ticker,
+            'outputsize' => 'compact',
+        ]);
+
+        $series = $data['Time Series (Daily)'] ?? null;
+
+        if (! is_array($series) || $series === []) {
+            return null;
+        }
+
+        return $series;
+    }
+
     private function request(array $params): ?array
     {
         $apiKey = config('vestix.alpha_vantage.api_key');

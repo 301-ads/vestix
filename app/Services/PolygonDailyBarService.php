@@ -2,11 +2,12 @@
 
 namespace App\Services;
 
+use App\Contracts\DailyBarProvider;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class PolygonDailyBarService
+class PolygonDailyBarService implements DailyBarProvider
 {
     /**
      * @return array{

@@ -14,6 +14,12 @@ return [
         'rate_limit_delay' => (int) env('POLYGON_RATE_LIMIT_DELAY', 12),
     ],
 
+    'finnhub' => [
+        'api_key' => env('FINNHUB_API_KEY'),
+        'base_url' => env('FINNHUB_BASE_URL', 'https://finnhub.io/api/v1'),
+        'rate_limit_delay' => (int) env('FINNHUB_RATE_LIMIT_DELAY', 1),
+    ],
+
     'tradingview' => [
         'symbol_search_url' => env('TRADINGVIEW_SYMBOL_SEARCH_URL', 'https://symbol-search.tradingview.com/symbol_search/'),
         'logo_cdn_url' => env('TRADINGVIEW_LOGO_CDN_URL', 'https://s3-symbol-logo.tradingview.com'),

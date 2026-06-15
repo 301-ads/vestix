@@ -10,7 +10,7 @@ Artisan::command('inspire', function () {
 
 Schedule::command('vestix:fetch-data')
     ->weekdays()
-    ->dailyAt('22:05')
+    ->dailyAt('23:00')
     ->timezone('Europe/Amsterdam');
 
 Schedule::command('vestix:fetch-data --pre-close')

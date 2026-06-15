@@ -10,11 +10,11 @@ use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Widgets\SetupRadarWidget;
 use App\Models\Position;
-use App\Services\AlphaVantageService;
 use App\Services\MarketDataFetcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+use Tests\Support\MarketDataTestTime;
 use Tests\Support\PolygonFixtures;
 use Tests\TestCase;
 
@@ -382,22 +382,23 @@ class ScoutWatchlistTest extends TestCase
 
     public function test_market_data_fetcher_syncs_position(): void
     {
+        MarketDataTestTime::freezeBeforeUsMarketClose();
+
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+            'vestix.finnhub.api_key' => null,
+            'vestix.alpha_vantage.api_key' => null,
+        ]);
+
         $scout = Position::factory()->scout()->create(['ticker' => 'TSLA']);
 
-        $this->mock(AlphaVantageService::class, function ($mock): void {
-            $mock->shouldReceive('fetchGlobalQuote')->once()->with('TSLA')->andReturn([
-                'close' => 250.00,
-                'high' => 255.00,
-                'low' => 245.00,
-            ]);
-            $mock->shouldReceive('fetchSma20Pair')->once()->with('TSLA')->andReturn([
-                'latest' => 245.00,
-                'five_days_ago' => 244.00,
-            ]);
-            $mock->shouldReceive('fetchSma50')->once()->with('TSLA')->andReturn(240.00);
-            $mock->shouldReceive('fetchAtr14')->once()->with('TSLA')->andReturn(8.00);
-            $mock->shouldReceive('fetchRsi14')->once()->with('TSLA')->andReturn(48.00);
-        });
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 250.00),
+            ]),
+        ]);
 
         $fetcher = app(MarketDataFetcher::class);
 
@@ -405,6 +406,8 @@ class ScoutWatchlistTest extends TestCase
 
         $scout->refresh();
 
-        $this->assertEquals(250.00, (float) $scout->latest_close_price);
+        $this->assertEqualsWithDelta(250.00, (float) $scout->latest_close_price, 0.01);
+
+        MarketDataTestTime::reset();
     }
 }

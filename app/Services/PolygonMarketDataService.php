@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Contracts\DailyBarProvider;
+use App\Contracts\QuoteProvider;
 use App\Support\TechnicalIndicators;
+use App\Support\UsMarketSession;
 use Illuminate\Support\Facades\Log;
 
 class PolygonMarketDataService
@@ -10,7 +13,8 @@ class PolygonMarketDataService
     private const MIN_BARS = 50;
 
     public function __construct(
-        private PolygonDailyBarService $polygonDailyBars,
+        private DailyBarProvider $dailyBars,
+        private QuoteProvider $quoteProvider,
     ) {}
 
     /**
@@ -28,20 +32,25 @@ class PolygonMarketDataService
      */
     public function fetchForTicker(string $ticker, ?bool $bounceVolumeAboveAverage = null): ?array
     {
-        // ~90 calendar days ≈ 65 trading days (weekends/holidays); 70 days was often < 55 bars.
-        $bars = $this->polygonDailyBars->fetchRecentBars($ticker, lookbackDays: 90, limit: 120);
+        $bars = $this->dailyBars->fetchRecentBars($ticker, lookbackDays: 90, limit: 120);
 
         if ($bars === null) {
             return null;
         }
 
         if (count($bars['bars']) < self::MIN_BARS) {
-            Log::warning('Polygon market data insufficient bars for indicators.', [
+            Log::warning('Market data insufficient bars for indicators.', [
                 'ticker' => $ticker,
                 'count' => count($bars['bars']),
                 'required' => self::MIN_BARS,
             ]);
 
+            return null;
+        }
+
+        $bars = $this->supplementLatestSessionFromQuote($ticker, $bars);
+
+        if ($bars === null) {
             return null;
         }
 
@@ -82,6 +91,93 @@ class PolygonMarketDataService
         }
 
         return $payload;
+    }
+
+    /**
+     * Daily bars from Polygon Basic often lag behind the latest session.
+     * After US market close we refresh that session via the quote provider chain
+     * (Finnhub → Alpha Vantage → Polygon).
+     *
+     * @param  array{
+     *     today: array{open: float, high: float, low: float, close: float, volume: float},
+     *     adv30: float,
+     *     bars: array<int, array{open: float, high: float, low: float, close: float, volume: float, date: string}>,
+     * }  $barsPayload
+     * @return array{
+     *     today: array{open: float, high: float, low: float, close: float, volume: float},
+     *     adv30: float,
+     *     bars: array<int, array{open: float, high: float, low: float, close: float, volume: float, date: string}>,
+     * }|null
+     */
+    private function supplementLatestSessionFromQuote(string $ticker, array $barsPayload): ?array
+    {
+        $lastBar = $barsPayload['bars'][array_key_last($barsPayload['bars'])];
+
+        if (! UsMarketSession::needsLatestSessionQuote($lastBar['date'])) {
+            return $barsPayload;
+        }
+
+        $quote = $this->quoteProvider->fetchSessionQuote($ticker);
+
+        if ($quote === null || ! isset($quote['close'])) {
+            Log::warning('Latest session quote refresh failed: no quote provider available.', [
+                'ticker' => $ticker,
+                'polygon_bar_date' => $lastBar['date'],
+            ]);
+
+            return $barsPayload;
+        }
+
+        $sessionDate = UsMarketSession::expectedLastCompletedSessionDate()->toDateString();
+        $bars = $barsPayload['bars'];
+
+        if ($bars !== [] && end($bars)['date'] === $sessionDate) {
+            array_pop($bars);
+        }
+
+        $close = (float) $quote['close'];
+        $high = (float) ($quote['high'] ?? $close);
+        $low = (float) ($quote['low'] ?? $close);
+        $previousClose = $bars !== [] ? (float) $bars[array_key_last($bars)]['close'] : $close;
+
+        $bars[] = [
+            'open' => $previousClose,
+            'high' => $high,
+            'low' => $low,
+            'close' => $close,
+            'volume' => $barsPayload['today']['volume'],
+            'date' => $sessionDate,
+        ];
+
+        $priorBars = array_slice($bars, 0, -1);
+        $advBars = array_slice($priorBars, -30);
+        $adv30 = $advBars === []
+            ? $barsPayload['adv30']
+            : array_sum(array_column($advBars, 'volume')) / count($advBars);
+
+        $today = $bars[array_key_last($bars)];
+
+        Log::info('Latest session refreshed from quote provider.', [
+            'ticker' => $ticker,
+            'provider' => $quote['provider'] ?? 'unknown',
+            'session_date' => $sessionDate,
+            'bar_date_before_refresh' => $lastBar['date'],
+            'bar_close_before_refresh' => $lastBar['close'],
+            'refreshed_close' => $close,
+            'after_market_close' => UsMarketSession::isAfterMarketClose(),
+        ]);
+
+        return [
+            'today' => [
+                'open' => $today['open'],
+                'high' => $today['high'],
+                'low' => $today['low'],
+                'close' => $today['close'],
+                'volume' => $today['volume'],
+            ],
+            'adv30' => $adv30,
+            'bars' => $bars,
+        ];
     }
 
     /**
