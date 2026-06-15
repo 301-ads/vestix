@@ -32,8 +32,10 @@ Environment (Forge → Site → Environment)
   [ ] Fill overige keys: API keys, mail, PHP_BINARY
 
 Deployment (Forge → Site → Deployment)
-  [ ] Paste contents of forge/deploy.sh into Deploy Script
+  [ ] Zero-downtime deploy script: zie forge/deploy.sh
+      (Forge variabelen: $CREATE_RELEASE, $FORGE_RELEASE_DIRECTORY, $ACTIVATE_RELEASE)
   [ ] Run first deploy (Deploy Now)
+  [ ] SSH-pad naar actieve release: /home/forge/vestix.io/current
 
 Data migreren vanuit lokaal (optioneel)
   [ ] Zelfde APP_KEY als lokaal in Forge Environment (vereist voor api_credentials)
@@ -46,7 +48,7 @@ Data migreren vanuit lokaal (optioneel)
   [ ] scp vestix-export.tar.gz vestix-storage.tar.gz forge@vestix.io:/home/forge/vestix.io/
 
   Op productie (SSH, na eerste deploy + migrations):
-  [ ] cd /home/forge/vestix.io
+  [ ] cd /home/forge/vestix.io/current
   [ ] tar -xzf vestix-export.tar.gz
   [ ] tar -xzf vestix-storage.tar.gz
   [ ] php artisan vestix:import-data storage/app/vestix-export/<timestamp>
