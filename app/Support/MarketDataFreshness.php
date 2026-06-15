@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\Cache;
 
 class MarketDataFreshness
 {
+    private const STALE_MINUTES = 20;
+
+    private const TICKER_FETCH_TTL_MINUTES = 30;
+
     public static function isSyncInProgress(): bool
     {
         $startedAt = self::resolveTimestamp(Cache::get('vestix:sync_in_progress'));
@@ -17,7 +21,7 @@ class MarketDataFreshness
             return false;
         }
 
-        if ($startedAt->lessThan(now()->subMinutes(20))) {
+        if ($startedAt->lessThan(now()->subMinutes(self::STALE_MINUTES))) {
             self::markSyncFinished();
 
             return false;
@@ -34,6 +38,121 @@ class MarketDataFreshness
     public static function markSyncFinished(): void
     {
         Cache::forget('vestix:sync_in_progress');
+    }
+
+    public static function markPositionSyncStarted(int $positionId, ?int $userId = null): void
+    {
+        Cache::put(self::positionSyncKey($positionId), [
+            'started_at' => now()->toIso8601String(),
+            'user_id' => $userId,
+        ], now()->addHours(2));
+    }
+
+    public static function isPositionSyncInProgress(int $positionId): bool
+    {
+        $payload = Cache::get(self::positionSyncKey($positionId));
+
+        if (! is_array($payload)) {
+            return false;
+        }
+
+        $startedAt = self::resolveTimestamp($payload['started_at'] ?? null);
+
+        if ($startedAt === null) {
+            self::markPositionSyncFinished($positionId);
+
+            return false;
+        }
+
+        if ($startedAt->lessThan(now()->subMinutes(self::STALE_MINUTES))) {
+            self::markPositionSyncFinished($positionId);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    public static function markPositionSyncFinished(int $positionId): void
+    {
+        Cache::forget(self::positionSyncKey($positionId));
+    }
+
+    public static function markTickerSyncStarted(int $userId, string $ticker): void
+    {
+        $ticker = strtoupper(trim($ticker));
+
+        Cache::put(self::tickerSyncKey($userId, $ticker), [
+            'started_at' => now()->toIso8601String(),
+        ], now()->addHours(2));
+    }
+
+    public static function isTickerSyncInProgress(int $userId, string $ticker): bool
+    {
+        $ticker = strtoupper(trim($ticker));
+        $payload = Cache::get(self::tickerSyncKey($userId, $ticker));
+
+        if (! is_array($payload)) {
+            return false;
+        }
+
+        $startedAt = self::resolveTimestamp($payload['started_at'] ?? null);
+
+        if ($startedAt === null) {
+            self::markTickerSyncFinished($userId, $ticker);
+
+            return false;
+        }
+
+        if ($startedAt->lessThan(now()->subMinutes(self::STALE_MINUTES))) {
+            self::markTickerSyncFinished($userId, $ticker);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    public static function markTickerSyncFinished(int $userId, string $ticker): void
+    {
+        Cache::forget(self::tickerSyncKey($userId, strtoupper(trim($ticker))));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public static function storeTickerFetchResult(int $userId, string $ticker, array $payload): void
+    {
+        Cache::put(
+            self::tickerFetchKey($userId, $ticker),
+            $payload,
+            now()->addMinutes(self::TICKER_FETCH_TTL_MINUTES),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function pullTickerFetchResult(int $userId, string $ticker): ?array
+    {
+        $payload = Cache::pull(self::tickerFetchKey($userId, strtoupper(trim($ticker))));
+
+        return is_array($payload) ? $payload : null;
+    }
+
+    public static function positionSyncKey(int $positionId): string
+    {
+        return "vestix:position_sync:{$positionId}";
+    }
+
+    public static function tickerSyncKey(int $userId, string $ticker): string
+    {
+        return 'vestix:ticker_sync:'.$userId.':'.strtoupper(trim($ticker));
+    }
+
+    public static function tickerFetchKey(int $userId, string $ticker): string
+    {
+        return 'vestix:ticker_fetch:'.$userId.':'.strtoupper(trim($ticker));
     }
 
     public static function lastFetchAt(): ?Carbon

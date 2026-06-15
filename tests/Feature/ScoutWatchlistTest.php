@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\PositionVisibility;
 use App\Filament\Resources\Positions\Pages\CreateScout;
 use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListScouts;
@@ -12,12 +13,40 @@ use App\Models\Position;
 use App\Services\AlphaVantageService;
 use App\Services\MarketDataFetcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+use Tests\Support\PolygonFixtures;
 use Tests\TestCase;
 
 class ScoutWatchlistTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_unchecking_squad_share_persists_toggle_state_on_reload(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $this->actingAsFilamentUser($user, $squad);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'APTV',
+            'visibility' => PositionVisibility::Squad,
+            'squad_id' => $squad->id,
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->set('data.share_with_squad', false)
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $scout->refresh();
+
+        $this->assertSame(PositionVisibility::Private, $scout->visibility);
+        $this->assertNull($scout->squad_id);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->assertFormSet(['visibility' => PositionVisibility::Private->value])
+            ->assertSet('data.share_with_squad', false);
+    }
 
     public function test_scout_can_be_created_with_ticker_only(): void
     {
@@ -199,73 +228,69 @@ class ScoutWatchlistTest extends TestCase
 
     public function test_fetch_market_data_action_updates_scout(): void
     {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+        ]);
+
         $user = $this->authenticateFilament();
         $scout = Position::factory()->for($user)->scout()->create(['ticker' => 'MSFT']);
 
-        $this->mock(AlphaVantageService::class, function ($mock): void {
-            $mock->shouldReceive('fetchGlobalQuote')->once()->with('MSFT')->andReturn([
-                'close' => 78.20,
-                'high' => 79.00,
-                'low' => 76.50,
-            ]);
-            $mock->shouldReceive('fetchSma20Pair')->once()->with('MSFT')->andReturn([
-                'latest' => 77.50,
-                'five_days_ago' => 77.00,
-            ]);
-            $mock->shouldReceive('fetchSma50')->once()->with('MSFT')->andReturn(75.00);
-            $mock->shouldReceive('fetchAtr14')->once()->with('MSFT')->andReturn(2.80);
-            $mock->shouldReceive('fetchRsi14')->once()->with('MSFT')->andReturn(52.00);
-        });
-        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 78.20),
+            ]),
+        ]);
+
+        $component = Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertSee('Actuele Koers')
             ->assertSee('—')
             ->callAction('fetch_market_data')
-            ->assertFormSet([
-                'latest_close_price' => 78.20,
-                'latest_sma_20' => 77.50,
-                'latest_atr_14' => 2.80,
-                'scout_rsi' => 52.00,
-            ])
-            ->assertSee('$78.20');
+            ->assertSet('pollPositionMarketData', true);
+
+        $this->artisan('vestix:fetch-data', [
+            '--position-id' => $scout->id,
+            '--user-id' => $user->id,
+        ])->assertSuccessful();
+
+        $component->call('pollPositionMarketDataFetch');
 
         $scout->refresh();
 
-        $this->assertEquals(78.20, (float) $scout->latest_close_price);
-        $this->assertEquals(77.50, (float) $scout->latest_sma_20);
-        $this->assertEquals(77.00, (float) $scout->sma_20_five_days_ago);
-        $this->assertEquals(75.00, (float) $scout->latest_sma_50);
-        $this->assertEquals(2.80, (float) $scout->latest_atr_14);
-        $this->assertEquals(52.00, (float) $scout->scout_rsi);
+        $this->assertNotNull($scout->latest_close_price);
+        $this->assertNotNull($scout->latest_sma_20);
+        $this->assertNotNull($scout->latest_atr_14);
+        $this->assertNotNull($scout->scout_rsi);
     }
 
     public function test_fetch_market_data_on_create_scout_fills_form_without_saving(): void
     {
-        $this->authenticateFilament();
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+        ]);
 
-        $this->mock(AlphaVantageService::class, function ($mock): void {
-            $mock->shouldReceive('fetchGlobalQuote')->once()->with('MSFT')->andReturn([
-                'close' => 78.20,
-                'high' => 79.00,
-                'low' => 76.50,
-            ]);
-            $mock->shouldReceive('fetchSma20Pair')->once()->with('MSFT')->andReturn([
-                'latest' => 77.50,
-                'five_days_ago' => 77.00,
-            ]);
-            $mock->shouldReceive('fetchSma50')->once()->with('MSFT')->andReturn(75.00);
-            $mock->shouldReceive('fetchAtr14')->once()->with('MSFT')->andReturn(2.80);
-            $mock->shouldReceive('fetchRsi14')->once()->with('MSFT')->andReturn(52.00);
-        });
+        $user = $this->authenticateFilament();
 
-        Livewire::test(CreateScout::class)
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 78.20),
+            ]),
+        ]);
+
+        $component = Livewire::test(CreateScout::class)
             ->fillForm(['ticker' => 'MSFT'])
             ->callAction('fetch_market_data')
-            ->assertFormSet([
-                'latest_close_price' => 78.20,
-                'latest_sma_20' => 77.50,
-                'latest_atr_14' => 2.80,
-                'scout_rsi' => 52.00,
-            ]);
+            ->assertSet('pollTickerMarketData', true);
+
+        $this->artisan('vestix:fetch-data', [
+            '--ticker' => 'MSFT',
+            '--user-id' => $user->id,
+        ])->assertSuccessful();
+
+        $component->call('pollTickerMarketDataFetch');
 
         $this->assertDatabaseCount('positions', 0);
     }

@@ -9,6 +9,7 @@ use App\Support\MarketDataFreshness;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\PolygonFixtures;
 use Tests\TestCase;
 
 class FetchVestixDataTest extends TestCase
@@ -45,6 +46,7 @@ class FetchVestixDataTest extends TestCase
             'vestix.alpha_vantage.rate_limit_delay' => 0,
             'vestix.alpha_vantage.intra_request_delay' => 0,
             'vestix.polygon.api_key' => null,
+            'vestix.polygon.rate_limit_delay' => 0,
         ]);
 
         Cache::forget('vestix:last_api_fetch');
@@ -61,7 +63,45 @@ class FetchVestixDataTest extends TestCase
         $this->assertNotNull(Cache::get('vestix:last_api_fetch'));
     }
 
-    public function test_command_updates_position_when_all_data_is_available(): void
+    public function test_command_updates_position_when_polygon_data_is_available(): void
+    {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'WDC',
+            'latest_close_price' => null,
+            'latest_sma_20' => null,
+            'latest_atr_14' => null,
+            'current_sl' => 74.50,
+            'status' => 'open',
+        ]);
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 78.20),
+            ]),
+        ]);
+
+        $this->artisan('vestix:fetch-data')
+            ->expectsOutput('Succesvol geüpdatet: WDC')
+            ->assertSuccessful();
+
+        $position->refresh();
+
+        $this->assertNotNull($position->latest_close_price);
+        $this->assertNotNull($position->latest_sma_20);
+        $this->assertNotNull($position->latest_atr_14);
+        $this->assertNotNull($position->scout_rsi);
+        $this->assertNotNull($position->new_sl);
+        $this->assertEquals('UPDATE', $position->action_command);
+        $this->assertNotNull(Cache::get('vestix:last_api_fetch'));
+    }
+
+    public function test_command_updates_position_when_alpha_vantage_fallback_is_available(): void
     {
         $position = Position::factory()->create([
             'ticker' => 'WDC',
@@ -73,6 +113,7 @@ class FetchVestixDataTest extends TestCase
         ]);
 
         Http::fake([
+            'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
             '*' => Http::sequence()
                 ->push([
                     'Global Quote' => [
@@ -116,7 +157,71 @@ class FetchVestixDataTest extends TestCase
         $this->assertEquals(52.00, (float) $position->scout_rsi);
         $this->assertEquals(76.10, $position->new_sl);
         $this->assertEquals('UPDATE', $position->action_command);
-        $this->assertNotNull(Cache::get('vestix:last_api_fetch'));
+    }
+
+    public function test_command_fetches_single_position(): void
+    {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+        ]);
+
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->scout()->create(['ticker' => 'MSFT']);
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 78.20),
+            ]),
+        ]);
+
+        $this->artisan('vestix:fetch-data', [
+            '--position-id' => $position->id,
+            '--user-id' => $user->id,
+        ])->expectsOutput('Succesvol geüpdatet: MSFT')
+            ->assertSuccessful();
+
+        $position->refresh();
+
+        $this->assertNotNull($position->latest_close_price);
+        $this->assertFalse(MarketDataFreshness::isPositionSyncInProgress($position->id));
+
+        $notification = $user->fresh()->notifications()->first();
+        $this->assertNotNull($notification);
+        $this->assertSame('Marktdata bijgewerkt', $notification->data['title']);
+        $this->assertStringContainsString('MSFT', $notification->data['body']);
+    }
+
+    public function test_command_fetches_single_ticker_for_create_form(): void
+    {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+        ]);
+
+        $user = $this->authenticateFilament();
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 78.20),
+            ]),
+        ]);
+
+        $this->artisan('vestix:fetch-data', [
+            '--ticker' => 'MSFT',
+            '--user-id' => $user->id,
+        ])->assertSuccessful();
+
+        $payload = Cache::get(MarketDataFreshness::tickerFetchKey($user->id, 'MSFT'));
+
+        $this->assertIsArray($payload);
+        $this->assertEqualsWithDelta(78.20, $payload['latest_close_price'], 0.05);
+
+        $notification = $user->fresh()->notifications()->first();
+        $this->assertNotNull($notification);
+        $this->assertSame('Marktdata klaar', $notification->data['title']);
     }
 
     public function test_command_clears_sync_in_progress_flag(): void
@@ -140,7 +245,7 @@ class FetchVestixDataTest extends TestCase
     public function test_command_sends_completion_notification_to_user(): void
     {
         $user = $this->authenticateFilament();
-        $position = Position::factory()->for($user)->create([
+        Position::factory()->for($user)->create([
             'ticker' => 'WDC',
             'latest_close_price' => null,
             'latest_sma_20' => null,
@@ -150,31 +255,18 @@ class FetchVestixDataTest extends TestCase
         ]);
 
         Http::fake([
+            'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
             '*' => Http::sequence()
-                ->push([
-                    'Global Quote' => ['05. price' => '78.20'],
-                ])
+                ->push(['Global Quote' => ['05. price' => '78.20']])
                 ->push([
                     'Technical Analysis: SMA' => [
                         '2024-01-02' => ['SMA' => '77.00'],
                         '2024-01-03' => ['SMA' => '77.50'],
                     ],
                 ])
-                ->push([
-                    'Technical Analysis: SMA' => [
-                        '2024-01-03' => ['SMA' => '75.00'],
-                    ],
-                ])
-                ->push([
-                    'Technical Analysis: ATR' => [
-                        '2024-01-03' => ['ATR' => '2.80'],
-                    ],
-                ])
-                ->push([
-                    'Technical Analysis: RSI' => [
-                        '2024-01-03' => ['RSI' => '52.00'],
-                    ],
-                ]),
+                ->push(['Technical Analysis: SMA' => ['2024-01-03' => ['SMA' => '75.00']]])
+                ->push(['Technical Analysis: ATR' => ['2024-01-03' => ['ATR' => '2.80']]])
+                ->push(['Technical Analysis: RSI' => ['2024-01-03' => ['RSI' => '52.00']]]),
         ]);
 
         $this->artisan('vestix:fetch-data', ['--user-id' => $user->id])
@@ -198,18 +290,11 @@ class FetchVestixDataTest extends TestCase
         ]);
 
         Http::fake([
+            'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
             '*' => Http::sequence()
-                ->push([
-                    'Global Quote' => ['05. price' => '78.20'],
-                ])
-                ->push([
-                    'Note' => 'API rate limit reached.',
-                ])
-                ->push([
-                    'Technical Analysis: ATR' => [
-                        '2024-01-03' => ['ATR' => '2.80'],
-                    ],
-                ]),
+                ->push(['Global Quote' => ['05. price' => '78.20']])
+                ->push(['Note' => 'API rate limit reached.'])
+                ->push(['Technical Analysis: ATR' => ['2024-01-03' => ['ATR' => '2.80']]]),
         ]);
 
         $this->artisan('vestix:fetch-data')
@@ -253,6 +338,7 @@ class FetchVestixDataTest extends TestCase
         ]);
 
         Http::fake([
+            'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
             'www.alphavantage.co/*' => Http::sequence()
                 ->push(['Global Quote' => ['05. price' => '100.50']])
                 ->push(['Technical Analysis: SMA' => $this->smaSeries()])
@@ -289,24 +375,18 @@ class FetchVestixDataTest extends TestCase
 
         $polygonBars = [];
 
-        for ($day = 1; $day <= 31; $day++) {
+        for ($day = 1; $day <= 60; $day++) {
             $polygonBars[] = [
                 'o' => 103,
                 'h' => 104,
                 'l' => 102,
                 'c' => 103.60,
                 'v' => 1_000_000,
-                't' => now()->subDays(31 - $day)->startOfDay()->timestamp * 1000,
+                't' => now()->subDays(60 - $day)->startOfDay()->timestamp * 1000,
             ];
         }
 
         Http::fake([
-            'www.alphavantage.co/*' => Http::sequence()
-                ->push(['Global Quote' => ['05. price' => '103.60']])
-                ->push(['Technical Analysis: SMA' => $this->smaSeries()])
-                ->push(['Technical Analysis: SMA' => ['2024-01-06' => ['SMA' => '95.00']]])
-                ->push(['Technical Analysis: ATR' => ['2024-01-06' => ['ATR' => '2.00']]])
-                ->push(['Technical Analysis: RSI' => ['2024-01-06' => ['RSI' => '50.00']]]),
             'api.polygon.io/*' => Http::response([
                 'status' => 'OK',
                 'results' => $polygonBars,

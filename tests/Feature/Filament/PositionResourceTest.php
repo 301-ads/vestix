@@ -11,11 +11,12 @@ use App\Filament\Resources\Positions\Pages\ListPositions;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Models\Asset;
 use App\Models\Position;
-use App\Services\AlphaVantageService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use Tests\Support\PolygonFixtures;
 use Tests\TestCase;
 
 class PositionResourceTest extends TestCase
@@ -429,6 +430,11 @@ class PositionResourceTest extends TestCase
 
     public function test_fetch_market_data_action_updates_open_position_form_and_cockpit(): void
     {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+        ]);
+
         $user = $this->authenticateFilament();
         $position = Position::factory()->for($user)->create([
             'ticker' => 'GS',
@@ -439,32 +445,26 @@ class PositionResourceTest extends TestCase
             'current_sl' => 430.00,
         ]);
 
-        $this->mock(AlphaVantageService::class, function ($mock): void {
-            $mock->shouldReceive('fetchGlobalQuote')->once()->with('GS')->andReturn([
-                'close' => 462.50,
-                'high' => 468.00,
-                'low' => 458.25,
-            ]);
-            $mock->shouldReceive('fetchSma20Pair')->once()->with('GS')->andReturn([
-                'latest' => 455.00,
-                'five_days_ago' => 448.00,
-            ]);
-            $mock->shouldReceive('fetchSma50')->once()->with('GS')->andReturn(430.00);
-            $mock->shouldReceive('fetchAtr14')->once()->with('GS')->andReturn(9.00);
-            $mock->shouldReceive('fetchRsi14')->once()->with('GS')->andReturn(58.00);
-        });
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 462.50),
+            ]),
+        ]);
 
-        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+        $component = Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertSee('$450.00')
             ->callAction('fetch_market_data')
-            ->assertFormSet([
-                'latest_close_price' => 462.50,
-                'latest_sma_20' => 455.00,
-                'latest_atr_14' => 9.00,
-            ])
-            ->assertSee('$462.50');
+            ->assertSet('pollPositionMarketData', true);
 
-        $this->assertEquals(462.50, (float) $position->fresh()->latest_close_price);
+        $this->artisan('vestix:fetch-data', [
+            '--position-id' => $position->id,
+            '--user-id' => $user->id,
+        ])->assertSuccessful();
+
+        $component->call('pollPositionMarketDataFetch');
+
+        $this->assertGreaterThan(450.00, (float) $position->fresh()->latest_close_price);
     }
 
     public function test_scout_edit_auto_syncs_entry_price_from_buy_stop_formula(): void

@@ -33,6 +33,7 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\HtmlString;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Livewire\Livewire;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -97,6 +98,32 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::PAGE_HEADER_ACTIONS_BEFORE,
                 fn (): string => view('filament.dashboard.market-data-status')->render(),
                 scopes: [Dashboard::class],
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                function (): string {
+                    $livewire = Livewire::current();
+
+                    if (! is_object($livewire)) {
+                        return '';
+                    }
+
+                    if (property_exists($livewire, 'pollPositionMarketData') && $livewire->pollPositionMarketData) {
+                        return view('filament.hooks.market-data-poll', [
+                            'poll' => true,
+                            'method' => 'pollPositionMarketDataFetch',
+                        ])->render();
+                    }
+
+                    if (property_exists($livewire, 'pollTickerMarketData') && $livewire->pollTickerMarketData) {
+                        return view('filament.hooks.market-data-poll', [
+                            'poll' => true,
+                            'method' => 'pollTickerMarketDataFetch',
+                        ])->render();
+                    }
+
+                    return '';
+                },
             )
             ->renderHook(
                 PanelsRenderHook::STYLES_AFTER,

@@ -4,20 +4,22 @@ namespace App\Filament\Resources\Positions\Pages;
 
 use App\Enums\PositionVisibility;
 use App\Events\SquadRadarTargetPosted;
+use App\Filament\Concerns\PollsTickerMarketData;
 use App\Filament\Resources\Positions\Schemas\PositionForm;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Models\Squad;
-use App\Services\MarketDataFetcher;
 use App\Services\SquadContext;
-use App\Support\FilamentNotifier;
+use App\Support\MarketDataFetchDispatcher;
+use App\Support\MarketDataFreshness;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Cache;
 
 class CreateScout extends CreateRecord
 {
+    use PollsTickerMarketData;
+
     protected static string $resource = ScoutResource::class;
 
     protected static ?string $title = 'Scout toevoegen';
@@ -29,78 +31,72 @@ class CreateScout extends CreateRecord
         return PositionForm::configure($schema, scoutMode: true);
     }
 
+    public function mount(): void
+    {
+        parent::mount();
+
+        $ticker = strtoupper(trim((string) ($this->form->getRawState()['ticker'] ?? '')));
+        $userId = auth()->id();
+
+        if ($ticker !== '' && $userId !== null && MarketDataFreshness::isTickerSyncInProgress($userId, $ticker)) {
+            $this->startPollingTickerMarketData($ticker);
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         return [
             Action::make('fetch_market_data')
-                ->label('Data ophalen')
-                ->tooltip('Haal actuele koers (Polygon/Alpha Vantage), SMA20, SMA50, ATR14 en RSI op')
+                ->label(fn (): string => $this->pollingTicker !== null && MarketDataFreshness::isTickerSyncInProgress(
+                    auth()->id() ?? 0,
+                    $this->pollingTicker,
+                ) ? 'Bezig…' : 'Data ophalen')
+                ->tooltip('Haal actuele koers (Polygon), SMA20, SMA50, ATR14 en RSI op')
                 ->icon('heroicon-o-arrow-path')
                 ->color('success')
-                ->action(function (MarketDataFetcher $marketDataFetcher): void {
-                    $state = $this->form->getRawState();
-                    $ticker = strtoupper(trim((string) ($state['ticker'] ?? '')));
+                ->disabled(function (): bool {
+                    $ticker = strtoupper(trim((string) ($this->form->getRawState()['ticker'] ?? '')));
+                    $userId = auth()->id();
 
-                    if ($ticker === '') {
-                        FilamentNotifier::send(
-                            title: 'Ticker ontbreekt',
-                            body: 'Kies eerst een ticker voordat je marktdata ophaalt.',
-                            status: 'warning',
-                        );
+                    if ($ticker === '' || $userId === null) {
+                        return MarketDataFreshness::isSyncInProgress();
+                    }
 
+                    return MarketDataFreshness::isTickerSyncInProgress($userId, $ticker)
+                        || MarketDataFreshness::isSyncInProgress();
+                })
+                ->action(function (): void {
+                    $ticker = strtoupper(trim((string) ($this->form->getRawState()['ticker'] ?? '')));
+
+                    if (! MarketDataFetchDispatcher::dispatchTickerFetch($ticker)) {
                         return;
                     }
 
-                    $lock = Cache::lock(MarketDataFetcher::syncLockKey(), 120);
-
-                    if (! $lock->get()) {
-                        FilamentNotifier::send(
-                            title: 'API-sync bezig',
-                            body: 'Er loopt al een marktdata-sync. Wacht even en probeer opnieuw.',
-                            status: 'warning',
-                        );
-
-                        return;
-                    }
-
-                    try {
-                        $data = $marketDataFetcher->fetchForTicker($ticker, withDelays: true);
-
-                        if ($data === null) {
-                            FilamentNotifier::send(
-                                title: 'Marktdata onvolledig',
-                                body: 'Alpha Vantage gaf geen complete dataset terug (vaak rate limit: max 5 calls/min op gratis tier). Wacht ~1 minuut of vul handmatig in.',
-                                status: 'warning',
-                            );
-
-                            return;
-                        }
-
-                        $fill = array_merge($state, $data);
-
-                        $buyStop = Position::computeBuyStop(
-                            $state['signal_high'] ?? null,
-                            $data['latest_atr_14'],
-                        );
-
-                        if ($buyStop !== null) {
-                            $fill['advised_entry'] = $buyStop;
-                            $fill['entry_price'] = $buyStop;
-                        }
-
-                        $this->form->fill($fill);
-
-                        $close = '$'.number_format((float) $data['latest_close_price'], 2);
-
-                        FilamentNotifier::send(
-                            title: 'Marktdata bijgewerkt',
-                            body: "{$ticker}: koers {$close}, SMA20, SMA50, ATR en RSI ingevuld.",
-                        );
-                    } finally {
-                        $lock->release();
-                    }
+                    $this->startPollingTickerMarketData($ticker);
                 }),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $fill
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateTickerMarketDataFill(array $fill, array $data): array
+    {
+        $state = $this->form->getRawState();
+
+        $buyStop = Position::computeBuyStop(
+            $state['signal_high'] ?? null,
+            $data['latest_atr_14'],
+        );
+
+        if ($buyStop !== null) {
+            $fill['advised_entry'] = $buyStop;
+            $fill['entry_price'] = $buyStop;
+        }
+
+        return $fill;
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array

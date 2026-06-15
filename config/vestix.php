@@ -11,6 +11,7 @@ return [
     'polygon' => [
         'api_key' => env('POLYGON_API_KEY'),
         'base_url' => env('POLYGON_BASE_URL', 'https://api.polygon.io'),
+        'rate_limit_delay' => (int) env('POLYGON_RATE_LIMIT_DELAY', 12),
     ],
 
     'tradingview' => [

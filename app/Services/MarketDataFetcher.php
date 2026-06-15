@@ -9,7 +9,7 @@ class MarketDataFetcher
 {
     public function __construct(
         private AlphaVantageService $alphaVantage,
-        private PolygonQuoteProvider $polygon,
+        private PolygonMarketDataService $polygonMarketData,
         private PolygonDailyBarService $polygonDailyBars,
     ) {}
 
@@ -28,6 +28,51 @@ class MarketDataFetcher
      */
     public function fetchForTicker(string $ticker, bool $withDelays = true, ?bool $bounceVolumeAboveAverage = null): ?array
     {
+        $payload = $this->polygonMarketData->fetchForTicker($ticker, $bounceVolumeAboveAverage);
+
+        if ($payload === null && config('vestix.alpha_vantage.api_key')) {
+            $payload = $this->fetchFromAlphaVantage($ticker, $withDelays, $bounceVolumeAboveAverage);
+        }
+
+        if ($payload !== null) {
+            $this->touchApiFetchTimestamp();
+        }
+
+        return $payload;
+    }
+
+    public function syncPosition(Position $position, bool $withDelays = true): bool
+    {
+        $data = $this->fetchForTicker(
+            $position->ticker,
+            $withDelays,
+            $position->bounce_volume_above_average,
+        );
+
+        if ($data === null) {
+            return false;
+        }
+
+        $position->update($data);
+
+        return true;
+    }
+
+    /**
+     * @return array{
+     *     latest_close_price: float,
+     *     latest_sma_20: float,
+     *     sma_20_five_days_ago: float|null,
+     *     latest_sma_50: float,
+     *     latest_atr_14: float,
+     *     scout_rsi: float,
+     *     bounce_volume_above_average?: bool,
+     *     bounce_day_volume?: int|null,
+     *     avg_volume_30d?: int|null,
+     * }|null
+     */
+    private function fetchFromAlphaVantage(string $ticker, bool $withDelays, ?bool $bounceVolumeAboveAverage): ?array
+    {
         $delay = config('vestix.alpha_vantage.intra_request_delay', 2);
 
         $globalQuote = $this->alphaVantage->fetchGlobalQuote($ticker);
@@ -36,8 +81,7 @@ class MarketDataFetcher
             sleep($delay);
         }
 
-        $close = $this->polygon->fetchLivePrice($ticker)
-            ?? $globalQuote['close'] ?? null;
+        $close = $globalQuote['close'] ?? null;
 
         if ($withDelays) {
             sleep($delay);
@@ -68,8 +112,6 @@ class MarketDataFetcher
             return null;
         }
 
-        $this->touchApiFetchTimestamp();
-
         $payload = [
             'latest_close_price' => $close,
             'latest_sma_20' => $sma,
@@ -86,23 +128,6 @@ class MarketDataFetcher
         }
 
         return $payload;
-    }
-
-    public function syncPosition(Position $position, bool $withDelays = true): bool
-    {
-        $data = $this->fetchForTicker(
-            $position->ticker,
-            $withDelays,
-            $position->bounce_volume_above_average,
-        );
-
-        if ($data === null) {
-            return false;
-        }
-
-        $position->update($data);
-
-        return true;
     }
 
     /**

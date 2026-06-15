@@ -6,15 +6,15 @@ use App\Events\PositionLiquidated;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
-use App\Services\MarketDataFetcher;
 use App\Services\SquadContext;
 use App\Support\ChartScreenshotUpload;
 use App\Support\FilamentNotifier;
+use App\Support\MarketDataFetchDispatcher;
+use App\Support\MarketDataFreshness;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\HtmlString;
 
 class PositionRecordActions
@@ -22,66 +22,23 @@ class PositionRecordActions
     public static function fetchMarketData(): Action
     {
         return Action::make('fetch_market_data')
-            ->label('Data ophalen')
-            ->tooltip('Haal actuele koers (Polygon/Alpha Vantage), SMA20, SMA50, ATR14 en RSI op')
+            ->label(fn (Position $record): string => MarketDataFreshness::isPositionSyncInProgress($record->id)
+                ? 'Bezig…'
+                : 'Data ophalen')
+            ->tooltip('Haal actuele koers (Polygon), SMA20, SMA50, ATR14 en RSI op')
             ->icon('heroicon-o-arrow-path')
             ->color('success')
+            ->disabled(fn (Position $record): bool => MarketDataFreshness::isPositionSyncInProgress($record->id)
+                || MarketDataFreshness::isSyncInProgress())
             ->visible(fn (Position $record): bool => in_array($record->status, ['open', 'scout'], true))
-            ->action(function (Position $record, MarketDataFetcher $marketDataFetcher, $livewire): void {
-                $lock = Cache::lock(MarketDataFetcher::syncLockKey(), 120);
-
-                if (! $lock->get()) {
-                    FilamentNotifier::send(
-                        title: 'API-sync bezig',
-                        body: 'Er loopt al een marktdata-sync. Wacht even en probeer opnieuw.',
-                        status: 'warning',
-                    );
-
+            ->action(function (Position $record, $livewire): void {
+                if (! MarketDataFetchDispatcher::dispatchPositionFetch($record)) {
                     return;
                 }
 
-                try {
-                    if ($marketDataFetcher->syncPosition($record, withDelays: true)) {
-                        $record->refresh();
-
-                        if (is_object($livewire) && method_exists($livewire, 'getRecord')) {
-                            $livewire->getRecord()->refresh();
-                        }
-
-                        if (is_object($livewire) && method_exists($livewire, 'refreshFormData')) {
-                            $livewire->refreshFormData([
-                                'latest_close_price',
-                                'latest_sma_20',
-                                'sma_20_five_days_ago',
-                                'latest_sma_50',
-                                'latest_atr_14',
-                                'scout_rsi',
-                                'bounce_volume_above_average',
-                                'bounce_day_volume',
-                                'avg_volume_30d',
-                            ]);
-                        }
-
-                        $close = $record->latest_close_price !== null
-                            ? '$'.number_format((float) $record->latest_close_price, 2)
-                            : 'onbekend';
-
-                        FilamentNotifier::send(
-                            title: 'Marktdata bijgewerkt',
-                            body: "{$record->ticker}: koers {$close}, SMA20, SMA50, ATR en RSI opgehaald.",
-                        );
-
-                        return;
-                    }
-                } finally {
-                    $lock->release();
+                if (is_object($livewire) && method_exists($livewire, 'startPollingPositionMarketData')) {
+                    $livewire->startPollingPositionMarketData();
                 }
-
-                FilamentNotifier::send(
-                    title: 'Marktdata onvolledig',
-                    body: 'Alpha Vantage gaf geen complete dataset terug (vaak rate limit: max 5 calls/min op gratis tier). Wacht ~1 minuut of vul handmatig in.',
-                    status: 'warning',
-                );
             });
     }
 

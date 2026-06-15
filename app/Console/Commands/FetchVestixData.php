@@ -15,7 +15,11 @@ use Illuminate\Support\Facades\Log;
 
 class FetchVestixData extends Command
 {
-    protected $signature = 'vestix:fetch-data {--user-id= : Gebruiker die een voltooiingsmelding ontvangt} {--pre-close : Volume-check vlak voor sluiting}';
+    protected $signature = 'vestix:fetch-data
+                            {--user-id= : Gebruiker die een voltooiingsmelding ontvangt}
+                            {--position-id= : Sync alleen deze scout of positie}
+                            {--ticker= : Haal marktdata op voor een ticker (create-formulier)}
+                            {--pre-close : Volume-check vlak voor sluiting}';
 
     protected $description = 'Haalt EOD slotkoersen, SMA20, volume en indicatoren op voor open posities en scouts.';
 
@@ -23,10 +27,22 @@ class FetchVestixData extends Command
         MarketDataFetcher $marketDataFetcher,
         ScoutSetupAlertService $scoutSetupAlertService,
     ): int {
+        $positionId = $this->option('position-id') ? (int) $this->option('position-id') : null;
+        $ticker = $this->option('ticker') ? strtoupper(trim((string) $this->option('ticker'))) : null;
+        $userId = $this->option('user-id') ? (int) $this->option('user-id') : null;
+
+        if ($positionId !== null && $ticker !== null) {
+            $this->error('Geef --position-id of --ticker, niet beide.');
+
+            return self::FAILURE;
+        }
+
         $lock = Cache::lock(MarketDataFetcher::syncLockKey(), 7200);
 
         if (! $lock->get()) {
             $this->warn('API-sync draait al. Deze run wordt overgeslagen.');
+            $this->clearPendingSyncFlags($positionId, $userId, $ticker);
+            $this->notifyLockSkipped($userId, $positionId, $ticker);
 
             return self::SUCCESS;
         }
@@ -34,25 +50,130 @@ class FetchVestixData extends Command
         try {
             MarketDataFreshness::markSyncStarted();
 
+            if ($positionId !== null) {
+                return $this->runSinglePositionSync(
+                    $marketDataFetcher,
+                    $scoutSetupAlertService,
+                    $positionId,
+                    $userId,
+                );
+            }
+
+            if ($ticker !== null) {
+                return $this->runTickerFetch($marketDataFetcher, $ticker, $userId);
+            }
+
             $this->info('Sluipschutter Engine gestart: API data ophalen...');
 
             $positions = Position::tracked()->get();
-            $userId = $this->option('user-id') ? (int) $this->option('user-id') : null;
 
-            return $this->runSync($marketDataFetcher, $scoutSetupAlertService, $positions, $userId);
+            return $this->runBulkSync($marketDataFetcher, $scoutSetupAlertService, $positions, $userId);
         } finally {
             $lock->release();
             MarketDataFreshness::markSyncFinished();
+            $this->clearPendingSyncFlags($positionId, $userId, $ticker);
+        }
+    }
+
+    private function runSinglePositionSync(
+        MarketDataFetcher $marketDataFetcher,
+        ScoutSetupAlertService $scoutSetupAlertService,
+        int $positionId,
+        ?int $userId,
+    ): int {
+        $position = Position::tracked()->find($positionId);
+
+        if ($position === null) {
+            $this->warn("Positie {$positionId} niet gevonden of niet actief.");
+            $this->notifyPositionCompletion($userId, null, success: false);
+
+            return self::SUCCESS;
+        }
+
+        $this->info("Bezig met ophalen data voor ticker: {$position->ticker}");
+
+        try {
+            $previousScore = $position->status === 'scout'
+                ? ($position->last_setup_score ?? $position->evaluateSetupScore()['totalPoints'])
+                : null;
+
+            if ($marketDataFetcher->syncPosition($position, withDelays: false)) {
+                $position->refresh();
+
+                if ($position->status === 'scout' && $previousScore !== null) {
+                    $newScorecard = $position->evaluateSetupScore();
+                    $scoutSetupAlertService->evaluateAndNotify(
+                        $position,
+                        $previousScore,
+                        $newScorecard,
+                    );
+
+                    $position->update(['last_setup_score' => $newScorecard['totalPoints']]);
+                    $position->refresh();
+                }
+
+                $marketDataFetcher->touchApiFetchTimestamp();
+                $this->info("Succesvol geüpdatet: {$position->ticker}");
+                $this->notifyPositionCompletion($userId, $position, success: true);
+
+                return self::SUCCESS;
+            }
+        } catch (\Throwable $exception) {
+            Log::error("Sluipschutter API fout voor {$position->ticker}: {$exception->getMessage()}");
+            $this->error("Er ging iets mis bij {$position->ticker}. Check de logs.");
+            $this->notifyPositionCompletion($userId, $position, success: false);
+
+            return self::SUCCESS;
+        }
+
+        $this->warn("Incomplete data of API limit bereikt voor {$position->ticker}");
+        $this->notifyPositionCompletion($userId, $position, success: false);
+
+        return self::SUCCESS;
+    }
+
+    private function runTickerFetch(
+        MarketDataFetcher $marketDataFetcher,
+        string $ticker,
+        ?int $userId,
+    ): int {
+        $this->info("Bezig met ophalen data voor ticker: {$ticker}");
+
+        try {
+            $data = $marketDataFetcher->fetchForTicker($ticker, withDelays: false);
+
+            if ($data === null) {
+                $this->warn("Incomplete data of API limit bereikt voor {$ticker}");
+                $this->notifyTickerCompletion($userId, $ticker, null);
+
+                return self::SUCCESS;
+            }
+
+            if ($userId !== null) {
+                MarketDataFreshness::storeTickerFetchResult($userId, $ticker, $data);
+            }
+
+            $marketDataFetcher->touchApiFetchTimestamp();
+            $this->info("Succesvol opgehaald: {$ticker}");
+            $this->notifyTickerCompletion($userId, $ticker, $data);
+
+            return self::SUCCESS;
+        } catch (\Throwable $exception) {
+            Log::error("Sluipschutter API fout voor {$ticker}: {$exception->getMessage()}");
+            $this->error("Er ging iets mis bij {$ticker}. Check de logs.");
+            $this->notifyTickerCompletion($userId, $ticker, null);
+
+            return self::SUCCESS;
         }
     }
 
     /**
      * @param  Collection<int, Position>  $positions
      */
-    private function runSync(
+    private function runBulkSync(
         MarketDataFetcher $marketDataFetcher,
         ScoutSetupAlertService $scoutSetupAlertService,
-        $positions,
+        Collection $positions,
         ?int $userId,
     ): int {
         if ($positions->isEmpty()) {
@@ -64,13 +185,10 @@ class FetchVestixData extends Command
             return self::SUCCESS;
         }
 
-        $delay = config('vestix.alpha_vantage.rate_limit_delay', 12);
-        $requiredCalls = $positions->count() * 4;
-        $dailyLimit = 25;
+        $delay = config('vestix.polygon.rate_limit_delay', config('vestix.alpha_vantage.rate_limit_delay', 12));
+        $requiredCalls = $positions->count();
 
-        if ($requiredCalls > $dailyLimit) {
-            $this->warn("Vereist {$requiredCalls} API-calls maar gratis tier staat ~{$dailyLimit}/dag toe. Gebruik handmatige invoer als fallback.");
-        }
+        $this->info("Polygon sync: {$requiredCalls} ticker(s), ~".ceil($requiredCalls * $delay / 60).' min bij 5 calls/min.');
 
         $rows = [];
         $updated = 0;
@@ -91,7 +209,7 @@ class FetchVestixData extends Command
                     ? ($position->last_setup_score ?? $position->evaluateSetupScore()['totalPoints'])
                     : null;
 
-                if ($marketDataFetcher->syncPosition($position, withDelays: true)) {
+                if ($marketDataFetcher->syncPosition($position, withDelays: false)) {
                     $this->info("Succesvol geüpdatet: {$position->ticker}");
                     $updated++;
 
@@ -149,6 +267,111 @@ class FetchVestixData extends Command
         return self::SUCCESS;
     }
 
+    private function clearPendingSyncFlags(?int $positionId, ?int $userId, ?string $ticker): void
+    {
+        if ($positionId !== null) {
+            MarketDataFreshness::markPositionSyncFinished($positionId);
+        }
+
+        if ($userId !== null && $ticker !== null && $ticker !== '') {
+            MarketDataFreshness::markTickerSyncFinished($userId, $ticker);
+        }
+    }
+
+    private function notifyLockSkipped(?int $userId, ?int $positionId, ?string $ticker): void
+    {
+        $recipients = $this->resolveRecipients($userId);
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $label = $ticker
+            ?? ($positionId !== null ? Position::query()->find($positionId)?->ticker : null)
+            ?? 'marktdata';
+
+        FilamentNotifier::send(
+            'Marktdata ophalen overgeslagen',
+            "Er loopt al een API-sync. {$label} is niet opnieuw gestart.",
+            'warning',
+            $recipients,
+        );
+    }
+
+    private function notifyPositionCompletion(?int $userId, ?Position $position, bool $success): void
+    {
+        $recipients = $this->resolveRecipients($userId);
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        if ($position === null) {
+            FilamentNotifier::send(
+                'Marktdata onvolledig',
+                'De gevraagde positie kon niet worden bijgewerkt.',
+                'warning',
+                $recipients,
+            );
+
+            return;
+        }
+
+        if ($success) {
+            $close = $position->latest_close_price !== null
+                ? '$'.number_format((float) $position->latest_close_price, 2)
+                : 'onbekend';
+
+            FilamentNotifier::send(
+                'Marktdata bijgewerkt',
+                "{$position->ticker}: koers {$close}, SMA20, SMA50, ATR en RSI opgehaald.",
+                'success',
+                $recipients,
+            );
+
+            return;
+        }
+
+        FilamentNotifier::send(
+            'Marktdata onvolledig',
+            "Marktdata onvolledig voor {$position->ticker} (API/rate limit).",
+            'warning',
+            $recipients,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $data
+     */
+    private function notifyTickerCompletion(?int $userId, string $ticker, ?array $data): void
+    {
+        $recipients = $this->resolveRecipients($userId);
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        if ($data === null) {
+            FilamentNotifier::send(
+                'Marktdata onvolledig',
+                "Marktdata onvolledig voor {$ticker} (API/rate limit).",
+                'warning',
+                $recipients,
+            );
+
+            return;
+        }
+
+        $close = '$'.number_format((float) $data['latest_close_price'], 2);
+
+        FilamentNotifier::send(
+            'Marktdata klaar',
+            "{$ticker}: koers {$close}. Velden worden ingevuld als je het formulier open hebt.",
+            'success',
+            $recipients,
+        );
+    }
+
     /**
      * @param  list<string>  $failedTickers
      */
@@ -159,9 +382,7 @@ class FetchVestixData extends Command
         int $total,
         array $failedTickers = [],
     ): void {
-        $recipients = $userId
-            ? User::query()->whereKey($userId)->get()
-            : User::all();
+        $recipients = $this->resolveRecipients($userId);
 
         if ($recipients->isEmpty()) {
             return;
@@ -178,7 +399,7 @@ class FetchVestixData extends Command
 
         if ($failedTickers !== []) {
             $body .= ' Niet bijgewerkt: '.implode(', ', $failedTickers).'.';
-            $body .= ' Waarschijnlijk Alpha Vantage daglimiet (25 calls/dag op gratis tier).';
+            $body .= ' Controleer Polygon rate limit (max 5 calls/min op gratis tier).';
         }
 
         $status = match (true) {
@@ -188,5 +409,17 @@ class FetchVestixData extends Command
         };
 
         FilamentNotifier::send($title, $body, $status, $recipients);
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    private function resolveRecipients(?int $userId): Collection
+    {
+        if ($userId !== null) {
+            return User::query()->whereKey($userId)->get();
+        }
+
+        return User::all();
     }
 }

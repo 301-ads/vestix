@@ -8,6 +8,7 @@ use App\Services\SquadContext;
 use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ScoutSetupScorecard;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -92,6 +93,8 @@ class PositionForm
                 self::scoutVisibilityToggle(),
             ])
             ->schema([
+                Hidden::make('visibility')
+                    ->default(PositionVisibility::Private->value),
                 Select::make('squad_id')
                     ->label('Squad')
                     ->options(function (): array {
@@ -127,19 +130,23 @@ class PositionForm
 
     private static function scoutVisibilityToggle(): Toggle
     {
-        return Toggle::make('visibility')
+        return Toggle::make('share_with_squad')
             ->label('Deel met squad')
             ->inline(false)
             ->onIcon('heroicon-m-user-group')
             ->offIcon('heroicon-m-eye-slash')
             ->onColor('success')
             ->offColor('gray')
-            ->formatStateUsing(fn ($state): bool => self::visibilityIsSquad($state))
-            ->dehydrateStateUsing(fn (bool $state): string => $state
-                ? PositionVisibility::Squad->value
-                : PositionVisibility::Private->value)
+            ->dehydrated(false)
+            ->afterStateHydrated(function (Toggle $component, $state, Get $get, ?Position $record): void {
+                $component->state(self::visibilityIsSquad($get('visibility') ?? $record?->visibility));
+            })
             ->live()
             ->afterStateUpdated(function (bool $state, Set $set): void {
+                $set('visibility', $state
+                    ? PositionVisibility::Squad->value
+                    : PositionVisibility::Private->value);
+
                 if (! $state) {
                     $set('squad_id', null);
 

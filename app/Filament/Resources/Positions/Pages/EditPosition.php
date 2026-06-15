@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Positions\Pages;
 
 use App\Enums\PositionVisibility;
 use App\Events\SquadRadarTargetPosted;
+use App\Filament\Concerns\PollsPositionMarketData;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Filament\Resources\Scouts\ScoutResource;
@@ -11,6 +12,7 @@ use App\Models\Position;
 use App\Models\Squad;
 use App\Services\AssetSyncService;
 use App\Services\SquadContext;
+use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupScorecard;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -23,6 +25,8 @@ use Illuminate\Support\HtmlString;
 
 class EditPosition extends EditRecord
 {
+    use PollsPositionMarketData;
+
     protected static string $resource = PositionResource::class;
 
     public function mountCanAuthorizeAccess(): void
@@ -59,6 +63,10 @@ class EditPosition extends EditRecord
         if ($position->asset && ! $position->asset->hasIcon()) {
             app(AssetSyncService::class)->ensureForTicker($position->ticker);
             $position->load('asset');
+        }
+
+        if (MarketDataFreshness::isPositionSyncInProgress($position->id)) {
+            $this->startPollingPositionMarketData();
         }
     }
 

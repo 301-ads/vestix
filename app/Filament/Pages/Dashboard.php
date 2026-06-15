@@ -36,7 +36,7 @@ class Dashboard extends BaseDashboard
                 ->disabled(fn (): bool => MarketDataFreshness::isSyncInProgress())
                 ->requiresConfirmation()
                 ->modalHeading('Marktdata ophalen')
-                ->modalDescription('Weet je zeker dat je de Alpha Vantage API nu wilt aanroepen? Let op je API-limieten (max 5 per minuut). Dit kan enkele minuten duren.')
+                ->modalDescription('Weet je zeker dat je marktdata nu wilt ophalen via Polygon? Let op je rate limit (max 5 calls/min op gratis tier). Dit kan enkele minuten duren.')
                 ->action(function (): void {
                     $userId = auth()->id();
 

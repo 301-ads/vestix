@@ -2,64 +2,80 @@
 
 namespace App\Filament\Resources\Positions\Pages;
 
+use App\Filament\Concerns\PollsTickerMarketData;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Models\Position;
-use App\Services\MarketDataFetcher;
-use App\Support\FilamentNotifier;
+use App\Support\MarketDataFetchDispatcher;
+use App\Support\MarketDataFreshness;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreatePosition extends CreateRecord
 {
+    use PollsTickerMarketData;
+
     protected static string $resource = PositionResource::class;
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        $ticker = strtoupper(trim((string) ($this->form->getRawState()['ticker'] ?? '')));
+        $userId = auth()->id();
+
+        if ($ticker !== '' && $userId !== null && MarketDataFreshness::isTickerSyncInProgress($userId, $ticker)) {
+            $this->startPollingTickerMarketData($ticker);
+        }
+    }
 
     protected function getHeaderActions(): array
     {
         return [
             Action::make('fetch_market_data')
-                ->label('Marktdata ophalen')
+                ->label(fn (): string => $this->pollingTicker !== null && MarketDataFreshness::isTickerSyncInProgress(
+                    auth()->id() ?? 0,
+                    $this->pollingTicker,
+                ) ? 'Bezig…' : 'Marktdata ophalen')
+                ->tooltip('Haal actuele koers (Polygon), SMA20, SMA50, ATR14 en RSI op')
                 ->icon('heroicon-o-arrow-path')
                 ->color('success')
-                ->action(function (MarketDataFetcher $marketDataFetcher): void {
-                    $ticker = strtoupper(trim((string) ($this->form->getState()['ticker'] ?? '')));
+                ->disabled(function (): bool {
+                    $ticker = strtoupper(trim((string) ($this->form->getRawState()['ticker'] ?? '')));
+                    $userId = auth()->id();
 
-                    if ($ticker === '') {
-                        FilamentNotifier::send(
-                            title: 'Ticker vereist',
-                            body: 'Vul eerst een ticker in voordat je marktdata ophaalt.',
-                            status: 'warning',
-                        );
+                    if ($ticker === '' || $userId === null) {
+                        return MarketDataFreshness::isSyncInProgress();
+                    }
 
+                    return MarketDataFreshness::isTickerSyncInProgress($userId, $ticker)
+                        || MarketDataFreshness::isSyncInProgress();
+                })
+                ->action(function (): void {
+                    $ticker = strtoupper(trim((string) ($this->form->getRawState()['ticker'] ?? '')));
+
+                    if (! MarketDataFetchDispatcher::dispatchTickerFetch($ticker)) {
                         return;
                     }
 
-                    $data = $marketDataFetcher->fetchForTicker($ticker, withDelays: true);
-
-                    if ($data === null) {
-                        FilamentNotifier::send(
-                            title: 'Marktdata onvolledig',
-                            body: 'API gaf geen complete dataset terug.',
-                            status: 'warning',
-                        );
-
-                        return;
-                    }
-
-                    $sl = Position::computeNewSl($data['latest_sma_20'], $data['latest_atr_14']);
-
-                    $this->form->fill([
-                        ...$data,
-                        'current_sl' => $sl,
-                    ]);
-
-                    FilamentNotifier::send(
-                        title: 'Marktdata opgehaald',
-                        body: $sl !== null
-                            ? "Stop-loss voorgesteld op \${$sl}."
-                            : 'Close, SMA en ATR ingevuld.',
-                    );
+                    $this->startPollingTickerMarketData($ticker);
                 }),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $fill
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateTickerMarketDataFill(array $fill, array $data): array
+    {
+        $sl = Position::computeNewSl($data['latest_sma_20'], $data['latest_atr_14']);
+
+        if ($sl !== null) {
+            $fill['current_sl'] = $sl;
+        }
+
+        return $fill;
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array

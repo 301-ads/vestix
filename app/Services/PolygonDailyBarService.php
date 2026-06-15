@@ -15,7 +15,7 @@ class PolygonDailyBarService
      *     bars: array<int, array{open: float, high: float, low: float, close: float, volume: float, date: string}>,
      * }|null
      */
-    public function fetchRecentBars(string $ticker, int $lookbackDays = 31): ?array
+    public function fetchRecentBars(string $ticker, int $lookbackDays = 31, int $limit = 50): ?array
     {
         $apiKey = config('vestix.polygon.api_key');
 
@@ -36,7 +36,7 @@ class PolygonDailyBarService
                     'apiKey' => $apiKey,
                     'adjusted' => 'true',
                     'sort' => 'asc',
-                    'limit' => 50,
+                    'limit' => $limit,
                 ],
             );
 
