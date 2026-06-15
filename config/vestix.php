@@ -27,12 +27,4 @@ return [
     'trade_journal' => [
         'chart_screenshot_max_kb' => (int) env('CHART_SCREENSHOT_MAX_KB', 10240),
     ],
-
-    'scout_watcher' => [
-        'entry_proximity_percent' => (float) env('SCOUT_ENTRY_PROXIMITY_PERCENT', 0.5),
-        'min_score_points' => (int) env('SCOUT_MIN_SCORE_POINTS', 6),
-        'alert_cooldown_hours' => (int) env('SCOUT_ALERT_COOLDOWN_HOURS', 24),
-        'quotes_per_minute' => (int) env('SCOUT_QUOTES_PER_MINUTE', 4),
-        'chunk_pause_seconds' => (int) env('SCOUT_CHUNK_PAUSE_SECONDS', 60),
-    ],
 ];

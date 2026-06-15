@@ -62,7 +62,7 @@ Scheduler (Forge → Site → Scheduler)
         Frequency: Every minute (* * * * *)
         Path: /home/forge/vestix.io/current
   [ ] Verify via SSH: cd /home/forge/vestix.io/current && php artisan schedule:list
-      (vestix:fetch-data + vestix:watch-scouts moeten zichtbaar zijn)
+      (vestix:fetch-data moet zichtbaar zijn, incl. pre-close run)
 
 First admin (SSH) — alleen bij schone installatie ZONDER data-import
   [ ] php artisan vestix:create-user you@example.com --name="You" --password="..." --squad="Alpha Squad"

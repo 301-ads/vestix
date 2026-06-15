@@ -10,6 +10,7 @@ class MarketDataFetcher
     public function __construct(
         private AlphaVantageService $alphaVantage,
         private PolygonQuoteProvider $polygon,
+        private PolygonDailyBarService $polygonDailyBars,
     ) {}
 
     /**
@@ -20,9 +21,12 @@ class MarketDataFetcher
      *     latest_sma_50: float,
      *     latest_atr_14: float,
      *     scout_rsi: float,
+     *     bounce_volume_above_average?: bool,
+     *     bounce_day_volume?: int|null,
+     *     avg_volume_30d?: int|null,
      * }|null
      */
-    public function fetchForTicker(string $ticker, bool $withDelays = true): ?array
+    public function fetchForTicker(string $ticker, bool $withDelays = true, ?bool $bounceVolumeAboveAverage = null): ?array
     {
         $delay = config('vestix.alpha_vantage.intra_request_delay', 2);
 
@@ -66,7 +70,7 @@ class MarketDataFetcher
 
         $this->touchApiFetchTimestamp();
 
-        return [
+        $payload = [
             'latest_close_price' => $close,
             'latest_sma_20' => $sma,
             'sma_20_five_days_ago' => $smaPair['five_days_ago'],
@@ -74,11 +78,23 @@ class MarketDataFetcher
             'latest_atr_14' => $atr,
             'scout_rsi' => $rsi,
         ];
+
+        $volumeData = $this->resolveVolumeData($ticker, $sma, $bounceVolumeAboveAverage);
+
+        if ($volumeData !== null) {
+            $payload = array_merge($payload, $volumeData);
+        }
+
+        return $payload;
     }
 
     public function syncPosition(Position $position, bool $withDelays = true): bool
     {
-        $data = $this->fetchForTicker($position->ticker, $withDelays);
+        $data = $this->fetchForTicker(
+            $position->ticker,
+            $withDelays,
+            $position->bounce_volume_above_average,
+        );
 
         if ($data === null) {
             return false;
@@ -87,6 +103,42 @@ class MarketDataFetcher
         $position->update($data);
 
         return true;
+    }
+
+    /**
+     * @return array{
+     *     bounce_volume_above_average: bool,
+     *     bounce_day_volume: int|null,
+     *     avg_volume_30d: int|null,
+     * }|null
+     */
+    private function resolveVolumeData(string $ticker, float $sma20, ?bool $existingVolumeConfirmed): ?array
+    {
+        $bars = $this->polygonDailyBars->fetchRecentBars($ticker);
+
+        if ($bars === null) {
+            return null;
+        }
+
+        $today = $bars['today'];
+        $isBounceDay = PolygonDailyBarService::isBounceDay($today['low'], $today['close'], $sma20);
+
+        $bounceVolumeAboveAverage = $existingVolumeConfirmed ?? false;
+
+        if ($isBounceDay) {
+            $bounceVolumeAboveAverage = $today['volume'] > $bars['adv30'];
+        }
+
+        $payload = [
+            'bounce_volume_above_average' => $bounceVolumeAboveAverage,
+            'avg_volume_30d' => (int) round($bars['adv30']),
+        ];
+
+        if ($isBounceDay) {
+            $payload['bounce_day_volume'] = (int) round($today['volume']);
+        }
+
+        return $payload;
     }
 
     public function touchApiFetchTimestamp(): void

@@ -19,6 +19,28 @@ class ScoutWatchlistTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_scout_can_be_created_with_ticker_only(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Livewire::test(CreateScout::class)
+            ->fillForm([
+                'ticker' => 'APTV',
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $this->assertDatabaseHas('positions', [
+            'ticker' => 'APTV',
+            'status' => 'scout',
+            'signal_low' => null,
+            'signal_high' => null,
+            'entry_price' => null,
+            'quantity' => null,
+            'current_sl' => null,
+        ]);
+    }
+
     public function test_scout_can_be_created_without_sl_or_quantity(): void
     {
         $user = $this->authenticateFilament();

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\MarketDataFetcher;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
+use App\Support\ScoutSetupAlertService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -14,12 +15,14 @@ use Illuminate\Support\Facades\Log;
 
 class FetchVestixData extends Command
 {
-    protected $signature = 'vestix:fetch-data {--user-id= : Gebruiker die een voltooiingsmelding ontvangt}';
+    protected $signature = 'vestix:fetch-data {--user-id= : Gebruiker die een voltooiingsmelding ontvangt} {--pre-close : Volume-check vlak voor sluiting}';
 
-    protected $description = 'Haalt EOD slotkoersen, SMA20 en ATR14 op voor open posities en scouts.';
+    protected $description = 'Haalt EOD slotkoersen, SMA20, volume en indicatoren op voor open posities en scouts.';
 
-    public function handle(MarketDataFetcher $marketDataFetcher): int
-    {
+    public function handle(
+        MarketDataFetcher $marketDataFetcher,
+        ScoutSetupAlertService $scoutSetupAlertService,
+    ): int {
         $lock = Cache::lock(MarketDataFetcher::syncLockKey(), 7200);
 
         if (! $lock->get()) {
@@ -36,7 +39,7 @@ class FetchVestixData extends Command
             $positions = Position::tracked()->get();
             $userId = $this->option('user-id') ? (int) $this->option('user-id') : null;
 
-            return $this->runSync($marketDataFetcher, $positions, $userId);
+            return $this->runSync($marketDataFetcher, $scoutSetupAlertService, $positions, $userId);
         } finally {
             $lock->release();
             MarketDataFreshness::markSyncFinished();
@@ -46,8 +49,12 @@ class FetchVestixData extends Command
     /**
      * @param  Collection<int, Position>  $positions
      */
-    private function runSync(MarketDataFetcher $marketDataFetcher, $positions, ?int $userId): int
-    {
+    private function runSync(
+        MarketDataFetcher $marketDataFetcher,
+        ScoutSetupAlertService $scoutSetupAlertService,
+        $positions,
+        ?int $userId,
+    ): int {
         if ($positions->isEmpty()) {
             $this->info('Geen open posities of scouts gevonden. Engine gaat weer in slaapstand.');
 
@@ -68,6 +75,7 @@ class FetchVestixData extends Command
         $rows = [];
         $updated = 0;
         $failed = 0;
+        $alertsSent = 0;
         /** @var list<string> $failedTickers */
         $failedTickers = [];
 
@@ -79,16 +87,32 @@ class FetchVestixData extends Command
                     sleep($delay);
                 }
 
+                $previousScore = $position->status === 'scout'
+                    ? ($position->last_setup_score ?? $position->evaluateSetupScore()['totalPoints'])
+                    : null;
+
                 if ($marketDataFetcher->syncPosition($position, withDelays: true)) {
                     $this->info("Succesvol geüpdatet: {$position->ticker}");
                     $updated++;
+
+                    $position->refresh();
+
+                    if ($position->status === 'scout' && $previousScore !== null) {
+                        $newScorecard = $position->evaluateSetupScore();
+                        $alertsSent += $scoutSetupAlertService->evaluateAndNotify(
+                            $position,
+                            $previousScore,
+                            $newScorecard,
+                        );
+
+                        $position->update(['last_setup_score' => $newScorecard['totalPoints']]);
+                        $position->refresh();
+                    }
                 } else {
                     $this->warn("Incomplete data of API limit bereikt voor {$position->ticker}");
                     $failed++;
                     $failedTickers[] = $position->ticker;
                 }
-
-                $position->refresh();
 
                 $rows[] = [
                     $position->ticker,
@@ -96,7 +120,11 @@ class FetchVestixData extends Command
                     $position->latest_close_price ?? '—',
                     $position->latest_sma_20 ?? '—',
                     $position->latest_atr_14 ?? '—',
-                    $position->action_command,
+                    $position->status === 'scout'
+                        ? ($position->last_setup_score !== null
+                            ? $position->last_setup_score.'/7'
+                            : '—')
+                        : $position->action_command,
                 ];
             } catch (\Throwable $exception) {
                 Log::error("Sluipschutter API fout voor {$position->ticker}: {$exception->getMessage()}");
@@ -107,9 +135,13 @@ class FetchVestixData extends Command
             }
         }
 
-        $this->table(['Ticker', 'Status', 'Close', 'SMA20', 'ATR14', 'Actie'], $rows);
+        $this->table(['Ticker', 'Status', 'Close', 'SMA20', 'ATR14', 'Actie/Score'], $rows);
 
         $this->info('Alle beschikbare posities zijn wiskundig geanalyseerd!');
+
+        if ($alertsSent > 0) {
+            $this->info("{$alertsSent} Sluipschutter Telegram-alert(s) verstuurd.");
+        }
 
         $marketDataFetcher->touchApiFetchTimestamp();
         $this->notifyCompletion($userId, $updated, $failed, $positions->count(), $failedTickers);

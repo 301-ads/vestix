@@ -552,7 +552,25 @@ class PositionResourceTest extends TestCase
             ->assertSee('Executie & Valstrik')
             ->assertSee('High (Signaalkaars)')
             ->assertSee('Low (Signaalkaars)')
-            ->assertSee('bounce-dagkaars (TradingView, timeframe 1D)')
+            ->assertSee('Optioneel tot bounce-dag')
             ->assertSee('Data ophalen');
+    }
+
+    public function test_scout_can_be_created_with_ticker_only(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Livewire::test(CreateScout::class)
+            ->fillForm(['ticker' => 'APTV'])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $this->assertDatabaseHas('positions', [
+            'user_id' => $user->id,
+            'ticker' => 'APTV',
+            'status' => 'scout',
+            'signal_low' => null,
+            'signal_high' => null,
+        ]);
     }
 }

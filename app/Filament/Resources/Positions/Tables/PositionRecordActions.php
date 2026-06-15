@@ -56,6 +56,9 @@ class PositionRecordActions
                                 'latest_sma_50',
                                 'latest_atr_14',
                                 'scout_rsi',
+                                'bounce_volume_above_average',
+                                'bounce_day_volume',
+                                'avg_volume_30d',
                             ]);
                         }
 

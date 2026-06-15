@@ -10,11 +10,10 @@ Artisan::command('inspire', function () {
 
 Schedule::command('vestix:fetch-data')
     ->weekdays()
-    ->dailyAt('22:15')
-    ->timezone('America/New_York');
+    ->dailyAt('22:05')
+    ->timezone('Europe/Amsterdam');
 
-Schedule::command('vestix:watch-scouts')
-    ->everyFifteenMinutes()
-    ->timezone('Europe/Amsterdam')
-    ->between('15:30', '22:00')
-    ->weekdays();
+Schedule::command('vestix:fetch-data --pre-close')
+    ->weekdays()
+    ->dailyAt('21:50')
+    ->timezone('Europe/Amsterdam');

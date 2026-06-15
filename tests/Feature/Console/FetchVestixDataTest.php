@@ -3,6 +3,7 @@
 namespace Tests\Feature\Console;
 
 use App\Models\Position;
+use App\Models\User;
 use App\Services\MarketDataFetcher;
 use App\Support\MarketDataFreshness;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,6 +14,26 @@ use Tests\TestCase;
 class FetchVestixDataTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * @return array<string, array{SMA: string}>
+     */
+    private function smaSeries(int $count = 6, float $latest = 100.0, float $fiveDaysAgo = 99.0): array
+    {
+        $series = [];
+
+        for ($offset = $count - 1; $offset >= 0; $offset--) {
+            $value = $offset === 0
+                ? $latest
+                : ($offset === 5 ? $fiveDaysAgo : $fiveDaysAgo - 0.5);
+
+            $series['2024-01-'.str_pad((string) ($count - $offset), 2, '0', STR_PAD_LEFT)] = [
+                'SMA' => number_format($value, 2, '.', ''),
+            ];
+        }
+
+        return $series;
+    }
 
     protected function setUp(): void
     {
@@ -214,5 +235,89 @@ class FetchVestixDataTest extends TestCase
         } finally {
             $lock->release();
         }
+    }
+
+    public function test_command_sends_telegram_alert_when_scout_transitions_to_six(): void
+    {
+        config(['vestix.telegram.bot_token' => 'test-token', 'vestix.polygon.api_key' => null]);
+
+        $user = User::factory()->create(['telegram_chat_id' => '99999']);
+        $position = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'APTV',
+            'last_setup_score' => 5,
+            'latest_close_price' => 103.60,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00,
+            'latest_sma_50' => 95.00,
+            'scout_rsi' => 50.00,
+        ]);
+
+        Http::fake([
+            'www.alphavantage.co/*' => Http::sequence()
+                ->push(['Global Quote' => ['05. price' => '100.50']])
+                ->push(['Technical Analysis: SMA' => $this->smaSeries()])
+                ->push(['Technical Analysis: SMA' => ['2024-01-06' => ['SMA' => '95.00']]])
+                ->push(['Technical Analysis: ATR' => ['2024-01-06' => ['ATR' => '2.00']]])
+                ->push(['Technical Analysis: RSI' => ['2024-01-06' => ['RSI' => '50.00']]]),
+            'api.telegram.org/*' => Http::response(['ok' => true]),
+        ]);
+
+        $this->artisan('vestix:fetch-data')->assertSuccessful();
+
+        $position->refresh();
+
+        $this->assertEquals(6, $position->last_setup_score);
+        $this->assertNotNull($position->telegram_a_minus_alert_sent_at);
+
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'api.telegram.org')
+            && str_contains($request->data()['text'] ?? '', 'A- Setup (6/7)'));
+    }
+
+    public function test_command_keeps_volume_false_without_bounce_day(): void
+    {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+        ]);
+
+        $position = Position::factory()->scout()->create([
+            'ticker' => 'APTV',
+            'bounce_volume_above_average' => false,
+            'latest_close_price' => 103.60,
+            'latest_sma_20' => 100.00,
+        ]);
+
+        $polygonBars = [];
+
+        for ($day = 1; $day <= 31; $day++) {
+            $polygonBars[] = [
+                'o' => 103,
+                'h' => 104,
+                'l' => 102,
+                'c' => 103.60,
+                'v' => 1_000_000,
+                't' => now()->subDays(31 - $day)->startOfDay()->timestamp * 1000,
+            ];
+        }
+
+        Http::fake([
+            'www.alphavantage.co/*' => Http::sequence()
+                ->push(['Global Quote' => ['05. price' => '103.60']])
+                ->push(['Technical Analysis: SMA' => $this->smaSeries()])
+                ->push(['Technical Analysis: SMA' => ['2024-01-06' => ['SMA' => '95.00']]])
+                ->push(['Technical Analysis: ATR' => ['2024-01-06' => ['ATR' => '2.00']]])
+                ->push(['Technical Analysis: RSI' => ['2024-01-06' => ['RSI' => '50.00']]]),
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => $polygonBars,
+            ]),
+        ]);
+
+        $this->artisan('vestix:fetch-data')->assertSuccessful();
+
+        $position->refresh();
+
+        $this->assertFalse($position->bounce_volume_above_average);
+        $this->assertEquals(1_000_000, $position->avg_volume_30d);
     }
 }

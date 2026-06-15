@@ -255,15 +255,14 @@ class PositionForm
     private static function buyStopSection(callable $isScoutForm): Section
     {
         return Section::make('Executie & Valstrik')
+            ->description('Vul pas in na een Telegram-alert (fase 3). Low/High = dagkaars (1D) van de bounce-dag in TradingView.')
             ->afterLabel([
                 Icon::make('heroicon-o-information-circle')
                     ->tooltip(
-                        "Low/High: dagkaars (1D) van de bounce in TradingView — niet intraday.\n"
-                        ."Low: laagste punt van die dagkaars (trampoline-scorecard).\n"
-                        ."Close: slotkoers bepaalt of trampoline gebroken is (Close < SMA 20 = geblokkeerd).\n"
-                        ."High: hoogste punt van die dagkaars.\n"
+                        "Fase 1–2: laat dit blok leeg.\n"
+                        ."Fase 3: na Telegram-alert vul je Low/High in van de bounce-dagkaars (TradingView, 1D).\n"
                         ."Buy-Stop: High + 10% × ATR 14 (ATR staat in Setup).\n"
-                        .'Zet de Buy-Stop exact zo in je broker.'
+                        .'Zet de Buy-Stop exact zo in je broker — nooit market buy.'
                     )
                     ->color('gray'),
             ])
@@ -273,19 +272,19 @@ class PositionForm
             ->schema([
                 TextInput::make('signal_low')
                     ->label('Low (Signaalkaars)')
-                    ->required()
                     ->numeric()
                     ->prefix('$')
                     ->minValue(0.01)
-                    ->helperText('Laagste punt van de bounce-dagkaars (TradingView, timeframe 1D).')
+                    ->rules(['nullable', 'numeric', 'min:0.01'])
+                    ->helperText('Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D).')
                     ->live(onBlur: true),
                 TextInput::make('signal_high')
                     ->label('High (Signaalkaars)')
-                    ->required()
                     ->numeric()
                     ->prefix('$')
                     ->minValue(0.01)
-                    ->helperText('Hoogste punt van de bounce-dagkaars (TradingView, timeframe 1D).')
+                    ->rules(['nullable', 'numeric', 'min:0.01'])
+                    ->helperText('Optioneel tot bounce-dag. Hoogste punt van de bounce-dagkaars (TradingView, 1D).')
                     ->live(onBlur: true)
                     ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record))
                     ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record)),
@@ -294,6 +293,9 @@ class PositionForm
                     ->prefix('$')
                     ->readOnly()
                     ->dehydrated(false)
+                    ->placeholder(fn (Get $get, ?Position $record): string => blank($get('signal_high') ?? $record?->signal_high)
+                        ? 'Vul High in om Buy-Stop te berekenen'
+                        : '')
                     ->extraInputAttributes(['style' => 'font-weight: bold; color: #10b981;']),
             ]);
     }
@@ -362,7 +364,21 @@ class PositionForm
                             ->live(debounce: 300),
                         Toggle::make('bounce_volume_above_average')
                             ->label('Volume op bounce-dag hoger dan 30-daags gemiddelde')
-                            ->live(),
+                            ->disabled()
+                            ->dehydrated()
+                            ->helperText('Automatisch bij Data ophalen (op bounce-dag)'),
+                        TextInput::make('bounce_day_volume')
+                            ->label('Volume bounce-dag')
+                            ->numeric()
+                            ->readOnly()
+                            ->dehydrated(false)
+                            ->visible(fn (Get $get, ?Position $record): bool => filled($get('bounce_day_volume') ?? $record?->bounce_day_volume)),
+                        TextInput::make('avg_volume_30d')
+                            ->label('Gem. volume (30D)')
+                            ->numeric()
+                            ->readOnly()
+                            ->dehydrated(false)
+                            ->visible(fn (Get $get, ?Position $record): bool => filled($get('avg_volume_30d') ?? $record?->avg_volume_30d)),
                     ]),
                 Section::make('Sluipschutter Scorecard')
                     ->description('Objectieve setup-beoordeling (max 7 punten)')

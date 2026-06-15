@@ -37,7 +37,9 @@ class Position extends Model
             'signal_low' => 'decimal:2',
             'scout_rsi' => 'decimal:2',
             'bounce_volume_above_average' => 'boolean',
-            'telegram_alert_sent_at' => 'datetime',
+            'last_setup_score' => 'integer',
+            'telegram_a_minus_alert_sent_at' => 'datetime',
+            'telegram_a_plus_alert_sent_at' => 'datetime',
             'closed_at' => 'datetime',
             'visibility' => PositionVisibility::class,
         ];
@@ -56,7 +58,8 @@ class Position extends Model
             }
 
             if ($position->isDirty('entry_price')) {
-                $position->telegram_alert_sent_at = null;
+                $position->telegram_a_minus_alert_sent_at = null;
+                $position->telegram_a_plus_alert_sent_at = null;
             }
 
             $position->deleteReplacedChartScreenshot('entry_chart_screenshot_path');
@@ -74,6 +77,8 @@ class Position extends Model
                 'latest_atr_14',
                 'scout_rsi',
                 'bounce_volume_above_average',
+                'bounce_day_volume',
+                'avg_volume_30d',
                 'current_sl',
                 'entry_price',
                 'quantity',
@@ -167,7 +172,9 @@ class Position extends Model
     {
         $clone = $this->replicate([
             'quantity',
-            'telegram_alert_sent_at',
+            'telegram_a_minus_alert_sent_at',
+            'telegram_a_plus_alert_sent_at',
+            'last_setup_score',
             'exit_price',
             'closed_at',
             'exit_chart_screenshot_path',
@@ -276,20 +283,6 @@ class Position extends Model
     public function scopeTracked(Builder $query): Builder
     {
         return $query->whereIn('status', ['open', 'scout']);
-    }
-
-    public function scopeAwaitingTelegramAlert(Builder $query): Builder
-    {
-        $cooldownHours = config('vestix.scout_watcher.alert_cooldown_hours', 24);
-
-        return $query
-            ->where('status', 'scout')
-            ->whereNotNull('entry_price')
-            ->where(function (Builder $query) use ($cooldownHours): void {
-                $query
-                    ->whereNull('telegram_alert_sent_at')
-                    ->orWhere('telegram_alert_sent_at', '<', now()->subHours($cooldownHours));
-            });
     }
 
     public function scopeStoppedOut(Builder $query): Builder
