@@ -12,7 +12,7 @@ Site (Forge → Create Site)
   [ ] Web directory: /public
   [ ] Database (modal "Add database" tijdens site-aanmaak):
         Name:     vestix
-        User:     vestix          (optioneel maar aanbevolen — dedicated DB-user)
+        User:     forge           (Forge default — laat leeg of vul "forge" in)
         Password: [Generate password] — kopieer direct, je ziet hem daarna niet meer
   [ ] SSL: Let's Encrypt (DNS A-record voor vestix.io → server IP)
   [ ] Git: git@github.com:301-ads/vestix.git, branch main
@@ -27,7 +27,7 @@ Environment (Forge → Site → Environment)
         DB_HOST=127.0.0.1
         DB_PORT=3306
         DB_DATABASE=vestix
-        DB_USERNAME=vestix
+        DB_USERNAME=forge
         DB_PASSWORD=<het gegenereerde wachtwoord>
   [ ] Fill overige keys: API keys, mail, PHP_BINARY
 
