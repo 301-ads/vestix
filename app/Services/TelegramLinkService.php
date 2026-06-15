@@ -94,7 +94,7 @@ class TelegramLinkService
         if (str_starts_with($text, '/start')) {
             TelegramNotifier::sendToChatId(
                 $chatId,
-                'Welkom bij Vestix. Koppel je account via Profiel → Koppel Telegram in de app.',
+                'Open Vestix → Profiel → Koppel Telegram en druk op Start om je account te koppelen.',
             );
         }
     }
