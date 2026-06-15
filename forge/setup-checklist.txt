@@ -70,3 +70,12 @@ First admin (SSH) — alleen bij schone installatie ZONDER data-import
 
 Post-deploy (SSH)
   [ ] php artisan vestix:smoke-test
+  [ ] php artisan vestix:telegram-set-webhook
+  [ ] Gebruikers: Profiel → Koppel Telegram → Start in bot
+
+Telegram (eenmalig op productie)
+  [ ] TELEGRAM_BOT_TOKEN in Forge Environment
+  [ ] TELEGRAM_WEBHOOK_SECRET=<random string, bijv. php -r "echo bin2hex(random_bytes(16));">
+  [ ] TELEGRAM_BOT_USERNAME=<optioneel, anders auto via getMe>
+  [ ] php artisan vestix:telegram-set-webhook
+  [ ] Verwijder oude TELEGRAM_CHAT_ID uit .env (niet meer gebruikt)

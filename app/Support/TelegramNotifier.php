@@ -9,19 +9,6 @@ use Illuminate\Support\Facades\Log;
 
 class TelegramNotifier
 {
-    public static function send(string $message): bool
-    {
-        $chatId = config('vestix.telegram.chat_id');
-
-        if (! $chatId) {
-            Log::warning('Telegram not configured — message not sent.');
-
-            return false;
-        }
-
-        return self::sendToChatId($chatId, $message);
-    }
-
     public static function sendToUser(User $user, string $message): bool
     {
         $chatId = $user->resolveTelegramChatId();

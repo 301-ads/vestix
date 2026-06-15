@@ -14,7 +14,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'telegram_chat_id'])]
+#[Fillable(['name', 'email', 'password', 'telegram_chat_id', 'telegram_link_token'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -47,7 +47,33 @@ class User extends Authenticatable implements FilamentUser
             return $this->telegram_chat_id;
         }
 
-        return config('vestix.telegram.chat_id');
+        return null;
+    }
+
+    public function ensureTelegramLinkToken(): string
+    {
+        if (filled($this->telegram_link_token)) {
+            return $this->telegram_link_token;
+        }
+
+        $token = bin2hex(random_bytes(16));
+
+        $this->forceFill(['telegram_link_token' => $token])->save();
+
+        return $token;
+    }
+
+    public function clearTelegramConnection(): void
+    {
+        $this->forceFill([
+            'telegram_chat_id' => null,
+            'telegram_link_token' => null,
+        ])->save();
+    }
+
+    public function hasTelegramConnection(): bool
+    {
+        return filled($this->telegram_chat_id);
     }
 
     protected function casts(): array

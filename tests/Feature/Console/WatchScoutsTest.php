@@ -4,6 +4,7 @@ namespace Tests\Feature\Console;
 
 use App\Console\Commands\WatchScouts;
 use App\Models\Position;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -19,7 +20,7 @@ class WatchScoutsTest extends TestCase
 
         config([
             'vestix.telegram.bot_token' => 'test-token',
-            'vestix.telegram.chat_id' => '123456',
+            'vestix.telegram.webhook_secret' => 'test-secret',
             'vestix.polygon.api_key' => 'test-polygon-key',
             'vestix.polygon.base_url' => 'https://api.polygon.io',
             'vestix.scout_watcher.entry_proximity_percent' => 0.5,
@@ -204,7 +205,9 @@ class WatchScoutsTest extends TestCase
 
     private function createQualifyingScout(string $ticker, float $entryPrice): Position
     {
-        return Position::factory()->create([
+        $user = User::factory()->create(['telegram_chat_id' => '123456']);
+
+        return Position::factory()->for($user)->create([
             'ticker' => $ticker,
             'status' => 'scout',
             'entry_price' => $entryPrice,

@@ -163,6 +163,11 @@ class VestixSmokeTest extends Command
             $warnings++;
         }
 
+        if (blank(config('vestix.telegram.webhook_secret'))) {
+            $this->warn('TELEGRAM_WEBHOOK_SECRET ontbreekt — Telegram koppelen via profiel werkt niet.');
+            $warnings++;
+        }
+
         if ($warnings === 0) {
             $this->line('✓ Marktdata- en Telegram-config aanwezig');
         }
