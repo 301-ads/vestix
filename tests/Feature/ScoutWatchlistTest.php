@@ -3,15 +3,12 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\Positions\Pages\CreateScout;
-use App\Filament\Resources\Positions\Pages\EditPosition;
 use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListScouts;
 use App\Filament\Resources\Positions\PositionResource;
-use App\Filament\Widgets\PortfolioExposureWidget;
-use App\Filament\Widgets\PortfolioTopFlopWidget;
+use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Widgets\SetupRadarWidget;
 use App\Models\Position;
-use App\Models\User;
 use App\Services\AlphaVantageService;
 use App\Services\MarketDataFetcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,13 +21,13 @@ class ScoutWatchlistTest extends TestCase
 
     public function test_scout_can_be_created_without_sl_or_quantity(): void
     {
-        $user = User::factory()->create();
-
-        $this->actingAs($user);
+        $user = $this->authenticateFilament();
 
         Livewire::test(CreateScout::class)
             ->fillForm([
                 'ticker' => 'NVDA',
+                'signal_low' => 118.50,
+                'signal_high' => 122.00,
                 'trade_journal' => 'A+ bounce setup op 20 SMA.',
             ])
             ->call('create')
@@ -128,19 +125,17 @@ class ScoutWatchlistTest extends TestCase
 
     public function test_edit_position_redirects_scouts_to_setup_radar(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create(['ticker' => 'PANW']);
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create(['ticker' => 'PANW']);
 
-        $this->actingAs($user);
-
-        Livewire::test(EditPosition::class, ['record' => $scout->getKey()])
-            ->assertRedirect(PositionResource::getUrl('edit-scout', ['record' => $scout]));
+        $this->get(PositionResource::getUrl('edit', ['record' => $scout]))
+            ->assertRedirect(ScoutResource::getUrl('edit', ['record' => $scout]));
     }
 
     public function test_edit_scout_page_shows_scout_hud(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create([
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
             'ticker' => 'AAPL',
             'entry_price' => 80.00,
             'quantity' => 10,
@@ -148,9 +143,6 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
         ]);
-
-        $this->actingAs($user);
-
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
             ->assertSee('Scout')
@@ -163,16 +155,13 @@ class ScoutWatchlistTest extends TestCase
 
     public function test_activate_scout_action_from_list(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create([
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
             'entry_price' => 78.00,
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
         ]);
-
-        $this->actingAs($user);
-
         Livewire::test(ListScouts::class)
             ->callTableAction('activate_scout', $scout, data: [
                 'entry_price' => 79.00,
@@ -188,11 +177,15 @@ class ScoutWatchlistTest extends TestCase
 
     public function test_fetch_market_data_action_updates_scout(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create(['ticker' => 'MSFT']);
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create(['ticker' => 'MSFT']);
 
         $this->mock(AlphaVantageService::class, function ($mock): void {
-            $mock->shouldReceive('fetchQuote')->once()->with('MSFT')->andReturn(78.20);
+            $mock->shouldReceive('fetchGlobalQuote')->once()->with('MSFT')->andReturn([
+                'close' => 78.20,
+                'high' => 79.00,
+                'low' => 76.50,
+            ]);
             $mock->shouldReceive('fetchSma20Pair')->once()->with('MSFT')->andReturn([
                 'latest' => 77.50,
                 'five_days_ago' => 77.00,
@@ -201,9 +194,6 @@ class ScoutWatchlistTest extends TestCase
             $mock->shouldReceive('fetchAtr14')->once()->with('MSFT')->andReturn(2.80);
             $mock->shouldReceive('fetchRsi14')->once()->with('MSFT')->andReturn(52.00);
         });
-
-        $this->actingAs($user);
-
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertSee('Actuele Koers')
             ->assertSee('—')
@@ -226,10 +216,21 @@ class ScoutWatchlistTest extends TestCase
         $this->assertEquals(52.00, (float) $scout->scout_rsi);
     }
 
+    public function test_create_scout_page_shows_scorecard(): void
+    {
+        $this->authenticateFilament();
+
+        Livewire::test(CreateScout::class)
+            ->assertOk()
+            ->assertSee('Sluipschutter Scorecard')
+            ->assertSee('Marktdata & Indicatoren')
+            ->assertSeeHtml('scout-scorecard-hud');
+    }
+
     public function test_edit_scout_page_shows_scorecard(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create([
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
             'ticker' => 'AAPL',
             'entry_price' => 100.50,
             'signal_low' => 100.50,
@@ -240,9 +241,6 @@ class ScoutWatchlistTest extends TestCase
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
         ]);
-
-        $this->actingAs($user);
-
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
             ->assertSee('Sluipschutter Scorecard')
@@ -258,8 +256,8 @@ class ScoutWatchlistTest extends TestCase
 
     public function test_scorecard_shows_hard_fail_for_overheated_rsi(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create([
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
             'entry_price' => 100.50,
             'signal_low' => 100.50,
             'latest_close_price' => 100.50,
@@ -269,9 +267,6 @@ class ScoutWatchlistTest extends TestCase
             'scout_rsi' => 76.00,
             'bounce_volume_above_average' => true,
         ]);
-
-        $this->actingAs($user);
-
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
             ->assertSee('RSI oververhit (>70)')
@@ -280,8 +275,8 @@ class ScoutWatchlistTest extends TestCase
 
     public function test_activate_button_has_a_plus_class_for_perfect_setup(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create([
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
             'entry_price' => 100.50,
             'signal_low' => 100.50,
             'latest_close_price' => 100.50,
@@ -291,9 +286,6 @@ class ScoutWatchlistTest extends TestCase
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
         ]);
-
-        $this->actingAs($user);
-
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
             ->assertSeeHtml('scout-activate-a-plus');
@@ -301,13 +293,9 @@ class ScoutWatchlistTest extends TestCase
 
     public function test_setup_radar_widget_lists_scouts_only(): void
     {
-        $user = User::factory()->create();
-
-        $scout = Position::factory()->scout()->create(['ticker' => 'RADAR']);
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create(['ticker' => 'RADAR']);
         Position::factory()->create(['ticker' => 'OPEN']);
-
-        $this->actingAs($user);
-
         Livewire::test(SetupRadarWidget::class)
             ->assertCanSeeTableRecords([$scout])
             ->assertSee('Setup Radar');
@@ -318,7 +306,11 @@ class ScoutWatchlistTest extends TestCase
         $scout = Position::factory()->scout()->create(['ticker' => 'TSLA']);
 
         $this->mock(AlphaVantageService::class, function ($mock): void {
-            $mock->shouldReceive('fetchQuote')->once()->with('TSLA')->andReturn(250.00);
+            $mock->shouldReceive('fetchGlobalQuote')->once()->with('TSLA')->andReturn([
+                'close' => 250.00,
+                'high' => 255.00,
+                'low' => 245.00,
+            ]);
             $mock->shouldReceive('fetchSma20Pair')->once()->with('TSLA')->andReturn([
                 'latest' => 245.00,
                 'five_days_ago' => 244.00,

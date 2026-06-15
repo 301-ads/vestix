@@ -62,28 +62,45 @@ class ScoutSetupScorecard
      */
     private static function scoreTrampoline(array $inputs): array
     {
-        $landing = self::resolveTrampolineLandingPrice($inputs);
+        $close = self::resolveClosePrice($inputs);
         $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
 
-        if ($landing === null || $sma === null || $sma <= 0) {
+        if ($sma === null || $sma <= 0) {
             return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Data ontbreekt');
         }
 
-        if ($landing < $sma) {
-            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Koers onder SMA 20 — trampoline gebroken');
+        if ($close === null) {
+            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Wacht op slotkoers (Close)');
         }
 
-        $distance = (($landing - $sma) / $sma) * 100;
+        if ($close < $sma) {
+            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Close onder SMA 20 — trampoline gebroken');
+        }
+
+        $distance = (($close - $sma) / $sma) * 100;
+        $rejectionBounce = self::isRejectionBounce($inputs, $sma);
 
         if ($distance <= 1.5) {
-            return self::criterion('trampoline', 'Trampoline-afstand', 2, 2, 'pass', sprintf('%.2f%% van SMA — perfecte landing', $distance));
+            $detail = $rejectionBounce
+                ? sprintf('Rejection bounce — Low onder SMA, Close hersteld (%.2f%% boven SMA)', $distance)
+                : sprintf('%.2f%% van SMA — perfecte landing', $distance);
+
+            return self::criterion('trampoline', 'Trampoline-afstand', 2, 2, 'pass', $detail);
         }
 
         if ($distance <= 3.0) {
-            return self::criterion('trampoline', 'Trampoline-afstand', 1, 2, 'warn', sprintf('%.2f%% van SMA — suboptimaal', $distance));
+            $detail = $rejectionBounce
+                ? sprintf('Rejection bounce — Low onder SMA, Close hersteld (%.2f%% boven SMA)', $distance)
+                : sprintf('%.2f%% van SMA — suboptimaal', $distance);
+
+            return self::criterion('trampoline', 'Trampoline-afstand', 1, 2, 'warn', $detail);
         }
 
-        return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', sprintf('%.2f%% van SMA — te ver weggeschoten', $distance));
+        $detail = $rejectionBounce
+            ? sprintf('Rejection bounce maar ver weggeschoten (%.2f%% boven SMA)', $distance)
+            : sprintf('%.2f%% van SMA — te ver weggeschoten', $distance);
+
+        return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', $detail);
     }
 
     /**
@@ -177,20 +194,36 @@ class ScoutSetupScorecard
             $reasons[] = 'RSI oververhit (>70) — geen A-setup mogelijk';
         }
 
-        $landing = self::resolveTrampolineLandingPrice($inputs);
+        $close = self::resolveClosePrice($inputs);
         $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
 
-        if ($landing !== null && $sma !== null && $landing < $sma) {
-            $reasons[] = 'Koers onder SMA 20 — trampoline gebroken';
+        if ($close !== null && $sma !== null && $close < $sma) {
+            $reasons[] = 'Close onder SMA 20 — trampoline gebroken';
         }
 
         return $reasons;
     }
 
-    private static function resolveTrampolineLandingPrice(array $inputs): ?float
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function isRejectionBounce(array $inputs, float $sma): bool
     {
-        return self::toFloat($inputs['signal_low'] ?? null)
-            ?? self::toFloat($inputs['latest_close_price'] ?? null);
+        $low = self::toFloat($inputs['signal_low'] ?? null);
+        $close = self::resolveClosePrice($inputs);
+
+        return $low !== null
+            && $close !== null
+            && $low < $sma
+            && $close > $sma;
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function resolveClosePrice(array $inputs): ?float
+    {
+        return self::toFloat($inputs['latest_close_price'] ?? null);
     }
 
     /**

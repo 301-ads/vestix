@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Contracts\QuoteProvider;
 use App\Models\Position;
 use Illuminate\Support\Facades\Cache;
 
@@ -10,7 +9,7 @@ class MarketDataFetcher
 {
     public function __construct(
         private AlphaVantageService $alphaVantage,
-        private QuoteProvider $quoteProvider,
+        private PolygonQuoteProvider $polygon,
     ) {}
 
     /**
@@ -25,9 +24,16 @@ class MarketDataFetcher
      */
     public function fetchForTicker(string $ticker, bool $withDelays = true): ?array
     {
-        $delay = config('swng.alpha_vantage.intra_request_delay', 2);
+        $delay = config('vestix.alpha_vantage.intra_request_delay', 2);
 
-        $close = $this->fetchQuotePrice($ticker);
+        $globalQuote = $this->alphaVantage->fetchGlobalQuote($ticker);
+
+        if ($withDelays) {
+            sleep($delay);
+        }
+
+        $close = $this->polygon->fetchLivePrice($ticker)
+            ?? $globalQuote['close'] ?? null;
 
         if ($withDelays) {
             sleep($delay);
@@ -83,19 +89,13 @@ class MarketDataFetcher
         return true;
     }
 
-    private function fetchQuotePrice(string $ticker): ?float
-    {
-        return $this->quoteProvider->fetchLivePrice($ticker)
-            ?? $this->alphaVantage->fetchQuote($ticker);
-    }
-
     public function touchApiFetchTimestamp(): void
     {
-        Cache::put('swng:last_api_fetch', now()->toIso8601String(), now()->addDays(30));
+        Cache::put('vestix:last_api_fetch', now()->toIso8601String(), now()->addDays(30));
     }
 
     public static function syncLockKey(): string
     {
-        return 'swng:api-sync';
+        return 'vestix:api-sync';
     }
 }

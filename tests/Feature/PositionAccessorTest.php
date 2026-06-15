@@ -156,6 +156,37 @@ class PositionAccessorTest extends TestCase
         $this->assertEquals('HOLD', $holdPosition->action_command);
     }
 
+    public function test_requires_action_scope_matches_stopped_out_and_update_positions_only(): void
+    {
+        $stoppedOut = Position::factory()->create([
+            'latest_close_price' => 74.50,
+            'current_sl' => 74.50,
+            'status' => 'open',
+        ]);
+
+        $updatePosition = Position::factory()->create([
+            'latest_close_price' => 78.20,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'current_sl' => 74.50,
+            'status' => 'open',
+        ]);
+
+        $holdPosition = Position::factory()->create([
+            'latest_close_price' => 78.20,
+            'latest_sma_20' => 75.00,
+            'latest_atr_14' => 2.80,
+            'current_sl' => 74.50,
+            'status' => 'open',
+        ]);
+
+        $ids = Position::query()->requiresAction()->pluck('id');
+
+        $this->assertTrue($ids->contains($stoppedOut->id));
+        $this->assertTrue($ids->contains($updatePosition->id));
+        $this->assertFalse($ids->contains($holdPosition->id));
+    }
+
     public function test_new_sl_rounds_to_two_decimals_for_display_and_storage(): void
     {
         $position = Position::factory()->make([
@@ -168,15 +199,58 @@ class PositionAccessorTest extends TestCase
         $this->assertEquals('HOLD', $position->action_command);
     }
 
-    public function test_risk_dollars_calculates_exposure_to_stop(): void
+    public function test_capital_risk_dollars_for_position_below_entry(): void
     {
         $position = Position::factory()->make([
-            'latest_close_price' => 78.20,
+            'status' => 'open',
+            'entry_price' => 80.00,
             'current_sl' => 74.50,
             'quantity' => 10,
         ]);
 
-        $this->assertEqualsWithDelta(37.0, $position->risk_dollars, 0.01);
+        $this->assertEqualsWithDelta(55.0, $position->capital_risk_dollars, 0.01);
+        $this->assertEquals(0, $position->locked_in_profit_dollars);
+        $this->assertEqualsWithDelta($position->capital_risk_dollars, $position->risk_dollars, 0.01);
+    }
+
+    public function test_locked_in_profit_dollars_for_winner_position(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 875.00,
+            'current_sl' => 1500.00,
+            'quantity' => 2,
+        ]);
+
+        $this->assertEquals(0, $position->capital_risk_dollars);
+        $this->assertEqualsWithDelta(1250.0, $position->locked_in_profit_dollars, 0.01);
+        $this->assertEqualsWithDelta($position->capital_risk_dollars, $position->risk_dollars, 0.01);
+    }
+
+    public function test_capital_risk_and_locked_profit_are_zero_when_sl_equals_entry(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 100.00,
+            'current_sl' => 100.00,
+            'quantity' => 5,
+        ]);
+
+        $this->assertEquals(0, $position->capital_risk_dollars);
+        $this->assertEquals(0, $position->locked_in_profit_dollars);
+    }
+
+    public function test_capital_risk_and_locked_profit_return_zero_without_required_data(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 100.00,
+            'current_sl' => null,
+            'quantity' => 5,
+        ]);
+
+        $this->assertEquals(0, $position->capital_risk_dollars);
+        $this->assertEquals(0, $position->locked_in_profit_dollars);
     }
 
     public function test_current_value_calculates_market_value(): void

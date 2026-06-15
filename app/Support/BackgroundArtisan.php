@@ -63,14 +63,32 @@ class BackgroundArtisan
     {
         $configured = config('app.php_binary');
 
-        if (is_string($configured) && $configured !== '') {
+        if (is_string($configured) && $configured !== '' && is_executable($configured)) {
             return $configured;
         }
 
-        if (! str_contains(PHP_BINARY, 'fpm')) {
-            return PHP_BINARY;
+        $binary = PHP_BINARY;
+
+        if (! str_contains($binary, 'fpm')) {
+            return $binary;
         }
 
-        return 'php';
+        $cliFromFpm = preg_replace('/-fpm$/', '', $binary) ?? $binary;
+
+        if ($cliFromFpm !== $binary && is_executable($cliFromFpm)) {
+            return $cliFromFpm;
+        }
+
+        $phpInSameDir = dirname($binary).DIRECTORY_SEPARATOR.'php';
+
+        if (is_executable($phpInSameDir)) {
+            return $phpInSameDir;
+        }
+
+        Log::warning('Could not resolve PHP CLI binary for background artisan.', [
+            'php_binary' => $binary,
+        ]);
+
+        return $cliFromFpm !== $binary ? $cliFromFpm : $binary;
     }
 }

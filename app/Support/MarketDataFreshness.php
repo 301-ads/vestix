@@ -11,7 +11,7 @@ class MarketDataFreshness
 {
     public static function isSyncInProgress(): bool
     {
-        $startedAt = self::resolveTimestamp(Cache::get('swng:sync_in_progress'));
+        $startedAt = self::resolveTimestamp(Cache::get('vestix:sync_in_progress'));
 
         if ($startedAt === null) {
             return false;
@@ -28,17 +28,17 @@ class MarketDataFreshness
 
     public static function markSyncStarted(): void
     {
-        Cache::put('swng:sync_in_progress', now()->toIso8601String(), now()->addHours(2));
+        Cache::put('vestix:sync_in_progress', now()->toIso8601String(), now()->addHours(2));
     }
 
     public static function markSyncFinished(): void
     {
-        Cache::forget('swng:sync_in_progress');
+        Cache::forget('vestix:sync_in_progress');
     }
 
     public static function lastFetchAt(): ?Carbon
     {
-        return self::resolveTimestamp(Cache::get('swng:last_api_fetch'))
+        return self::resolveTimestamp(Cache::get('vestix:last_api_fetch'))
             ?? self::lastPositionMarketDataUpdate();
     }
 
@@ -60,7 +60,7 @@ class MarketDataFreshness
     public static function tooltip(): string
     {
         if (self::isSyncInProgress()) {
-            $startedAt = self::resolveTimestamp(Cache::get('swng:sync_in_progress'));
+            $startedAt = self::resolveTimestamp(Cache::get('vestix:sync_in_progress'));
 
             if ($startedAt) {
                 return 'API-sync gestart '.$startedAt->diffForHumans().'. Dit kan enkele minuten duren.';
@@ -72,7 +72,7 @@ class MarketDataFreshness
         $lastFetch = self::lastFetchAt();
 
         if (! $lastFetch) {
-            return 'Nog geen marktdata. Klik om swng:fetch-data te starten.';
+            return 'Nog geen marktdata. Klik om vestix:fetch-data te starten.';
         }
 
         return 'Laatste fetch: '.$lastFetch->format('d-m-Y H:i');

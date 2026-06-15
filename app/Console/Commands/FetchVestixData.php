@@ -8,12 +8,13 @@ use App\Services\MarketDataFetcher;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
-class FetchSwngData extends Command
+class FetchVestixData extends Command
 {
-    protected $signature = 'swng:fetch-data {--user-id= : Gebruiker die een voltooiingsmelding ontvangt}';
+    protected $signature = 'vestix:fetch-data {--user-id= : Gebruiker die een voltooiingsmelding ontvangt}';
 
     protected $description = 'Haalt EOD slotkoersen, SMA20 en ATR14 op voor open posities en scouts.';
 
@@ -43,7 +44,7 @@ class FetchSwngData extends Command
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Position>  $positions
+     * @param  Collection<int, Position>  $positions
      */
     private function runSync(MarketDataFetcher $marketDataFetcher, $positions, ?int $userId): int
     {
@@ -56,7 +57,7 @@ class FetchSwngData extends Command
             return self::SUCCESS;
         }
 
-        $delay = config('swng.alpha_vantage.rate_limit_delay', 12);
+        $delay = config('vestix.alpha_vantage.rate_limit_delay', 12);
         $requiredCalls = $positions->count() * 4;
         $dailyLimit = 25;
 
@@ -67,6 +68,8 @@ class FetchSwngData extends Command
         $rows = [];
         $updated = 0;
         $failed = 0;
+        /** @var list<string> $failedTickers */
+        $failedTickers = [];
 
         foreach ($positions as $index => $position) {
             $this->info("Bezig met ophalen data voor ticker: {$position->ticker}");
@@ -82,6 +85,7 @@ class FetchSwngData extends Command
                 } else {
                     $this->warn("Incomplete data of API limit bereikt voor {$position->ticker}");
                     $failed++;
+                    $failedTickers[] = $position->ticker;
                 }
 
                 $position->refresh();
@@ -99,6 +103,7 @@ class FetchSwngData extends Command
 
                 $this->error("Er ging iets mis bij {$position->ticker}. Check de logs.");
                 $failed++;
+                $failedTickers[] = $position->ticker;
             }
         }
 
@@ -107,13 +112,21 @@ class FetchSwngData extends Command
         $this->info('Alle beschikbare posities zijn wiskundig geanalyseerd!');
 
         $marketDataFetcher->touchApiFetchTimestamp();
-        $this->notifyCompletion($userId, $updated, $failed, $positions->count());
+        $this->notifyCompletion($userId, $updated, $failed, $positions->count(), $failedTickers);
 
         return self::SUCCESS;
     }
 
-    private function notifyCompletion(?int $userId, int $updated, int $failed, int $total): void
-    {
+    /**
+     * @param  list<string>  $failedTickers
+     */
+    private function notifyCompletion(
+        ?int $userId,
+        int $updated,
+        int $failed,
+        int $total,
+        array $failedTickers = [],
+    ): void {
         $recipients = $userId
             ? User::query()->whereKey($userId)->get()
             : User::all();
@@ -131,7 +144,16 @@ class FetchSwngData extends Command
             default => "{$updated} van {$total} posities bijgewerkt, {$failed} mislukt of onvolledig.",
         };
 
-        $status = ($failed > 0 && $updated === 0) ? 'warning' : 'success';
+        if ($failedTickers !== []) {
+            $body .= ' Niet bijgewerkt: '.implode(', ', $failedTickers).'.';
+            $body .= ' Waarschijnlijk Alpha Vantage daglimiet (25 calls/dag op gratis tier).';
+        }
+
+        $status = match (true) {
+            $failed === 0 => 'success',
+            $updated === 0 => 'warning',
+            default => 'warning',
+        };
 
         FilamentNotifier::send($title, $body, $status, $recipients);
     }

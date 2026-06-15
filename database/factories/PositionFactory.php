@@ -2,7 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Enums\PositionVisibility;
 use App\Models\Position;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -15,6 +17,7 @@ class PositionFactory extends Factory
     public function definition(): array
     {
         return [
+            'user_id' => User::factory(),
             'ticker' => strtoupper(fake()->lexify('???')),
             'entry_price' => fake()->randomFloat(2, 50, 200),
             'quantity' => fake()->numberBetween(1, 100),
@@ -26,6 +29,7 @@ class PositionFactory extends Factory
             'latest_atr_14' => fake()->randomFloat(2, 1, 10),
             'scout_rsi' => fake()->randomFloat(2, 40, 65),
             'bounce_volume_above_average' => false,
+            'visibility' => PositionVisibility::Private,
             'status' => 'open',
         ];
     }
@@ -52,6 +56,13 @@ class PositionFactory extends Factory
             'current_sl' => null,
             'signal_high' => null,
             'signal_low' => null,
+        ]);
+    }
+
+    public function squadShared(): static
+    {
+        return $this->state(fn (): array => [
+            'visibility' => PositionVisibility::Squad,
         ]);
     }
 

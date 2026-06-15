@@ -2,30 +2,36 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Auth\Pages\Login;
+use App\Filament\Auth\Pages\Register;
+use App\Filament\Auth\Pages\RequestPasswordReset;
+use App\Filament\Auth\Pages\ResetPassword;
 use App\Filament\Pages\Dashboard;
-use App\Filament\Resources\Positions\Pages\ListScouts;
-use App\Models\Position;
+use App\Filament\Pages\EditUserProfile;
+use App\Filament\Pages\ManageSquadSettings;
+use App\Filament\Pages\RegisterSquad;
+use App\Filament\Pages\SquadLeaderboard;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
-use App\Filament\Widgets\PositionsRequiringLiquidationWidget;
-use App\Filament\Widgets\PositionsRequiringUpdateWidget;
+use App\Filament\Widgets\PositionsRequiringActionWidget;
 use App\Filament\Widgets\SetupRadarWidget;
+use Filament\Enums\GlobalSearchPosition;
 use Filament\Enums\ThemeMode;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Navigation\NavigationItem;
+use Filament\Navigation\NavigationGroup;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\HtmlString;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -36,11 +42,19 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
-            ->brandName('SWNG')
-            ->brandLogo(asset('images/swng-logo.png'))
-            ->brandLogoHeight('2rem')
-            ->favicon(asset('images/favicon.png'))
+            ->login(Login::class)
+            ->registration(Register::class)
+            ->passwordReset(RequestPasswordReset::class, ResetPassword::class)
+            ->profile(EditUserProfile::class)
+            ->navigationGroups([
+                NavigationGroup::make()
+                    ->label('Squads'),
+            ])
+            ->brandName('')
+            ->brandLogo(fn (): HtmlString => new HtmlString(
+                view('components.vestix-wordmark', ['size' => 'md'])->render()
+            ))
+            ->favicon(asset('images/favicon.svg'))
             ->colors([
                 'primary' => Color::Emerald,
             ])
@@ -50,13 +64,15 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 Dashboard::class,
+                ManageSquadSettings::class,
+                RegisterSquad::class,
+                SquadLeaderboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
                 PortfolioExposureWidget::class,
-                PositionsRequiringUpdateWidget::class,
+                PositionsRequiringActionWidget::class,
                 PortfolioTopFlopWidget::class,
-                PositionsRequiringLiquidationWidget::class,
                 SetupRadarWidget::class,
             ])
             ->middleware([
@@ -74,19 +90,9 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
             ])
             ->databaseNotifications()
-            ->navigationItems([
-                NavigationItem::make('Setup Radar')
-                    ->icon(Heroicon::OutlinedViewfinderCircle)
-                    ->sort(2)
-                    ->badge(fn (): string => (string) Position::query()->scout()->count(), color: 'info')
-                    ->badgeTooltip('Scouts in watchlist')
-                    ->url(fn (): string => ListScouts::getUrl())
-                    ->isActiveWhen(fn (): bool => request()->routeIs([
-                        'filament.admin.resources.positions.scouts',
-                        'filament.admin.resources.positions.create-scout',
-                        'filament.admin.resources.positions.edit-scout',
-                    ])),
-            ])
+            ->globalSearch(position: GlobalSearchPosition::Topbar)
+            ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
+            ->globalSearchFieldKeyBindingSuffix()
             ->renderHook(
                 PanelsRenderHook::PAGE_HEADER_ACTIONS_BEFORE,
                 fn (): string => view('filament.dashboard.market-data-status')->render(),
@@ -96,65 +102,93 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::STYLES_AFTER,
                 fn (): string => <<<'CSS'
                     <style>
+                        .fi-auth-simple-main-ctn {
+                            flex-direction: column;
+                            gap: 1rem;
+                        }
+
+                        .fi-auth-simple-main-ctn .fi-simple-main {
+                            margin-top: 0;
+                        }
+
+                        .fi-auth-wordmark {
+                            color: #ffffff;
+                            text-align: center;
+                        }
+
                         @media (min-width: 1024px) {
                             .position-form-columns.fi-grid {
                                 align-items: stretch;
                             }
 
-                            .position-form-columns .fi-grid > .fi-grid-col {
+                            .position-form-columns.fi-grid > .fi-grid-col {
                                 display: flex;
                                 flex-direction: column;
+                                min-height: 0;
                             }
 
-                            .position-form-columns .fi-grid > .fi-grid-col > div {
+                            .position-form-columns.fi-grid > .fi-grid-col > .fi-sc-component {
                                 display: flex;
                                 flex: 1;
                                 flex-direction: column;
-                            }
-
-                            .position-form-columns .fi-grid > .fi-grid-col .fi-sc-component {
-                                flex: 1;
-                                height: auto;
+                                min-height: 0;
                             }
 
                             .position-form-setup-grid {
                                 display: flex;
                                 flex-direction: column;
                                 gap: 1rem;
-                                align-self: start;
                                 width: 100%;
                             }
 
-                            .position-form-journal-section {
+                            .position-form-columns.fi-grid > .fi-grid-col:has(.position-form-journal-section) {
                                 align-self: stretch;
+                            }
+
+                            .position-form-journal-section.fi-sc-section {
+                                display: flex;
+                                flex: 1;
+                                flex-direction: column;
+                                min-height: 0;
                             }
 
                             .position-form-journal-section .fi-section {
                                 display: flex;
                                 flex: 1;
                                 flex-direction: column;
-                                height: 100%;
+                                min-height: 0;
                             }
 
                             .position-form-journal-section .fi-section-content-ctn {
                                 display: flex;
                                 flex: 1;
                                 flex-direction: column;
+                                min-height: 0;
                             }
 
                             .position-form-journal-section .fi-section-content {
                                 display: flex;
                                 flex: 1;
                                 flex-direction: column;
+                                gap: 1rem;
+                                min-height: 0;
                             }
 
-                            .position-form-journal-section .fi-section-content > .fi-sc {
+                            .position-form-journal-field.fi-fo-field {
                                 display: flex;
                                 flex: 1;
                                 flex-direction: column;
+                                min-height: 0;
                             }
 
-                            .position-form-journal-field {
+                            .position-form-journal-field .fi-fo-field-content-col {
+                                display: flex;
+                                flex: 1;
+                                flex-direction: column;
+                                min-height: 0;
+                            }
+
+                            .position-form-journal-field .fi-fo-textarea-wrp {
                                 display: flex;
                                 flex: 1;
                                 flex-direction: column;
@@ -165,12 +199,23 @@ class AdminPanelProvider extends PanelProvider
                                 display: flex;
                                 flex: 1;
                                 flex-direction: column;
+                                min-height: 0;
                             }
 
                             .position-form-journal-field .fi-fo-textarea > div {
                                 flex: 1 !important;
+                                height: auto !important;
+                                min-height: 6.75rem;
+                            }
+
+                            .position-form-journal-field .fi-fo-textarea textarea {
                                 height: 100% !important;
-                                min-height: 0;
+                                min-height: 6.75rem;
+                                resize: none;
+                            }
+
+                            .position-form-journal-section .position-form-chart-upload {
+                                flex-shrink: 0;
                             }
 
                             .position-form-chart-upload .fi-fo-file-upload {
@@ -278,12 +323,68 @@ class AdminPanelProvider extends PanelProvider
                             gap: 1.25rem;
                         }
 
+                        .ticker-with-icon {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.5em;
+                            max-width: 100%;
+                            font-size: inherit;
+                            line-height: 1;
+                            white-space: nowrap;
+                        }
+
+                        .ticker-with-icon__logo {
+                            display: inline-flex;
+                            flex-shrink: 0;
+                            width: 1em;
+                            height: 1em;
+                            overflow: hidden;
+                            border-radius: 50%;
+                        }
+
+                        .ticker-with-icon__image {
+                            display: block;
+                            width: 100%;
+                            height: 100%;
+                            object-fit: cover;
+                        }
+
+                        .ticker-with-icon__label {
+                            line-height: 1;
+                        }
+
+                        .fi-ta-text .ticker-with-icon {
+                            vertical-align: middle;
+                        }
+
+                        .fi-global-search-result-heading .ticker-with-icon {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.5em;
+                            font-size: inherit;
+                            line-height: 1.2;
+                        }
+
+                        .fi-global-search-result-heading .ticker-with-icon__logo {
+                            width: 1.125em;
+                            height: 1.125em;
+                        }
+
                         .scout-activate-a-plus.fi-btn {
                             box-shadow: 0 0 0 1px rgb(52 211 153 / 0.5), 0 0 20px rgb(52 211 153 / 0.35);
                         }
 
                         .scout-activate-a-plus.fi-btn:hover {
                             box-shadow: 0 0 0 1px rgb(52 211 153 / 0.7), 0 0 28px rgb(52 211 153 / 0.45);
+                        }
+
+                        .scout-visibility-section .fi-section-content-ctn:empty,
+                        .scout-visibility-section .fi-section-content:empty {
+                            display: none;
+                        }
+
+                        .scout-visibility-section .fi-section-header {
+                            align-items: center;
                         }
 
                         .scout-scorecard-hud {
@@ -399,11 +500,11 @@ class AdminPanelProvider extends PanelProvider
                         }
 
                         /* Dashboard: table widgets in the same grid row share height */
-                        .swng-dashboard .fi-sc.fi-grid {
+                        .vestix-dashboard .fi-sc.fi-grid {
                             align-items: stretch;
                         }
 
-                        .swng-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table {
+                        .vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table {
                             display: flex;
                             flex-direction: column;
                             align-self: stretch;
@@ -411,40 +512,76 @@ class AdminPanelProvider extends PanelProvider
                             min-height: 0;
                         }
 
-                        .swng-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table > .fi-ta {
+                        .vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table > .fi-ta {
                             display: flex;
                             flex: 1;
                             flex-direction: column;
                             min-height: 0;
                         }
 
-                        .swng-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-ctn {
+                        .vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-ctn {
                             flex: 1;
                             flex-direction: column;
                             width: 100%;
                             min-height: 0;
                         }
 
-                        .swng-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-main {
+                        .vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-ctn:has(.fi-ta-empty-state) {
+                            display: flex;
+                        }
+
+                        .vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-main {
                             display: flex;
                             flex: 1;
                             flex-direction: column;
                             min-height: 0;
                         }
 
-                        .swng-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-content-ctn {
+                        .vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-content-ctn {
                             display: flex;
                             flex: 1;
                             flex-direction: column;
                             min-height: 0;
                         }
 
-                        .swng-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-empty-state {
+                        .vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-ctn:has(.fi-ta-empty-state) .fi-ta-content-ctn {
+                            display: none;
+                        }
+
+                        .vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-empty-state {
                             display: flex;
                             flex: 1;
                             flex-direction: column;
                             justify-content: center;
+                            align-items: center;
+                            border-top: none;
+                            padding-block: 0;
                             min-height: 0;
+                        }
+
+                        /* Full-width leaderboard: compact empty state, no stretch */
+                        .vestix-dashboard .vestix-leaderboard-widget.fi-wi-widget {
+                            height: auto;
+                            align-self: start;
+                        }
+
+                        .vestix-dashboard .vestix-leaderboard-widget .fi-ta {
+                            flex: none;
+                        }
+
+                        .vestix-dashboard .vestix-leaderboard-widget .fi-ta-ctn:has(.fi-ta-empty-state) {
+                            display: block;
+                        }
+
+                        .vestix-dashboard .vestix-leaderboard-widget .fi-ta-ctn:has(.fi-ta-empty-state) .fi-ta-content-ctn {
+                            display: none !important;
+                        }
+
+                        .vestix-dashboard .vestix-leaderboard-widget .fi-ta-empty-state {
+                            flex: none;
+                            padding: 2.5rem 1.5rem;
+                            min-height: auto;
+                            border-top: none;
                         }
                     </style>
                     CSS,

@@ -8,12 +8,12 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('swng:fetch-data')
+Schedule::command('vestix:fetch-data')
     ->weekdays()
     ->dailyAt('22:15')
     ->timezone('America/New_York');
 
-Schedule::command('swng:watch-scouts')
+Schedule::command('vestix:watch-scouts')
     ->everyFifteenMinutes()
     ->timezone('Europe/Amsterdam')
     ->between('15:30', '22:00')

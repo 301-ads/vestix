@@ -18,15 +18,15 @@ class WatchScoutsTest extends TestCase
         parent::setUp();
 
         config([
-            'swng.telegram.bot_token' => 'test-token',
-            'swng.telegram.chat_id' => '123456',
-            'swng.polygon.api_key' => 'test-polygon-key',
-            'swng.polygon.base_url' => 'https://api.polygon.io',
-            'swng.scout_watcher.entry_proximity_percent' => 0.5,
-            'swng.scout_watcher.min_score_points' => 6,
-            'swng.scout_watcher.alert_cooldown_hours' => 24,
-            'swng.scout_watcher.quotes_per_minute' => 4,
-            'swng.scout_watcher.chunk_pause_seconds' => 0,
+            'vestix.telegram.bot_token' => 'test-token',
+            'vestix.telegram.chat_id' => '123456',
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+            'vestix.scout_watcher.entry_proximity_percent' => 0.5,
+            'vestix.scout_watcher.min_score_points' => 6,
+            'vestix.scout_watcher.alert_cooldown_hours' => 24,
+            'vestix.scout_watcher.quotes_per_minute' => 4,
+            'vestix.scout_watcher.chunk_pause_seconds' => 0,
         ]);
 
         Cache::lock(WatchScouts::LOCK_KEY)->forceRelease();
@@ -34,9 +34,9 @@ class WatchScoutsTest extends TestCase
 
     public function test_command_skips_when_telegram_not_configured(): void
     {
-        config(['swng.telegram.bot_token' => null]);
+        config(['vestix.telegram.bot_token' => null]);
 
-        $this->artisan('swng:watch-scouts')
+        $this->artisan('vestix:watch-scouts')
             ->expectsOutput('Telegram of koers-API niet geconfigureerd — watcher overgeslagen.')
             ->assertSuccessful();
     }
@@ -44,9 +44,9 @@ class WatchScoutsTest extends TestCase
     public function test_command_runs_with_alpha_vantage_when_polygon_missing(): void
     {
         config([
-            'swng.polygon.api_key' => null,
-            'swng.alpha_vantage.api_key' => 'test-alpha-key',
-            'swng.alpha_vantage.base_url' => 'https://www.alphavantage.co/query',
+            'vestix.polygon.api_key' => null,
+            'vestix.alpha_vantage.api_key' => 'test-alpha-key',
+            'vestix.alpha_vantage.base_url' => 'https://www.alphavantage.co/query',
         ]);
 
         $position = $this->createQualifyingScout('PANW', 100.50);
@@ -58,7 +58,7 @@ class WatchScoutsTest extends TestCase
             'api.telegram.org/*' => Http::response(['ok' => true]),
         ]);
 
-        $this->artisan('swng:watch-scouts')
+        $this->artisan('vestix:watch-scouts')
             ->assertSuccessful();
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'api.telegram.org'));
@@ -79,7 +79,7 @@ class WatchScoutsTest extends TestCase
             'api.telegram.org/*' => Http::response(['ok' => true]),
         ]);
 
-        $this->artisan('swng:watch-scouts')
+        $this->artisan('vestix:watch-scouts')
             ->assertSuccessful();
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'api.telegram.org'));
@@ -101,7 +101,7 @@ class WatchScoutsTest extends TestCase
             'api.telegram.org/*' => Http::response(['ok' => true]),
         ]);
 
-        $this->artisan('swng:watch-scouts')
+        $this->artisan('vestix:watch-scouts')
             ->assertSuccessful();
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'api.polygon.io'));
@@ -127,7 +127,7 @@ class WatchScoutsTest extends TestCase
 
         Http::fake();
 
-        $this->artisan('swng:watch-scouts')
+        $this->artisan('vestix:watch-scouts')
             ->expectsOutput('Geen scouts in de wachtrij. Watcher gaat weer slapen.')
             ->assertSuccessful();
 
@@ -155,7 +155,7 @@ class WatchScoutsTest extends TestCase
             'api.telegram.org/*' => Http::response(['ok' => true]),
         ]);
 
-        $this->artisan('swng:watch-scouts')
+        $this->artisan('vestix:watch-scouts')
             ->assertSuccessful();
 
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'api.telegram.org'));
@@ -181,7 +181,7 @@ class WatchScoutsTest extends TestCase
             ]),
         ]);
 
-        $this->artisan('swng:watch-scouts')
+        $this->artisan('vestix:watch-scouts')
             ->assertSuccessful();
 
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'api.polygon.io'));

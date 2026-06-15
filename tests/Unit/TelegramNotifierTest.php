@@ -11,8 +11,8 @@ class TelegramNotifierTest extends TestCase
     public function test_send_returns_false_when_not_configured(): void
     {
         config([
-            'swng.telegram.bot_token' => null,
-            'swng.telegram.chat_id' => null,
+            'vestix.telegram.bot_token' => null,
+            'vestix.telegram.chat_id' => null,
         ]);
 
         Http::fake();
@@ -24,8 +24,8 @@ class TelegramNotifierTest extends TestCase
     public function test_send_posts_message_to_telegram_api(): void
     {
         config([
-            'swng.telegram.bot_token' => 'test-token',
-            'swng.telegram.chat_id' => '123456',
+            'vestix.telegram.bot_token' => 'test-token',
+            'vestix.telegram.chat_id' => '123456',
         ]);
 
         Http::fake([

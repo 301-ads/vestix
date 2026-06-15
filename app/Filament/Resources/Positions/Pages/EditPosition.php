@@ -2,33 +2,63 @@
 
 namespace App\Filament\Resources\Positions\Pages;
 
+use App\Enums\PositionVisibility;
+use App\Events\SquadRadarTargetPosted;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Positions\Tables\PositionRecordActions;
+use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
+use App\Models\Squad;
+use App\Services\AssetSyncService;
+use App\Services\SquadContext;
 use App\Support\ScoutSetupScorecard;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\HtmlString;
 
 class EditPosition extends EditRecord
 {
     protected static string $resource = PositionResource::class;
 
-    public function mount(int | string $record): void
+    public function mountCanAuthorizeAccess(): void
     {
+        if (! $this->record instanceof Model) {
+            return;
+        }
+
+        abort_unless(static::canAccess(['record' => $this->getRecord()]), 403);
+    }
+
+    public function mount(int|string $record): void
+    {
+        $position = Position::query()->findOrFail($record);
+
+        if ($position->status === 'scout' && static::$resource === PositionResource::class) {
+            throw new HttpResponseException(
+                new RedirectResponse(ScoutResource::getUrl('edit', ['record' => $record])),
+            );
+        }
+
+        if ($position->status !== 'scout' && static::$resource === ScoutResource::class) {
+            throw new HttpResponseException(
+                new RedirectResponse(PositionResource::getUrl('edit', ['record' => $record])),
+            );
+        }
+
         parent::mount($record);
 
         /** @var Position $position */
         $position = $this->getRecord();
-        $pageName = static::getResourcePageName();
+        $position->loadMissing('asset');
 
-        if ($position->status === 'scout' && $pageName === 'edit') {
-            $this->redirect(PositionResource::getUrl('edit-scout', ['record' => $record]));
-        }
-
-        if ($position->status !== 'scout' && $pageName === 'edit-scout') {
-            $this->redirect(PositionResource::getUrl('edit', ['record' => $record]));
+        if ($position->asset && ! $position->asset->hasIcon()) {
+            app(AssetSyncService::class)->ensureForTicker($position->ticker);
+            $position->load('asset');
         }
     }
 
@@ -53,7 +83,7 @@ class EditPosition extends EditRecord
         ];
     }
 
-    public function getTitle(): string | Htmlable
+    public function getTitle(): string|Htmlable
     {
         /** @var Position $record */
         $record = $this->getRecord();
@@ -61,10 +91,11 @@ class EditPosition extends EditRecord
         return new HtmlString(view('filament.positions.edit-page-heading', [
             'title' => $this->getRecordTitle(),
             'status' => $record->status,
+            'iconUrl' => $record->asset?->icon_url,
         ])->render());
     }
 
-    public function getSubheading(): string | Htmlable | null
+    public function getSubheading(): string|Htmlable|null
     {
         /** @var Position $record */
         $record = $this->getRecord();
@@ -84,7 +115,45 @@ class EditPosition extends EditRecord
     {
         unset($data['status'], $data['exit_price'], $data['closed_at']);
 
+        if (($this->getRecord()->status ?? null) === 'scout') {
+            $visibility = PositionVisibility::tryFrom((string) ($data['visibility'] ?? ''))
+                ?? PositionVisibility::Private;
+
+            $user = auth()->user();
+            $squadId = isset($data['squad_id']) ? (int) $data['squad_id'] : null;
+            $squad = $user && $squadId
+                ? $user->squads()->whereKey($squadId)->first()
+                : null;
+
+            if (
+                $visibility === PositionVisibility::Squad
+                && $user !== null
+                && $squad instanceof Squad
+                && app(SquadContext::class)->userCanInSquad($user, $squad, 'scout.share')
+            ) {
+                $data['visibility'] = PositionVisibility::Squad->value;
+                $data['squad_id'] = $squad->id;
+            } else {
+                $data['visibility'] = PositionVisibility::Private->value;
+                $data['squad_id'] = null;
+            }
+        }
+
         return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        /** @var Position $record */
+        $record = $this->getRecord();
+
+        if ($record->status !== 'scout' || $record->visibility !== PositionVisibility::Squad) {
+            return;
+        }
+
+        if ($record->wasChanged('visibility') || $record->wasRecentlyCreated) {
+            SquadRadarTargetPosted::dispatch($record);
+        }
     }
 
     /**
@@ -113,7 +182,7 @@ class EditPosition extends EditRecord
         ]);
     }
 
-    protected function scoutActivateAction(): \Filament\Actions\Action
+    protected function scoutActivateAction(): Action
     {
         return PositionRecordActions::activateScout()
             ->color(fn (): string => $this->scoutActivateColor())

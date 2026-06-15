@@ -9,10 +9,10 @@ class ExampleTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_homepage_redirects_to_admin(): void
+    public function test_the_homepage_shows_welcome_page(): void
     {
-        $response = $this->get('/');
-
-        $response->assertRedirect('/admin');
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('Vestix');
     }
 }

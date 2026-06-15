@@ -65,6 +65,8 @@ class CreatePosition extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['status'] = 'open';
+        $data['user_id'] = auth()->id();
+        $data['visibility'] = 'private';
 
         if (blank($data['current_sl'] ?? null)) {
             $data['current_sl'] = Position::computeNewSl(

@@ -2,30 +2,47 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
-use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Resources\Scouts\ScoutResource;
+use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Resources\Resource;
 use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
 class ScoutsTable
 {
-    public static function configure(Table $table): Table
+    /**
+     * @param  class-string<resource>  $resourceClass
+     */
+    public static function configure(Table $table, bool $squadMode = false, string $resourceClass = ScoutResource::class): Table
     {
         return $table
             ->deferColumnManager(false)
-            ->recordUrl(fn (Position $record): string => PositionResource::getUrl('edit-scout', ['record' => $record]))
+            ->recordUrl(fn (Position $record): ?string => $squadMode && ! $record->isOwnedBy(auth()->user())
+                ? null
+                : $resourceClass::getUrl('edit', ['record' => $record]))
             ->columns([
-                TextColumn::make('ticker')
-                    ->label('Ticker')
-                    ->searchable()
-                    ->sortable()
-                    ->width('4rem'),
+                TickerColumn::wrap(
+                    TextColumn::make('ticker')
+                        ->label('Ticker')
+                        ->searchable()
+                        ->sortable()
+                        ->width('4rem'),
+                ),
+                TextColumn::make('squad.name')
+                    ->label('Squad')
+                    ->badge()
+                    ->visible($squadMode),
+                TextColumn::make('user.name')
+                    ->label('Gespot door')
+                    ->badge()
+                    ->visible($squadMode),
                 TextColumn::make('entry_price')
                     ->label('Geplande entry')
                     ->money('usd')
@@ -42,16 +59,18 @@ class ScoutsTable
                     ->label('Risico ($)')
                     ->money('usd')
                     ->placeholder('—')
-                    ->color('warning'),
+                    ->color('warning')
+                    ->visible(! $squadMode),
                 TextColumn::make('planned_risk_percentage')
                     ->label('Risico (%)')
                     ->numeric(decimalPlaces: 2)
                     ->suffix('%')
                     ->placeholder('—')
-                    ->color('warning'),
+                    ->color('warning')
+                    ->visible(! $squadMode),
                 TextColumn::make('setup_grade')
                     ->label('Setup Grade')
-                    ->state(fn (Position $record): ?string => self::setupGradeLabel($record))
+                    ->state(fn (Position $record): ?string => self::setupGradeLabel($record, $squadMode))
                     ->badge()
                     ->color(fn (Position $record): string => self::setupGradeColor($record))
                     ->placeholder('—'),
@@ -64,21 +83,25 @@ class ScoutsTable
             ])
             ->recordActions([
                 PositionRecordActions::activateScout(),
+                PositionRecordActions::cloneTarget($resourceClass),
                 ActionGroup::make([
                     PositionRecordActions::fetchMarketData(),
                     EditAction::make()
-                        ->url(fn (Position $record): string => PositionResource::getUrl('edit-scout', ['record' => $record])),
-                    DeleteAction::make(),
+                        ->url(fn (Position $record): string => $resourceClass::getUrl('edit', ['record' => $record]))
+                        ->visible(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false),
+                    DeleteAction::make()
+                        ->visible(fn (Position $record): bool => auth()->user()?->can('delete', $record) ?? false),
                 ])->iconButton(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->visible(! $squadMode),
                 ]),
             ]);
     }
 
-    private static function setupGradeLabel(Position $record): ?string
+    private static function setupGradeLabel(Position $record, bool $squadMode = false): ?string
     {
         if (
             ($record->signal_low === null && $record->latest_close_price === null)
@@ -88,7 +111,13 @@ class ScoutsTable
             return null;
         }
 
-        return $record->evaluateSetupScore()['gradeLabel'];
+        $label = $record->evaluateSetupScore()['gradeLabel'];
+
+        if ($squadMode && $record->user !== null) {
+            return $label.' — '.$record->user->name;
+        }
+
+        return $label;
     }
 
     private static function setupGradeColor(Position $record): string

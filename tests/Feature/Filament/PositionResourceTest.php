@@ -9,8 +9,8 @@ use App\Filament\Resources\Positions\Pages\EditPosition;
 use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListPositions;
 use App\Filament\Resources\Positions\PositionResource;
+use App\Models\Asset;
 use App\Models\Position;
-use App\Models\User;
 use App\Services\AlphaVantageService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -24,9 +24,7 @@ class PositionResourceTest extends TestCase
 
     public function test_authenticated_user_can_render_positions_list(): void
     {
-        $user = User::factory()->create();
-
-        $this->actingAs($user);
+        $user = $this->authenticateFilament();
 
         Livewire::test(ListPositions::class)
             ->assertOk();
@@ -34,8 +32,8 @@ class PositionResourceTest extends TestCase
 
     public function test_open_positions_table_uses_new_column_layout(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'ticker' => 'GS',
             'entry_price' => 76.00,
             'quantity' => 10,
@@ -45,8 +43,6 @@ class PositionResourceTest extends TestCase
             'current_sl' => 74.50,
             'status' => 'open',
         ]);
-
-        $this->actingAs($user);
 
         $livewire = Livewire::test(ListPositions::class)
             ->assertOk()
@@ -79,16 +75,14 @@ class PositionResourceTest extends TestCase
 
     public function test_edit_page_shows_calculator_section(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
             'current_sl' => 74.50,
             'status' => 'open',
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertOk()
@@ -111,16 +105,14 @@ class PositionResourceTest extends TestCase
 
     public function test_edit_page_archive_header_action_closes_hold_position(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
             'current_sl' => 76.50,
             'status' => 'open',
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertSee('Archiveer')
@@ -138,8 +130,8 @@ class PositionResourceTest extends TestCase
 
     public function test_edit_page_shows_liquidation_archive_label(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'latest_close_price' => 70.00,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
@@ -147,21 +139,17 @@ class PositionResourceTest extends TestCase
             'status' => 'open',
         ]);
 
-        $this->actingAs($user);
-
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertSee('Schild Geraakt (Sluit)');
     }
 
     public function test_edit_page_closed_position_shows_archive_metadata_in_header(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->closed()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->closed()->create([
             'exit_price' => 90.00,
             'closed_at' => now()->setDate(2026, 6, 10),
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertSee('Gesloten')
@@ -173,12 +161,10 @@ class PositionResourceTest extends TestCase
 
     public function test_edit_page_save_cannot_close_position_via_form(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'status' => 'open',
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->fillForm([
@@ -194,16 +180,14 @@ class PositionResourceTest extends TestCase
 
     public function test_confirm_sl_action_updates_current_sl(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
             'current_sl' => 74.50,
             'status' => 'open',
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(ListPositions::class)
             ->callTableAction('mark_as_updated', $position);
@@ -213,16 +197,14 @@ class PositionResourceTest extends TestCase
 
     public function test_archive_action_closes_position(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'latest_close_price' => 70.00,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
             'current_sl' => 74.50,
             'status' => 'open',
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(ListPositions::class)
             ->callTableAction('archive', $position, data: [
@@ -238,8 +220,8 @@ class PositionResourceTest extends TestCase
 
     public function test_edit_page_shows_performance_section(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'entry_price' => 70.00,
             'quantity' => 10,
             'latest_close_price' => 78.20,
@@ -248,8 +230,6 @@ class PositionResourceTest extends TestCase
             'current_sl' => 74.50,
             'status' => 'open',
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertOk()
@@ -260,12 +240,10 @@ class PositionResourceTest extends TestCase
 
     public function test_edit_page_shows_trade_journal_section(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'trade_journal' => 'Gekocht op bounce van 200 EMA.',
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertOk()
@@ -278,9 +256,7 @@ class PositionResourceTest extends TestCase
 
     public function test_create_position_persists_trade_journal(): void
     {
-        $user = User::factory()->create();
-
-        $this->actingAs($user);
+        $user = $this->authenticateFilament();
 
         Livewire::test(CreatePosition::class)
             ->fillForm([
@@ -302,67 +278,83 @@ class PositionResourceTest extends TestCase
 
     public function test_global_search_finds_positions_by_ticker(): void
     {
-        $user = User::factory()->create();
-        Position::factory()->create(['ticker' => 'NVDA']);
+        $user = $this->authenticateFilament();
+        Position::factory()->for($user)->create(['ticker' => 'NVDA']);
         Position::factory()->create(['ticker' => 'AAPL']);
-
-        $this->actingAs($user);
 
         $results = PositionResource::getGlobalSearchResults('NVDA');
 
         $this->assertCount(1, $results);
-        $this->assertSame('NVDA', $results->first()->title);
+        $this->assertStringContainsString('NVDA', (string) $results->first()->title);
+    }
+
+    public function test_global_search_result_title_includes_ticker_logo_when_available(): void
+    {
+        Storage::fake('public');
+
+        $user = $this->authenticateFilament();
+        $asset = Asset::factory()->create([
+            'ticker' => 'NVDA',
+            'icon_path' => 'ticker-logos/NVDA.png',
+        ]);
+        Storage::disk('public')->put($asset->icon_path, 'icon');
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'NVDA',
+            'asset_id' => $asset->id,
+        ]);
+
+        $title = (string) PositionResource::getGlobalSearchResults('NVDA')->first()->title;
+
+        $this->assertStringContainsString('ticker-with-icon__logo', $title);
+        $this->assertStringContainsString($asset->icon_url, $title);
     }
 
     public function test_global_search_finds_positions_by_trade_journal(): void
     {
-        $user = User::factory()->create();
-        Position::factory()->create([
+        $user = $this->authenticateFilament();
+        Position::factory()->for($user)->create([
             'ticker' => 'TSLA',
             'trade_journal' => 'Gekocht voor earnings, wilde een gokje wagen.',
         ]);
 
-        $this->actingAs($user);
-
         $results = PositionResource::getGlobalSearchResults('earnings');
 
         $this->assertCount(1, $results);
-        $this->assertSame('TSLA', $results->first()->title);
+        $this->assertStringContainsString('TSLA', (string) $results->first()->title);
         $this->assertSame('Open', $results->first()->details['Status']);
     }
 
     public function test_positions_navigation_badge_shows_open_count(): void
     {
-        Position::factory()->count(2)->create(['status' => 'open']);
-        Position::factory()->count(3)->scout()->create();
-        Position::factory()->closed()->create();
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->count(2)->create(['status' => 'open']);
+        Position::factory()->for($user)->count(3)->scout()->create();
+        Position::factory()->for($user)->closed()->create();
 
         $this->assertSame('2', PositionResource::getNavigationBadge());
     }
 
     public function test_sidebar_shows_position_and_scout_counts(): void
     {
-        $user = User::factory()->create();
+        $user = $this->authenticateFilament();
+        Position::factory()->for($user)->count(2)->create(['status' => 'open']);
+        Position::factory()->for($user)->count(3)->scout()->create();
 
-        Position::factory()->count(2)->create(['status' => 'open']);
-        Position::factory()->count(3)->scout()->create();
-
-        $this->actingAs($user)
-            ->get(Dashboard::getUrl())
+        $this->get(Dashboard::getUrl())
             ->assertOk()
             ->assertSee('Posities')
-            ->assertSee('Setup Radar');
+            ->assertSee('Mijn Radar');
     }
 
     public function test_edit_position_persists_entry_chart_screenshot(): void
     {
         Storage::fake('public');
 
-        $user = User::factory()->create();
-        $position = Position::factory()->create(['status' => 'open']);
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create(['status' => 'open']);
         $file = UploadedFile::fake()->image('cdns-entry.jpg', 1200, 800);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->fillForm([
@@ -381,11 +373,9 @@ class PositionResourceTest extends TestCase
     {
         Storage::fake('public');
 
-        $user = User::factory()->create();
-        $position = Position::factory()->create(['status' => 'open']);
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create(['status' => 'open']);
         $file = UploadedFile::fake()->image('cdns-exit.jpg', 1200, 800);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->callAction('archive', data: [
@@ -402,14 +392,12 @@ class PositionResourceTest extends TestCase
 
     public function test_closed_position_shows_entry_and_exit_chart_upload_fields(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->closed()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->closed()->create([
             'entry_price' => 100.00,
             'exit_price' => 90.00,
             'quantity' => 10,
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertSee('TradingView — entry')
@@ -418,15 +406,13 @@ class PositionResourceTest extends TestCase
 
     public function test_closed_position_trade_journal_remains_editable(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->closed()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->closed()->create([
             'entry_price' => 100.00,
             'exit_price' => 90.00,
             'quantity' => 10,
             'trade_journal' => 'Original setup note.',
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->fillForm([
@@ -443,8 +429,8 @@ class PositionResourceTest extends TestCase
 
     public function test_fetch_market_data_action_updates_open_position_form_and_cockpit(): void
     {
-        $user = User::factory()->create();
-        $position = Position::factory()->create([
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
             'ticker' => 'GS',
             'status' => 'open',
             'latest_close_price' => 450.00,
@@ -454,7 +440,11 @@ class PositionResourceTest extends TestCase
         ]);
 
         $this->mock(AlphaVantageService::class, function ($mock): void {
-            $mock->shouldReceive('fetchQuote')->once()->with('GS')->andReturn(462.50);
+            $mock->shouldReceive('fetchGlobalQuote')->once()->with('GS')->andReturn([
+                'close' => 462.50,
+                'high' => 468.00,
+                'low' => 458.25,
+            ]);
             $mock->shouldReceive('fetchSma20Pair')->once()->with('GS')->andReturn([
                 'latest' => 455.00,
                 'five_days_ago' => 448.00,
@@ -463,8 +453,6 @@ class PositionResourceTest extends TestCase
             $mock->shouldReceive('fetchAtr14')->once()->with('GS')->andReturn(9.00);
             $mock->shouldReceive('fetchRsi14')->once()->with('GS')->andReturn(58.00);
         });
-
-        $this->actingAs($user);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertSee('$450.00')
@@ -481,19 +469,19 @@ class PositionResourceTest extends TestCase
 
     public function test_scout_edit_auto_syncs_entry_price_from_buy_stop_formula(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create([
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
             'ticker' => 'EQR',
+            'signal_low' => 66.50,
             'latest_atr_14' => 1.30,
             'latest_sma_20' => 67.00,
         ]);
-
-        $this->actingAs($user);
 
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertSee('Executie & Valstrik')
             ->assertSee('Geadviseerde Buy-Stop')
             ->fillForm([
+                'signal_low' => 66.50,
                 'signal_high' => 68.00,
                 'latest_atr_14' => 1.30,
             ])
@@ -508,18 +496,19 @@ class PositionResourceTest extends TestCase
 
     public function test_scout_entry_price_can_be_manually_overridden_after_buy_stop_sync(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create([
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
             'ticker' => 'EQR',
+            'signal_low' => 66.50,
             'signal_high' => 68.00,
             'latest_atr_14' => 1.30,
             'entry_price' => 68.13,
         ]);
 
-        $this->actingAs($user);
-
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->fillForm([
+                'signal_low' => 66.50,
+                'signal_high' => 68.00,
                 'entry_price' => 69.50,
             ])
             ->call('save')
@@ -532,18 +521,18 @@ class PositionResourceTest extends TestCase
 
     public function test_scout_buy_stop_recalculates_entry_price_when_signal_high_changes(): void
     {
-        $user = User::factory()->create();
-        $scout = Position::factory()->scout()->create([
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
             'ticker' => 'EQR',
+            'signal_low' => 66.50,
             'signal_high' => 68.00,
             'latest_atr_14' => 1.30,
             'entry_price' => 68.13,
         ]);
 
-        $this->actingAs($user);
-
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->fillForm([
+                'signal_low' => 66.50,
                 'signal_high' => 70.00,
             ])
             ->call('save')
@@ -556,9 +545,7 @@ class PositionResourceTest extends TestCase
 
     public function test_create_scout_shows_buy_stop_section(): void
     {
-        $user = User::factory()->create();
-
-        $this->actingAs($user);
+        $user = $this->authenticateFilament();
 
         Livewire::test(CreateScout::class)
             ->assertSee('Setup')

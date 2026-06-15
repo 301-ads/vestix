@@ -10,15 +10,17 @@ use Filament\Pages\Dashboard as BaseDashboard;
 
 class Dashboard extends BaseDashboard
 {
+    protected static ?int $navigationSort = 1;
+
     /**
      * @return array<string>
      */
     public function getPageClasses(): array
     {
-        return ['swng-dashboard'];
+        return ['vestix-dashboard'];
     }
 
-    public function getColumns(): int | array
+    public function getColumns(): int|array
     {
         return 2;
     }
@@ -38,7 +40,7 @@ class Dashboard extends BaseDashboard
                 ->action(function (): void {
                     $userId = auth()->id();
 
-                    BackgroundArtisan::dispatch('swng:fetch-data', [
+                    BackgroundArtisan::dispatch('vestix:fetch-data', [
                         'user-id' => $userId,
                     ]);
 

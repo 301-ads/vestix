@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\PositionVisibility;
+use App\Services\AssetSyncService;
 use App\Support\ScoutSetupScorecard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
@@ -35,6 +39,7 @@ class Position extends Model
             'bounce_volume_above_average' => 'boolean',
             'telegram_alert_sent_at' => 'datetime',
             'closed_at' => 'datetime',
+            'visibility' => PositionVisibility::class,
         ];
     }
 
@@ -88,6 +93,97 @@ class Position extends Model
             $position->deleteChartScreenshotFile($position->entry_chart_screenshot_path);
             $position->deleteChartScreenshotFile($position->exit_chart_screenshot_path);
         });
+
+        static::saved(function (Position $position): void {
+            if (blank($position->ticker)) {
+                return;
+            }
+
+            if (! $position->wasRecentlyCreated && ! $position->wasChanged('ticker')) {
+                return;
+            }
+
+            $asset = app(AssetSyncService::class)->ensureForTicker($position->ticker);
+
+            if ($position->asset_id !== $asset->id) {
+                $position->updateQuietly(['asset_id' => $asset->id]);
+            }
+        });
+    }
+
+    public function asset(): BelongsTo
+    {
+        return $this->belongsTo(Asset::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function squad(): BelongsTo
+    {
+        return $this->belongsTo(Squad::class);
+    }
+
+    public function clonedFrom(): BelongsTo
+    {
+        return $this->belongsTo(Position::class, 'cloned_from_id');
+    }
+
+    public function clones(): HasMany
+    {
+        return $this->hasMany(Position::class, 'cloned_from_id');
+    }
+
+    public function scopeForUser(Builder $query, int $userId): Builder
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    public function scopePersonalScouts(Builder $query, int $userId): Builder
+    {
+        return $query->scout()->forUser($userId);
+    }
+
+    public function scopeSquadShared(Builder $query, int $squadId): Builder
+    {
+        return $query
+            ->scout()
+            ->where('squad_id', $squadId)
+            ->where('visibility', PositionVisibility::Squad);
+    }
+
+    public function isOwnedBy(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return (int) $this->user_id === (int) $user->id;
+    }
+
+    public function cloneForUser(User $user): self
+    {
+        $clone = $this->replicate([
+            'quantity',
+            'telegram_alert_sent_at',
+            'exit_price',
+            'closed_at',
+            'exit_chart_screenshot_path',
+        ]);
+
+        $clone->fill([
+            'user_id' => $user->id,
+            'visibility' => PositionVisibility::Private,
+            'squad_id' => null,
+            'cloned_from_id' => $this->id,
+            'status' => 'scout',
+        ]);
+
+        $clone->save();
+
+        return $clone;
     }
 
     public function archiveWithExitPrice(float $exitPrice, ?string $exitChartPath = null): void
@@ -184,7 +280,7 @@ class Position extends Model
 
     public function scopeAwaitingTelegramAlert(Builder $query): Builder
     {
-        $cooldownHours = config('swng.scout_watcher.alert_cooldown_hours', 24);
+        $cooldownHours = config('vestix.scout_watcher.alert_cooldown_hours', 24);
 
         return $query
             ->where('status', 'scout')
@@ -215,6 +311,15 @@ class Position extends Model
             ->whereNotNull('current_sl')
             ->whereColumn('latest_close_price', '>=', 'current_sl')
             ->whereRaw('ROUND(latest_sma_20 - (0.5 * latest_atr_14), 2) > current_sl');
+    }
+
+    public function scopeRequiresAction(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            $query
+                ->where(fn (Builder $query): Builder => $query->stoppedOut())
+                ->orWhere(fn (Builder $query): Builder => $query->requiresSlUpdate());
+        });
     }
 
     public static function computeNewSl(mixed $sma, mixed $atr): ?float
@@ -341,17 +446,43 @@ class Position extends Model
         return (float) $this->entry_price * (float) $this->quantity;
     }
 
-    public function getRiskDollarsAttribute(): float
+    public function getCapitalRiskDollarsAttribute(): float
     {
         if ($this->status !== 'open') {
             return 0;
         }
 
-        if (! $this->latest_close_price || ! $this->current_sl || (float) $this->latest_close_price <= (float) $this->current_sl) {
+        if ($this->entry_price === null || $this->current_sl === null || $this->quantity === null) {
             return 0;
         }
 
-        return ((float) $this->latest_close_price - (float) $this->current_sl) * (float) $this->quantity;
+        if ((float) $this->current_sl > (float) $this->entry_price) {
+            return 0;
+        }
+
+        return ((float) $this->entry_price - (float) $this->current_sl) * (float) $this->quantity;
+    }
+
+    public function getLockedInProfitDollarsAttribute(): float
+    {
+        if ($this->status !== 'open') {
+            return 0;
+        }
+
+        if ($this->entry_price === null || $this->current_sl === null || $this->quantity === null) {
+            return 0;
+        }
+
+        if ((float) $this->current_sl <= (float) $this->entry_price) {
+            return 0;
+        }
+
+        return ((float) $this->current_sl - (float) $this->entry_price) * (float) $this->quantity;
+    }
+
+    public function getRiskDollarsAttribute(): float
+    {
+        return $this->capital_risk_dollars;
     }
 
     public function getCurrentValueAttribute(): float

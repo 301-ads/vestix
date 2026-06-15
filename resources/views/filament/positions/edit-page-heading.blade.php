@@ -15,7 +15,7 @@
 @endphp
 
 <span class="position-edit-heading inline-flex items-center gap-5">
-    <span>{{ $title }}</span>
+    <x-filament.positions.ticker-with-icon :ticker="$title" :icon-url="$iconUrl" />
     <span {{ (new ComponentAttributeBag)->color(BadgeComponent::class, $badgeColor)->class(['fi-badge', 'fi-size-sm']) }}>
         <span class="fi-badge-label-ctn">
             <span class="fi-badge-label">{{ $badgeLabel }}</span>

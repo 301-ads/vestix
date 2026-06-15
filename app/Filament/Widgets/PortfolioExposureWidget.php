@@ -12,22 +12,29 @@ class PortfolioExposureWidget extends StatsOverviewWidget
 
     protected static ?int $sort = 1;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
-    protected function getColumns(): int | array | null
+    protected function getColumns(): int|array|null
     {
         return ['@xl' => 4, '@lg' => 2, 'default' => 1];
     }
 
     protected function getStats(): array
     {
-        $openPositions = Position::open()->get();
+        $userId = auth()->id();
+
+        if ($userId === null) {
+            return [];
+        }
+
+        $openPositions = Position::open()->forUser($userId)->get();
 
         $totalInvested = $openPositions->sum(fn (Position $position) => $position->investment);
         $totalValue = $openPositions->sum(fn (Position $position) => $position->current_value);
         $totalPnl = $totalValue - $totalInvested;
         $totalPnlPct = $totalInvested > 0 ? ($totalPnl / $totalInvested) * 100 : 0;
-        $totalRisk = $openPositions->sum(fn (Position $position) => $position->risk_dollars);
+        $totalLockedInProfit = $openPositions->sum(fn (Position $position) => $position->locked_in_profit_dollars);
+        $totalCapitalRisk = $openPositions->sum(fn (Position $position) => $position->capital_risk_dollars);
         $openCount = $openPositions->count();
 
         $pnlPrefix = $totalPnl >= 0 ? '+' : '';
@@ -39,17 +46,17 @@ class PortfolioExposureWidget extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->descriptionColor('success'),
             Stat::make('Huidige Waarde', '$'.number_format($totalValue, 2))
-                ->description('Marktwaarde portfolio')
-                ->descriptionIcon('heroicon-m-chart-bar')
+                ->description('Locked: +$'.number_format($totalLockedInProfit, 2))
+                ->descriptionIcon('heroicon-m-shield-check')
                 ->descriptionColor('info'),
             Stat::make('Open P&L', $pnlPrefix.'$'.number_format(abs($totalPnl), 2))
                 ->description($pnlPctPrefix.number_format($totalPnlPct, 2).'% t.o.v. inleg')
                 ->descriptionIcon($totalPnl >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
                 ->color($totalPnl >= 0 ? 'success' : 'danger'),
-            Stat::make('Maximaal Risico', '$'.number_format($totalRisk, 2))
-                ->description('Tot aan stop-loss schilden')
-                ->descriptionIcon('heroicon-m-shield-exclamation')
-                ->color($totalRisk > 0 ? 'warning' : 'success'),
+            Stat::make('Kapitaalrisico', '$'.number_format($totalCapitalRisk, 2))
+                ->description('Risico op initiële inleg')
+                ->descriptionIcon('heroicon-m-exclamation-triangle')
+                ->color($totalCapitalRisk > 0 ? 'warning' : 'success'),
         ];
     }
 }

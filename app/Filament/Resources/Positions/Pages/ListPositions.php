@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Positions\Pages;
 
 use App\Filament\Resources\Positions\PositionResource;
+use App\Services\SquadContext;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -22,11 +23,22 @@ class ListPositions extends ListRecords
         ];
     }
 
+    protected function getTableQuery(): ?Builder
+    {
+        $userId = auth()->id();
+
+        return parent::getTableQuery()
+            ?->when($userId, fn (Builder $query) => $query->forUser($userId))
+            ->with('asset');
+    }
+
     protected function getHeaderActions(): array
     {
         return [
             CreateAction::make()
-                ->visible(fn (): bool => ($this->activeTab ?? 'open') === 'open'),
+                ->visible(fn (): bool => ($this->activeTab ?? 'open') === 'open'
+                    && (($user = auth()->user()) !== null
+                        && app(SquadContext::class)->userCanInAnySquad($user, 'position.manage'))),
         ];
     }
 }

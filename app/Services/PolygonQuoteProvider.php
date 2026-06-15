@@ -10,7 +10,7 @@ class PolygonQuoteProvider implements QuoteProvider
 {
     public function fetchLivePrice(string $ticker): ?float
     {
-        $apiKey = config('swng.polygon.api_key');
+        $apiKey = config('vestix.polygon.api_key');
 
         if (! $apiKey) {
             Log::warning('Polygon API key not configured.');
@@ -18,7 +18,7 @@ class PolygonQuoteProvider implements QuoteProvider
             return null;
         }
 
-        $baseUrl = rtrim(config('swng.polygon.base_url'), '/');
+        $baseUrl = rtrim(config('vestix.polygon.base_url'), '/');
 
         try {
             $response = Http::timeout(30)->get("{$baseUrl}/v2/last/trade/{$ticker}", [

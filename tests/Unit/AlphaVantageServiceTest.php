@@ -15,8 +15,8 @@ class AlphaVantageServiceTest extends TestCase
         parent::setUp();
 
         config([
-            'swng.alpha_vantage.api_key' => 'test-key',
-            'swng.alpha_vantage.base_url' => 'https://www.alphavantage.co/query',
+            'vestix.alpha_vantage.api_key' => 'test-key',
+            'vestix.alpha_vantage.base_url' => 'https://www.alphavantage.co/query',
         ]);
 
         $this->service = new AlphaVantageService;
@@ -27,12 +27,33 @@ class AlphaVantageServiceTest extends TestCase
         Http::fake([
             '*' => Http::response([
                 'Global Quote' => [
+                    '03. high' => '79.50',
+                    '04. low' => '76.80',
                     '05. price' => '78.20',
                 ],
             ]),
         ]);
 
         $this->assertEquals(78.20, $this->service->fetchQuote('WDC'));
+    }
+
+    public function test_fetch_global_quote_returns_ohlc_values(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'Global Quote' => [
+                    '03. high' => '79.50',
+                    '04. low' => '76.80',
+                    '05. price' => '78.20',
+                ],
+            ]),
+        ]);
+
+        $this->assertSame([
+            'close' => 78.20,
+            'high' => 79.50,
+            'low' => 76.80,
+        ], $this->service->fetchGlobalQuote('WDC'));
     }
 
     public function test_fetch_sma20_returns_latest_value(): void
@@ -126,7 +147,7 @@ class AlphaVantageServiceTest extends TestCase
 
     public function test_missing_api_key_returns_null_without_http_call(): void
     {
-        config(['swng.alpha_vantage.api_key' => null]);
+        config(['vestix.alpha_vantage.api_key' => null]);
 
         Http::fake();
 

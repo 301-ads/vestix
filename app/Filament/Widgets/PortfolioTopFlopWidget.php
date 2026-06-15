@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -15,7 +16,7 @@ class PortfolioTopFlopWidget extends TableWidget
 
     protected static ?int $sort = 3;
 
-    protected int | string | array $columnSpan = 1;
+    protected int|string|array $columnSpan = 1;
 
     public function table(Table $table): Table
     {
@@ -24,11 +25,15 @@ class PortfolioTopFlopWidget extends TableWidget
             ->searchable(false)
             ->recordUrl(fn (Position $record): string => PositionResource::getUrl('edit', ['record' => $record]))
             ->query(fn (): Builder => Position::open()
+                ->forUser(auth()->id())
+                ->with('asset')
                 ->whereNotNull('latest_close_price')
                 ->orderByRaw('((latest_close_price - entry_price) / NULLIF(entry_price, 0)) * 100 DESC'))
             ->columns([
-                TextColumn::make('ticker')
-                    ->label('Ticker'),
+                TickerColumn::wrap(
+                    TextColumn::make('ticker')
+                        ->label('Ticker'),
+                ),
                 TextColumn::make('unrealized_pnl_percentage')
                     ->label('P&L (%)')
                     ->numeric(decimalPlaces: 2)

@@ -9,16 +9,30 @@ class AlphaVantageService
 {
     public function fetchQuote(string $ticker): ?float
     {
+        return $this->fetchGlobalQuote($ticker)['close'] ?? null;
+    }
+
+    /**
+     * @return array{close: float, high: float|null, low: float|null}|null
+     */
+    public function fetchGlobalQuote(string $ticker): ?array
+    {
         $data = $this->request([
             'function' => 'GLOBAL_QUOTE',
             'symbol' => $ticker,
         ]);
 
-        if (! $data || ! isset($data['Global Quote']['05. price'])) {
+        $quote = $data['Global Quote'] ?? null;
+
+        if (! is_array($quote) || ! isset($quote['05. price'])) {
             return null;
         }
 
-        return (float) $data['Global Quote']['05. price'];
+        return [
+            'close' => (float) $quote['05. price'],
+            'high' => isset($quote['03. high']) ? (float) $quote['03. high'] : null,
+            'low' => isset($quote['04. low']) ? (float) $quote['04. low'] : null,
+        ];
     }
 
     public function fetchSma20(string $ticker): ?float
@@ -85,7 +99,7 @@ class AlphaVantageService
 
     private function request(array $params): ?array
     {
-        $apiKey = config('swng.alpha_vantage.api_key');
+        $apiKey = config('vestix.alpha_vantage.api_key');
 
         if (! $apiKey) {
             Log::warning('Alpha Vantage API key not configured.');
@@ -94,7 +108,7 @@ class AlphaVantageService
         }
 
         try {
-            $response = Http::timeout(30)->get(config('swng.alpha_vantage.base_url'), [
+            $response = Http::timeout(30)->get(config('vestix.alpha_vantage.base_url'), [
                 ...$params,
                 'apikey' => $apiKey,
             ]);

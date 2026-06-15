@@ -2,8 +2,9 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Positions\Tables\PositionRecordActions;
+use App\Filament\Resources\Scouts\ScoutResource;
+use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use Filament\Actions\ActionGroup;
 use Filament\Tables\Columns\TextColumn;
@@ -17,18 +18,23 @@ class SetupRadarWidget extends TableWidget
 
     protected static ?int $sort = 5;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     public function table(Table $table): Table
     {
         return $table
             ->heading('Setup Radar')
             ->searchable(false)
-            ->query(fn (): Builder => Position::scout()->latest())
-            ->recordUrl(fn (Position $record): string => PositionResource::getUrl('edit-scout', ['record' => $record]))
+            ->query(fn (): Builder => Position::scout()
+                ->forUser(auth()->id())
+                ->with('asset')
+                ->latest())
+            ->recordUrl(fn (Position $record): string => ScoutResource::getUrl('edit', ['record' => $record]))
             ->columns([
-                TextColumn::make('ticker')
-                    ->label('Ticker'),
+                TickerColumn::wrap(
+                    TextColumn::make('ticker')
+                        ->label('Ticker'),
+                ),
                 TextColumn::make('latest_close_price')
                     ->label('Close')
                     ->money('usd')
@@ -55,7 +61,7 @@ class SetupRadarWidget extends TableWidget
                 ])->iconButton(),
             ])
             ->emptyStateHeading('Geen scouts in de watchlist')
-            ->emptyStateDescription('Voeg A+ setups toe via Setup Radar in de sidebar.')
+            ->emptyStateDescription('Voeg A+ setups toe via Mijn Radar in de sidebar.')
             ->paginated(false);
     }
 }

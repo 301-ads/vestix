@@ -2,9 +2,13 @@
 
 namespace App\Filament\Resources\Positions\Schemas;
 
+use App\Enums\PositionVisibility;
 use App\Models\Position;
+use App\Services\SquadContext;
+use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ScoutSetupScorecard;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -51,6 +55,7 @@ class PositionForm
                                     ->maxLength(2000)
                                     ->placeholder('Gekocht op bounce van 200 EMA, sterke earnings verwacht, sector is bullish.')
                                     ->extraFieldWrapperAttributes(['class' => 'position-form-journal-field'])
+                                    ->extraInputAttributes(['class' => 'position-form-journal-textarea'])
                                     ->columnSpanFull(),
                                 self::chartScreenshotField(
                                     field: 'entry_chart_screenshot_path',
@@ -65,8 +70,94 @@ class PositionForm
                                 ),
                             ]),
                     ]),
-                self::scoutScorecardSection(),
+                self::scoutScorecardSection($isScoutForm),
+                self::scoutVisibilitySection($isScoutForm),
             ]);
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function scoutVisibilitySection(callable $isScoutForm): Section
+    {
+        return Section::make('Zichtbaarheid')
+            ->compact()
+            ->columnSpanFull()
+            ->description('Privé (Ghost Mode): alleen jij ziet deze setup. Squad: zichtbaar voor je teamgenoten.')
+            ->extraAttributes(['class' => 'scout-visibility-section'])
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation)
+                && (($user = auth()->user()) !== null
+                    && app(SquadContext::class)->userCanInAnySquad($user, 'scout.share')))
+            ->afterHeader([
+                self::scoutVisibilityToggle(),
+            ])
+            ->schema([
+                Select::make('squad_id')
+                    ->label('Squad')
+                    ->options(function (): array {
+                        $user = auth()->user();
+
+                        if ($user === null) {
+                            return [];
+                        }
+
+                        return app(SquadContext::class)
+                            ->squadsWhereUserCan($user, 'scout.share')
+                            ->pluck('name', 'id')
+                            ->all();
+                    })
+                    ->visible(fn (Get $get): bool => self::visibilityIsSquad($get('visibility')))
+                    ->native(false)
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    private static function visibilityIsSquad(mixed $state): bool
+    {
+        if ($state instanceof PositionVisibility) {
+            return $state === PositionVisibility::Squad;
+        }
+
+        if ($state === true) {
+            return true;
+        }
+
+        return PositionVisibility::tryFrom((string) $state) === PositionVisibility::Squad;
+    }
+
+    private static function scoutVisibilityToggle(): Toggle
+    {
+        return Toggle::make('visibility')
+            ->label('Deel met squad')
+            ->inline(false)
+            ->onIcon('heroicon-m-user-group')
+            ->offIcon('heroicon-m-eye-slash')
+            ->onColor('success')
+            ->offColor('gray')
+            ->formatStateUsing(fn ($state): bool => self::visibilityIsSquad($state))
+            ->dehydrateStateUsing(fn (bool $state): string => $state
+                ? PositionVisibility::Squad->value
+                : PositionVisibility::Private->value)
+            ->live()
+            ->afterStateUpdated(function (bool $state, Set $set): void {
+                if (! $state) {
+                    $set('squad_id', null);
+
+                    return;
+                }
+
+                $user = auth()->user();
+
+                if ($user === null) {
+                    return;
+                }
+
+                $squads = app(SquadContext::class)->squadsWhereUserCan($user, 'scout.share');
+
+                if ($squads->count() === 1) {
+                    $set('squad_id', $squads->first()?->id);
+                }
+            });
     }
 
     /**
@@ -81,11 +172,7 @@ class PositionForm
             ->schema([
                 Grid::make(2)
                     ->schema([
-                        TextInput::make('ticker')
-                            ->label('Ticker')
-                            ->required()
-                            ->maxLength(10)
-                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? strtoupper($state) : null),
+                        self::tickerField(),
                         TextInput::make('quantity')
                             ->label(function (?Position $record, string $operation) use ($isScoutForm): string {
                                 return $isScoutForm($record, $operation) ? 'Gepland aantal' : 'Aantal';
@@ -171,7 +258,8 @@ class PositionForm
             ->afterLabel([
                 Icon::make('heroicon-o-information-circle')
                     ->tooltip(
-                        "Low: Low van de signaalkaars (TradingView) — bepaalt trampoline-scorecard.\n"
+                        "Low: Low van de signaalkaars (TradingView) — herkent rejection bounce in scorecard.\n"
+                        ."Close: slotkoers bepaalt of trampoline gebroken is (Close < SMA 20 = geblokkeerd).\n"
                         ."High: hoogste punt van de signaalkaars.\n"
                         ."Buy-Stop: High + 10% × ATR 14 (ATR staat in Setup).\n"
                         .'Zet de Buy-Stop exact zo in je broker.'
@@ -184,15 +272,19 @@ class PositionForm
             ->schema([
                 TextInput::make('signal_low')
                     ->label('Low (Signaalkaars)')
+                    ->required()
                     ->numeric()
                     ->prefix('$')
                     ->minValue(0.01)
+                    ->helperText('Low van de laatste bounce-kaars.')
                     ->live(onBlur: true),
                 TextInput::make('signal_high')
                     ->label('High (Signaalkaars)')
+                    ->required()
                     ->numeric()
                     ->prefix('$')
                     ->minValue(0.01)
+                    ->helperText('High van de laatste bounce-kaars.')
                     ->live(onBlur: true)
                     ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record))
                     ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record)),
@@ -203,6 +295,21 @@ class PositionForm
                     ->dehydrated(false)
                     ->extraInputAttributes(['style' => 'font-weight: bold; color: #10b981;']),
             ]);
+    }
+
+    private static function tickerField(): Select
+    {
+        return Select::make('ticker')
+            ->label('Ticker')
+            ->required()
+            ->searchable()
+            ->searchPrompt('Zoek op ticker of bedrijfsnaam…')
+            ->searchDebounce(400)
+            ->getSearchResultsUsing(fn (string $search): array => app(TradingViewSymbolService::class)->searchForForm($search))
+            ->getOptionLabelUsing(fn (?string $value): ?string => blank($value) ? null : strtoupper($value))
+            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? strtoupper($state) : null)
+            // ->helperText('Zoek en kies de juiste listing — voorkomt typefouten in de ticker.')
+            ->live(onBlur: true);
     }
 
     private static function syncBuyStopFromInputs(Set $set, Get $get, ?Position $record): void
@@ -220,11 +327,13 @@ class PositionForm
         $set('entry_price', $buyStop);
     }
 
-    private static function scoutScorecardSection(): Grid
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function scoutScorecardSection(callable $isScoutForm): Grid
     {
         return Grid::make(12)
-            ->visible(fn (string $operation, ?Position $record): bool => $operation === 'edit'
-                && ($record?->status === 'scout'))
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
             ->columnSpanFull()
             ->schema([
                 Section::make('Marktdata & Indicatoren')

@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Cache;
 
 class WatchScouts extends Command
 {
-    public const LOCK_KEY = 'swng:watch-scouts';
+    public const LOCK_KEY = 'vestix:watch-scouts';
 
-    protected $signature = 'swng:watch-scouts';
+    protected $signature = 'vestix:watch-scouts';
 
     protected $description = 'Pollt live koersen voor scouts en stuurt Telegram-alerts bij A-setup.';
 
@@ -42,18 +42,20 @@ class WatchScouts extends Command
 
     private function isConfigured(): bool
     {
-        $hasTelegram = filled(config('swng.telegram.bot_token'))
-            && filled(config('swng.telegram.chat_id'));
+        $hasTelegram = filled(config('vestix.telegram.bot_token'));
 
-        $hasQuoteApi = filled(config('swng.polygon.api_key'))
-            || filled(config('swng.alpha_vantage.api_key'));
+        $hasQuoteApi = filled(config('vestix.polygon.api_key'))
+            || filled(config('vestix.alpha_vantage.api_key'));
 
         return $hasTelegram && $hasQuoteApi;
     }
 
     private function watch(QuoteProvider $quoteProvider): int
     {
-        $scouts = Position::scout()->awaitingTelegramAlert()->get();
+        $scouts = Position::scout()
+            ->awaitingTelegramAlert()
+            ->with('user')
+            ->get();
 
         if ($scouts->isEmpty()) {
             $this->info('Geen scouts in de wachtrij. Watcher gaat weer slapen.');
@@ -63,10 +65,10 @@ class WatchScouts extends Command
 
         $this->info("Scout-watcher gestart: {$scouts->count()} scout(s) te controleren.");
 
-        $chunkSize = config('swng.scout_watcher.quotes_per_minute', 4);
-        $chunkPause = config('swng.scout_watcher.chunk_pause_seconds', 60);
-        $proximityPercent = config('swng.scout_watcher.entry_proximity_percent', 0.5);
-        $minScore = config('swng.scout_watcher.min_score_points', 6);
+        $chunkSize = config('vestix.scout_watcher.quotes_per_minute', 4);
+        $chunkPause = config('vestix.scout_watcher.chunk_pause_seconds', 60);
+        $proximityPercent = config('vestix.scout_watcher.entry_proximity_percent', 0.5);
+        $minScore = config('vestix.scout_watcher.min_score_points', 6);
 
         $chunks = $scouts->chunk($chunkSize);
         $totalChunks = $chunks->count();
@@ -141,7 +143,9 @@ class WatchScouts extends Command
             number_format($livePrice, 2),
         );
 
-        if (! TelegramNotifier::send($message)) {
+        $owner = $position->user;
+
+        if ($owner === null || ! TelegramNotifier::sendToUser($owner, $message)) {
             $this->warn("  [{$ticker}] Telegram-verzending mislukt.");
 
             return null;

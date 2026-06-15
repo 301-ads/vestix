@@ -123,4 +123,17 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | PHP CLI Binary
+    |--------------------------------------------------------------------------
+    |
+    | Used when spawning background artisan commands from the web UI. Under
+    | PHP-FPM (e.g. Laravel Herd), PHP_BINARY points at the FPM binary — set
+    | PHP_BINARY in .env to your CLI php path if auto-detection fails.
+    |
+    */
+
+    'php_binary' => env('PHP_BINARY'),
+
 ];

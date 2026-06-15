@@ -3,9 +3,10 @@
 namespace Tests\Feature\Filament;
 
 use App\Filament\Pages\Dashboard;
-use App\Filament\Widgets\PositionsRequiringUpdateWidget;
+use App\Filament\Widgets\PositionsRequiringActionWidget;
 use App\Models\Position;
 use App\Models\User;
+use App\Support\MarketDataFreshness;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Process;
 use Livewire\Livewire;
@@ -17,9 +18,9 @@ class DashboardTest extends TestCase
 
     public function test_dashboard_renders_with_force_sync_action(): void
     {
-        $user = User::factory()->create();
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
-        $this->actingAs($user);
+        $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(Dashboard::class)
             ->assertOk()
@@ -30,9 +31,9 @@ class DashboardTest extends TestCase
     {
         Process::fake();
 
-        $user = User::factory()->create();
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
-        $this->actingAs($user);
+        $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(Dashboard::class)
             ->callAction('sync_api');
@@ -41,7 +42,7 @@ class DashboardTest extends TestCase
             return $process->command === [
                 PHP_BINARY,
                 base_path('artisan'),
-                'swng:fetch-data',
+                'vestix:fetch-data',
                 '--user-id='.$user->id,
             ];
         });
@@ -51,23 +52,23 @@ class DashboardTest extends TestCase
     {
         Process::fake();
 
-        $user = User::factory()->create();
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
-        $this->actingAs($user);
+        $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(Dashboard::class)
             ->callAction('sync_api');
 
-        $this->assertFalse(\App\Support\MarketDataFreshness::isSyncInProgress());
+        $this->assertFalse(MarketDataFreshness::isSyncInProgress());
     }
 
     public function test_force_sync_stores_database_notification(): void
     {
         Process::fake();
 
-        $user = User::factory()->create();
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
-        $this->actingAs($user);
+        $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(Dashboard::class)
             ->callAction('sync_api');
@@ -84,9 +85,9 @@ class DashboardTest extends TestCase
 
     public function test_dashboard_shows_action_widget_on_page(): void
     {
-        $user = User::factory()->create();
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
-        Position::factory()->create([
+        Position::factory()->for($user)->create([
             'ticker' => 'WDC',
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
@@ -95,18 +96,18 @@ class DashboardTest extends TestCase
             'status' => 'open',
         ]);
 
-        $this->actingAs($user);
+        $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(Dashboard::class)
-            ->assertSee('Actie vereist')
+            ->assertSee('Acties vereist')
             ->assertSee('WDC');
     }
 
     public function test_action_widget_lists_only_positions_requiring_update(): void
     {
-        $user = User::factory()->create();
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
-        $updatePosition = Position::factory()->create([
+        $updatePosition = Position::factory()->for($user)->create([
             'ticker' => 'WDC',
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
@@ -115,7 +116,7 @@ class DashboardTest extends TestCase
             'status' => 'open',
         ]);
 
-        $holdPosition = Position::factory()->create([
+        $holdPosition = Position::factory()->for($user)->create([
             'ticker' => 'HOLD',
             'latest_close_price' => 78.20,
             'latest_sma_20' => 75.00,
@@ -124,18 +125,37 @@ class DashboardTest extends TestCase
             'status' => 'open',
         ]);
 
-        $this->actingAs($user);
+        $this->actingAsFilamentUser($user, $squad);
 
-        Livewire::test(PositionsRequiringUpdateWidget::class)
+        Livewire::test(PositionsRequiringActionWidget::class)
             ->assertCanSeeTableRecords([$updatePosition])
             ->assertCanNotSeeTableRecords([$holdPosition]);
     }
 
+    public function test_action_widget_lists_stopped_out_positions_with_liquidation_type(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $stoppedOut = Position::factory()->for($user)->create([
+            'ticker' => 'STOP',
+            'latest_close_price' => 74.50,
+            'current_sl' => 74.50,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertCanSeeTableRecords([$stoppedOut])
+            ->assertSee('Liquidatie')
+            ->assertSee('STOP');
+    }
+
     public function test_action_widget_mark_as_updated_removes_position_from_list(): void
     {
-        $user = User::factory()->create();
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
-        $position = Position::factory()->create([
+        $position = Position::factory()->for($user)->create([
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
@@ -143,13 +163,43 @@ class DashboardTest extends TestCase
             'status' => 'open',
         ]);
 
-        $this->actingAs($user);
+        $this->actingAsFilamentUser($user, $squad);
 
-        Livewire::test(PositionsRequiringUpdateWidget::class)
+        Livewire::test(PositionsRequiringActionWidget::class)
             ->assertCanSeeTableRecords([$position])
             ->callTableAction('mark_as_updated', $position)
             ->assertCanNotSeeTableRecords([$position->fresh()]);
 
         $this->assertEquals(76.10, (float) $position->fresh()->current_sl);
+    }
+
+    public function test_action_widget_does_not_show_archive_action(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $stoppedOut = Position::factory()->for($user)->create([
+            'latest_close_price' => 74.50,
+            'current_sl' => 74.50,
+            'status' => 'open',
+        ]);
+
+        $updatePosition = Position::factory()->for($user)->create([
+            'ticker' => 'UPD',
+            'latest_close_price' => 78.20,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'current_sl' => 74.50,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertCanSeeTableRecords([$stoppedOut, $updatePosition])
+            ->assertSee('Update')
+            ->assertDontSee('Archiveer')
+            ->assertDontSee('Close')
+            ->assertTableActionVisible('mark_as_updated', $updatePosition)
+            ->assertTableActionHidden('mark_as_updated', $stoppedOut);
     }
 }

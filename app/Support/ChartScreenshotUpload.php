@@ -11,7 +11,7 @@ class ChartScreenshotUpload
 {
     public static function maxSizeKb(): int
     {
-        return (int) config('swng.trade_journal.chart_screenshot_max_kb', 10240);
+        return (int) config('vestix.trade_journal.chart_screenshot_max_kb', 10240);
     }
 
     public static function maxSizeLabel(): string
@@ -49,12 +49,14 @@ class ChartScreenshotUpload
         return FileUpload::make($name)
             ->image()
             ->disk('public')
-            ->directory('position-charts')
+            ->directory(fn (): string => auth()->id()
+                ? 'users/'.auth()->id().'/position-charts'
+                : 'position-charts')
             ->visibility('public')
             ->maxSize(self::maxSizeKb())
             ->previewable(false)
             ->imagePreviewHeight('0')
-            ->getUploadedFileUsing(static function (BaseFileUpload $component, string $file, string | array | null $storedFileNames): ?array {
+            ->getUploadedFileUsing(static function (BaseFileUpload $component, string $file, string|array|null $storedFileNames): ?array {
                 $disk = $component->getDisk();
 
                 try {

@@ -2,14 +2,18 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
+use App\Events\PositionLiquidated;
 use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Services\MarketDataFetcher;
+use App\Services\SquadContext;
 use App\Support\ChartScreenshotUpload;
 use App\Support\FilamentNotifier;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
+use Filament\Resources\Resource;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\HtmlString;
 
@@ -85,7 +89,11 @@ class PositionRecordActions
             ->tooltip('Zet scout om naar open positie met berekende stop-loss')
             ->icon('heroicon-o-rocket-launch')
             ->color('success')
-            ->visible(fn (Position $record): bool => $record->status === 'scout')
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->isOwnedBy(auth()->user())
+                && auth()->user() !== null
+                && app(SquadContext::class)->userCanInAnySquad(auth()->user(), 'position.activate'))
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('activate', $record) ?? false)
             ->modalHeading('Scout activeren als positie')
             ->modalDescription('Vul je werkelijke fill en aantal in. De broker stop-loss wordt automatisch gezet op de berekende SL.')
             ->schema([
@@ -126,6 +134,32 @@ class PositionRecordActions
                 );
             })
             ->successRedirectUrl(fn (Position $record): string => PositionResource::getUrl('edit', ['record' => $record]));
+    }
+
+    /**
+     * @param  class-string<resource>  $scoutResourceClass
+     */
+    public static function cloneTarget(string $scoutResourceClass = ScoutResource::class): Action
+    {
+        return Action::make('clone_target')
+            ->label('Kloon Target')
+            ->tooltip('Kopieer ticker, entry en stop-loss naar je privé-radar')
+            ->icon('heroicon-o-document-duplicate')
+            ->color('info')
+            ->visible(fn (Position $record): bool => auth()->user()?->can('clone', $record) ?? false)
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('clone', $record) ?? false)
+            ->action(function (Position $record, $livewire): void {
+                $clone = $record->cloneForUser(auth()->user());
+
+                FilamentNotifier::send(
+                    title: 'Target gekloond',
+                    body: "{$clone->ticker} staat nu in je privé-radar.",
+                );
+
+                if (is_object($livewire) && method_exists($livewire, 'redirect')) {
+                    $livewire->redirect($scoutResourceClass::getUrl('edit', ['record' => $clone]));
+                }
+            });
     }
 
     public static function markAsUpdated(): Action
@@ -176,10 +210,16 @@ class PositionRecordActions
                     ->helperText('Optioneel: upload je exit-chart voor je trade journal. '.ChartScreenshotUpload::maxSizeLabel()),
             ])
             ->action(function (Position $record, array $data): void {
+                $wasStoppedOut = $record->action_command === 'STOPPED OUT';
+
                 $record->archiveWithExitPrice(
                     (float) $data['exit_price'],
                     $data['exit_chart_screenshot_path'] ?? null,
                 );
+
+                if ($wasStoppedOut) {
+                    PositionLiquidated::dispatch($record->fresh());
+                }
 
                 FilamentNotifier::send(title: 'Positie gearchiveerd');
             });

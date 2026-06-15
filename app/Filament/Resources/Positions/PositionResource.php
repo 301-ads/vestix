@@ -3,20 +3,21 @@
 namespace App\Filament\Resources\Positions;
 
 use App\Filament\Resources\Positions\Pages\CreatePosition;
-use App\Filament\Resources\Positions\Pages\CreateScout;
 use App\Filament\Resources\Positions\Pages\EditPosition;
-use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListPositions;
-use App\Filament\Resources\Positions\Pages\ListScouts;
 use App\Filament\Resources\Positions\Schemas\PositionForm;
 use App\Filament\Resources\Positions\Tables\PositionsTable;
+use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\HtmlString;
 
 class PositionResource extends Resource
 {
@@ -31,6 +32,21 @@ class PositionResource extends Resource
     protected static ?string $pluralModelLabel = 'posities';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedChartBar;
+
+    protected static ?int $navigationSort = 2;
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery()->whereIn('status', ['open', 'closed']);
+
+        $userId = auth()->id();
+
+        if ($userId) {
+            $query->forUser($userId);
+        }
+
+        return $query;
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -51,19 +67,38 @@ class PositionResource extends Resource
     {
         return [
             'index' => ListPositions::route('/'),
-            'scouts' => ListScouts::route('/setup-radar'),
             'create' => CreatePosition::route('/create'),
-            'create-scout' => CreateScout::route('/create-scout'),
-            'edit-scout' => EditScout::route('/setup-radar/{record}/edit'),
             'edit' => EditPosition::route('/{record}/edit'),
         ];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        $query = parent::getGlobalSearchEloquentQuery()->with('asset');
+
+        $userId = auth()->id();
+
+        if ($userId) {
+            $query->forUser($userId);
+        }
+
+        return $query;
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string|Htmlable
+    {
+        /** @var Position $record */
+        return new HtmlString(view('components.filament.positions.ticker-with-icon', [
+            'ticker' => $record->ticker,
+            'iconUrl' => $record->asset?->icon_url,
+        ])->render());
     }
 
     public static function getGlobalSearchResultUrl(Model $record): ?string
     {
         /** @var Position $record */
-        if ($record->status === 'scout' && static::hasPage('edit-scout') && static::canEdit($record)) {
-            return static::getUrl('edit-scout', ['record' => $record]);
+        if ($record->status === 'scout') {
+            return ScoutResource::getUrl('edit', ['record' => $record]);
         }
 
         if (static::hasPage('edit') && static::canEdit($record)) {
@@ -76,7 +111,7 @@ class PositionResource extends Resource
     /**
      * @return string | array<string>
      */
-    public static function getNavigationItemActiveRoutePattern(): string | array
+    public static function getNavigationItemActiveRoutePattern(): string|array
     {
         $base = static::getRouteBaseName();
 
@@ -89,7 +124,11 @@ class PositionResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        return (string) Position::query()->open()->count();
+        $userId = auth()->id();
+
+        return $userId
+            ? (string) Position::query()->open()->forUser($userId)->count()
+            : null;
     }
 
     public static function getNavigationBadgeTooltip(): ?string

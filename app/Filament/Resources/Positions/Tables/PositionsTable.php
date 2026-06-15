@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Positions\Tables;
 
 use App\Filament\Resources\Positions\Pages\ListPositions;
+use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -21,13 +22,16 @@ class PositionsTable
     {
         return $table
             ->deferColumnManager(false)
+            ->defaultSort('unrealized_pnl_percentage', 'desc')
             ->columns([
-                TextColumn::make('ticker')
-                    ->label('Ticker')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable()
-                    ->width('4rem'),
+                TickerColumn::wrap(
+                    TextColumn::make('ticker')
+                        ->label('Ticker')
+                        ->searchable()
+                        ->sortable()
+                        ->toggleable()
+                        ->width('4rem'),
+                ),
                 TextColumn::make('quantity')
                     ->label('Aantal')
                     ->numeric(decimalPlaces: 0, maxDecimalPlaces: 6)

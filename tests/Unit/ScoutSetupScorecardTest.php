@@ -38,7 +38,7 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame([], $result['hardFailReasons']);
     }
 
-    public function test_landing_below_sma_scores_zero_trampoline_and_hard_fail(): void
+    public function test_close_below_sma_scores_zero_trampoline_and_hard_fail(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 99.90,
@@ -48,7 +48,19 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame(0, $result['criteria'][0]['points']);
         $this->assertStringContainsString('trampoline gebroken', $result['criteria'][0]['detail']);
         $this->assertSame('B/C', $result['grade']);
-        $this->assertContains('Koers onder SMA 20 — trampoline gebroken', $result['hardFailReasons']);
+        $this->assertContains('Close onder SMA 20 — trampoline gebroken', $result['hardFailReasons']);
+    }
+
+    public function test_low_below_sma_but_close_above_is_not_hard_fail(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 99.50,
+            'latest_close_price' => 100.50,
+        ]));
+
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame(2, $result['criteria'][0]['points']);
+        $this->assertStringContainsString('Rejection bounce', $result['criteria'][0]['detail']);
     }
 
     public function test_buy_stop_entry_does_not_affect_trampoline_score(): void
@@ -76,7 +88,7 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertStringContainsString('perfecte landing', $result['criteria'][0]['detail']);
     }
 
-    public function test_hard_fail_uses_signal_low_not_high_entry_price(): void
+    public function test_hard_fail_uses_close_not_signal_low(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 99.90,
@@ -84,7 +96,47 @@ class ScoutSetupScorecardTest extends TestCase
             'entry_price' => 105.00,
         ]));
 
-        $this->assertContains('Koers onder SMA 20 — trampoline gebroken', $result['hardFailReasons']);
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame(2, $result['criteria'][0]['points']);
+        $this->assertStringContainsString('Rejection bounce', $result['criteria'][0]['detail']);
+    }
+
+    public function test_rejection_bounce_scores_full_when_close_within_one_point_five_percent(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 99.50,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+        ]));
+
+        $this->assertSame(2, $result['criteria'][0]['points']);
+        $this->assertStringContainsString('Rejection bounce', $result['criteria'][0]['detail']);
+        $this->assertSame([], $result['hardFailReasons']);
+    }
+
+    public function test_rejection_bounce_scores_one_point_when_close_between_one_point_five_and_three_percent(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 99.50,
+            'latest_close_price' => 102.00,
+            'latest_sma_20' => 100.00,
+        ]));
+
+        $this->assertSame(1, $result['criteria'][0]['points']);
+        $this->assertStringContainsString('Rejection bounce', $result['criteria'][0]['detail']);
+        $this->assertSame([], $result['hardFailReasons']);
+    }
+
+    public function test_close_missing_does_not_hard_fail_when_low_below_sma(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 99.00,
+            'latest_close_price' => null,
+        ]));
+
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame(0, $result['criteria'][0]['points']);
+        $this->assertStringContainsString('Wacht op slotkoers', $result['criteria'][0]['detail']);
     }
 
     public function test_flat_sma_over_five_days_scores_two_points(): void

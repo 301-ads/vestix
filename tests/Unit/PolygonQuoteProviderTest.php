@@ -13,8 +13,8 @@ class PolygonQuoteProviderTest extends TestCase
         parent::setUp();
 
         config([
-            'swng.polygon.api_key' => 'test-polygon-key',
-            'swng.polygon.base_url' => 'https://api.polygon.io',
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
         ]);
     }
 
@@ -34,7 +34,7 @@ class PolygonQuoteProviderTest extends TestCase
 
     public function test_fetch_live_price_returns_null_without_api_key(): void
     {
-        config(['swng.polygon.api_key' => null]);
+        config(['vestix.polygon.api_key' => null]);
 
         Http::fake();
 

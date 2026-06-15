@@ -2,15 +2,17 @@
 
 namespace App\Filament\Resources\Positions\Pages;
 
-use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 
 class EditScout extends EditPosition
 {
+    protected static string $resource = ScoutResource::class;
+
     public function getResourceBreadcrumbs(): array
     {
         return [
-            ListScouts::getUrl() => 'Setup Radar',
+            ListScouts::getUrl() => 'Mijn Radar',
         ];
     }
 
@@ -22,7 +24,7 @@ class EditScout extends EditPosition
         $record = $this->getRecord();
 
         $breadcrumbs[
-            PositionResource::getUrl('edit-scout', ['record' => $record])
+            ScoutResource::getUrl('edit', ['record' => $record])
         ] = $this->getRecordTitle();
 
         $breadcrumbs[] = $this->getBreadcrumb();
