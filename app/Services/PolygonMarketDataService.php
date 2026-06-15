@@ -3,10 +3,11 @@
 namespace App\Services;
 
 use App\Support\TechnicalIndicators;
+use Illuminate\Support\Facades\Log;
 
 class PolygonMarketDataService
 {
-    private const MIN_BARS = 55;
+    private const MIN_BARS = 50;
 
     public function __construct(
         private PolygonDailyBarService $polygonDailyBars,
@@ -27,9 +28,20 @@ class PolygonMarketDataService
      */
     public function fetchForTicker(string $ticker, ?bool $bounceVolumeAboveAverage = null): ?array
     {
-        $bars = $this->polygonDailyBars->fetchRecentBars($ticker, lookbackDays: 70, limit: 120);
+        // ~90 calendar days ≈ 65 trading days (weekends/holidays); 70 days was often < 55 bars.
+        $bars = $this->polygonDailyBars->fetchRecentBars($ticker, lookbackDays: 90, limit: 120);
 
-        if ($bars === null || count($bars['bars']) < self::MIN_BARS) {
+        if ($bars === null) {
+            return null;
+        }
+
+        if (count($bars['bars']) < self::MIN_BARS) {
+            Log::warning('Polygon market data insufficient bars for indicators.', [
+                'ticker' => $ticker,
+                'count' => count($bars['bars']),
+                'required' => self::MIN_BARS,
+            ]);
+
             return null;
         }
 

@@ -334,7 +334,7 @@ class FetchVestixData extends Command
 
         FilamentNotifier::send(
             'Marktdata onvolledig',
-            "Marktdata onvolledig voor {$position->ticker} (API/rate limit).",
+            "Marktdata onvolledig voor {$position->ticker} (Polygon/AV gaf geen complete dataset terug).",
             'warning',
             $recipients,
         );
@@ -354,7 +354,7 @@ class FetchVestixData extends Command
         if ($data === null) {
             FilamentNotifier::send(
                 'Marktdata onvolledig',
-                "Marktdata onvolledig voor {$ticker} (API/rate limit).",
+                "Marktdata onvolledig voor {$ticker} (Polygon/AV gaf geen complete dataset terug).",
                 'warning',
                 $recipients,
             );
