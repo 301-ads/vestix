@@ -142,11 +142,31 @@ class TelegramLinkService
 
     public function registerWebhook(): bool
     {
+        return $this->registerWebhookWithDetails()['ok'];
+    }
+
+    /**
+     * @return array{ok: bool, url: ?string, error: ?string}
+     */
+    public function registerWebhookWithDetails(): array
+    {
         $token = config('vestix.telegram.bot_token');
         $url = $this->webhookUrl();
 
         if (! is_string($token) || $token === '' || $url === null) {
-            return false;
+            return [
+                'ok' => false,
+                'url' => $url,
+                'error' => 'TELEGRAM_BOT_TOKEN of webhook URL ontbreekt.',
+            ];
+        }
+
+        if (! str_starts_with($url, 'https://')) {
+            return [
+                'ok' => false,
+                'url' => $url,
+                'error' => 'Webhook URL moet met https:// beginnen. Zet APP_URL=https://vestix.io in Forge Environment.',
+            ];
         }
 
         try {
@@ -155,13 +175,34 @@ class TelegramLinkService
                 'allowed_updates' => ['message'],
             ]);
 
-            return $response->successful() && ($response->json('ok') ?? false);
+            $body = $response->json();
+            $ok = $response->successful() && ($body['ok'] ?? false);
+
+            if ($ok) {
+                return ['ok' => true, 'url' => $url, 'error' => null];
+            }
+
+            $error = is_string($body['description'] ?? null)
+                ? $body['description']
+                : 'Onbekende Telegram-fout.';
+
+            Log::warning('Telegram setWebhook rejected.', [
+                'url' => $url,
+                'status' => $response->status(),
+                'body' => $body,
+            ]);
+
+            return ['ok' => false, 'url' => $url, 'error' => $error];
         } catch (\Throwable $exception) {
             Log::error('Telegram setWebhook failed.', [
                 'message' => $exception->getMessage(),
             ]);
 
-            return false;
+            return [
+                'ok' => false,
+                'url' => $url,
+                'error' => $exception->getMessage(),
+            ];
         }
     }
 }

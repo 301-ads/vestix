@@ -148,7 +148,7 @@ class PositionRecordActions
             ->color('info')
             ->visible(fn (Position $record): bool => auth()->user()?->can('clone', $record) ?? false)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('clone', $record) ?? false)
-            ->action(function (Position $record, $livewire): void {
+            ->action(function (Position $record, Action $action) use ($scoutResourceClass): void {
                 $clone = $record->cloneForUser(auth()->user());
 
                 FilamentNotifier::send(
@@ -156,9 +156,7 @@ class PositionRecordActions
                     body: "{$clone->ticker} staat nu in je privé-radar.",
                 );
 
-                if (is_object($livewire) && method_exists($livewire, 'redirect')) {
-                    $livewire->redirect($scoutResourceClass::getUrl('edit', ['record' => $clone]));
-                }
+                $action->successRedirectUrl($scoutResourceClass::getUrl('edit', ['record' => $clone]));
             });
     }
 

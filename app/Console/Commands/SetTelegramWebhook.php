@@ -33,8 +33,13 @@ class SetTelegramWebhook extends Command
             return self::FAILURE;
         }
 
-        if (! $telegramLink->registerWebhook()) {
-            $this->error('Telegram accepteerde de webhook niet. Check storage/logs/laravel.log');
+        $this->line("Webhook URL: {$url}");
+
+        $result = $telegramLink->registerWebhookWithDetails();
+
+        if (! $result['ok']) {
+            $this->error('Telegram accepteerde de webhook niet.');
+            $this->line($result['error'] ?? 'Onbekende fout.');
 
             return self::FAILURE;
         }

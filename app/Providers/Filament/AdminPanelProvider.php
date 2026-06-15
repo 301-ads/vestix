@@ -45,7 +45,7 @@ class AdminPanelProvider extends PanelProvider
             ->login(Login::class)
             ->registration(Register::class)
             ->passwordReset(RequestPasswordReset::class, ResetPassword::class)
-            ->profile(EditUserProfile::class)
+            ->profile(EditUserProfile::class, isSimple: false)
             ->navigationGroups([
                 NavigationGroup::make()
                     ->label('Squads'),

@@ -5,11 +5,14 @@ namespace Tests\Feature;
 use App\Enums\PositionVisibility;
 use App\Enums\SquadRole;
 use App\Events\SquadRadarTargetPosted;
+use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListScouts;
+use App\Filament\Resources\SquadRadar\Pages\ListSquadRadar;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\SquadContext;
 use App\Services\SquadPermissionService;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -116,6 +119,40 @@ class MultiTenancyTest extends TestCase
         $this->assertSame('NVDA', $clone->ticker);
         $this->assertEquals(120.50, (float) $clone->entry_price);
         $this->assertSame('scout', $clone->status);
+    }
+
+    public function test_clone_target_from_squad_radar_redirects_to_edit_scout(): void
+    {
+        ['user' => $analyst, 'squad' => $squad] = $this->createUserWithSquad();
+        $sniper = User::factory()->create();
+        $squad->users()->attach($sniper);
+        app(SquadPermissionService::class)->assignRole($sniper, $squad, SquadRole::Sniper);
+
+        $shared = Position::factory()->for($analyst)->scout()->create([
+            'visibility' => PositionVisibility::Squad,
+            'squad_id' => $squad->id,
+            'ticker' => 'TMDX',
+            'entry_price' => 68.19,
+            'signal_high' => 67.00,
+            'latest_atr_14' => 2.10,
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($sniper);
+        app(SquadPermissionService::class)->setTeamContext($squad->id);
+
+        Livewire::test(ListSquadRadar::class)
+            ->callTableAction('clone_target', $shared)
+            ->assertHasNoErrors();
+
+        $cloned = Position::query()
+            ->where('cloned_from_id', $shared->id)
+            ->where('user_id', $sniper->id)
+            ->firstOrFail();
+
+        Livewire::test(EditScout::class, ['record' => $cloned->getKey()])
+            ->assertOk()
+            ->assertSee('TMDX');
     }
 
     public function test_scout_role_cannot_activate_positions(): void
