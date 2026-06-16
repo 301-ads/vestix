@@ -559,6 +559,10 @@ class ManageSquadSettings extends Page implements HasTable
             return false;
         }
 
+        if ($this->isSuperAdminViewer()) {
+            return $squad->owner_id !== $record->id;
+        }
+
         return app(SquadManagementService::class)->canRemoveMember($squad, auth()->user(), $record);
     }
 

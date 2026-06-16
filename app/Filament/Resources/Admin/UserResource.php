@@ -4,13 +4,18 @@ namespace App\Filament\Resources\Admin;
 
 use App\Filament\Resources\Admin\UserResource\Pages\ListUsers;
 use App\Models\User;
+use App\Services\UserDeletionService;
 use BackedEnum;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 class UserResource extends Resource
 {
@@ -50,7 +55,13 @@ class UserResource extends Resource
 
     public static function canDelete($record): bool
     {
-        return false;
+        $actor = auth()->user();
+
+        if (! $actor instanceof User || ! $record instanceof User) {
+            return false;
+        }
+
+        return app(UserDeletionService::class)->canDelete($actor, $record);
     }
 
     public static function getEloquentQuery(): Builder
@@ -81,6 +92,28 @@ class UserResource extends Resource
                     ->label('Aangemaakt')
                     ->dateTime('d-m-Y H:i')
                     ->sortable(),
+            ])
+            ->recordActions([
+                DeleteAction::make()
+                    ->modalHeading('Gebruiker verwijderen')
+                    ->modalDescription('Het account en alle persoonlijke posities worden permanent verwijderd. Squad-lidmaatschappen worden opgeheven; squads waar deze gebruiker eigenaar van is worden ook verwijderd.')
+                    ->action(fn (User $record) => app(UserDeletionService::class)->delete($record)),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
+                        ->modalHeading('Gebruikers verwijderen')
+                        ->modalDescription('De geselecteerde accounts en hun persoonlijke data worden permanent verwijderd.')
+                        ->action(function (Collection $records): void {
+                            $service = app(UserDeletionService::class);
+
+                            foreach ($records as $record) {
+                                if ($record instanceof User) {
+                                    $service->delete($record);
+                                }
+                            }
+                        }),
+                ]),
             ])
             ->defaultSort('created_at', 'desc');
     }

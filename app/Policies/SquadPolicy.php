@@ -20,6 +20,10 @@ class SquadPolicy
 
     public function delete(User $user, Squad $squad): bool
     {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
         return app(SquadManagementService::class)->canDelete($squad, $user);
     }
 }
