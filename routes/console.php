@@ -9,14 +9,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // EOD sync: alle open posities en scouts (Polygon bars + Finnhub/AV quote).
-// 23:00 NL = ~45 min na US close (16:15 ET) zodat slotkoersen beschikbaar zijn.
+// 23:00 NL = ~45 min na US close (16:15 ET) zodat slotkoersen en volume beschikbaar zijn.
 Schedule::command('vestix:fetch-data')
     ->weekdays()
     ->dailyAt('23:00')
-    ->timezone('Europe/Amsterdam');
-
-// Pre-close volume-check vlak voor US sluiting.
-Schedule::command('vestix:fetch-data --pre-close')
-    ->weekdays()
-    ->dailyAt('21:50')
     ->timezone('Europe/Amsterdam');

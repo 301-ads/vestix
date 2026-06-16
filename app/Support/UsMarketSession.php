@@ -49,6 +49,6 @@ class UsMarketSession
 
     public static function needsLatestSessionQuote(string $lastBarDate, ?Carbon $now = null): bool
     {
-        return self::isBarStale($lastBarDate, $now) || self::isAfterMarketClose($now);
+        return self::isBarStale($lastBarDate, $now);
     }
 }

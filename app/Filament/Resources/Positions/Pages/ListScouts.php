@@ -4,9 +4,12 @@ namespace App\Filament\Resources\Positions\Pages;
 
 use App\Filament\Resources\Positions\Tables\ScoutsTable;
 use App\Filament\Resources\Scouts\ScoutResource;
+use App\Filament\Widgets\ScoutRadarStatsWidget;
 use Filament\Actions\CreateAction;
+use Filament\Facades\Filament;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\EmbeddedTable;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\RenderHook;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
@@ -43,10 +46,27 @@ class ListScouts extends ListRecords
     {
         return $schema
             ->components([
+                Grid::make(['@xl' => 4, '@lg' => 2, 'default' => 1])
+                    ->schema(fn (): array => $this->getWidgetsSchemaComponents([
+                        ScoutRadarStatsWidget::class,
+                    ]))
+                    ->columnSpanFull(),
                 RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_BEFORE),
                 EmbeddedTable::make(),
                 RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_AFTER),
             ]);
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function getPageClasses(): array
+    {
+        return [
+            'fi-resource-list-records-page',
+            'fi-resource-'.str_replace('/', '-', static::getResource()::getSlug(Filament::getCurrentOrDefaultPanel())),
+            'vestix-radar-list',
+        ];
     }
 
     protected function getHeaderActions(): array
@@ -54,6 +74,9 @@ class ListScouts extends ListRecords
         return [
             CreateAction::make('createScout')
                 ->label('Scout toevoegen')
+                ->icon('heroicon-o-plus')
+                ->color('primary')
+                ->extraAttributes(['class' => 'vestix-btn-primary'])
                 ->url(ScoutResource::getUrl('create'))
                 ->visible(fn (): bool => ScoutResource::canCreate()),
         ];

@@ -28,12 +28,12 @@ class UsMarketSessionTest extends TestCase
         );
     }
 
-    public function test_after_market_close_always_needs_latest_session_quote(): void
+    public function test_after_market_close_does_not_need_quote_when_bar_is_current(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-15 18:53:00', 'America/New_York'));
 
         $this->assertTrue(UsMarketSession::isAfterMarketClose());
-        $this->assertTrue(UsMarketSession::needsLatestSessionQuote('2026-06-15'));
+        $this->assertFalse(UsMarketSession::needsLatestSessionQuote('2026-06-15'));
     }
 
     public function test_friday_bar_is_stale_on_monday_evening(): void

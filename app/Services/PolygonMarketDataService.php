@@ -15,6 +15,7 @@ class PolygonMarketDataService
     public function __construct(
         private DailyBarProvider $dailyBars,
         private QuoteProvider $quoteProvider,
+        private SessionVolumeResolver $sessionVolumeResolver,
     ) {}
 
     /**
@@ -140,12 +141,15 @@ class PolygonMarketDataService
         $low = (float) ($quote['low'] ?? $close);
         $previousClose = $bars !== [] ? (float) $bars[array_key_last($bars)]['close'] : $close;
 
+        $sessionVolume = $this->sessionVolumeResolver->resolve($ticker, $sessionDate)
+            ?? (float) $barsPayload['today']['volume'];
+
         $bars[] = [
             'open' => $previousClose,
             'high' => $high,
             'low' => $low,
             'close' => $close,
-            'volume' => $barsPayload['today']['volume'],
+            'volume' => $sessionVolume,
             'date' => $sessionDate,
         ];
 
@@ -164,6 +168,8 @@ class PolygonMarketDataService
             'bar_date_before_refresh' => $lastBar['date'],
             'bar_close_before_refresh' => $lastBar['close'],
             'refreshed_close' => $close,
+            'refreshed_volume' => $sessionVolume,
+            'volume_source' => $sessionVolume === (float) $barsPayload['today']['volume'] ? 'polygon_fallback' : 'session_resolver',
             'after_market_close' => UsMarketSession::isAfterMarketClose(),
         ]);
 

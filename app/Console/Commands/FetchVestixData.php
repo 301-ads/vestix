@@ -18,8 +18,7 @@ class FetchVestixData extends Command
     protected $signature = 'vestix:fetch-data
                             {--user-id= : Gebruiker die een voltooiingsmelding ontvangt}
                             {--position-id= : Sync alleen deze scout of positie}
-                            {--ticker= : Haal marktdata op voor een ticker (create-formulier)}
-                            {--pre-close : Volume-check vlak voor sluiting}';
+                            {--ticker= : Haal marktdata op voor een ticker (create-formulier)}';
 
     protected $description = 'Haalt EOD slotkoersen, SMA20, volume en indicatoren op voor open posities en scouts.';
 

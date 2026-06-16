@@ -59,7 +59,7 @@ class AdminPanelProvider extends PanelProvider
             ))
             ->favicon(asset('images/favicon.svg'))
             ->colors([
-                'primary' => Color::Emerald,
+                'primary' => Color::generatePalette('#00D492'),
             ])
             ->darkMode(true)
             ->defaultThemeMode(ThemeMode::Dark)
@@ -143,6 +143,180 @@ class AdminPanelProvider extends PanelProvider
                         .fi-auth-wordmark {
                             color: #ffffff;
                             text-align: center;
+                        }
+
+                        .fi-header .fi-header-actions .fi-btn.vestix-sync-btn {
+                            gap: 0.5rem;
+                            padding: 0.5rem 1rem;
+                            border-radius: 0.75rem;
+                            border: 1px solid rgb(0 212 146 / 0.3);
+                            background-color: rgb(0 212 146 / 0.1);
+                            color: #00d492;
+                            font-size: 0.875rem;
+                            font-weight: 600;
+                            --tw-ring-width: 0;
+                            --tw-ring-shadow: 0 0 #0000;
+                            --tw-shadow: 0 0 #0000;
+                            box-shadow: 0 0 15px rgb(0 212 146 / 0.1);
+                            transition: all 150ms;
+                        }
+
+                        .fi-header .fi-header-actions .fi-btn.vestix-sync-btn > .fi-icon {
+                            width: 1rem;
+                            height: 1rem;
+                            color: #00d492;
+                        }
+
+                        .fi-header .fi-header-actions .fi-btn.vestix-sync-btn:hover,
+                        .fi-header .fi-header-actions .fi-btn.vestix-sync-btn:focus-visible {
+                            border-color: rgb(0 212 146 / 0.5);
+                            background-color: rgb(0 212 146 / 0.2);
+                            color: #00d492;
+                            box-shadow: 0 0 15px rgb(0 212 146 / 0.1);
+                        }
+
+                        .fi-header .fi-header-actions .fi-btn.vestix-sync-btn:hover > .fi-icon,
+                        .fi-header .fi-header-actions .fi-btn.vestix-sync-btn:focus-visible > .fi-icon {
+                            color: #00d492;
+                        }
+
+                        .fi-btn.vestix-btn-primary {
+                            gap: 0.5rem;
+                            padding: 0.5rem 1rem;
+                            border: none;
+                            background-color: #00d492;
+                            color: #09090b;
+                            font-size: 0.875rem;
+                            font-weight: 700;
+                            --tw-ring-width: 0;
+                            --tw-ring-shadow: 0 0 #0000;
+                            --tw-shadow: 0 0 #0000;
+                            box-shadow: 0 0 15px rgb(0 212 146 / 0.2);
+                        }
+
+                        .fi-btn.vestix-btn-primary > .fi-icon {
+                            color: #09090b;
+                        }
+
+                        .fi-btn.vestix-btn-primary:hover,
+                        .fi-btn.vestix-btn-primary:focus-visible {
+                            background-color: #00e6a5;
+                            color: #09090b;
+                            box-shadow: 0 0 20px rgb(0 212 146 / 0.3);
+                        }
+
+                        .fi-btn.vestix-btn-primary:hover > .fi-icon,
+                        .fi-btn.vestix-btn-primary:focus-visible > .fi-icon {
+                            color: #09090b;
+                        }
+
+                        .vestix-dashboard .fi-ta-header-cell:first-of-type,
+                        .vestix-positions-list .fi-ta-header-cell:first-of-type,
+                        .vestix-radar-list .fi-ta-header-cell:first-of-type {
+                            padding-inline-start: 1rem;
+                        }
+
+                        .vestix-dashboard .fi-ta-header-cell:not(:first-of-type),
+                        .vestix-positions-list .fi-ta-header-cell:not(:first-of-type),
+                        .vestix-radar-list .fi-ta-header-cell:not(:first-of-type) {
+                            padding-inline-start: 0.75rem;
+                        }
+
+                        @media (min-width: 640px) {
+                            .vestix-dashboard .fi-ta-header-cell:first-of-type,
+                            .vestix-positions-list .fi-ta-header-cell:first-of-type,
+                            .vestix-radar-list .fi-ta-header-cell:first-of-type {
+                                padding-inline-start: 1rem;
+                            }
+
+                            .vestix-dashboard .fi-ta-header-cell:last-of-type,
+                            .vestix-positions-list .fi-ta-header-cell:last-of-type,
+                            .vestix-radar-list .fi-ta-header-cell:last-of-type {
+                                padding-inline-end: 1rem;
+                            }
+                        }
+
+                        .vestix-dashboard .fi-ta-header-cell,
+                        .vestix-positions-list .fi-ta-header-cell,
+                        .vestix-radar-list .fi-ta-header-cell,
+                        .vestix-dashboard .fi-ta-header-group-cell,
+                        .vestix-positions-list .fi-ta-header-group-cell,
+                        .vestix-radar-list .fi-ta-header-group-cell {
+                            padding-block: 0.625rem;
+                            padding-inline-end: 0.75rem;
+                            font-size: 0.6875rem;
+                            font-weight: 600;
+                            letter-spacing: 0.06em;
+                            text-transform: uppercase;
+                            color: rgb(113 113 122);
+                        }
+
+                        .vestix-dashboard .fi-ta-header-cell .fi-ta-header-cell-sort-btn,
+                        .vestix-positions-list .fi-ta-header-cell .fi-ta-header-cell-sort-btn,
+                        .vestix-radar-list .fi-ta-header-cell .fi-ta-header-cell-sort-btn {
+                            font-size: inherit;
+                            font-weight: inherit;
+                            letter-spacing: inherit;
+                            text-transform: uppercase;
+                            color: inherit;
+                        }
+
+                        .vestix-dashboard .fi-ta-cell:first-of-type,
+                        .vestix-positions-list .fi-ta-cell:first-of-type,
+                        .vestix-radar-list .fi-ta-cell:first-of-type {
+                            padding-inline-start: 1rem !important;
+                        }
+
+                        .vestix-dashboard .fi-ta-text:not(.fi-inline),
+                        .vestix-positions-list .fi-ta-text:not(.fi-inline),
+                        .vestix-radar-list .fi-ta-text:not(.fi-inline) {
+                            padding-block: 0.5rem;
+                            padding-inline-end: 0.75rem;
+                        }
+
+                        .vestix-dashboard .fi-ta-cell:first-of-type .fi-ta-text:not(.fi-inline),
+                        .vestix-positions-list .fi-ta-cell:first-of-type .fi-ta-text:not(.fi-inline),
+                        .vestix-radar-list .fi-ta-cell:first-of-type .fi-ta-text:not(.fi-inline) {
+                            padding-inline-start: 0;
+                            padding-inline-end: 0.75rem;
+                        }
+
+                        .vestix-dashboard .fi-ta-cell:not(:first-of-type) .fi-ta-text:not(.fi-inline),
+                        .vestix-positions-list .fi-ta-cell:not(:first-of-type) .fi-ta-text:not(.fi-inline),
+                        .vestix-radar-list .fi-ta-cell:not(:first-of-type) .fi-ta-text:not(.fi-inline) {
+                            padding-inline-start: 0.75rem;
+                        }
+
+                        .vestix-dashboard .fi-ta-cell:has(.fi-ta-actions),
+                        .vestix-positions-list .fi-ta-cell:has(.fi-ta-actions),
+                        .vestix-radar-list .fi-ta-cell:has(.fi-ta-actions) {
+                            padding-block: 0.5rem;
+                            padding-inline: 0.75rem;
+                        }
+
+                        .vestix-positions-list .fi-ta-text-input:not(.fi-inline),
+                        .vestix-radar-list .fi-ta-text-input:not(.fi-inline) {
+                            padding-block: 0.5rem;
+                            padding-inline: 0.75rem;
+                        }
+
+                        .vestix-dashboard .fi-ta-text .ticker-with-icon,
+                        .vestix-positions-list .fi-ta-text .ticker-with-icon,
+                        .vestix-radar-list .fi-ta-text .ticker-with-icon {
+                            margin-inline-start: 0;
+                        }
+
+                        .vestix-dashboard .fi-ta-text .ticker-with-icon__logo,
+                        .vestix-positions-list .fi-ta-text .ticker-with-icon__logo,
+                        .vestix-radar-list .fi-ta-text .ticker-with-icon__logo {
+                            width: 1.25rem;
+                            height: 1.25rem;
+                        }
+
+                        .vestix-dashboard .fi-ta-text .ticker-with-icon__label,
+                        .vestix-positions-list .fi-ta-text .ticker-with-icon__label,
+                        .vestix-radar-list .fi-ta-text .ticker-with-icon__label {
+                            font-weight: 700;
                         }
 
                         @media (min-width: 1024px) {
