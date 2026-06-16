@@ -21,6 +21,8 @@ class PortfolioTopFlopWidget extends TableWidget
     public function table(Table $table): Table
     {
         return $table
+            ->columnManager(false)
+            ->striped(false)
             ->heading('Portfolio Top / Flop')
             ->searchable(false)
             ->recordUrl(fn (Position $record): string => PositionResource::getUrl('edit', ['record' => $record]))

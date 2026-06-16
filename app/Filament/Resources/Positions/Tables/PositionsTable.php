@@ -15,13 +15,15 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
 
 class PositionsTable
 {
     public static function configure(Table $table): Table
     {
         return $table
-            ->deferColumnManager(false)
+            ->columnManager(false)
+            ->striped(false)
             ->defaultSort('unrealized_pnl_percentage', 'desc')
             ->columns([
                 TickerColumn::wrap(
@@ -86,7 +88,8 @@ class PositionsTable
                     ->toggleable()
                     ->width('5rem')
                     ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire) || self::isArchiveTab($livewire)),
-                ColumnGroup::make('Schild')
+                ColumnGroup::make(static::schildGroupLabel())
+                    ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
                     ->columns([
                         self::schildColumn(
                             'latest_close_price',
@@ -199,6 +202,11 @@ class PositionsTable
         return ($livewire->activeTab ?? 'open') === 'closed';
     }
 
+    public static function schildGroupLabel(): HtmlString
+    {
+        return new HtmlString(view('components.filament.positions.schild-group-label')->render());
+    }
+
     public static function schildColumn(
         string $name,
         string $label,
@@ -217,8 +225,8 @@ class PositionsTable
             ->width($width)
             ->when(filled($tooltip), fn (TextInputColumn $column): TextInputColumn => $column->tooltip($tooltip))
             ->extraAttributes(['style' => 'min-width:0;width:100%'])
-            ->extraCellAttributes(['style' => "min-width:{$width};width:{$width};padding-inline:0.5rem"])
-            ->extraHeaderAttributes(['style' => "min-width:{$width};width:{$width}"])
+            ->extraCellAttributes(['class' => 'vestix-table-schild', 'style' => "min-width:{$width};width:{$width};padding-inline:0.5rem"])
+            ->extraHeaderAttributes(['class' => 'vestix-table-schild', 'style' => "min-width:{$width};width:{$width}"])
             ->rules(['nullable', 'numeric']);
     }
 }

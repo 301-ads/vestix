@@ -2,6 +2,10 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\PortfolioExposureWidget;
+use App\Filament\Widgets\PortfolioTopFlopWidget;
+use App\Filament\Widgets\PositionsRequiringActionWidget;
+use App\Filament\Widgets\SetupRadarWidget;
 use App\Support\BackgroundArtisan;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
@@ -25,13 +29,28 @@ class Dashboard extends BaseDashboard
         return 2;
     }
 
+    /**
+     * @return array<class-string>
+     */
+    public function getWidgets(): array
+    {
+        return [
+            PortfolioExposureWidget::class,
+            PositionsRequiringActionWidget::class,
+            PortfolioTopFlopWidget::class,
+            SetupRadarWidget::class,
+        ];
+    }
+
     protected function getHeaderActions(): array
     {
         return [
             Action::make('sync_api')
                 ->label('Forceer API Sync')
                 ->icon('heroicon-o-arrow-path')
-                ->color('success')
+                ->color('primary')
+                ->outlined()
+                ->extraAttributes(['class' => 'vestix-sync-btn'])
                 ->tooltip(MarketDataFreshness::tooltip())
                 ->disabled(fn (): bool => MarketDataFreshness::isSyncInProgress())
                 ->requiresConfirmation()

@@ -478,6 +478,39 @@ class Position extends Model
         return $this->capital_risk_dollars;
     }
 
+    public function isInDangerZone(float $threshold = 2.0): bool
+    {
+        if ($this->status !== 'open') {
+            return false;
+        }
+
+        $close = $this->latest_close_price;
+        $stopLoss = $this->current_sl;
+
+        if ($close === null || $stopLoss === null || (float) $close <= 0) {
+            return false;
+        }
+
+        $bufferPercentage = (((float) $close - (float) $stopLoss) / (float) $close) * 100;
+
+        return $bufferPercentage >= 0 && $bufferPercentage < $threshold;
+    }
+
+    /**
+     * @param  Builder<Position>  $query
+     * @return Builder<Position>
+     */
+    public function scopeInDangerZone(Builder $query, float $threshold = 2.0): Builder
+    {
+        return $query
+            ->where('status', 'open')
+            ->whereNotNull('latest_close_price')
+            ->whereNotNull('current_sl')
+            ->where('latest_close_price', '>', 0)
+            ->whereRaw('((latest_close_price - current_sl) / latest_close_price) * 100 >= 0')
+            ->whereRaw('((latest_close_price - current_sl) / latest_close_price) * 100 < ?', [$threshold]);
+    }
+
     public function getCurrentValueAttribute(): float
     {
         $price = $this->valuation_price;

@@ -23,7 +23,8 @@ class ScoutsTable
     public static function configure(Table $table, bool $squadMode = false, string $resourceClass = ScoutResource::class): Table
     {
         return $table
-            ->deferColumnManager(false)
+            ->columnManager(false)
+            ->striped(false)
             ->recordUrl(fn (Position $record): ?string => $squadMode && ! $record->isOwnedBy(auth()->user())
                 ? null
                 : $resourceClass::getUrl('edit', ['record' => $record]))
@@ -74,7 +75,8 @@ class ScoutsTable
                     ->badge()
                     ->color(fn (Position $record): string => self::setupGradeColor($record))
                     ->placeholder('—'),
-                ColumnGroup::make('Schild')
+                ColumnGroup::make(PositionsTable::schildGroupLabel())
+                    ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
                     ->columns([
                         PositionsTable::schildColumn('latest_close_price', 'Close', '7rem'),
                         PositionsTable::schildColumn('latest_sma_20', 'SMA', '7rem'),

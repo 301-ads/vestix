@@ -23,6 +23,8 @@ class SetupRadarWidget extends TableWidget
     public function table(Table $table): Table
     {
         return $table
+            ->columnManager(false)
+            ->striped(false)
             ->heading('Setup Radar')
             ->searchable(false)
             ->query(fn (): Builder => Position::scout()

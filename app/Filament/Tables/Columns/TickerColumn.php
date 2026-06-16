@@ -10,16 +10,10 @@ class TickerColumn
 {
     public static function wrap(TextColumn $column): TextColumn
     {
-        return $column->formatStateUsing(function (string $state, Position $record): string|HtmlString {
-            $url = $record->asset?->icon_url;
-
-            if (blank($url)) {
-                return e($state);
-            }
-
+        return $column->formatStateUsing(function (string $state, Position $record): HtmlString {
             return new HtmlString(view('components.filament.positions.ticker-with-icon', [
                 'ticker' => $state,
-                'iconUrl' => $url,
+                'iconUrl' => $record->asset?->icon_url,
             ])->render());
         });
     }

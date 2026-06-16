@@ -48,7 +48,9 @@ class PositionRecordActions
             ->label('Activeren')
             ->tooltip('Zet scout om naar open positie met berekende stop-loss')
             ->icon('heroicon-o-rocket-launch')
+            ->iconButton()
             ->color('success')
+            ->extraAttributes(fn (Position $record): array => self::scoutActivateTableExtraAttributes($record))
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && auth()->user() !== null
@@ -205,5 +207,27 @@ class PositionRecordActions
         }
 
         return '$'.number_format($sl, 2);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function scoutActivateTableExtraAttributes(Position $record): array
+    {
+        if (
+            ($record->signal_low === null && $record->latest_close_price === null)
+            || $record->latest_sma_20 === null
+            || $record->scout_rsi === null
+        ) {
+            return [];
+        }
+
+        $score = $record->evaluateSetupScore();
+
+        if ($score['hardFailReasons'] === [] && $score['grade'] === 'A+') {
+            return ['class' => 'scout-activate-a-plus'];
+        }
+
+        return [];
     }
 }
