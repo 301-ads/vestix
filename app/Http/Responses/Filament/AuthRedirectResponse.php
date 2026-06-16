@@ -13,7 +13,7 @@ class AuthRedirectResponse
     {
         $user = Filament::auth()->user();
 
-        if ($user !== null && ! $user->squads()->exists()) {
+        if ($user !== null && ! $user->isSuperAdmin() && ! $user->squads()->exists()) {
             return redirect()->to(RegisterSquad::getUrl());
         }
 

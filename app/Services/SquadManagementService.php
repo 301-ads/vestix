@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\UserAccountCreatedSource;
+use App\Events\UserAccountCreated;
 use App\Enums\PositionVisibility;
 use App\Enums\SquadRole;
 use App\Models\Position;
@@ -82,6 +84,8 @@ class SquadManagementService
             'email' => $email,
             'password' => $password,
         ]);
+
+        UserAccountCreated::dispatch($user, UserAccountCreatedSource::SquadInvite);
 
         $squad->users()->attach($user->id);
         $this->permissions->assignRole($user, $squad, $role);

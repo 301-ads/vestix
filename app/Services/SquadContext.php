@@ -62,6 +62,10 @@ class SquadContext
     public function resolveSquadForUser(User $user, ?int $squadId): ?Squad
     {
         if ($squadId !== null) {
+            if ($user->isSuperAdmin()) {
+                return Squad::query()->whereKey($squadId)->first();
+            }
+
             $squad = $user->squads()->whereKey($squadId)->first();
 
             return $squad instanceof Squad ? $squad : null;

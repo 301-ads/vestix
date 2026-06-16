@@ -14,7 +14,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'telegram_chat_id', 'telegram_link_token'])]
+#[Fillable(['name', 'email', 'password', 'is_super_admin', 'telegram_chat_id', 'telegram_link_token'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -24,6 +24,11 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         return true;
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return (bool) $this->is_super_admin;
     }
 
     public function squads(): BelongsToMany
@@ -80,6 +85,7 @@ class User extends Authenticatable implements FilamentUser
     {
         return [
             'email_verified_at' => 'datetime',
+            'is_super_admin' => 'boolean',
             'password' => 'hashed',
         ];
     }

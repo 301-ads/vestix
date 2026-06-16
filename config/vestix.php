@@ -31,6 +31,11 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
     ],
 
+    'admin_notification_emails' => array_values(array_filter(
+        array_map('trim', explode(',', (string) env('VESTIX_ADMIN_NOTIFICATION_EMAILS', ''))),
+        fn (string $email): bool => $email !== '',
+    )),
+
     'trade_journal' => [
         'chart_screenshot_max_kb' => (int) env('CHART_SCREENSHOT_MAX_KB', 10240),
     ],

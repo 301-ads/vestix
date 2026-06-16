@@ -69,7 +69,28 @@ class ManageSquadSettings extends Page implements HasTable
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->squads()->exists() ?? false;
+        $user = auth()->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        return $user->isSuperAdmin() || $user->squads()->exists();
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return false;
+        }
+
+        return $user->squads()->exists();
     }
 
     public function mount(): void
@@ -114,7 +135,7 @@ class ManageSquadSettings extends Page implements HasTable
         return [
             'settings' => Tab::make('Instellingen'),
             'members' => Tab::make('Squad leden beheren')
-                ->visible(fn (): bool => $this->canManageMembers()),
+                ->visible(fn (): bool => $this->canManageMembers() || $this->isSuperAdminViewer()),
         ];
     }
 
@@ -159,7 +180,24 @@ class ManageSquadSettings extends Page implements HasTable
                                 ? (string) $squad->users()->count()
                                 : '—'),
                     ])
-                    ->visible(fn (): bool => ! $this->canEditSettings()),
+                    ->visible(fn (): bool => ! $this->canEditSettings() && ! $this->isSuperAdminViewer()),
+                Section::make('Squad overzicht')
+                    ->schema([
+                        Placeholder::make('admin_overview_name')
+                            ->label('Naam')
+                            ->content($squad instanceof Squad ? $squad->name : '—'),
+                        Placeholder::make('admin_overview_owner')
+                            ->label('Eigenaar')
+                            ->content(fn (): string => $squad instanceof Squad
+                                ? ($squad->owner?->name ?? '—')
+                                : '—'),
+                        Placeholder::make('admin_overview_members')
+                            ->label('Leden')
+                            ->content(fn (): string => $squad instanceof Squad
+                                ? (string) $squad->users()->count()
+                                : '—'),
+                    ])
+                    ->visible(fn (): bool => $this->isSuperAdminViewer()),
                 Section::make('Rol toewijzing')
                     ->description('Je bent lid van deze squad, maar er is nog geen rol aan je account gekoppeld. Vraag de squad-eigenaar om je rol in te stellen.')
                     ->visible(fn (): bool => ! $this->userHasAssignedRole()),
@@ -526,10 +564,26 @@ class ManageSquadSettings extends Page implements HasTable
 
     private function canChangeRole(): bool
     {
+        if ($this->isSuperAdminViewer()) {
+            return false;
+        }
+
         if (! $this->canManageMembers() || ! $this->activeSquad instanceof Squad || auth()->user() === null) {
             return false;
         }
 
         return app(SquadContext::class)->userCanInSquad(auth()->user(), $this->activeSquad, 'role.assign');
+    }
+
+    public function isSuperAdminViewer(): bool
+    {
+        $user = auth()->user();
+        $squad = $this->activeSquad;
+
+        if ($user === null || ! $user->isSuperAdmin() || ! $squad instanceof Squad) {
+            return false;
+        }
+
+        return ! $user->squads()->whereKey($squad->id)->exists();
     }
 }

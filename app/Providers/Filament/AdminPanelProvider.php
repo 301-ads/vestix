@@ -50,6 +50,8 @@ class AdminPanelProvider extends PanelProvider
             ->navigationGroups([
                 NavigationGroup::make()
                     ->label('Squads'),
+                NavigationGroup::make()
+                    ->label('Beheer'),
             ])
             ->brandName('')
             ->brandLogo(fn (): HtmlString => new HtmlString(
