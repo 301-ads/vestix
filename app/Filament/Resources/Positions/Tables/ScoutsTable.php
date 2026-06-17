@@ -14,6 +14,7 @@ use Filament\Resources\Resource;
 use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
 
 class ScoutsTable
 {
@@ -38,11 +39,18 @@ class ScoutsTable
                 ),
                 TextColumn::make('squad.name')
                     ->label('Squad')
-                    ->badge()
+                    ->color('gray')
+                    ->extraCellAttributes(['class' => 'vestix-squad-cell'])
                     ->visible($squadMode),
                 TextColumn::make('user.name')
                     ->label('Gespot door')
-                    ->badge()
+                    ->formatStateUsing(fn (?string $state): HtmlString => new HtmlString(
+                        filled($state)
+                            ? view('components.filament.positions.spotted-by', ['name' => $state])->render()
+                            : '—',
+                    ))
+                    ->html()
+                    ->extraCellAttributes(['class' => 'vestix-spotted-by-cell'])
                     ->visible($squadMode),
                 TextColumn::make('entry_price')
                     ->label('Geplande entry')
@@ -71,9 +79,10 @@ class ScoutsTable
                     ->visible(! $squadMode),
                 TextColumn::make('setup_grade')
                     ->label('Setup Grade')
-                    ->state(fn (Position $record): ?string => self::setupGradeLabel($record, $squadMode))
+                    ->state(fn (Position $record): ?string => self::setupGradeLabel($record))
                     ->badge()
                     ->color(fn (Position $record): string => self::setupGradeColor($record))
+                    ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->placeholder('—'),
                 ColumnGroup::make(PositionsTable::schildGroupLabel())
                     ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
@@ -103,7 +112,7 @@ class ScoutsTable
             ]);
     }
 
-    private static function setupGradeLabel(Position $record, bool $squadMode = false): ?string
+    private static function setupGradeLabel(Position $record): ?string
     {
         if (
             ($record->signal_low === null && $record->latest_close_price === null)
@@ -113,13 +122,7 @@ class ScoutsTable
             return null;
         }
 
-        $label = $record->evaluateSetupScore()['gradeLabel'];
-
-        if ($squadMode && $record->user !== null) {
-            return $label.' — '.$record->user->name;
-        }
-
-        return $label;
+        return $record->evaluateSetupScore()['gradeLabel'];
     }
 
     private static function setupGradeColor(Position $record): string
