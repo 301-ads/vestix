@@ -48,7 +48,9 @@ class PositionRecordActions
             ->label('Activeren')
             ->tooltip('Zet scout om naar open positie met berekende stop-loss')
             ->icon('heroicon-o-rocket-launch')
+            ->iconButton()
             ->color('success')
+            ->extraAttributes(fn (Position $record): array => self::scoutActivateTableExtraAttributes($record))
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && auth()->user() !== null
@@ -105,6 +107,7 @@ class PositionRecordActions
             ->label('Kloon Target')
             ->tooltip('Kopieer ticker, entry en stop-loss naar je privé-radar')
             ->icon('heroicon-o-document-duplicate')
+            ->iconButton()
             ->color('info')
             ->visible(fn (Position $record): bool => auth()->user()?->can('clone', $record) ?? false)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('clone', $record) ?? false)
@@ -205,5 +208,27 @@ class PositionRecordActions
         }
 
         return '$'.number_format($sl, 2);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function scoutActivateTableExtraAttributes(Position $record): array
+    {
+        $classes = ['vestix-activate-scout-btn'];
+
+        if (
+            ($record->signal_low !== null || $record->latest_close_price !== null)
+            && $record->latest_sma_20 !== null
+            && $record->scout_rsi !== null
+        ) {
+            $score = $record->evaluateSetupScore();
+
+            if ($score['hardFailReasons'] === [] && $score['grade'] === 'A+') {
+                $classes[] = 'scout-activate-a-plus';
+            }
+        }
+
+        return ['class' => implode(' ', $classes)];
     }
 }

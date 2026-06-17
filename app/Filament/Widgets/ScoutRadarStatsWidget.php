@@ -64,19 +64,23 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
             Stat::make('Actieve Scouts', (string) $activeCount)
                 ->description('Op je watchlist')
                 ->descriptionIcon('heroicon-m-eye')
-                ->descriptionColor('success'),
+                ->descriptionColor('success')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--vestix']),
             Stat::make('Top Setups (A+)', (string) $aPlusCount)
                 ->description('Hoogste succesratio')
                 ->descriptionIcon('heroicon-m-star')
-                ->descriptionColor('info'),
+                ->descriptionColor('info')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--blue']),
             Stat::make('Gem. Gepland Risico', number_format($avgRisk, 2).'%')
                 ->description('Per transactie')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
-                ->descriptionColor('warning'),
+                ->descriptionColor('warning')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber']),
             Stat::make('Klaar voor Executie', (string) $readyCount)
                 ->description('Binnen 1% van entry')
                 ->descriptionIcon('heroicon-m-bolt')
-                ->descriptionColor('gray'),
+                ->descriptionColor('gray')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--zinc']),
         ];
     }
 }

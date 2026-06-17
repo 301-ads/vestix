@@ -29,6 +29,8 @@ class PositionsRequiringActionWidget extends TableWidget
         $pendingCount = $updateCount + $liquidationCount;
 
         return $table
+            ->columnManager(false)
+            ->striped(false)
             ->heading($this->buildHeading($pendingCount, $updateCount, $liquidationCount))
             ->searchable(false)
             ->query(fn (): Builder => Position::query()

@@ -2,8 +2,11 @@
 
 namespace App\Filament\Resources\SquadRadar\Pages;
 
+use App\Filament\Resources\Positions\Tables\ScoutsTable;
+use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Resources\SquadRadar\SquadRadarResource;
 use App\Models\Squad;
+use Filament\Facades\Filament;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -19,7 +22,7 @@ class ListSquadRadar extends ListRecords
 
     public function table(Table $table): Table
     {
-        return parent::table($table)
+        return ScoutsTable::configure($table, squadMode: true, resourceClass: ScoutResource::class)
             ->filters([
                 SelectFilter::make('squad_id')
                     ->label('Squad')
@@ -41,5 +44,27 @@ class ListSquadRadar extends ListRecords
                         return $name ? "Squad: {$name}" : null;
                     }),
             ]);
+    }
+
+    protected function makeTable(): Table
+    {
+        return ScoutsTable::configure(
+            Table::make($this)
+                ->query(fn () => $this->getTableQuery()),
+            squadMode: true,
+            resourceClass: ScoutResource::class,
+        );
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function getPageClasses(): array
+    {
+        return [
+            'fi-resource-list-records-page',
+            'fi-resource-'.str_replace('/', '-', static::getResource()::getSlug(Filament::getCurrentOrDefaultPanel())),
+            'vestix-radar-list',
+        ];
     }
 }

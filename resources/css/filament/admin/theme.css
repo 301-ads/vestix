@@ -1,0 +1,1444 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+/* -------------------------------------------------------------------------- */
+/* Design tokens                                                              */
+/* -------------------------------------------------------------------------- */
+
+.fi-body {
+    --vestix-bg: #fafafa;
+    --vestix-panel: #ffffff;
+    --vestix-border: rgb(228 228 231 / 1);
+    --vestix-primary: #00aa75;
+}
+
+.dark .fi-body {
+    --vestix-bg: #09090b;
+    --vestix-panel: #18181b;
+    --vestix-border: rgb(255 255 255 / 0.05);
+    --vestix-primary: #00d492;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Scrollbar                                                                  */
+/* -------------------------------------------------------------------------- */
+
+.fi-body ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.fi-body ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.fi-body ::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+    background: #d4d4d8;
+}
+
+.dark .fi-body ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+}
+
+.fi-body ::-webkit-scrollbar-thumb:hover {
+    background: #a1a1aa;
+}
+
+.dark .fi-body ::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shell — layout background                                                  */
+/* -------------------------------------------------------------------------- */
+
+.fi-body {
+    background-color: var(--vestix-bg);
+}
+
+.fi-main {
+    background-color: var(--vestix-bg);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shell — sidebar                                                            */
+/* -------------------------------------------------------------------------- */
+
+.fi-sidebar.fi-main-sidebar {
+    border-inline-end-color: var(--vestix-border);
+    background-color: var(--vestix-bg);
+}
+
+.fi-sidebar-header {
+    border-block-end-color: var(--vestix-border);
+}
+
+.fi-sidebar-nav {
+    padding-inline: 1rem;
+}
+
+.fi-sidebar-group-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+}
+
+.dark .fi-sidebar-group-label {
+    color: rgb(161 161 170);
+}
+
+.fi-sidebar-item-btn {
+    border-radius: 0.75rem;
+}
+
+.fi-sidebar-item:not(.fi-active) .fi-sidebar-item-label,
+.fi-sidebar-item:not(.fi-active) .fi-sidebar-item-icon {
+    color: rgb(113 113 122);
+}
+
+.dark .fi-sidebar-item:not(.fi-active) .fi-sidebar-item-label,
+.dark .fi-sidebar-item:not(.fi-active) .fi-sidebar-item-icon {
+    color: rgb(161 161 170);
+}
+
+.fi-sidebar-item:not(.fi-active) .fi-sidebar-item-btn:hover {
+    background-color: rgb(0 0 0 / 0.04);
+}
+
+.fi-sidebar-item:not(.fi-active) .fi-sidebar-item-btn:hover .fi-sidebar-item-label,
+.fi-sidebar-item:not(.fi-active) .fi-sidebar-item-btn:hover .fi-sidebar-item-icon {
+    color: rgb(24 24 27);
+}
+
+.dark .fi-sidebar-item:not(.fi-active) .fi-sidebar-item-btn:hover {
+    background-color: rgb(255 255 255 / 0.05);
+}
+
+.dark .fi-sidebar-item:not(.fi-active) .fi-sidebar-item-btn:hover .fi-sidebar-item-label,
+.dark .fi-sidebar-item:not(.fi-active) .fi-sidebar-item-btn:hover .fi-sidebar-item-icon {
+    color: #fff;
+}
+
+.fi-sidebar-item.fi-active .fi-sidebar-item-btn {
+    background-color: rgb(0 0 0 / 0.04);
+}
+
+.dark .fi-sidebar-item.fi-active .fi-sidebar-item-btn {
+    background-color: rgb(255 255 255 / 0.05);
+}
+
+.fi-sidebar-item.fi-active .fi-sidebar-item-label {
+    color: var(--vestix-primary);
+    font-weight: 600;
+}
+
+.fi-sidebar-item.fi-active .fi-sidebar-item-icon {
+    color: var(--vestix-primary);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shell — topbar (native layout, Vestix colors only)                         */
+/* -------------------------------------------------------------------------- */
+
+.fi-topbar {
+    background-color: var(--vestix-bg);
+    border-block-end: 1px solid var(--vestix-border);
+    box-shadow: none;
+    --tw-ring-width: 0;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-shadow: 0 0 #0000;
+}
+
+.fi-logo {
+    align-items: flex-end;
+    line-height: 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Vestix stat cards                                                          */
+/* -------------------------------------------------------------------------- */
+
+.fi-wi-stats-overview-stat.vestix-stat-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+    border: 1px solid rgb(228 228 231);
+    background-color: var(--vestix-panel);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card {
+    border-color: var(--vestix-border);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.2);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(to bottom right, transparent, transparent);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--vestix::before {
+    background: linear-gradient(to bottom right, color-mix(in srgb, var(--vestix-primary) 8%, transparent), transparent);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--vestix::before {
+    background: linear-gradient(to bottom right, color-mix(in srgb, var(--vestix-primary) 5%, transparent), transparent);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--blue::before {
+    background: linear-gradient(to bottom right, rgb(59 130 246 / 0.08), transparent);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--blue::before {
+    background: linear-gradient(to bottom right, rgb(59 130 246 / 0.05), transparent);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--amber::before {
+    background: linear-gradient(to bottom right, rgb(245 158 11 / 0.08), transparent);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--amber::before {
+    background: linear-gradient(to bottom right, rgb(245 158 11 / 0.05), transparent);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--rose::before {
+    background: linear-gradient(to bottom right, rgb(244 63 94 / 0.08), transparent);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--rose::before {
+    background: linear-gradient(to bottom right, rgb(244 63 94 / 0.05), transparent);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--zinc::before {
+    background: linear-gradient(to bottom right, rgb(113 113 122 / 0.08), transparent);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--zinc::before {
+    background: linear-gradient(to bottom right, rgb(113 113 122 / 0.05), transparent);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-content {
+    position: relative;
+    z-index: 1;
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: normal;
+    text-transform: none;
+    color: rgb(113 113 122);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-label {
+    color: rgb(161 161 170);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--uppercase-label .fi-wi-stats-overview-stat-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-value:not(.fi-color) {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: rgb(24 24 27);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-value:not(.fi-color) {
+    color: rgb(250 250 250);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--dashboard .fi-wi-stats-overview-stat-value {
+    font-size: 1.875rem;
+}
+
+.fi-wi-stats-overview .fi-wi-stats-overview-stat.vestix-stat-card {
+    border: 1px solid var(--vestix-border);
+    background-color: var(--vestix-panel);
+}
+
+.fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-value.fi-color {
+    color: var(--text);
+}
+
+.dark .fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-value.fi-color {
+    color: var(--dark-text);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Vestix buttons                                                             */
+/* -------------------------------------------------------------------------- */
+
+.fi-btn.vestix-glow-btn {
+    border-radius: 0.75rem;
+    font-weight: 600;
+    box-shadow: 0 0 15px color-mix(in srgb, var(--vestix-primary) 10%, transparent);
+}
+
+.fi-btn.vestix-glow-btn:hover {
+    box-shadow: 0 0 20px color-mix(in srgb, var(--vestix-primary) 20%, transparent);
+}
+
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn {
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(0 212 146 / 0.3);
+    background-color: rgb(0 212 146 / 0.1);
+    color: var(--vestix-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    --tw-ring-width: 0;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-shadow: 0 0 #0000;
+    box-shadow: 0 0 15px rgb(0 212 146 / 0.1);
+    transition: all 150ms;
+}
+
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn > .fi-icon {
+    width: 1rem;
+    height: 1rem;
+    color: var(--vestix-primary);
+}
+
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:hover,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:focus-visible {
+    border-color: rgb(0 212 146 / 0.5);
+    background-color: rgb(0 212 146 / 0.2);
+    color: var(--vestix-primary);
+    box-shadow: 0 0 15px rgb(0 212 146 / 0.1);
+}
+
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:hover > .fi-icon,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:focus-visible > .fi-icon {
+    color: var(--vestix-primary);
+}
+
+.fi-btn.fi-btn-color-primary,
+.fi-btn.vestix-btn-primary {
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.75rem;
+    background-color: #00d492;
+    color: #00261a;
+    font-size: 0.875rem;
+    font-weight: 700;
+    --tw-ring-width: 0;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-shadow: 0 0 #0000;
+    box-shadow: 0 0 15px color-mix(in srgb, var(--vestix-primary) 20%, transparent);
+}
+
+.fi-btn.fi-btn-color-primary > .fi-icon,
+.fi-btn.vestix-btn-primary > .fi-icon {
+    color: #00261a;
+}
+
+.fi-btn.fi-btn-color-primary:hover,
+.fi-btn.fi-btn-color-primary:focus-visible,
+.fi-btn.vestix-btn-primary:hover,
+.fi-btn.vestix-btn-primary:focus-visible {
+    background-color: #00aa75;
+    color: #00261a;
+    box-shadow: 0 0 15px rgb(0 212 146 / 0.15);
+}
+
+.fi-btn.fi-btn-color-primary:hover > .fi-icon,
+.fi-btn.fi-btn-color-primary:focus-visible > .fi-icon,
+.fi-btn.vestix-btn-primary:hover > .fi-icon,
+.fi-btn.vestix-btn-primary:focus-visible > .fi-icon {
+    color: #00261a;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Market data status                                                         */
+/* -------------------------------------------------------------------------- */
+
+.vestix-market-data-status {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Vestix panels (tables)                                                     */
+/* -------------------------------------------------------------------------- */
+
+.vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-ctn,
+.vestix-positions-list .fi-ta-ctn,
+.vestix-radar-list .fi-ta-ctn {
+    overflow: hidden;
+    border-radius: 1rem;
+    border: 1px solid rgb(228 228 231);
+    background-color: var(--vestix-panel);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-header-toolbar,
+.vestix-positions-list .fi-ta-header-toolbar,
+.vestix-radar-list .fi-ta-header-toolbar {
+    display: none;
+}
+
+.vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-header-heading,
+.vestix-positions-list .fi-ta-header-heading,
+.vestix-radar-list .fi-ta-header-heading {
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-header,
+.vestix-positions-list .fi-ta-header,
+.vestix-radar-list .fi-ta-header {
+    border-block-end: 1px solid var(--vestix-border);
+    background-color: transparent;
+}
+
+.vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-table,
+.vestix-positions-list .fi-ta-table,
+.vestix-radar-list .fi-ta-table {
+    border-collapse: collapse;
+}
+
+.dark .vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-ctn,
+.dark .vestix-positions-list .fi-ta-ctn,
+.dark .vestix-radar-list .fi-ta-ctn {
+    border-color: var(--vestix-border);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.2);
+}
+
+.vestix-dashboard .fi-ta-row,
+.vestix-positions-list .fi-ta-row,
+.vestix-radar-list .fi-ta-row {
+    transition: background-color 150ms;
+}
+
+.vestix-dashboard .fi-ta-row:hover,
+.vestix-positions-list .fi-ta-row:hover,
+.vestix-radar-list .fi-ta-row:hover {
+    background-color: rgb(0 0 0 / 0.02);
+}
+
+.dark .vestix-dashboard .fi-ta-row:hover,
+.dark .vestix-positions-list .fi-ta-row:hover,
+.dark .vestix-radar-list .fi-ta-row:hover {
+    background-color: rgb(255 255 255 / 0.02);
+}
+
+.vestix-dashboard .fi-ta-header-cell:first-of-type,
+.vestix-positions-list .fi-ta-header-cell:first-of-type,
+.vestix-radar-list .fi-ta-header-cell:first-of-type {
+    padding-inline-start: 1rem;
+}
+
+.vestix-dashboard .fi-ta-header-cell:not(:first-of-type),
+.vestix-positions-list .fi-ta-header-cell:not(:first-of-type),
+.vestix-radar-list .fi-ta-header-cell:not(:first-of-type) {
+    padding-inline-start: 0.75rem;
+}
+
+@media (min-width: 640px) {
+    .vestix-dashboard .fi-ta-header-cell:first-of-type,
+    .vestix-positions-list .fi-ta-header-cell:first-of-type,
+    .vestix-radar-list .fi-ta-header-cell:first-of-type {
+        padding-inline-start: 1rem;
+    }
+
+    .vestix-dashboard .fi-ta-header-cell:last-of-type,
+    .vestix-positions-list .fi-ta-header-cell:last-of-type,
+    .vestix-radar-list .fi-ta-header-cell:last-of-type {
+        padding-inline-end: 1rem;
+    }
+}
+
+.vestix-dashboard .fi-ta-header-cell,
+.vestix-positions-list .fi-ta-header-cell,
+.vestix-radar-list .fi-ta-header-cell,
+.vestix-dashboard .fi-ta-header-group-cell,
+.vestix-positions-list .fi-ta-header-group-cell,
+.vestix-radar-list .fi-ta-header-group-cell {
+    padding-block: 0.5rem;
+    padding-inline-end: 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+}
+
+.dark .vestix-dashboard .fi-ta-header-cell,
+.dark .vestix-positions-list .fi-ta-header-cell,
+.dark .vestix-radar-list .fi-ta-header-cell,
+.dark .vestix-dashboard .fi-ta-header-group-cell,
+.dark .vestix-positions-list .fi-ta-header-group-cell,
+.dark .vestix-radar-list .fi-ta-header-group-cell {
+    color: rgb(113 113 122);
+}
+
+.vestix-dashboard .fi-ta-header-cell .fi-ta-header-cell-sort-btn,
+.vestix-positions-list .fi-ta-header-cell .fi-ta-header-cell-sort-btn,
+.vestix-radar-list .fi-ta-header-cell .fi-ta-header-cell-sort-btn {
+    font-size: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    text-transform: uppercase;
+    color: inherit;
+}
+
+.vestix-dashboard .fi-ta-text:not(.fi-inline),
+.vestix-positions-list .fi-ta-text:not(.fi-inline),
+.vestix-radar-list .fi-ta-text:not(.fi-inline) {
+    padding-block: 0.375rem;
+    padding-inline-end: 0.75rem;
+}
+
+.vestix-dashboard .fi-ta-cell:first-of-type .fi-ta-text:not(.fi-inline),
+.vestix-positions-list .fi-ta-cell:first-of-type .fi-ta-text:not(.fi-inline),
+.vestix-radar-list .fi-ta-cell:first-of-type .fi-ta-text:not(.fi-inline) {
+    padding-inline-start: 1rem;
+    padding-inline-end: 0.75rem;
+}
+
+.vestix-dashboard .fi-ta-cell:not(:first-of-type) .fi-ta-text:not(.fi-inline),
+.vestix-positions-list .fi-ta-cell:not(:first-of-type) .fi-ta-text:not(.fi-inline),
+.vestix-radar-list .fi-ta-cell:not(:first-of-type) .fi-ta-text:not(.fi-inline) {
+    padding-inline-start: 0.75rem;
+}
+
+.vestix-dashboard .fi-ta-cell:has(.fi-ta-actions),
+.vestix-positions-list .fi-ta-cell:has(.fi-ta-actions),
+.vestix-radar-list .fi-ta-cell:has(.fi-ta-actions) {
+    padding-block: 0.375rem;
+    padding-inline: 0.75rem;
+}
+
+.vestix-dashboard .fi-ta-text-input:not(.fi-inline),
+.vestix-positions-list .fi-ta-text-input:not(.fi-inline),
+.vestix-radar-list .fi-ta-text-input:not(.fi-inline) {
+    padding-block: 0.375rem;
+    padding-inline: 0.75rem;
+}
+
+.vestix-dashboard .fi-ta-text .ticker-with-icon__label,
+.vestix-positions-list .fi-ta-text .ticker-with-icon__label,
+.vestix-radar-list .fi-ta-text .ticker-with-icon__label {
+    font-weight: 700;
+    transition: color 150ms;
+}
+
+.vestix-dashboard .fi-ta-row:hover .ticker-with-icon__label,
+.vestix-positions-list .fi-ta-row:hover .ticker-with-icon__label,
+.vestix-radar-list .fi-ta-row:hover .ticker-with-icon__label {
+    color: var(--info-500);
+}
+
+.fi-ta-header-cell.vestix-table-schild,
+.fi-ta-cell.vestix-table-schild {
+    background-color: rgb(0 0 0 / 0.01);
+    border-inline-start: 1px solid var(--vestix-border);
+}
+
+.fi-ta-header-cell.vestix-table-schild-end,
+.fi-ta-cell.vestix-table-schild-end {
+    border-inline-end: 1px solid var(--vestix-border);
+}
+
+.dark .fi-ta-header-cell.vestix-table-schild,
+.dark .fi-ta-cell.vestix-table-schild {
+    background-color: rgb(255 255 255 / 0.01);
+}
+
+.fi-ta-header-cell.vestix-schild-group-header {
+    text-align: center;
+    background-color: rgb(0 0 0 / 0.01);
+    border-inline-start: 1px solid var(--vestix-border);
+}
+
+.dark .fi-ta-header-cell.vestix-schild-group-header {
+    background-color: rgb(255 255 255 / 0.01);
+}
+
+.vestix-schild-group-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+}
+
+/* Schild table inputs (Close, SMA, ATR) — Mijn Radar, Gedeelde Radar, Posities */
+.fi-ta-cell.vestix-table-schild .fi-ta-text-input {
+    padding-block: 0.375rem;
+    padding-inline: 0;
+}
+
+.fi-ta-cell.vestix-table-schild .fi-ta-text-input .fi-input-wrp {
+    border-radius: 0.5rem;
+    border: 1px solid var(--vestix-border);
+    background-color: color-mix(in srgb, var(--vestix-panel) 50%, transparent);
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-shadow: 0 0 #0000;
+}
+
+.fi-ta-cell.vestix-table-schild .fi-ta-text-input input {
+    pointer-events: none;
+    text-align: center;
+    padding: 0.375rem 0.75rem;
+    border: none;
+    background: transparent;
+    font-size: 0.875rem;
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+}
+
+:not(.dark) .fi-ta-cell.vestix-table-schild .fi-ta-text-input .fi-input-wrp {
+    border-color: rgb(228 228 231);
+    background-color: rgb(244 244 245);
+}
+
+:not(.dark) .fi-ta-cell.vestix-table-schild .fi-ta-text-input input {
+    color: rgb(24 24 27);
+}
+
+.dark .fi-ta-cell.vestix-table-schild .fi-ta-text-input .fi-input-wrp {
+    border-color: var(--vestix-border);
+    background-color: rgb(24 24 27 / 0.5);
+}
+
+.dark .fi-ta-cell.vestix-table-schild .fi-ta-text-input input {
+    color: rgb(255 255 255);
+}
+
+.fi-ta-cell.vestix-table-schild .fi-ta-text-input input:disabled {
+    opacity: 1;
+    cursor: default;
+}
+
+/* Ticker column — consistent left alignment with or without selection checkbox */
+.vestix-dashboard .fi-ta-header-cell.vestix-ticker-cell,
+.vestix-positions-list .fi-ta-header-cell.vestix-ticker-cell,
+.vestix-radar-list .fi-ta-header-cell.vestix-ticker-cell {
+    padding-inline-start: 1rem;
+    text-align: start;
+}
+
+.vestix-dashboard .fi-ta-cell.vestix-ticker-cell,
+.vestix-radar-list .fi-ta-cell.vestix-ticker-cell,
+.vestix-positions-list .fi-ta-cell.vestix-ticker-cell {
+    padding-inline-start: 1rem !important;
+    text-align: start;
+}
+
+.vestix-dashboard .fi-ta-cell.vestix-ticker-cell .fi-ta-text:not(.fi-inline),
+.vestix-radar-list .fi-ta-cell.vestix-ticker-cell .fi-ta-text:not(.fi-inline),
+.vestix-positions-list .fi-ta-cell.vestix-ticker-cell .fi-ta-text:not(.fi-inline) {
+    padding-inline-start: 0;
+    padding-inline-end: 0.75rem;
+}
+
+.vestix-dashboard .fi-ta-cell.vestix-ticker-cell .ticker-with-icon,
+.vestix-radar-list .fi-ta-cell.vestix-ticker-cell .ticker-with-icon,
+.vestix-positions-list .fi-ta-cell.vestix-ticker-cell .ticker-with-icon {
+    justify-content: flex-start;
+    width: 100%;
+}
+
+/* Segmented tabs */
+.vestix-positions-list .fi-tabs {
+    display: inline-flex;
+    gap: 0;
+    margin-block-end: 0.75rem;
+    padding: 0.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--vestix-border);
+    background-color: var(--vestix-panel);
+    box-shadow: none;
+}
+
+.vestix-positions-list .fi-tabs::before,
+.vestix-positions-list .fi-tabs::after {
+    display: none;
+}
+
+.vestix-positions-list .fi-tabs-item {
+    border-radius: 0.375rem;
+    border: none;
+    box-shadow: none;
+}
+
+.vestix-positions-list .fi-tabs-item:not(.fi-active) {
+    background-color: transparent;
+}
+
+.vestix-positions-list .fi-tabs-item.fi-active {
+    background-color: var(--gray-100);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.dark .vestix-positions-list .fi-tabs-item.fi-active {
+    background-color: var(--gray-800);
+}
+
+/* Radar risk columns */
+.vestix-radar-list .fi-ta-text-item.fi-color-warning {
+    font-weight: 600;
+}
+
+/* Setup grade badges in radar list */
+.vestix-radar-list .fi-ta-text .fi-badge.fi-color-success {
+    border: 1px solid color-mix(in srgb, var(--vestix-primary) 20%, transparent);
+    background-color: color-mix(in srgb, var(--vestix-primary) 10%, transparent);
+    color: var(--vestix-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.vestix-radar-list .fi-ta-text .fi-badge.fi-color-warning {
+    border: 1px solid rgb(245 158 11 / 0.2);
+    background-color: rgb(245 158 11 / 0.1);
+    color: var(--warning-500);
+    font-weight: 600;
+}
+
+.dark .vestix-radar-list .fi-ta-text .fi-badge.fi-color-warning {
+    color: var(--warning-400);
+}
+
+.vestix-radar-list .fi-ta-text .fi-badge.fi-color-gray {
+    border: 1px solid var(--vestix-border);
+    background-color: var(--gray-100);
+    color: var(--gray-600);
+    font-weight: 600;
+}
+
+.dark .vestix-radar-list .fi-ta-text .fi-badge.fi-color-gray {
+    background-color: var(--gray-800);
+    color: var(--gray-300);
+}
+
+/* Setup grade badges */
+.fi-badge.vestix-grade-a-plus {
+    border: 1px solid color-mix(in srgb, var(--vestix-primary) 20%, transparent);
+    background-color: color-mix(in srgb, var(--vestix-primary) 10%, transparent);
+    color: var(--vestix-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.fi-badge.vestix-grade-a-minus {
+    border: 1px solid rgb(245 158 11 / 0.2);
+    background-color: rgb(245 158 11 / 0.1);
+    color: var(--warning-500);
+    font-weight: 600;
+}
+
+.dark .fi-badge.vestix-grade-a-minus {
+    color: var(--warning-400);
+}
+
+.fi-badge.vestix-grade-bc {
+    border: 1px solid var(--vestix-border);
+    background-color: var(--gray-100);
+    color: var(--gray-600);
+    font-weight: 600;
+}
+
+.dark .fi-badge.vestix-grade-bc {
+    background-color: var(--gray-800);
+    color: var(--gray-300);
+}
+
+/* Rocket activate button */
+.fi-ta-actions .fi-icon-btn.vestix-activate-scout-btn {
+    border-radius: 0.5rem;
+    color: var(--vestix-primary);
+}
+
+.fi-ta-actions .fi-icon-btn.vestix-activate-scout-btn > .fi-icon {
+    color: var(--vestix-primary);
+}
+
+.fi-ta-actions .fi-icon-btn.vestix-activate-scout-btn:hover,
+.fi-ta-actions .fi-icon-btn.vestix-activate-scout-btn:focus-visible {
+    background-color: color-mix(in srgb, var(--vestix-primary) 10%, transparent);
+}
+
+.fi-ta-actions .fi-icon-btn.vestix-activate-scout-btn:hover > .fi-icon,
+.fi-ta-actions .fi-icon-btn.vestix-activate-scout-btn:focus-visible > .fi-icon {
+    color: var(--vestix-primary);
+}
+
+.scout-activate-a-plus.fi-icon-btn {
+    box-shadow:
+        0 0 0 1px rgb(0 212 146 / 0.5),
+        0 0 20px rgb(0 212 146 / 0.35);
+}
+
+.scout-activate-a-plus.fi-icon-btn:hover {
+    box-shadow:
+        0 0 0 1px rgb(0 212 146 / 0.7),
+        0 0 28px rgb(0 212 146 / 0.45);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ticker with icon                                                           */
+/* -------------------------------------------------------------------------- */
+
+.ticker-with-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    max-width: 100%;
+    font-size: inherit;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.ticker-with-icon__logo {
+    display: inline-flex;
+    flex-shrink: 0;
+    width: 1em;
+    height: 1em;
+    overflow: hidden;
+    border-radius: 50%;
+}
+
+.ticker-with-icon__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.ticker-with-icon__label {
+    line-height: 1;
+    font-weight: 700;
+}
+
+.ticker-letter-avatar {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 9999px;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+}
+
+.fi-ta-text .ticker-with-icon {
+    vertical-align: middle;
+}
+
+.fi-global-search-result-heading .ticker-with-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    font-size: inherit;
+    line-height: 1.2;
+}
+
+.fi-global-search-result-heading .ticker-with-icon__logo {
+    width: 1.125em;
+    height: 1.125em;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Table color overrides                                                      */
+/* -------------------------------------------------------------------------- */
+
+.fi-ta-text-item.fi-color.fi-color-success {
+    --text: var(--vestix-primary);
+}
+
+.dark .fi-ta-text-item.fi-color.fi-color-success {
+    --dark-text: var(--vestix-primary);
+}
+
+.fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-description.fi-color-success {
+    color: var(--vestix-primary);
+}
+
+.dark .fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-description.fi-color-success {
+    color: var(--vestix-primary);
+}
+
+.dark .fi-ta-text-item.fi-color.fi-color-danger {
+    --dark-text: var(--danger-400);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Dashboard widget layout                                                      */
+/* -------------------------------------------------------------------------- */
+
+.vestix-dashboard .fi-sc.fi-grid {
+    align-items: stretch;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table {
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+    height: 100%;
+    min-height: 0;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table > .fi-ta {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-ctn {
+    flex: 1;
+    flex-direction: column;
+    width: 100%;
+    min-height: 0;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-ctn:has(.fi-ta-empty-state) {
+    display: flex;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-content-ctn {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-ctn:has(.fi-ta-empty-state) .fi-ta-content-ctn {
+    display: none;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table .fi-ta-empty-state {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-top: none;
+    padding-block: 0;
+    min-height: 0;
+}
+
+.vestix-dashboard .vestix-leaderboard-widget.fi-wi-widget {
+    height: auto;
+    align-self: start;
+}
+
+.vestix-dashboard .vestix-leaderboard-widget .fi-ta {
+    flex: none;
+}
+
+.vestix-dashboard .vestix-leaderboard-widget .fi-ta-ctn:has(.fi-ta-empty-state) {
+    display: block;
+}
+
+.vestix-dashboard .vestix-leaderboard-widget .fi-ta-ctn:has(.fi-ta-empty-state) .fi-ta-content-ctn {
+    display: none !important;
+}
+
+.vestix-dashboard .vestix-leaderboard-widget .fi-ta-empty-state {
+    flex: none;
+    padding: 2.5rem 1.5rem;
+    min-height: auto;
+    border-top: none;
+}
+
+/* Dashboard widget tables — row height aligned with Posities / Radar pages */
+.vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-text:not(.fi-inline) {
+    padding-block: 0.75rem;
+}
+
+.vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-cell:has(.fi-ta-actions) {
+    padding-block: 0.75rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Scout scorecard                                                            */
+/* -------------------------------------------------------------------------- */
+
+.scout-visibility-section .fi-section-content-ctn:empty,
+.scout-visibility-section .fi-section-content:empty {
+    display: none;
+}
+
+.scout-visibility-section .fi-section-header {
+    align-items: center;
+}
+
+.scout-scorecard-hud {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: 1rem;
+    border: 1px solid var(--gray-200);
+    background: var(--gray-50);
+}
+
+.dark .scout-scorecard-hud {
+    border-color: rgb(255 255 255 / 0.1);
+    background: rgb(255 255 255 / 0.05);
+}
+
+.scout-scorecard-hud--hard-fail {
+    border-color: var(--danger-300);
+}
+
+.dark .scout-scorecard-hud--hard-fail {
+    border-color: var(--danger-500);
+}
+
+.scout-scorecard-hud-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+}
+
+.dark .scout-scorecard-hud-label {
+    color: var(--gray-400);
+}
+
+.scout-scorecard-hud-score-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.125rem;
+}
+
+.scout-scorecard-hud-score {
+    font-size: 3.75rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.scout-scorecard-hud-score.fi-color {
+    color: var(--text);
+}
+
+.dark .scout-scorecard-hud-score.fi-color {
+    color: var(--dark-text);
+}
+
+.scout-scorecard-hud-max {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: var(--gray-600);
+}
+
+.dark .scout-scorecard-hud-max {
+    color: var(--gray-400);
+}
+
+.scout-scorecard-hud-grade {
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.scout-scorecard-criterion {
+    height: 100%;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--gray-200);
+    background: var(--gray-50);
+}
+
+.dark .scout-scorecard-criterion {
+    border-color: rgb(255 255 255 / 0.1);
+    background: rgb(255 255 255 / 0.05);
+}
+
+.scout-scorecard-criterion--pass {
+    border-color: var(--success-200);
+}
+
+.dark .scout-scorecard-criterion--pass {
+    border-color: var(--success-500);
+}
+
+.scout-scorecard-criterion--warn {
+    border-color: var(--warning-200);
+}
+
+.dark .scout-scorecard-criterion--warn {
+    border-color: var(--warning-500);
+}
+
+.fi-header-heading .position-edit-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Auth layout                                                                */
+/* -------------------------------------------------------------------------- */
+
+.fi-auth-simple-main-ctn {
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.fi-auth-simple-main-ctn .fi-simple-main {
+    margin-top: 0;
+}
+
+.fi-auth-wordmark {
+    color: #ffffff;
+    text-align: center;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Table action icon buttons                                                  */
+/* -------------------------------------------------------------------------- */
+
+.vestix-positions-list thead .fi-ta-selection-cell,
+.vestix-radar-list thead .fi-ta-selection-cell {
+    padding-block: 0.5rem !important;
+}
+
+.vestix-dashboard .fi-ta-cell:first-of-type,
+.vestix-positions-list .fi-ta-cell:first-of-type,
+.vestix-radar-list .fi-ta-cell:first-of-type {
+    padding-inline-start: 1rem !important;
+}
+
+.vestix-positions-list .fi-ta-text-input input:disabled,
+.vestix-radar-list .fi-ta-text-input input:disabled {
+    opacity: 1;
+    cursor: default;
+}
+
+:not(.dark) .vestix-positions-list .fi-ta-text-input input:disabled,
+:not(.dark) .vestix-radar-list .fi-ta-text-input input:disabled {
+    color: rgb(24 24 27);
+}
+
+.dark .vestix-positions-list .fi-ta-text-input input:disabled,
+.dark .vestix-radar-list .fi-ta-text-input input:disabled {
+    color: rgb(255 255 255);
+}
+
+.vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn),
+.vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn),
+.vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn) {
+    border-radius: 0.5rem;
+    transition: background-color 150ms, color 150ms;
+}
+
+.vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn) > .fi-icon,
+.vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn) > .fi-icon,
+.vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn) > .fi-icon {
+    color: rgb(113 113 122);
+    transition: color 150ms;
+}
+
+:not(.dark) .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
+:not(.dark) .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible,
+:not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
+:not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible,
+:not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
+:not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible {
+    background-color: rgb(228 228 231 / 0.8);
+}
+
+:not(.dark) .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
+:not(.dark) .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon,
+:not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
+:not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon,
+:not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
+:not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon {
+    color: rgb(0 0 0);
+}
+
+.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
+.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible,
+.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
+.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible,
+.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
+.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible {
+    background-color: rgb(63 63 70 / 0.5);
+}
+
+.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
+.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon,
+.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
+.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon,
+.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
+.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon {
+    color: rgb(255 255 255);
+}
+
+.vestix-dashboard .fi-ta-text .ticker-with-icon,
+.vestix-positions-list .fi-ta-text .ticker-with-icon,
+.vestix-radar-list .fi-ta-text .ticker-with-icon {
+    margin-inline-start: 0;
+}
+
+.vestix-dashboard .fi-ta-text .ticker-with-icon__logo,
+.vestix-positions-list .fi-ta-text .ticker-with-icon__logo,
+.vestix-radar-list .fi-ta-text .ticker-with-icon__logo {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Form inputs — Schild fields & focus state                                  */
+/* -------------------------------------------------------------------------- */
+
+.vestix-positions-list .fi-ta-text-input input:focus,
+.vestix-radar-list .fi-ta-text-input input:focus,
+.fi-fo-text-input input:focus,
+.fi-fo-text-input textarea:focus,
+.fi-fo-text-input select:focus {
+    border-color: #00d492;
+    outline: none;
+    box-shadow: 0 0 0 1px #00d492;
+}
+
+.fi-fo-text-input input,
+.fi-fo-text-input textarea,
+.fi-fo-text-input select {
+    background-color: #fff;
+    border-color: rgb(228 228 231);
+    color: rgb(24 24 27);
+    box-shadow: none;
+}
+
+.dark .fi-fo-text-input input,
+.dark .fi-fo-text-input textarea,
+.dark .fi-fo-text-input select {
+    background-color: rgb(255 255 255 / 0.03);
+    border-color: var(--vestix-border);
+    color: inherit;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Position form layout & chart lightbox                                      */
+/* -------------------------------------------------------------------------- */
+
+@media (min-width: 1024px) {
+    .position-form-columns.fi-grid {
+        align-items: stretch;
+    }
+
+    .position-form-columns.fi-grid > .fi-grid-col {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .position-form-columns.fi-grid > .fi-grid-col > .fi-sc-component {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .position-form-setup-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        width: 100%;
+    }
+
+    .position-form-columns.fi-grid > .fi-grid-col:has(.position-form-journal-section) {
+        align-self: stretch;
+    }
+
+    .position-form-journal-section.fi-sc-section {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .position-form-journal-section .fi-section {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .position-form-journal-section .fi-section-content-ctn {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .position-form-journal-section .fi-section-content {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 1rem;
+        min-height: 0;
+    }
+
+    .position-form-journal-field.fi-fo-field {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .position-form-journal-field .fi-fo-field-content-col {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .position-form-journal-field .fi-fo-textarea-wrp {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .position-form-journal-field .fi-fo-textarea {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .position-form-journal-field .fi-fo-textarea > div {
+        flex: 1 !important;
+        height: auto !important;
+        min-height: 6.75rem;
+    }
+
+    .position-form-journal-field .fi-fo-textarea textarea {
+        height: 100% !important;
+        min-height: 6.75rem;
+        resize: none;
+    }
+
+    .position-form-journal-section .position-form-chart-upload {
+        flex-shrink: 0;
+    }
+
+    .position-form-chart-upload .fi-fo-file-upload {
+        width: 100%;
+    }
+
+    .position-form-chart-upload .filepond--root {
+        max-width: 100%;
+    }
+
+    .position-form-chart-upload .filepond--image-preview-wrapper,
+    .position-form-chart-upload .filepond--item-panel {
+        border-radius: 0.5rem;
+    }
+
+    .chart-screenshot-lightbox__trigger {
+        display: block;
+        position: relative;
+        width: 100%;
+        padding: 0;
+        overflow: hidden;
+        cursor: zoom-in;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0.5rem;
+        background: rgba(0, 0, 0, 0.25);
+    }
+
+    .chart-screenshot-lightbox__trigger img {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+
+    .chart-screenshot-lightbox__hint {
+        position: absolute;
+        right: 0.5rem;
+        bottom: 0.5rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        font-size: 0.7rem;
+        line-height: 1.2;
+    }
+
+    .chart-screenshot-lightbox__backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background: rgba(0, 0, 0, 0.85);
+    }
+
+    .chart-screenshot-lightbox__dialog {
+        position: relative;
+        max-width: min(96vw, 1400px);
+        max-height: 92vh;
+    }
+
+    .chart-screenshot-lightbox__dialog img {
+        display: block;
+        max-width: 100%;
+        max-height: 92vh;
+        width: auto;
+        height: auto;
+        margin: 0 auto;
+        border-radius: 0.5rem;
+    }
+
+    .chart-screenshot-lightbox__close {
+        position: absolute;
+        top: -0.25rem;
+        right: -0.25rem;
+        z-index: 1;
+        width: 2rem;
+        height: 2rem;
+        border: none;
+        border-radius: 9999px;
+        background: rgba(0, 0, 0, 0.75);
+        color: #fff;
+        font-size: 1.25rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .position-form-chart-upload .filepond--image-preview-wrapper {
+        display: none;
+    }
+}

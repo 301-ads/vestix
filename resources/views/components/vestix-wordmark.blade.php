@@ -23,17 +23,17 @@
 
 <div
     {{ $attributes->merge([
-        'class' => 'inline-flex items-baseline gap-1',
+        'class' => 'inline-flex items-end gap-1 leading-none',
         'aria-label' => 'Vestix',
     ]) }}
 >
     <span
-        class="font-sans font-bold tracking-tight"
+        class="font-sans font-bold tracking-tight leading-none"
         style="font-size: {{ $textSizes[$size] ?? $textSizes['md'] }}; color: {{ $textColor }};"
     >Vestix</span>
     <span
         class="shrink-0 origin-center"
-        style="display: inline-block; width: {{ $dotSizes[$size] ?? $dotSizes['md'] }}; height: {{ $dotSizes[$size] ?? $dotSizes['md'] }}; background-color: #00D492; border-radius: 2px; transform: rotate(45deg);"
+        style="display: inline-block; width: {{ $dotSizes[$size] ?? $dotSizes['md'] }}; height: {{ $dotSizes[$size] ?? $dotSizes['md'] }}; margin-bottom: 0.125rem; background-color: #00D492; border-radius: 2px; transform: rotate(45deg);"
         aria-hidden="true"
     ></span>
 </div>

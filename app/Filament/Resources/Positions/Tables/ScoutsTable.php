@@ -11,6 +11,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
+use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -22,7 +23,8 @@ class ScoutsTable
     public static function configure(Table $table, bool $squadMode = false, string $resourceClass = ScoutResource::class): Table
     {
         return $table
-            ->deferColumnManager(false)
+            ->columnManager(false)
+            ->striped(false)
             ->recordUrl(fn (Position $record): ?string => $squadMode && ! $record->isOwnedBy(auth()->user())
                 ? null
                 : $resourceClass::getUrl('edit', ['record' => $record]))
@@ -73,9 +75,13 @@ class ScoutsTable
                     ->badge()
                     ->color(fn (Position $record): string => self::setupGradeColor($record))
                     ->placeholder('—'),
-                PositionsTable::schildColumn('latest_close_price', 'Close', '7rem'),
-                PositionsTable::schildColumn('latest_sma_20', 'SMA', '7rem'),
-                PositionsTable::schildColumn('latest_atr_14', 'ATR', '6.25rem'),
+                ColumnGroup::make(PositionsTable::schildGroupLabel())
+                    ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
+                    ->columns([
+                        PositionsTable::schildColumn('latest_close_price', 'Close', '7rem'),
+                        PositionsTable::schildColumn('latest_sma_20', 'SMA', '7rem'),
+                        PositionsTable::schildColumn('latest_atr_14', 'ATR', '6.25rem'),
+                    ]),
             ])
             ->recordActions([
                 PositionRecordActions::activateScout(),

@@ -2,6 +2,10 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\PortfolioExposureWidget;
+use App\Filament\Widgets\PortfolioTopFlopWidget;
+use App\Filament\Widgets\PositionsRequiringActionWidget;
+use App\Filament\Widgets\SetupRadarWidget;
 use App\Support\BackgroundArtisan;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
@@ -23,6 +27,19 @@ class Dashboard extends BaseDashboard
     public function getColumns(): int|array
     {
         return 2;
+    }
+
+    /**
+     * @return array<class-string>
+     */
+    public function getWidgets(): array
+    {
+        return [
+            PortfolioExposureWidget::class,
+            PositionsRequiringActionWidget::class,
+            PortfolioTopFlopWidget::class,
+            SetupRadarWidget::class,
+        ];
     }
 
     protected function getHeaderActions(): array

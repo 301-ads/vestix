@@ -10,17 +10,15 @@ class TickerColumn
 {
     public static function wrap(TextColumn $column): TextColumn
     {
-        return $column->formatStateUsing(function (string $state, Position $record): string|HtmlString {
-            $url = $record->asset?->icon_url;
-
-            if (blank($url)) {
-                return e($state);
-            }
-
-            return new HtmlString(view('components.filament.positions.ticker-with-icon', [
-                'ticker' => $state,
-                'iconUrl' => $url,
-            ])->render());
-        });
+        return $column
+            ->alignStart()
+            ->extraCellAttributes(['class' => 'vestix-ticker-cell'])
+            ->extraHeaderAttributes(['class' => 'vestix-ticker-cell'])
+            ->formatStateUsing(function (string $state, Position $record): HtmlString {
+                return new HtmlString(view('components.filament.positions.ticker-with-icon', [
+                    'ticker' => $state,
+                    'iconUrl' => $record->asset?->icon_url,
+                ])->render());
+            });
     }
 }

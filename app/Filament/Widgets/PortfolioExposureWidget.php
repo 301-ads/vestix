@@ -44,19 +44,23 @@ class PortfolioExposureWidget extends StatsOverviewWidget
             Stat::make('Totale Inleg', '$'.number_format($totalInvested, 2))
                 ->description($openCount.' open '.str('positie')->plural($openCount))
                 ->descriptionIcon('heroicon-m-banknotes')
-                ->descriptionColor('success'),
+                ->descriptionColor('success')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard']),
             Stat::make('Huidige Waarde', '$'.number_format($totalValue, 2))
                 ->description('Locked: +$'.number_format($totalLockedInProfit, 2))
                 ->descriptionIcon('heroicon-m-shield-check')
-                ->descriptionColor('info'),
+                ->descriptionColor('info')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard vestix-stat-card--blue']),
             Stat::make('Open P&L', $pnlPrefix.'$'.number_format(abs($totalPnl), 2))
                 ->description($pnlPctPrefix.number_format($totalPnlPct, 2).'% t.o.v. inleg')
                 ->descriptionIcon($totalPnl >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
-                ->color($totalPnl >= 0 ? 'success' : 'danger'),
+                ->color($totalPnl >= 0 ? 'success' : 'danger')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard vestix-stat-card--vestix']),
             Stat::make('Kapitaalrisico', '$'.number_format($totalCapitalRisk, 2))
                 ->description('Risico op initiële inleg')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
-                ->color($totalCapitalRisk > 0 ? 'warning' : 'success'),
+                ->color($totalCapitalRisk > 0 ? 'warning' : 'success')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard vestix-stat-card--amber']),
         ];
     }
 }

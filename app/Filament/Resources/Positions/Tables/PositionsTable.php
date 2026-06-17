@@ -10,17 +10,20 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
 
 class PositionsTable
 {
     public static function configure(Table $table): Table
     {
         return $table
-            ->deferColumnManager(false)
+            ->columnManager(false)
+            ->striped(false)
             ->defaultSort('unrealized_pnl_percentage', 'desc')
             ->columns([
                 TickerColumn::wrap(
@@ -85,24 +88,29 @@ class PositionsTable
                     ->toggleable()
                     ->width('5rem')
                     ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire) || self::isArchiveTab($livewire)),
-                self::schildColumn(
-                    'latest_close_price',
-                    'Close',
-                    '7rem',
-                    'De afgesloten dagkoers (de fundering van je berekening).',
-                ),
-                self::schildColumn(
-                    'latest_sma_20',
-                    'SMA 20',
-                    '7rem',
-                    'De actuele hoogte van je trampoline.',
-                ),
-                self::schildColumn(
-                    'latest_atr_14',
-                    'ATR 14',
-                    '6.25rem',
-                    'De beweeglijkheid (zodat je stop-loss genoeg ademruimte heeft).',
-                ),
+                ColumnGroup::make(static::schildGroupLabel())
+                    ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
+                    ->columns([
+                        self::schildColumn(
+                            'latest_close_price',
+                            'Close',
+                            '7rem',
+                            'De afgesloten dagkoers (de fundering van je berekening).',
+                        ),
+                        self::schildColumn(
+                            'latest_sma_20',
+                            'SMA 20',
+                            '7rem',
+                            'De actuele hoogte van je trampoline.',
+                        ),
+                        self::schildColumn(
+                            'latest_atr_14',
+                            'ATR 14',
+                            '6.25rem',
+                            'De beweeglijkheid (zodat je stop-loss genoeg ademruimte heeft).',
+                            isGroupEnd: true,
+                        ),
+                    ]),
                 TextColumn::make('action_command')
                     ->label('Status')
                     ->width('6.5rem')
@@ -195,26 +203,34 @@ class PositionsTable
         return ($livewire->activeTab ?? 'open') === 'closed';
     }
 
+    public static function schildGroupLabel(): HtmlString
+    {
+        return new HtmlString(view('components.filament.positions.schild-group-label')->render());
+    }
+
     public static function schildColumn(
         string $name,
         string $label,
         string $width,
         ?string $tooltip = null,
+        bool $isGroupEnd = false,
     ): TextInputColumn {
+        $schildClass = 'vestix-table-schild'.($isGroupEnd ? ' vestix-table-schild-end' : '');
+
         return TextInputColumn::make($name)
             ->label($label)
             ->type('number')
             ->inputMode('decimal')
             ->step('any')
             ->inline()
-            ->disabled(fn (): bool => true)
+            ->disabled(fn (Position $record): bool => $record->status === 'closed')
             ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire))
             ->toggleable()
             ->width($width)
             ->when(filled($tooltip), fn (TextInputColumn $column): TextInputColumn => $column->tooltip($tooltip))
             ->extraAttributes(['style' => 'min-width:0;width:100%'])
-            ->extraCellAttributes(['style' => "min-width:{$width};width:{$width};padding-inline:0.5rem"])
-            ->extraHeaderAttributes(['style' => "min-width:{$width};width:{$width}"])
+            ->extraCellAttributes(['class' => $schildClass, 'style' => "min-width:{$width};width:{$width};padding-inline:0.5rem"])
+            ->extraHeaderAttributes(['class' => $schildClass, 'style' => "min-width:{$width};width:{$width}"])
             ->rules(['nullable', 'numeric']);
     }
 }
