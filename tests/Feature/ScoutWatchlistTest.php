@@ -264,37 +264,6 @@ class ScoutWatchlistTest extends TestCase
         $this->assertNotNull($scout->scout_rsi);
     }
 
-    public function test_fetch_market_data_on_create_scout_fills_form_without_saving(): void
-    {
-        config([
-            'vestix.polygon.api_key' => 'test-polygon-key',
-            'vestix.polygon.base_url' => 'https://api.polygon.io',
-        ]);
-
-        $user = $this->authenticateFilament();
-
-        Http::fake([
-            'api.polygon.io/*' => Http::response([
-                'status' => 'OK',
-                'results' => PolygonFixtures::dailyBars(latestClose: 78.20),
-            ]),
-        ]);
-
-        $component = Livewire::test(CreateScout::class)
-            ->fillForm(['ticker' => 'MSFT'])
-            ->callAction('fetch_market_data')
-            ->assertSet('pollTickerMarketData', true);
-
-        $this->artisan('vestix:fetch-data', [
-            '--ticker' => 'MSFT',
-            '--user-id' => $user->id,
-        ])->assertSuccessful();
-
-        $component->call('pollTickerMarketDataFetch');
-
-        $this->assertDatabaseCount('positions', 0);
-    }
-
     public function test_create_scout_page_shows_scorecard(): void
     {
         $this->authenticateFilament();

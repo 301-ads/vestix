@@ -553,7 +553,7 @@ class PositionResourceTest extends TestCase
             ->assertSee('High (Signaalkaars)')
             ->assertSee('Low (Signaalkaars)')
             ->assertSee('Optioneel tot bounce-dag')
-            ->assertSee('Data ophalen');
+            ->assertActionDoesNotExist('fetch_market_data');
     }
 
     public function test_scout_can_be_created_with_ticker_only(): void

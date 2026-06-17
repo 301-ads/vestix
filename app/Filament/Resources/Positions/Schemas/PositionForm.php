@@ -347,7 +347,9 @@ class PositionForm
             ->columnSpanFull()
             ->schema([
                 Section::make('Marktdata & Indicatoren')
-                    ->description('Klik "Data ophalen" rechtsboven, of vul handmatig in')
+                    ->description(fn (string $operation): string => $operation === 'create'
+                        ? 'Vul handmatig in — na opslaan kun je rechtsboven "Data ophalen" gebruiken'
+                        : 'Klik "Data ophalen" rechtsboven, of vul handmatig in')
                     ->columnSpan(['default' => 12, 'lg' => 4])
                     ->schema([
                         TextInput::make('scout_rsi')
