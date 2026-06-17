@@ -8,6 +8,7 @@ use App\Filament\Resources\Positions\Schemas\PositionForm;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Squad;
 use App\Services\SquadContext;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Schemas\Schema;
 
@@ -22,6 +23,20 @@ class CreateScout extends CreateRecord
     public function form(Schema $schema): Schema
     {
         return PositionForm::configure($schema, scoutMode: true);
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('fetch_market_data')
+                ->label('Data ophalen')
+                ->tooltip('Sla de scout eerst op om marktdata op te halen')
+                ->icon('heroicon-o-arrow-path')
+                ->color('primary')
+                ->outlined()
+                ->extraAttributes(['class' => 'vestix-sync-btn'])
+                ->disabled(),
+        ];
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array

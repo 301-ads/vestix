@@ -384,6 +384,43 @@
     color: var(--vestix-primary);
 }
 
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:disabled,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn[disabled],
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn.fi-disabled {
+    border-color: rgb(148 163 184 / 0.22);
+    background-color: rgb(148 163 184 / 0.06);
+    color: rgb(148 163 184 / 0.55);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:disabled > .fi-icon,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn[disabled] > .fi-icon,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn.fi-disabled > .fi-icon {
+    color: rgb(148 163 184 / 0.55);
+}
+
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:disabled:hover,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn[disabled]:hover,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn.fi-disabled:hover,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:disabled:focus-visible,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn[disabled]:focus-visible,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn.fi-disabled:focus-visible {
+    border-color: rgb(148 163 184 / 0.22);
+    background-color: rgb(148 163 184 / 0.06);
+    color: rgb(148 163 184 / 0.55);
+    box-shadow: none;
+}
+
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:disabled:hover > .fi-icon,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn[disabled]:hover > .fi-icon,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn.fi-disabled:hover > .fi-icon,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn:disabled:focus-visible > .fi-icon,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn[disabled]:focus-visible > .fi-icon,
+.fi-header .fi-header-actions .fi-btn.vestix-sync-btn.fi-disabled:focus-visible > .fi-icon {
+    color: rgb(148 163 184 / 0.55);
+}
+
 .fi-btn.fi-btn-color-primary,
 .fi-btn.vestix-btn-primary {
     gap: 0.5rem;
