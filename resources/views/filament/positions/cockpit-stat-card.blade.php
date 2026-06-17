@@ -9,9 +9,16 @@
     $valuePulse = $valuePulse ?? false;
     $labelHintIcon = $labelHintIcon ?? null;
     $labelHintTooltip = $labelHintTooltip ?? null;
+    $cardVariant = $cardVariant ?? 'zinc';
 @endphp
 
-<div class="fi-wi-stats-overview-stat h-full">
+<div @class([
+    'fi-wi-stats-overview-stat',
+    'vestix-stat-card',
+    'vestix-stat-card--uppercase-label',
+    'vestix-stat-card--'.$cardVariant,
+    'h-full',
+])>
     <div class="fi-wi-stats-overview-stat-content">
         <div class="fi-wi-stats-overview-stat-label-ctn flex items-center gap-1">
             <span class="fi-wi-stats-overview-stat-label">{{ $label }}</span>

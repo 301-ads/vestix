@@ -29,6 +29,17 @@ class EditPosition extends EditRecord
 
     protected static string $resource = PositionResource::class;
 
+    /**
+     * @return array<string>
+     */
+    public function getPageClasses(): array
+    {
+        return [
+            'fi-resource-edit-record-page',
+            'vestix-position-edit',
+        ];
+    }
+
     public function mountCanAuthorizeAccess(): void
     {
         if (! $this->record instanceof Model) {

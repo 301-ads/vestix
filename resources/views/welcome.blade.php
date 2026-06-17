@@ -46,7 +46,7 @@
     <nav class="fixed w-full z-50 top-0 border-b border-vestix-border/50 bg-vestix-dark/80 backdrop-blur-md">
         <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
             <div class="flex items-center gap-3 text-white">
-                <x-vestix-wordmark size="md" />
+                <x-vestix-wordmark size="md" for-dark-background />
             </div>
 
             <div class="hidden md:flex items-center gap-8 text-sm font-medium text-vestix-textMuted">
@@ -277,7 +277,7 @@
     <footer class="bg-vestix-dark border-t border-vestix-border py-8 text-center text-sm text-gray-500">
         <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-2">
-                <x-vestix-wordmark size="sm" muted />
+                <x-vestix-wordmark size="sm" muted for-dark-background />
             </div>
             <p>&copy; {{ date('Y') }} Vestix Trading Software. Alle rechten voorbehouden.</p>
             <div class="flex gap-4">

@@ -163,21 +163,26 @@
 /* Vestix stat cards                                                          */
 /* -------------------------------------------------------------------------- */
 
-.fi-wi-stats-overview-stat.vestix-stat-card {
+.fi-wi-stats-overview-stat.vestix-stat-card,
+.vestix-stat-card {
     position: relative;
     overflow: hidden;
     border-radius: 1rem;
     border: 1px solid rgb(228 228 231);
     background-color: var(--vestix-panel);
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-shadow: 0 0 #0000;
 }
 
-.dark .fi-wi-stats-overview-stat.vestix-stat-card {
+.dark .fi-wi-stats-overview-stat.vestix-stat-card,
+.dark .vestix-stat-card {
     border-color: var(--vestix-border);
     box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.2);
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card::before {
+.fi-wi-stats-overview-stat.vestix-stat-card::before,
+.vestix-stat-card::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -185,52 +190,64 @@
     background: linear-gradient(to bottom right, transparent, transparent);
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card--vestix::before {
+.fi-wi-stats-overview-stat.vestix-stat-card--vestix::before,
+.vestix-stat-card--vestix::before {
     background: linear-gradient(to bottom right, color-mix(in srgb, var(--vestix-primary) 8%, transparent), transparent);
 }
 
-.dark .fi-wi-stats-overview-stat.vestix-stat-card--vestix::before {
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--vestix::before,
+.dark .vestix-stat-card--vestix::before {
     background: linear-gradient(to bottom right, color-mix(in srgb, var(--vestix-primary) 5%, transparent), transparent);
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card--blue::before {
+.fi-wi-stats-overview-stat.vestix-stat-card--blue::before,
+.vestix-stat-card--blue::before {
     background: linear-gradient(to bottom right, rgb(59 130 246 / 0.08), transparent);
 }
 
-.dark .fi-wi-stats-overview-stat.vestix-stat-card--blue::before {
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--blue::before,
+.dark .vestix-stat-card--blue::before {
     background: linear-gradient(to bottom right, rgb(59 130 246 / 0.05), transparent);
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card--amber::before {
+.fi-wi-stats-overview-stat.vestix-stat-card--amber::before,
+.vestix-stat-card--amber::before {
     background: linear-gradient(to bottom right, rgb(245 158 11 / 0.08), transparent);
 }
 
-.dark .fi-wi-stats-overview-stat.vestix-stat-card--amber::before {
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--amber::before,
+.dark .vestix-stat-card--amber::before {
     background: linear-gradient(to bottom right, rgb(245 158 11 / 0.05), transparent);
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card--rose::before {
+.fi-wi-stats-overview-stat.vestix-stat-card--rose::before,
+.vestix-stat-card--rose::before {
     background: linear-gradient(to bottom right, rgb(244 63 94 / 0.08), transparent);
 }
 
-.dark .fi-wi-stats-overview-stat.vestix-stat-card--rose::before {
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--rose::before,
+.dark .vestix-stat-card--rose::before {
     background: linear-gradient(to bottom right, rgb(244 63 94 / 0.05), transparent);
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card--zinc::before {
+.fi-wi-stats-overview-stat.vestix-stat-card--zinc::before,
+.vestix-stat-card--zinc::before {
     background: linear-gradient(to bottom right, rgb(113 113 122 / 0.08), transparent);
 }
 
-.dark .fi-wi-stats-overview-stat.vestix-stat-card--zinc::before {
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--zinc::before,
+.dark .vestix-stat-card--zinc::before {
     background: linear-gradient(to bottom right, rgb(113 113 122 / 0.05), transparent);
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-content {
+.fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-content,
+.vestix-stat-card .fi-wi-stats-overview-stat-content {
     position: relative;
     z-index: 1;
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-label {
+.fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-label,
+.vestix-stat-card .fi-wi-stats-overview-stat-label {
     font-size: 0.875rem;
     font-weight: 500;
     letter-spacing: normal;
@@ -238,25 +255,29 @@
     color: rgb(113 113 122);
 }
 
-.dark .fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-label {
+.dark .fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-label,
+.dark .vestix-stat-card .fi-wi-stats-overview-stat-label {
     color: rgb(161 161 170);
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card--uppercase-label .fi-wi-stats-overview-stat-label {
+.fi-wi-stats-overview-stat.vestix-stat-card--uppercase-label .fi-wi-stats-overview-stat-label,
+.vestix-stat-card--uppercase-label .fi-wi-stats-overview-stat-label {
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
 }
 
-.fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-value:not(.fi-color) {
+.fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-value:not(.fi-color),
+.vestix-stat-card .fi-wi-stats-overview-stat-value:not(.fi-color) {
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.025em;
     color: rgb(24 24 27);
 }
 
-.dark .fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-value:not(.fi-color) {
+.dark .fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-value:not(.fi-color),
+.dark .vestix-stat-card .fi-wi-stats-overview-stat-value:not(.fi-color) {
     color: rgb(250 250 250);
 }
 
@@ -982,6 +1003,53 @@
 }
 
 /* -------------------------------------------------------------------------- */
+/* Position / scout edit pages                                                */
+/* -------------------------------------------------------------------------- */
+
+.vestix-position-edit .position-cockpit-grid.fi-grid {
+    gap: 1rem;
+}
+
+.vestix-position-edit .fi-main .fi-section {
+    overflow: hidden;
+    border-radius: 1rem;
+    border: 1px solid rgb(228 228 231);
+    background-color: var(--vestix-panel);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.dark .vestix-position-edit .fi-main .fi-section {
+    border-color: var(--vestix-border);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.2);
+}
+
+.vestix-position-edit .fi-main .fi-section-header {
+    border-block-end: 1px solid var(--vestix-border);
+}
+
+.vestix-position-edit .fi-main .fi-section-header-heading {
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.vestix-position-edit .fi-fo-field-wrp {
+    border-radius: 0.75rem;
+}
+
+:not(.dark) .vestix-position-edit .fi-input-wrp,
+:not(.dark) .vestix-position-edit .fi-fo-text-input .fi-input-wrp {
+    border-color: rgb(228 228 231);
+    background-color: rgb(244 244 245);
+}
+
+.dark .vestix-position-edit .fi-input-wrp,
+.dark .vestix-position-edit .fi-fo-text-input .fi-input-wrp {
+    border-color: var(--vestix-border);
+    background-color: rgb(24 24 27 / 0.5);
+}
+
+/* -------------------------------------------------------------------------- */
 /* Scout scorecard                                                            */
 /* -------------------------------------------------------------------------- */
 
@@ -1001,22 +1069,14 @@
     gap: 1.5rem;
     padding: 1.5rem;
     margin-bottom: 0.5rem;
-    border-radius: 1rem;
-    border: 1px solid var(--gray-200);
-    background: var(--gray-50);
-}
-
-.dark .scout-scorecard-hud {
-    border-color: rgb(255 255 255 / 0.1);
-    background: rgb(255 255 255 / 0.05);
 }
 
 .scout-scorecard-hud--hard-fail {
-    border-color: var(--danger-300);
+    border-color: rgb(244 63 94 / 0.35);
 }
 
 .dark .scout-scorecard-hud--hard-fail {
-    border-color: var(--danger-500);
+    border-color: rgb(244 63 94 / 0.45);
 }
 
 .scout-scorecard-hud-label {
@@ -1069,32 +1129,44 @@
 }
 
 .scout-scorecard-criterion {
+    position: relative;
+    overflow: hidden;
     height: 100%;
     padding: 1rem;
-    border-radius: 0.75rem;
-    border: 1px solid var(--gray-200);
-    background: var(--gray-50);
+    border-radius: 1rem;
+    border: 1px solid rgb(228 228 231);
+    background-color: var(--vestix-panel);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
 .dark .scout-scorecard-criterion {
-    border-color: rgb(255 255 255 / 0.1);
-    background: rgb(255 255 255 / 0.05);
+    border-color: var(--vestix-border);
+    background-color: var(--vestix-panel);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.2);
 }
 
 .scout-scorecard-criterion--pass {
-    border-color: var(--success-200);
+    border-color: color-mix(in srgb, var(--vestix-primary) 35%, var(--vestix-border));
 }
 
 .dark .scout-scorecard-criterion--pass {
-    border-color: var(--success-500);
+    border-color: color-mix(in srgb, var(--vestix-primary) 40%, var(--vestix-border));
 }
 
 .scout-scorecard-criterion--warn {
-    border-color: var(--warning-200);
+    border-color: rgb(245 158 11 / 0.35);
 }
 
 .dark .scout-scorecard-criterion--warn {
-    border-color: var(--warning-500);
+    border-color: rgb(245 158 11 / 0.45);
+}
+
+.scout-scorecard-criterion--fail {
+    border-color: rgb(244 63 94 / 0.25);
+}
+
+.dark .scout-scorecard-criterion--fail {
+    border-color: rgb(244 63 94 / 0.35);
 }
 
 .fi-header-heading .position-edit-heading {
@@ -1117,7 +1189,6 @@
 }
 
 .fi-auth-wordmark {
-    color: #ffffff;
     text-align: center;
 }
 

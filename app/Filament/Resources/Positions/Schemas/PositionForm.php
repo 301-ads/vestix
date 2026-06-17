@@ -393,12 +393,15 @@ class PositionForm
                     ->columnSpan(['default' => 12, 'lg' => 8])
                     ->schema([
                         View::make('filament.positions.scout-scorecard-hud')
-                            ->viewData(fn (Get $get, ?Position $record): array => [
-                                'score' => self::resolveScorecard($get, $record),
-                                'scoreColor' => self::scorecardGradeColor(
-                                    self::resolveScorecard($get, $record)['grade'],
-                                ),
-                            ]),
+                            ->viewData(function (Get $get, ?Position $record): array {
+                                $score = self::resolveScorecard($get, $record);
+
+                                return [
+                                    'score' => $score,
+                                    'scoreColor' => self::scorecardGradeColor($score['grade']),
+                                    'cardVariant' => self::scorecardCardVariant($score),
+                                ];
+                            }),
                         Callout::make('Setup geblokkeerd')
                             ->visible(fn (Get $get, ?Position $record): bool => self::resolveScorecard($get, $record)['hardFailReasons'] !== [])
                             ->description(fn (Get $get, ?Position $record): string => implode("\n", self::resolveScorecard($get, $record)['hardFailReasons']))
@@ -443,6 +446,41 @@ class PositionForm
             'A+' => 'success',
             'A-' => 'warning',
             default => 'gray',
+        };
+    }
+
+    /**
+     * @param  array{grade: string, hardFailReasons: array<int, string>}  $score
+     */
+    private static function scorecardCardVariant(array $score): string
+    {
+        if ($score['hardFailReasons'] !== []) {
+            return 'rose';
+        }
+
+        return match ($score['grade']) {
+            'A+' => 'vestix',
+            'A-' => 'amber',
+            default => 'zinc',
+        };
+    }
+
+    private static function resolveActionCardVariant(Get $get, ?Position $record): string
+    {
+        return match (self::resolveFormActionCommand($get, $record)) {
+            'STOPPED OUT' => 'rose',
+            'UPDATE' => 'amber',
+            'HOLD' => 'vestix',
+            default => 'zinc',
+        };
+    }
+
+    private static function resolvePnlCardVariant(Get $get, ?Position $record): string
+    {
+        return match (self::resolvePerformanceColor($get, $record)) {
+            'success' => 'vestix',
+            'danger' => 'rose',
+            default => 'zinc',
         };
     }
 
@@ -516,6 +554,7 @@ class PositionForm
             ->contained(false)
             ->schema([
                 Grid::make(4)
+                    ->extraAttributes(['class' => 'position-cockpit-grid'])
                     ->schema(self::openCockpitCards())
                     ->columnSpanFull(),
             ]);
@@ -530,6 +569,7 @@ class PositionForm
             ->contained(false)
             ->schema([
                 Grid::make(4)
+                    ->extraAttributes(['class' => 'position-cockpit-grid'])
                     ->schema(self::scoutCockpitCards())
                     ->columnSpanFull(),
             ]);
@@ -550,6 +590,7 @@ class PositionForm
                         'value' => self::formatUsd($get('latest_close_price') ?? $record?->latest_close_price),
                         'description' => $entryProfit['text'] ?? null,
                         'descriptionColor' => $entryProfit['color'] ?? 'gray',
+                        'cardVariant' => 'blue',
                     ];
                 }),
             View::make('filament.positions.cockpit-stat-card')
@@ -566,6 +607,7 @@ class PositionForm
                         'descriptionColor' => $distance['color'] ?? 'gray',
                         'labelHintIcon' => 'heroicon-m-information-circle',
                         'labelHintTooltip' => self::formatFormulaTooltip($get, $record),
+                        'cardVariant' => 'amber',
                     ];
                 }),
             View::make('filament.positions.cockpit-stat-card')
@@ -581,6 +623,7 @@ class PositionForm
                         'valuePulse' => $action === 'UPDATE',
                         'description' => $actionDetails['text'] ?? null,
                         'descriptionColor' => $actionDetails['color'] ?? 'gray',
+                        'cardVariant' => self::resolveActionCardVariant($get, $record),
                     ];
                 }),
             View::make('filament.positions.cockpit-stat-card')
@@ -603,6 +646,7 @@ class PositionForm
                         'description' => $pnlDescription,
                         'descriptionColor' => $pnlColor,
                         'descriptionIcon' => $pnlIcon,
+                        'cardVariant' => self::resolvePnlCardVariant($get, $record),
                     ];
                 }),
         ];
@@ -618,6 +662,7 @@ class PositionForm
                 ->viewData(fn (Get $get, ?Position $record): array => [
                     'label' => 'Actuele Koers',
                     'value' => self::formatUsd($get('latest_close_price') ?? $record?->latest_close_price),
+                    'cardVariant' => 'blue',
                 ]),
             View::make('filament.positions.cockpit-stat-card')
                 ->viewData(function (Get $get, ?Position $record): array {
@@ -633,6 +678,7 @@ class PositionForm
                         'descriptionColor' => $distance['color'] ?? 'gray',
                         'labelHintIcon' => 'heroicon-m-information-circle',
                         'labelHintTooltip' => self::formatFormulaTooltip($get, $record),
+                        'cardVariant' => 'amber',
                     ];
                 }),
             View::make('filament.positions.cockpit-stat-card')
@@ -645,6 +691,7 @@ class PositionForm
                         'valueColor' => $risk['valueColor'] ?? null,
                         'description' => $risk['text'] ?? null,
                         'descriptionColor' => $risk['color'] ?? 'gray',
+                        'cardVariant' => 'amber',
                     ];
                 }),
             View::make('filament.positions.cockpit-stat-card')
@@ -656,6 +703,7 @@ class PositionForm
                         'value' => $investment['value'],
                         'description' => $investment['text'] ?? null,
                         'descriptionColor' => 'gray',
+                        'cardVariant' => 'zinc',
                     ];
                 }),
         ];

@@ -31,7 +31,6 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
-use Illuminate\Support\HtmlString;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Livewire\Livewire;
 
@@ -55,9 +54,8 @@ class AdminPanelProvider extends PanelProvider
                     ->label('Beheer'),
             ])
             ->brandName('')
-            ->brandLogo(fn (): HtmlString => new HtmlString(
-                view('components.vestix-wordmark', ['size' => 'md'])->render()
-            ))
+            ->brandLogo(asset('images/vestix-logo-dark.svg'))
+            ->darkModeBrandLogo(asset('images/vestix-logo-white.svg'))
             ->brandLogoHeight('1.5rem')
             ->favicon(asset('images/favicon.svg'))
             ->font('Inter')

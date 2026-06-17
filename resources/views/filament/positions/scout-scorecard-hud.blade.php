@@ -4,15 +4,19 @@
     use Illuminate\View\ComponentAttributeBag;
 
     $scoreColor = $scoreColor ?? 'gray';
+    $cardVariant = $cardVariant ?? 'zinc';
     $hasHardFail = ! empty($score['hardFailReasons']);
 @endphp
 
 <div @class([
     'scout-scorecard-hud',
+    'fi-wi-stats-overview-stat',
+    'vestix-stat-card',
+    'vestix-stat-card--'.$cardVariant,
     'scout-scorecard-hud--hard-fail' => $hasHardFail,
 ])>
-    <div class="scout-scorecard-hud-main">
-        <span class="scout-scorecard-hud-label">Live Rating</span>
+    <div class="scout-scorecard-hud-main fi-wi-stats-overview-stat-content">
+        <span class="scout-scorecard-hud-label fi-wi-stats-overview-stat-label">Live Rating</span>
         <div class="scout-scorecard-hud-score-row">
             <span
                 {{

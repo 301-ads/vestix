@@ -328,6 +328,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertSee('SMA 50')
             ->assertSee('Live Rating')
             ->assertSeeHtml('scout-scorecard-hud')
+            ->assertSeeHtml('vestix-stat-card')
             ->assertSeeHtml('scout-scorecard-criterion')
             ->assertSee('A+ SETUP')
             ->assertSee('Trampoline-afstand');
