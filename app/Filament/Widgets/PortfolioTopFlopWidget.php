@@ -45,6 +45,17 @@ class PortfolioTopFlopWidget extends TableWidget
                     ->label('P&L ($)')
                     ->formatStateUsing(fn ($state): string => ($state >= 0 ? '+' : '-').'$'.number_format(abs((float) $state), 2))
                     ->color(fn ($state) => ($state ?? 0) >= 0 ? 'success' : 'danger'),
+                TextColumn::make('locked_in_profit_dollars')
+                    ->label('Locked')
+                    ->badge()
+                    ->formatStateUsing(fn (float $state): string => $state > 0
+                        ? '+$'.number_format($state, 2)
+                        : 'Geen lock')
+                    ->color(fn (float $state): string => $state > 0 ? 'info' : 'gray')
+                    ->icon(fn (float $state): ?string => $state > 0 ? 'heroicon-m-lock-closed' : null)
+                    ->tooltip(fn (Position $record): string => $record->locked_in_profit_dollars > 0
+                        ? 'Winst veiliggesteld: je stop-loss staat boven entry. Laat je winnaars lopen.'
+                        : 'Stop-loss staat nog op of onder entry — winst is nog niet gelockt.'),
             ])
             ->emptyStateHeading('Geen open posities met marktdata')
             ->emptyStateDescription('Voeg posities toe of haal marktdata op via API sync.')

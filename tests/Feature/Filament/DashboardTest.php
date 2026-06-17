@@ -3,6 +3,7 @@
 namespace Tests\Feature\Filament;
 
 use App\Filament\Pages\Dashboard;
+use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
 use App\Models\Position;
 use App\Models\User;
@@ -171,6 +172,37 @@ class DashboardTest extends TestCase
             ->assertCanNotSeeTableRecords([$position->fresh()]);
 
         $this->assertEquals(76.10, (float) $position->fresh()->current_sl);
+    }
+
+    public function test_portfolio_widget_shows_locked_profit_per_position(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $lockedPosition = Position::factory()->for($user)->create([
+            'ticker' => 'ASML',
+            'entry_price' => 875.00,
+            'current_sl' => 1500.00,
+            'quantity' => 2,
+            'latest_close_price' => 1600.00,
+            'status' => 'open',
+        ]);
+
+        $unlockedPosition = Position::factory()->for($user)->create([
+            'ticker' => 'SNDK',
+            'entry_price' => 80.00,
+            'current_sl' => 74.50,
+            'quantity' => 10,
+            'latest_close_price' => 85.00,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PortfolioTopFlopWidget::class)
+            ->assertCanSeeTableRecords([$lockedPosition, $unlockedPosition])
+            ->assertSee('Locked')
+            ->assertSee('+$1,250.00')
+            ->assertSee('Geen lock');
     }
 
     public function test_action_widget_does_not_show_archive_action(): void
