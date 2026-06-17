@@ -10,7 +10,6 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Contracts\HasTable;
@@ -86,27 +85,24 @@ class PositionsTable
                     ->toggleable()
                     ->width('5rem')
                     ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire) || self::isArchiveTab($livewire)),
-                ColumnGroup::make('Schild')
-                    ->columns([
-                        self::schildColumn(
-                            'latest_close_price',
-                            'Close',
-                            '7rem',
-                            'De afgesloten dagkoers (de fundering van je berekening).',
-                        ),
-                        self::schildColumn(
-                            'latest_sma_20',
-                            'SMA 20',
-                            '7rem',
-                            'De actuele hoogte van je trampoline.',
-                        ),
-                        self::schildColumn(
-                            'latest_atr_14',
-                            'ATR 14',
-                            '6.25rem',
-                            'De beweeglijkheid (zodat je stop-loss genoeg ademruimte heeft).',
-                        ),
-                    ]),
+                self::schildColumn(
+                    'latest_close_price',
+                    'Close',
+                    '7rem',
+                    'De afgesloten dagkoers (de fundering van je berekening).',
+                ),
+                self::schildColumn(
+                    'latest_sma_20',
+                    'SMA 20',
+                    '7rem',
+                    'De actuele hoogte van je trampoline.',
+                ),
+                self::schildColumn(
+                    'latest_atr_14',
+                    'ATR 14',
+                    '6.25rem',
+                    'De beweeglijkheid (zodat je stop-loss genoeg ademruimte heeft).',
+                ),
                 TextColumn::make('action_command')
                     ->label('Status')
                     ->width('6.5rem')
@@ -211,7 +207,7 @@ class PositionsTable
             ->inputMode('decimal')
             ->step('any')
             ->inline()
-            ->disabled(fn (Position $record): bool => $record->status === 'closed')
+            ->disabled(fn (): bool => true)
             ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire))
             ->toggleable()
             ->width($width)

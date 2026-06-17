@@ -53,7 +53,7 @@ class PositionResourceTest extends TestCase
             ->assertSee('Actuele Koers')
             ->assertSee('P&L (%)')
             ->assertSee('Stop-Loss')
-            ->assertSee('Schild')
+            ->assertSee('Close')
             ->assertSee('SMA 20')
             ->assertSee('ATR 14')
             ->assertSee('$78.20')

@@ -261,6 +261,11 @@ class AdminPanelProvider extends PanelProvider
                             color: inherit;
                         }
 
+                        .vestix-positions-list thead .fi-ta-selection-cell,
+                        .vestix-radar-list thead .fi-ta-selection-cell {
+                            padding-block: 0.5rem !important;
+                        }
+
                         .vestix-dashboard .fi-ta-cell:first-of-type,
                         .vestix-positions-list .fi-ta-cell:first-of-type,
                         .vestix-radar-list .fi-ta-cell:first-of-type {
@@ -298,6 +303,62 @@ class AdminPanelProvider extends PanelProvider
                         .vestix-radar-list .fi-ta-text-input:not(.fi-inline) {
                             padding-block: 0.5rem;
                             padding-inline: 0.75rem;
+                        }
+
+                        .vestix-positions-list .fi-ta-text-input input:disabled,
+                        .vestix-radar-list .fi-ta-text-input input:disabled {
+                            opacity: 1;
+                            cursor: default;
+                        }
+
+                        :not(.dark) .vestix-positions-list .fi-ta-text-input input:disabled,
+                        :not(.dark) .vestix-radar-list .fi-ta-text-input input:disabled {
+                            color: rgb(24 24 27);
+                        }
+
+                        .dark .vestix-positions-list .fi-ta-text-input input:disabled,
+                        .dark .vestix-radar-list .fi-ta-text-input input:disabled {
+                            color: rgb(255 255 255);
+                        }
+
+                        .vestix-positions-list .fi-ta-actions .fi-icon-btn,
+                        .vestix-radar-list .fi-ta-actions .fi-icon-btn {
+                            border-radius: 0.5rem;
+                            transition: background-color 150ms, color 150ms;
+                        }
+
+                        .vestix-positions-list .fi-ta-actions .fi-icon-btn > .fi-icon,
+                        .vestix-radar-list .fi-ta-actions .fi-icon-btn > .fi-icon {
+                            color: rgb(113 113 122);
+                            transition: color 150ms;
+                        }
+
+                        :not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:hover,
+                        :not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:focus-visible,
+                        :not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:hover,
+                        :not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:focus-visible {
+                            background-color: rgb(228 228 231 / 0.8);
+                        }
+
+                        :not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:hover > .fi-icon,
+                        :not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:focus-visible > .fi-icon,
+                        :not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:hover > .fi-icon,
+                        :not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:focus-visible > .fi-icon {
+                            color: rgb(0 0 0);
+                        }
+
+                        .dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:hover,
+                        .dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:focus-visible,
+                        .dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:hover,
+                        .dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:focus-visible {
+                            background-color: rgb(63 63 70 / 0.5);
+                        }
+
+                        .dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:hover > .fi-icon,
+                        .dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:focus-visible > .fi-icon,
+                        .dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:hover > .fi-icon,
+                        .dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:focus-visible > .fi-icon {
+                            color: rgb(255 255 255);
                         }
 
                         .vestix-dashboard .fi-ta-text .ticker-with-icon,

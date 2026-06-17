@@ -11,7 +11,6 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
-use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -74,12 +73,9 @@ class ScoutsTable
                     ->badge()
                     ->color(fn (Position $record): string => self::setupGradeColor($record))
                     ->placeholder('—'),
-                ColumnGroup::make('Schild')
-                    ->columns([
-                        PositionsTable::schildColumn('latest_close_price', 'Close', '7rem'),
-                        PositionsTable::schildColumn('latest_sma_20', 'SMA', '7rem'),
-                        PositionsTable::schildColumn('latest_atr_14', 'ATR', '6.25rem'),
-                    ]),
+                PositionsTable::schildColumn('latest_close_price', 'Close', '7rem'),
+                PositionsTable::schildColumn('latest_sma_20', 'SMA', '7rem'),
+                PositionsTable::schildColumn('latest_atr_14', 'ATR', '6.25rem'),
             ])
             ->recordActions([
                 PositionRecordActions::activateScout(),
