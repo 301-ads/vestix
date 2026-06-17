@@ -86,20 +86,20 @@ class EditPosition extends EditRecord
         /** @var Position $record */
         $record = $this->getRecord();
 
+        $actions = [
+            PositionRecordActions::fetchMarketData(syncButtonStyle: true),
+        ];
+
         if ($record->status === 'scout') {
-            return [
-                PositionRecordActions::fetchMarketData(),
-                $this->scoutActivateAction(),
-                DeleteAction::make(),
-            ];
+            $actions[] = $this->scoutActivateAction();
+        } else {
+            $actions[] = PositionRecordActions::markAsUpdated();
+            $actions[] = PositionRecordActions::archive();
         }
 
-        return [
-            PositionRecordActions::fetchMarketData(),
-            PositionRecordActions::markAsUpdated(),
-            PositionRecordActions::archive(),
-            DeleteAction::make(),
-        ];
+        $actions[] = DeleteAction::make();
+
+        return $actions;
     }
 
     public function getTitle(): string|Htmlable
@@ -203,29 +203,10 @@ class EditPosition extends EditRecord
 
     protected function scoutActivateAction(): Action
     {
-        return PositionRecordActions::activateScout()
-            ->color(fn (): string => $this->scoutActivateColor())
+        return PositionRecordActions::activateScout(iconButton: false)
+            ->color('primary')
             ->extraAttributes(fn (): array => $this->scoutActivateExtraAttributes())
             ->tooltip(fn (): string => $this->scoutActivateTooltip());
-    }
-
-    protected function scoutActivateColor(): string
-    {
-        $score = $this->resolveSetupScoreFromForm();
-
-        if ($score['hardFailReasons'] !== []) {
-            return 'gray';
-        }
-
-        if ($score['totalPoints'] === 7) {
-            return 'success';
-        }
-
-        if ($score['totalPoints'] >= 5) {
-            return 'success';
-        }
-
-        return 'warning';
     }
 
     /**
@@ -233,13 +214,15 @@ class EditPosition extends EditRecord
      */
     protected function scoutActivateExtraAttributes(): array
     {
+        $classes = ['vestix-btn-primary'];
+
         $score = $this->resolveSetupScoreFromForm();
 
         if ($score['hardFailReasons'] === [] && $score['totalPoints'] === 7) {
-            return ['class' => 'scout-activate-a-plus'];
+            $classes[] = 'scout-activate-a-plus';
         }
 
-        return [];
+        return ['class' => implode(' ', $classes)];
     }
 
     protected function scoutActivateTooltip(): string

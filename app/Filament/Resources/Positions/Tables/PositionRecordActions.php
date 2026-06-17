@@ -19,9 +19,9 @@ use Illuminate\Support\HtmlString;
 
 class PositionRecordActions
 {
-    public static function fetchMarketData(): Action
+    public static function fetchMarketData(bool $syncButtonStyle = false): Action
     {
-        return Action::make('fetch_market_data')
+        $action = Action::make('fetch_market_data')
             ->label(fn (Position $record): string => MarketDataFreshness::isPositionSyncInProgress($record->id)
                 ? 'Bezig…'
                 : 'Data ophalen')
@@ -40,15 +40,23 @@ class PositionRecordActions
                     $livewire->startPollingPositionMarketData();
                 }
             });
+
+        if ($syncButtonStyle) {
+            $action
+                ->color('primary')
+                ->outlined()
+                ->extraAttributes(['class' => 'vestix-sync-btn']);
+        }
+
+        return $action;
     }
 
-    public static function activateScout(): Action
+    public static function activateScout(bool $iconButton = true): Action
     {
-        return Action::make('activate_scout')
+        $action = Action::make('activate_scout')
             ->label('Activeren')
             ->tooltip('Zet scout om naar open positie met berekende stop-loss')
             ->icon('heroicon-o-rocket-launch')
-            ->iconButton()
             ->color('success')
             ->extraAttributes(fn (Position $record): array => self::scoutActivateTableExtraAttributes($record))
             ->visible(fn (Position $record): bool => $record->status === 'scout'
@@ -96,6 +104,12 @@ class PositionRecordActions
                 );
             })
             ->successRedirectUrl(fn (Position $record): string => PositionResource::getUrl('edit', ['record' => $record]));
+
+        if ($iconButton) {
+            $action->iconButton();
+        }
+
+        return $action;
     }
 
     /**

@@ -804,13 +804,16 @@
     color: var(--vestix-primary);
 }
 
-.scout-activate-a-plus.fi-icon-btn {
+.scout-activate-a-plus.fi-icon-btn,
+.fi-btn.scout-activate-a-plus {
     box-shadow:
         0 0 0 1px rgb(0 212 146 / 0.5),
         0 0 20px rgb(0 212 146 / 0.35);
 }
 
-.scout-activate-a-plus.fi-icon-btn:hover {
+.scout-activate-a-plus.fi-icon-btn:hover,
+.fi-btn.scout-activate-a-plus:hover,
+.fi-btn.scout-activate-a-plus:focus-visible {
     box-shadow:
         0 0 0 1px rgb(0 212 146 / 0.7),
         0 0 28px rgb(0 212 146 / 0.45);
