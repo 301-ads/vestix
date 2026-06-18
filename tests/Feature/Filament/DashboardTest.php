@@ -130,7 +130,9 @@ class DashboardTest extends TestCase
 
         Livewire::test(PositionsRequiringActionWidget::class)
             ->assertCanSeeTableRecords([$updatePosition])
-            ->assertCanNotSeeTableRecords([$holdPosition]);
+            ->assertCanNotSeeTableRecords([$holdPosition])
+            ->assertSee('$76.10')
+            ->assertSee('fi-copyable');
     }
 
     public function test_action_widget_lists_stopped_out_positions_with_liquidation_type(): void

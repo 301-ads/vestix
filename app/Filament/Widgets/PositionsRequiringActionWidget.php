@@ -13,6 +13,8 @@ use Illuminate\Support\HtmlString;
 
 class PositionsRequiringActionWidget extends TableWidget
 {
+    protected string $view = 'filament.widgets.positions-requiring-action-widget';
+
     protected static bool $isLazy = false;
 
     protected static ?int $sort = 2;
@@ -66,7 +68,12 @@ class PositionsRequiringActionWidget extends TableWidget
                         ? $record->new_sl
                         : null)
                     ->money('usd')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->copyable(fn (Position $record): bool => $record->action_command === 'UPDATE' && $record->new_sl !== null)
+                    ->copyMessage('SL-prijs gekopieerd')
+                    ->copyableState(fn (Position $record): ?string => $record->new_sl !== null
+                        ? number_format((float) $record->new_sl, 2, '.', '')
+                        : null),
                 TextColumn::make('sl_difference')
                     ->label('Verschil')
                     ->state(fn (Position $record): ?float => $record->action_command === 'UPDATE'

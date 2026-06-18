@@ -79,6 +79,7 @@ class PositionResourceTest extends TestCase
         $user = $this->authenticateFilament();
         $position = Position::factory()->for($user)->create([
             'latest_close_price' => 78.20,
+            'recent_close_prices' => [76.50, 77.00, 78.20],
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
             'current_sl' => 74.50,
@@ -92,16 +93,72 @@ class PositionResourceTest extends TestCase
             ->assertSee('Archiveer')
             ->assertDontSee('Archiveer Positie')
             ->assertSee('Actuele Koers')
-            ->assertSee('Nieuwe SL')
+            ->assertSee('Positiewaarde')
+            ->assertSee('Berekende SL')
             ->assertSee('Open P&L')
-            ->assertSee('Actie / Executie')
+            ->assertDontSee('Actie / Executie')
             ->assertSee('Update')
-            ->assertSee('Afstand:')
-            ->assertSee('Huidige SL:')
             ->assertSee('$76.10')
             ->assertSee('$78.20')
-            ->assertSee('Winst per aandeel:')
+            ->assertSee('Totale inleg')
+            ->assertSee('+1.56% t.o.v. slotkoers')
+            ->assertSee('t.o.v. koers')
+            ->assertSee('fi-wi-stats-overview-stat-chart')
+            ->assertSee('Schild')
             ->assertSee('t.o.v. inleg');
+    }
+
+    public function test_edit_page_positiewaarde_shows_locked_profit_when_sl_above_entry(): void
+    {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
+            'entry_price' => 70.00,
+            'quantity' => 10,
+            'current_sl' => 80.00,
+            'latest_close_price' => 85.00,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'status' => 'open',
+        ]);
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertSee('Positiewaarde')
+            ->assertSee('+$100.00 risicovrij');
+    }
+
+    public function test_edit_page_positiewaarde_shows_no_locked_profit_message_when_sl_not_above_entry(): void
+    {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
+            'entry_price' => 70.00,
+            'quantity' => 10,
+            'current_sl' => 65.00,
+            'latest_close_price' => 85.00,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'status' => 'open',
+        ]);
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertSee('Positiewaarde')
+            ->assertSee('Geen veiliggestelde winst');
+    }
+
+    public function test_edit_page_cockpit_sl_action_updates_current_sl(): void
+    {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
+            'latest_close_price' => 78.20,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'current_sl' => 74.50,
+            'status' => 'open',
+        ]);
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->callAction('applyCalculatedSl');
+
+        $this->assertEquals(76.10, (float) $position->fresh()->current_sl);
     }
 
     public function test_edit_page_archive_header_action_closes_hold_position(): void

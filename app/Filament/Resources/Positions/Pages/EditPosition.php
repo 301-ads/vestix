@@ -11,7 +11,9 @@ use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Models\Squad;
 use App\Services\AssetSyncService;
+use App\Services\MarketDataFetcher;
 use App\Services\SquadContext;
+use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupScorecard;
 use Filament\Actions\Action;
@@ -76,6 +78,10 @@ class EditPosition extends EditRecord
             $position->load('asset');
         }
 
+        if (app(MarketDataFetcher::class)->backfillRecentClosePrices($position)) {
+            $position->refresh();
+        }
+
         if (MarketDataFreshness::isPositionSyncInProgress($position->id)) {
             $this->startPollingPositionMarketData();
         }
@@ -93,8 +99,9 @@ class EditPosition extends EditRecord
         if ($record->status === 'scout') {
             $actions[] = $this->scoutActivateAction();
         } else {
-            $actions[] = PositionRecordActions::markAsUpdated();
             $actions[] = PositionRecordActions::archive();
+            $actions[] = $this->applyCalculatedSlAction()
+                ->extraAttributes(['class' => 'hidden']);
         }
 
         $actions[] = DeleteAction::make();
@@ -199,6 +206,54 @@ class EditPosition extends EditRecord
             'scout_rsi' => $this->data['scout_rsi'] ?? $record->scout_rsi,
             'bounce_volume_above_average' => (bool) ($this->data['bounce_volume_above_average'] ?? $record->bounce_volume_above_average),
         ]);
+    }
+
+    protected function applyCalculatedSlAction(): Action
+    {
+        return Action::make('applyCalculatedSl')
+            ->label('SL bijwerken')
+            ->tooltip('Stop-Loss bijwerken naar berekende SL')
+            ->icon('heroicon-o-check')
+            ->color('warning')
+            ->visible(function (): bool {
+                /** @var Position $record */
+                $record = $this->getRecord();
+
+                if ($record->status !== 'open') {
+                    return false;
+                }
+
+                $newSl = Position::computeNewSl(
+                    $this->data['latest_sma_20'] ?? $record->latest_sma_20,
+                    $this->data['latest_atr_14'] ?? $record->latest_atr_14,
+                );
+                $currentSl = $this->data['current_sl'] ?? $record->current_sl;
+
+                return $newSl !== null
+                    && $currentSl !== null
+                    && $newSl > (float) $currentSl;
+            })
+            ->requiresConfirmation()
+            ->modalHeading('Stop-Loss bijwerken')
+            ->modalDescription('Huidige SL vervangen door de berekende nieuwe SL?')
+            ->action(function (): void {
+                /** @var Position $record */
+                $record = $this->getRecord();
+
+                $newSl = Position::computeNewSl(
+                    $this->data['latest_sma_20'] ?? $record->latest_sma_20,
+                    $this->data['latest_atr_14'] ?? $record->latest_atr_14,
+                );
+
+                if ($newSl === null) {
+                    return;
+                }
+
+                $record->update(['current_sl' => $newSl]);
+                $this->data['current_sl'] = $newSl;
+
+                FilamentNotifier::send(title: 'Stop-Loss geüpdatet!');
+            });
     }
 
     protected function scoutActivateAction(): Action

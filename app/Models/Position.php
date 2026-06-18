@@ -28,6 +28,7 @@ class Position extends Model
             'quantity' => 'decimal:6',
             'current_sl' => 'decimal:2',
             'latest_close_price' => 'decimal:2',
+            'recent_close_prices' => 'array',
             'exit_price' => 'decimal:2',
             'latest_sma_20' => 'decimal:2',
             'latest_sma_50' => 'decimal:2',

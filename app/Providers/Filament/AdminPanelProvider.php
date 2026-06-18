@@ -58,7 +58,7 @@ class AdminPanelProvider extends PanelProvider
             ->darkModeBrandLogo(asset('images/vestix-logo-white.svg'))
             ->brandLogoHeight('1.5rem')
             ->favicon(asset('images/favicon.svg'))
-            ->font('Inter')
+            ->font('Albert Sans')
             ->colors([
                 'primary' => Color::hex('#00D492'),
                 'gray' => Color::Zinc,

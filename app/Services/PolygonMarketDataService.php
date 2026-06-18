@@ -21,6 +21,7 @@ class PolygonMarketDataService
     /**
      * @return array{
      *     latest_close_price: float,
+     *     recent_close_prices: array<int, float>,
      *     latest_sma_20: float,
      *     sma_20_five_days_ago: float|null,
      *     latest_sma_50: float,
@@ -78,6 +79,7 @@ class PolygonMarketDataService
 
         $payload = [
             'latest_close_price' => $close,
+            'recent_close_prices' => self::extractRecentClosePrices($bars['bars']),
             'latest_sma_20' => $sma20,
             'sma_20_five_days_ago' => $sma20FiveDaysAgo,
             'latest_sma_50' => $sma50,
@@ -92,6 +94,21 @@ class PolygonMarketDataService
         }
 
         return $payload;
+    }
+
+    /**
+     * @param  array<int, array{close: float}>  $bars
+     * @return array<int, float>
+     */
+    public static function extractRecentClosePrices(array $bars, int $limit = 14): array
+    {
+        $closes = array_column($bars, 'close');
+        $recent = array_slice($closes, -$limit);
+
+        return array_values(array_map(
+            static fn (mixed $close): float => round((float) $close, 2),
+            $recent,
+        ));
     }
 
     /**

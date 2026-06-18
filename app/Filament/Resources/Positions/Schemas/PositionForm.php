@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Positions\Schemas;
 use App\Enums\PositionVisibility;
 use App\Models\Position;
 use App\Services\SquadContext;
+use App\Support\ClosePriceTrend;
 use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ScoutSetupScorecard;
@@ -42,6 +43,7 @@ class PositionForm
                             ->extraAttributes(['class' => 'position-form-setup-grid'])
                             ->schema([
                                 self::setupDetailsSection($isScoutForm),
+                                self::schildSection(),
                                 self::buyStopSection($isScoutForm),
                             ]),
                         Section::make('Trade Journal')
@@ -177,7 +179,7 @@ class PositionForm
             ->compact()
             ->divided()
             ->schema([
-                Grid::make(2)
+                Grid::make(3)
                     ->schema([
                         self::tickerField(),
                         TextInput::make('quantity')
@@ -197,7 +199,13 @@ class PositionForm
                                     ? ['nullable', 'numeric', 'min:0.000001']
                                     : ['required', 'numeric', 'min:0.000001'];
                             })
-                            ->live(onBlur: true),
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record))
+                            ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record)),
+                        self::totalInvestmentField(),
+                    ]),
+                Grid::make(2)
+                    ->schema([
                         TextInput::make('entry_price')
                             ->label(function (?Position $record, string $operation) use ($isScoutForm): string {
                                 return $isScoutForm($record, $operation) ? 'Geplande entry' : 'Entry prijs';
@@ -213,7 +221,9 @@ class PositionForm
                                     ? ['nullable', 'numeric', 'min:0.01']
                                     : ['required', 'numeric', 'min:0.01'];
                             })
-                            ->live(onBlur: true),
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record))
+                            ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record)),
                         TextInput::make('current_sl')
                             ->label('Huidige stop-loss')
                             ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
@@ -227,33 +237,51 @@ class PositionForm
                             ->minValue(0.01)
                             ->live(onBlur: true),
                     ]),
-                Grid::make(3)
-                    ->visible(fn (?Position $record): bool => $record?->status !== 'closed')
-                    ->schema([
-                        TextInput::make('latest_close_price')
-                            ->label('Close prijs')
-                            ->numeric()
-                            ->prefix('$')
-                            ->live(),
-                        TextInput::make('latest_sma_20')
-                            ->label('SMA 20')
-                            ->numeric()
-                            ->prefix('$')
-                            ->live(onBlur: true),
-                        TextInput::make('latest_atr_14')
-                            ->label('ATR 14')
-                            ->numeric()
-                            ->prefix('$')
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
-                                if (blank($get('signal_high')) && blank($record?->signal_high)) {
-                                    return;
-                                }
-
-                                self::syncBuyStopFromInputs($set, $get, $record);
-                            }),
-                    ]),
             ]);
+    }
+
+    private static function schildSection(): Section
+    {
+        return Section::make('Schild')
+            ->compact()
+            ->divided()
+            ->visible(fn (?Position $record): bool => $record?->status !== 'closed')
+            ->schema([
+                Grid::make(3)
+                    ->schema(self::schildMarketDataFields())
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    /**
+     * @return array<int, TextInput>
+     */
+    private static function schildMarketDataFields(): array
+    {
+        return [
+            TextInput::make('latest_close_price')
+                ->label('Close prijs')
+                ->numeric()
+                ->prefix('$')
+                ->live(),
+            TextInput::make('latest_sma_20')
+                ->label('SMA 20')
+                ->numeric()
+                ->prefix('$')
+                ->live(onBlur: true),
+            TextInput::make('latest_atr_14')
+                ->label('ATR 14')
+                ->numeric()
+                ->prefix('$')
+                ->live(onBlur: true)
+                ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
+                    if (blank($get('signal_high')) && blank($record?->signal_high)) {
+                        return;
+                    }
+
+                    self::syncBuyStopFromInputs($set, $get, $record);
+                }),
+        ];
     }
 
     /**
@@ -320,6 +348,31 @@ class PositionForm
             ->dehydrateStateUsing(fn (?string $state): ?string => $state ? strtoupper($state) : null)
             // ->helperText('Zoek en kies de juiste listing — voorkomt typefouten in de ticker.')
             ->live(onBlur: true);
+    }
+
+    private static function totalInvestmentField(): TextInput
+    {
+        return TextInput::make('_total_investment')
+            ->label('Totale inleg')
+            ->prefix('$')
+            ->readOnly()
+            ->dehydrated(false)
+            ->placeholder('—')
+            ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record));
+    }
+
+    private static function syncTotalInvestmentField(Set $set, Get $get, ?Position $record): void
+    {
+        $entry = $get('entry_price') ?? $record?->entry_price;
+        $quantity = $get('quantity') ?? $record?->quantity;
+
+        if ($entry === null || $entry === '' || $quantity === null || $quantity === '') {
+            $set('_total_investment', null);
+
+            return;
+        }
+
+        $set('_total_investment', number_format((float) $entry * (float) $quantity, 2, '.', ''));
     }
 
     private static function syncBuyStopFromInputs(Set $set, Get $get, ?Position $record): void
@@ -584,50 +637,11 @@ class PositionForm
     {
         return [
             View::make('filament.positions.cockpit-stat-card')
-                ->viewData(function (Get $get, ?Position $record): array {
-                    $entryProfit = self::formatEntryProfitDescription($get, $record);
-
-                    return [
-                        'label' => 'Actuele Koers',
-                        'value' => self::formatUsd($get('latest_close_price') ?? $record?->latest_close_price),
-                        'description' => $entryProfit['text'] ?? null,
-                        'descriptionColor' => $entryProfit['color'] ?? 'gray',
-                        'cardVariant' => 'blue',
-                    ];
-                }),
+                ->viewData(fn (Get $get, ?Position $record): array => self::actueleKoersCardViewData($get, $record)),
+            View::make('filament.positions.cockpit-schild-card')
+                ->viewData(fn (Get $get, ?Position $record): array => self::schildCardViewData($get, $record)),
             View::make('filament.positions.cockpit-stat-card')
-                ->viewData(function (Get $get, ?Position $record): array {
-                    $distance = self::formatNewSlDistanceDescription($get, $record);
-
-                    return [
-                        'label' => 'Nieuwe SL',
-                        'value' => self::formatUsd(Position::computeNewSl(
-                            $get('latest_sma_20') ?? $record?->latest_sma_20,
-                            $get('latest_atr_14') ?? $record?->latest_atr_14,
-                        )),
-                        'description' => $distance['text'] ?? null,
-                        'descriptionColor' => $distance['color'] ?? 'gray',
-                        'labelHintIcon' => 'heroicon-m-information-circle',
-                        'labelHintTooltip' => self::formatFormulaTooltip($get, $record),
-                        'cardVariant' => 'amber',
-                    ];
-                }),
-            View::make('filament.positions.cockpit-stat-card')
-                ->viewData(function (Get $get, ?Position $record): array {
-                    $action = self::resolveFormActionCommand($get, $record);
-                    $actionDetails = self::formatActionDescription($get, $record);
-                    $actionColor = self::resolveActionValueColor($get, $record);
-
-                    return [
-                        'label' => 'Actie / Executie',
-                        'value' => self::formatActionLabel($action),
-                        'valueColor' => $actionColor,
-                        'valuePulse' => $action === 'UPDATE',
-                        'description' => $actionDetails['text'] ?? null,
-                        'descriptionColor' => $actionDetails['color'] ?? 'gray',
-                        'cardVariant' => self::resolveActionCardVariant($get, $record),
-                    ];
-                }),
+                ->viewData(fn (Get $get, ?Position $record): array => self::positieWaardeCardViewData($get, $record)),
             View::make('filament.positions.cockpit-stat-card')
                 ->viewData(function (Get $get, ?Position $record): array {
                     $metrics = self::resolvePerformanceMetrics($get, $record);
@@ -667,22 +681,7 @@ class PositionForm
                     'cardVariant' => 'blue',
                 ]),
             View::make('filament.positions.cockpit-stat-card')
-                ->viewData(function (Get $get, ?Position $record): array {
-                    $distance = self::formatNewSlDistanceDescription($get, $record);
-
-                    return [
-                        'label' => 'Berekende SL',
-                        'value' => self::formatUsd(Position::computeNewSl(
-                            $get('latest_sma_20') ?? $record?->latest_sma_20,
-                            $get('latest_atr_14') ?? $record?->latest_atr_14,
-                        )),
-                        'description' => $distance['text'] ?? null,
-                        'descriptionColor' => $distance['color'] ?? 'gray',
-                        'labelHintIcon' => 'heroicon-m-information-circle',
-                        'labelHintTooltip' => self::formatFormulaTooltip($get, $record),
-                        'cardVariant' => 'amber',
-                    ];
-                }),
+                ->viewData(fn (Get $get, ?Position $record): array => self::berekendeSlCardViewData($get, $record)),
             View::make('filament.positions.cockpit-stat-card')
                 ->viewData(function (Get $get, ?Position $record): array {
                     $risk = self::formatPlannedRiskDescription($get, $record);
@@ -775,37 +774,255 @@ class PositionForm
         );
     }
 
-    private static function formatFormulaTooltip(Get $get, ?Position $record): ?string
+    /**
+     * @return array<string, mixed>
+     */
+    private static function actueleKoersCardViewData(Get $get, ?Position $record): array
     {
-        $sma = $get('latest_sma_20') ?? $record?->latest_sma_20;
-        $atr = $get('latest_atr_14') ?? $record?->latest_atr_14;
+        $close = $get('latest_close_price') ?? $record?->latest_close_price;
+        $chart = self::resolveLiveCloseChart($get, $record);
+        $trend = self::resolveCloseDayTrend($close, $chart, $record?->recent_close_prices ?? []);
 
-        if ($sma === null || $atr === null || $sma === '' || $atr === '') {
-            return null;
+        return [
+            'label' => 'Actuele Koers',
+            'value' => self::formatUsd($close),
+            'description' => $trend['description'],
+            'descriptionColor' => $trend['color'],
+            'descriptionIcon' => $trend['icon'],
+            'chart' => count($chart) >= 2 ? $chart : null,
+            'chartColor' => $trend['color'] !== 'gray' ? $trend['color'] : 'gray',
+            'cardVariant' => 'blue',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function positieWaardeCardViewData(Get $get, ?Position $record): array
+    {
+        $positionValue = self::formatPositionValueCard($get, $record);
+        $lockedProfit = self::resolveLockedInProfitDollars($get, $record);
+
+        if ($lockedProfit > 0) {
+            $description = '+$'.number_format($lockedProfit, 2).' risicovrij';
+            $descriptionIcon = 'heroicon-m-lock-closed';
+            $descriptionColor = 'info';
+        } else {
+            $description = 'Geen veiliggestelde winst';
+            $descriptionIcon = 'heroicon-m-lock-open';
+            $descriptionColor = 'gray';
         }
 
-        return 'Formule: '.self::formatUsd($sma).' - (0.5 × '.number_format((float) $atr, 2).')';
+        return [
+            'label' => 'Positiewaarde',
+            'value' => $positionValue['value'],
+            'description' => $description,
+            'descriptionColor' => $descriptionColor,
+            'descriptionIcon' => $descriptionIcon,
+            'cardVariant' => 'blue',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function schildCardViewData(Get $get, ?Position $record): array
+    {
+        $action = self::resolveFormActionCommand($get, $record);
+        $newSl = self::resolveComputedNewSl($get, $record);
+        $actionDescription = self::formatSchildSubtext($get, $record);
+
+        return [
+            'action' => $action,
+            'value' => self::formatUsd($newSl),
+            'copyValue' => self::formatNewSlCopyValue($newSl),
+            'valuePulse' => $action === 'UPDATE',
+            'description' => $actionDescription['text'] ?? null,
+            'descriptionColor' => $actionDescription['color'] ?? 'gray',
+            'cardVariant' => self::resolveActionCardVariant($get, $record),
+        ];
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private static function resolveLiveCloseChart(Get $get, ?Position $record): array
+    {
+        $close = $get('latest_close_price') ?? $record?->latest_close_price;
+
+        if ($close === null || $close === '') {
+            return [];
+        }
+
+        $history = $record?->recent_close_prices ?? [];
+
+        if ($history === []) {
+            return [round((float) $close, 2)];
+        }
+
+        $chart = array_map(static fn (mixed $price): float => round((float) $price, 2), $history);
+        $chart[count($chart) - 1] = round((float) $close, 2);
+
+        return $chart;
+    }
+
+    /**
+     * @param  array<int, float>  $chart
+     * @param  array<int, float|int|string>  $storedHistory
+     * @return array{
+     *     description: ?string,
+     *     icon: ?string,
+     *     color: string,
+     *     chart: ?array<int, float>,
+     * }
+     */
+    private static function resolveCloseDayTrend(mixed $close, array $chart, array $storedHistory): array
+    {
+        if ($close === null || $close === '') {
+            return [
+                'description' => null,
+                'icon' => null,
+                'color' => 'gray',
+                'chart' => null,
+            ];
+        }
+
+        $trend = ClosePriceTrend::resolveDayChange((float) $close, $storedHistory);
+
+        if ($trend === null) {
+            return [
+                'description' => null,
+                'icon' => null,
+                'color' => 'gray',
+                'chart' => count($chart) >= 2 ? $chart : null,
+            ];
+        }
+
+        return [
+            'description' => $trend['description'],
+            'icon' => $trend['icon'],
+            'color' => $trend['color'],
+            'chart' => count($chart) >= 2 ? $chart : null,
+        ];
+    }
+
+    private static function resolveLockedInProfitDollars(Get $get, ?Position $record): float
+    {
+        if ($record?->status === 'closed') {
+            return 0;
+        }
+
+        $entry = $get('entry_price') ?? $record?->entry_price;
+        $currentSl = $get('current_sl') ?? $record?->current_sl;
+        $quantity = $get('quantity') ?? $record?->quantity;
+
+        if ($entry === null || $entry === '' || $currentSl === null || $currentSl === '' || $quantity === null || $quantity === '') {
+            return 0;
+        }
+
+        if ((float) $currentSl <= (float) $entry) {
+            return 0;
+        }
+
+        return ((float) $currentSl - (float) $entry) * (float) $quantity;
     }
 
     /**
      * @return array{text: string, color: string}|null
      */
-    private static function formatEntryProfitDescription(Get $get, ?Position $record): ?array
+    private static function formatSchildSubtext(Get $get, ?Position $record): ?array
     {
-        $close = $get('latest_close_price') ?? $record?->latest_close_price;
-        $entry = $get('entry_price') ?? $record?->entry_price;
+        $action = self::resolveFormActionCommand($get, $record);
 
-        if ($close === null || $close === '' || $entry === null || $entry === '') {
+        $color = match ($action) {
+            'UPDATE' => 'warning',
+            'HOLD' => 'success',
+            'STOPPED OUT' => 'danger',
+            default => 'gray',
+        };
+
+        if ($action === 'STOPPED OUT') {
+            return [
+                'text' => 'Liquidatie · onder SL',
+                'color' => $color,
+            ];
+        }
+
+        if ($action === 'AWAITING DATA') {
             return null;
         }
 
-        $perShare = (float) $close - (float) $entry;
-        $prefix = $perShare >= 0 ? '+' : '-';
+        $close = $get('latest_close_price') ?? $record?->latest_close_price;
+        $newSl = self::resolveComputedNewSl($get, $record);
+
+        if ($close === null || $close === '' || $newSl === null) {
+            return null;
+        }
+
+        $percentage = (((float) $newSl - (float) $close) / (float) $close) * 100;
+        $percentagePrefix = $percentage >= 0 ? '+' : '−';
 
         return [
-            'text' => 'Winst per aandeel: '.$prefix.self::formatUsd(abs($perShare)),
-            'color' => $perShare >= 0 ? 'success' : 'danger',
+            'text' => $percentagePrefix.number_format(abs($percentage), 2).'% t.o.v. koers',
+            'color' => $color,
         ];
+    }
+
+    /**
+     * @return array{value: string, text: ?string}
+     */
+    private static function formatPositionValueCard(Get $get, ?Position $record): array
+    {
+        $close = $get('latest_close_price') ?? $record?->latest_close_price;
+        $entry = $get('entry_price') ?? $record?->entry_price;
+        $quantity = $get('quantity') ?? $record?->quantity;
+
+        if ($close === null || $close === '' || $entry === null || $entry === '' || $quantity === null || $quantity === '') {
+            return ['value' => '—', 'text' => null];
+        }
+
+        $currentValue = (float) $close * (float) $quantity;
+        $investment = (float) $entry * (float) $quantity;
+
+        return [
+            'value' => self::formatUsd($currentValue),
+            'text' => 'Inleg: '.self::formatUsd($investment),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function berekendeSlCardViewData(Get $get, ?Position $record): array
+    {
+        $newSl = self::resolveComputedNewSl($get, $record);
+        $distance = self::formatNewSlDistanceDescription($get, $record);
+
+        return [
+            'label' => 'Berekende SL',
+            'value' => self::formatUsd($newSl),
+            'copyValue' => self::formatNewSlCopyValue($newSl),
+            'description' => $distance['text'] ?? null,
+            'descriptionColor' => $distance['color'] ?? 'gray',
+            'cardVariant' => 'amber',
+        ];
+    }
+
+    private static function resolveComputedNewSl(Get $get, ?Position $record): ?float
+    {
+        return Position::computeNewSl(
+            $get('latest_sma_20') ?? $record?->latest_sma_20,
+            $get('latest_atr_14') ?? $record?->latest_atr_14,
+        );
+    }
+
+    private static function formatNewSlCopyValue(?float $newSl): ?string
+    {
+        if ($newSl === null) {
+            return null;
+        }
+
+        return number_format($newSl, 2, '.', '');
     }
 
     /**
@@ -827,6 +1044,7 @@ class PositionForm
         $distance = $close - $newSl;
         $percentage = (($newSl - $close) / $close) * 100;
         $bufferPercentage = ($distance / $close) * 100;
+        $percentagePrefix = $percentage >= 0 ? '+' : '−';
 
         $color = match (true) {
             $distance <= 0 => 'danger',
@@ -835,7 +1053,7 @@ class PositionForm
         };
 
         return [
-            'text' => 'Afstand: '.self::formatUsd($distance).' ('.number_format($percentage, 1).'%)',
+            'text' => self::formatUsd($close).' · '.$percentagePrefix.number_format(abs($percentage), 1).'%',
             'color' => $color,
         ];
     }

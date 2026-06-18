@@ -107,6 +107,8 @@ class FetchVestixDataTest extends TestCase
         $this->assertNotNull($position->latest_atr_14);
         $this->assertNotNull($position->scout_rsi);
         $this->assertNotNull($position->new_sl);
+        $this->assertNotNull($position->recent_close_prices);
+        $this->assertNotEmpty($position->recent_close_prices);
         $this->assertEquals('UPDATE', $position->action_command);
         $this->assertNotNull(Cache::get('vestix:last_api_fetch'));
     }

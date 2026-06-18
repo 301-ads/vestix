@@ -17,6 +17,7 @@ class MarketDataFetcher
     /**
      * @return array{
      *     latest_close_price: float,
+     *     recent_close_prices: array<int, float>,
      *     latest_sma_20: float,
      *     sma_20_five_days_ago: float|null,
      *     latest_sma_50: float,
@@ -59,9 +60,52 @@ class MarketDataFetcher
         return true;
     }
 
+    public function backfillRecentClosePrices(Position $position): bool
+    {
+        if (filled($position->recent_close_prices)) {
+            return false;
+        }
+
+        $payload = $this->fetchForTicker($position->ticker, withDelays: false);
+
+        if ($payload !== null) {
+            $position->update([
+                'recent_close_prices' => $payload['recent_close_prices'],
+            ]);
+
+            return true;
+        }
+
+        $bars = $this->dailyBars->fetchRecentBars($position->ticker, lookbackDays: 30, limit: 20);
+
+        if ($bars === null || count($bars['bars']) < 2) {
+            return false;
+        }
+
+        $recentClosePrices = PolygonMarketDataService::extractRecentClosePrices($bars['bars']);
+        $latestClose = $position->latest_close_price;
+
+        if ($latestClose !== null && $latestClose !== '') {
+            $latestClose = round((float) $latestClose, 2);
+            $lastStored = round((float) end($recentClosePrices), 2);
+
+            if ($latestClose !== $lastStored) {
+                $recentClosePrices[] = $latestClose;
+                $recentClosePrices = array_values(array_slice($recentClosePrices, -14));
+            }
+        }
+
+        $position->update([
+            'recent_close_prices' => $recentClosePrices,
+        ]);
+
+        return true;
+    }
+
     /**
      * @return array{
      *     latest_close_price: float,
+     *     recent_close_prices: array<int, float>,
      *     latest_sma_20: float,
      *     sma_20_five_days_ago: float|null,
      *     latest_sma_50: float,
@@ -113,8 +157,14 @@ class MarketDataFetcher
             return null;
         }
 
+        $bars = $this->dailyBars->fetchRecentBars($ticker);
+        $recentClosePrices = $bars !== null
+            ? PolygonMarketDataService::extractRecentClosePrices($bars['bars'])
+            : [round((float) $close, 2)];
+
         $payload = [
             'latest_close_price' => $close,
+            'recent_close_prices' => $recentClosePrices,
             'latest_sma_20' => $sma,
             'sma_20_five_days_ago' => $smaPair['five_days_ago'],
             'latest_sma_50' => $sma50,

@@ -65,6 +65,8 @@ class PolygonMarketDataServiceTest extends TestCase
         $this->assertNotNull($payload['latest_atr_14']);
         $this->assertNotNull($payload['scout_rsi']);
         $this->assertEquals(1_000_000, $payload['avg_volume_30d']);
+        $this->assertCount(14, $payload['recent_close_prices']);
+        $this->assertEqualsWithDelta(106.0, end($payload['recent_close_prices']), 0.01);
     }
 
     public function test_fetch_for_ticker_supplements_stale_polygon_bar_with_quote_provider(): void
