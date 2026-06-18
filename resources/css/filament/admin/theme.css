@@ -1,6 +1,7 @@
 @import '../../../../vendor/filament/filament/resources/css/theme.css';
 
 @source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/components/**/*';
 @source '../../../../resources/views/filament/**/*';
 
 /* -------------------------------------------------------------------------- */
@@ -1349,6 +1350,22 @@
 
 .fi-auth-wordmark {
     text-align: center;
+}
+
+.vestix-wordmark__logo--dark {
+    display: block;
+}
+
+.vestix-wordmark__logo--light {
+    display: none;
+}
+
+.dark .vestix-wordmark__logo--dark {
+    display: none;
+}
+
+.dark .vestix-wordmark__logo--light {
+    display: block;
 }
 
 /* -------------------------------------------------------------------------- */

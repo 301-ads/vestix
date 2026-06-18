@@ -34,13 +34,13 @@
         <img
             src="{{ asset('images/vestix-logo-dark.svg') }}"
             alt="Vestix"
-            class="dark:hidden {{ $imageClass }}"
+            class="vestix-wordmark__logo vestix-wordmark__logo--dark {{ $imageClass }}"
             style="{{ $style }}"
         />
         <img
             src="{{ asset('images/vestix-logo-white.svg') }}"
             alt="Vestix"
-            class="hidden dark:block {{ $imageClass }}"
+            class="vestix-wordmark__logo vestix-wordmark__logo--light {{ $imageClass }}"
             style="{{ $style }}"
         />
     @endif
