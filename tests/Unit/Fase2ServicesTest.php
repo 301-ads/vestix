@@ -2,12 +2,14 @@
 
 namespace Tests\Unit;
 
+use App\Models\Asset;
 use App\Models\Position;
 use App\Models\StrategyTag;
 use App\Models\User;
 use App\Support\FreerideDetector;
 use App\Support\ShareCardDataFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class Fase2ServicesTest extends TestCase
@@ -40,8 +42,7 @@ class Fase2ServicesTest extends TestCase
     public function test_share_card_factory_excludes_quantity(): void
     {
         $user = User::factory()->create();
-        $position = Position::factory()->create([
-            'user_id' => $user->id,
+        $position = Position::factory()->for($user)->create([
             'status' => 'open',
             'ticker' => 'ASML',
             'entry_price' => 100,
@@ -56,6 +57,33 @@ class Fase2ServicesTest extends TestCase
         $this->assertStringContainsString('ASML', $card['ticker']);
         $this->assertStringNotContainsString('500', (string) $encoded);
         $this->assertArrayNotHasKey('quantity', $card);
+        $this->assertIsInt($card['ticker_hue']);
+    }
+
+    public function test_share_card_factory_embeds_local_ticker_icon(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $asset = Asset::factory()->create([
+            'ticker' => 'NVDA',
+            'icon_path' => 'ticker-logos/NVDA.png',
+        ]);
+        Storage::disk('public')->put($asset->icon_path, 'fake-png');
+
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'NVDA',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+            'entry_price' => 100,
+            'current_sl' => 110,
+            'latest_close_price' => 150,
+        ]);
+
+        $card = ShareCardDataFactory::fromPosition($position);
+
+        $this->assertNotNull($card['ticker_icon_url']);
+        $this->assertStringStartsWith('data:image/png;base64,', $card['ticker_icon_url']);
     }
 
     public function test_risk_reward_ratio_computed_on_archive(): void

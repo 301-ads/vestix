@@ -15,6 +15,7 @@ $FORGE_PHP artisan filament:upgrade
 $FORGE_PHP artisan optimize
 $FORGE_PHP artisan storage:link --force
 $FORGE_PHP artisan migrate --force
+$FORGE_PHP artisan db:seed --class=Database\\Seeders\\StrategyTagSeeder --force
 
 $ACTIVATE_RELEASE()
 

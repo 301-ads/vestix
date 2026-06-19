@@ -9,16 +9,13 @@
     <div class="vestix-share-card__inner">
         <div class="vestix-share-card__header">
             <div class="vestix-share-card__ticker-pill">
-                <div class="vestix-share-card__ticker-avatar">{{ $card['ticker_initial'] }}</div>
+                @include('share-cards.partials.ticker-avatar', ['card' => $card])
                 <div>
                     <div class="vestix-share-card__ticker-name">{{ $card['ticker'] }}</div>
                     <div class="vestix-share-card__holding">Holding {{ $card['holding_days'] }} Dagen</div>
                 </div>
             </div>
-            <div class="vestix-share-card__brand">
-                <span>Vestix</span>
-                <span class="vestix-share-card__brand-dot"></span>
-            </div>
+            @include('share-cards.partials.brand-mark')
         </div>
 
         <div class="vestix-share-card__hero">

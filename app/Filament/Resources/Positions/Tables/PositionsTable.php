@@ -171,8 +171,8 @@ class PositionsTable
             ])
             ->recordActions([
                 PositionRecordActions::markAsUpdated(),
-                PositionRecordActions::shareSuccess(),
                 ActionGroup::make([
+                    PositionRecordActions::shareSuccess(),
                     PositionRecordActions::fetchMarketData(),
                     PositionRecordActions::archive(),
                     EditAction::make(),

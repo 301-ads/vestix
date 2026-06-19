@@ -163,7 +163,7 @@ class PositionRecordActions
             ->modalCancelActionLabel('Sluiten')
             ->modalContent(fn (Position $record): HtmlString => new HtmlString(
                 view('filament.positions.share-card-modal', [
-                    'card' => ShareCardDataFactory::fromPosition($record),
+                    'card' => ShareCardDataFactory::fromPosition($record->loadMissing('asset')),
                 ])->render()
             ));
     }

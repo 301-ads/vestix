@@ -78,6 +78,7 @@ First admin (SSH) — alleen bij schone installatie ZONDER data-import
 Post-deploy (SSH)
   [ ] php artisan vestix:smoke-test
   [ ] php artisan vestix:telegram-set-webhook
+  [ ] Strategy tags leeg? php artisan db:seed --class=StrategyTagSeeder --force
   [ ] Gebruikers: Profiel → Koppel Telegram → Start in bot
 
 Telegram (eenmalig op productie)

@@ -8,10 +8,7 @@
 
     <div class="vestix-share-card__inner vestix-share-card__inner--landscape">
         <div class="vestix-share-card__landscape-header">
-            <div class="vestix-share-card__brand vestix-share-card__brand--large">
-                <span>Vestix</span>
-                <span class="vestix-share-card__brand-dot"></span>
-            </div>
+            @include('share-cards.partials.brand-mark', ['large' => true])
             <div class="vestix-share-card__tagline">Vergeet Geluk. Gebruik Wiskunde.</div>
         </div>
 
@@ -22,7 +19,7 @@
                     <span>{{ $card['status_label'] }}</span>
                 </div>
                 <div class="vestix-share-card__ticker-inline">
-                    <div class="vestix-share-card__ticker-avatar">{{ $card['ticker_initial'] }}</div>
+                    @include('share-cards.partials.ticker-avatar', ['card' => $card])
                     <span>{{ $card['ticker'] }}</span>
                 </div>
             </div>

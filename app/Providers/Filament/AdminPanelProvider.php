@@ -116,6 +116,10 @@ class AdminPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.hooks.share-card-export')->render(),
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
                 function (): string {
                     $livewire = Livewire::current();
 
