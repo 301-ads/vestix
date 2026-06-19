@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0853ed0a2a221a58f9f7cda69735d953",
+    "content-hash": "d96ae408366c04032de8035ecb9b3f0e",
     "packages": [
         {
             "name": "blade-ui-kit/blade-heroicons",
@@ -3170,6 +3170,82 @@
                 }
             ],
             "time": "2026-03-08T20:05:35+00:00"
+        },
+        {
+            "name": "leandrocfe/filament-apex-charts",
+            "version": "5.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/leandrocfe/filament-apex-charts.git",
+                "reference": "20f08492ff72216e329c70c5096c966649fc8350"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/leandrocfe/filament-apex-charts/zipball/20f08492ff72216e329c70c5096c966649fc8350",
+                "reference": "20f08492ff72216e329c70c5096c966649fc8350",
+                "shasum": ""
+            },
+            "require": {
+                "filament/schemas": "^v4.0.0|^v5.0.0",
+                "filament/widgets": "^v4.0.0|^v5.0.0",
+                "illuminate/contracts": "^11.0|^12.0|^13.0",
+                "livewire/livewire": "^3.0|^4.0",
+                "php": "^8.2",
+                "spatie/laravel-package-tools": "^1.13.0"
+            },
+            "require-dev": {
+                "filament/filament": "^4.0|^5.0",
+                "larastan/larastan": "^3.0.1",
+                "laravel/pint": "^1.0",
+                "nunomaduro/collision": "^8.0",
+                "orchestra/testbench": "^9.0",
+                "pestphp/pest": "^3.0",
+                "pestphp/pest-plugin-laravel": "^3.0",
+                "phpstan/extension-installer": "^1.1",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpunit/phpunit": "^11.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "FilamentApexCharts": "Leandrocfe\\FilamentApexCharts\\Facades\\FilamentApexCharts"
+                    },
+                    "providers": [
+                        "Leandrocfe\\FilamentApexCharts\\FilamentApexChartsServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Leandrocfe\\FilamentApexCharts\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Leandro Costa Ferreira",
+                    "email": "leandrocfe@gmail.com",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Apex Charts integration for Filament PHP.",
+            "homepage": "https://github.com/leandrocfe/filament-apex-charts",
+            "keywords": [
+                "apexcharts",
+                "filament-apex-charts",
+                "laravel",
+                "leandrocfe"
+            ],
+            "support": {
+                "issues": "https://github.com/leandrocfe/filament-apex-charts/issues",
+                "source": "https://github.com/leandrocfe/filament-apex-charts/tree/5.1.0"
+            },
+            "time": "2026-03-26T18:38:39+00:00"
         },
         {
             "name": "livewire/livewire",

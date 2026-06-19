@@ -41,6 +41,21 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(Position::class);
     }
 
+    public function alertPreferences(): HasMany
+    {
+        return $this->hasMany(UserAlertPreference::class);
+    }
+
+    public function positionAlerts(): HasMany
+    {
+        return $this->hasMany(PositionAlert::class);
+    }
+
+    public function leaderboardStats(): HasMany
+    {
+        return $this->hasMany(LeaderboardStat::class);
+    }
+
     public function apiCredentials(): HasMany
     {
         return $this->hasMany(ApiCredential::class);

@@ -11,9 +11,11 @@ use App\Support\ChartScreenshotUpload;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
+use App\Support\ShareCardDataFactory;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Illuminate\Support\HtmlString;
 
@@ -93,6 +95,16 @@ class PositionRecordActions
                     )),
             ])
             ->action(function (Position $record, array $data): void {
+                if (blank($record->strategy_tag_id)) {
+                    Notification::make()
+                        ->title('Strategy tag vereist')
+                        ->body('Kies eerst een strategy tag in het Trade Journal voordat je activeert.')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
                 $record->activateAsPosition(
                     (float) $data['entry_price'],
                     (float) $data['quantity'],
@@ -135,6 +147,38 @@ class PositionRecordActions
 
                 $action->successRedirectUrl($scoutResourceClass::getUrl('edit', ['record' => $clone]));
             });
+    }
+
+    public static function shareSuccess(): Action
+    {
+        return Action::make('share_success')
+            ->label('Deel succes')
+            ->tooltip('Genereer een branded share-card (geen dollarbedragen)')
+            ->icon('heroicon-o-share')
+            ->color('info')
+            ->visible(fn (Position $record): bool => self::canSharePosition($record))
+            ->modalHeading('Deel je trade')
+            ->modalDescription('Privacy-safe kaart: alleen ticker, ROI % en prijzen per aandeel.')
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Sluiten')
+            ->modalContent(fn (Position $record): HtmlString => new HtmlString(
+                view('filament.positions.share-card-modal', [
+                    'card' => ShareCardDataFactory::fromPosition($record),
+                ])->render()
+            ));
+    }
+
+    public static function canSharePosition(Position $record): bool
+    {
+        if ($record->status === 'open') {
+            return $record->isFreerideSecured();
+        }
+
+        if ($record->status === 'closed') {
+            return $record->unrealized_pnl_percentage > 0;
+        }
+
+        return false;
     }
 
     public static function markAsUpdated(): Action
@@ -185,6 +229,16 @@ class PositionRecordActions
                     ->helperText('Optioneel: upload je exit-chart voor je trade journal. '.ChartScreenshotUpload::maxSizeLabel()),
             ])
             ->action(function (Position $record, array $data): void {
+                if (blank($record->strategy_tag_id)) {
+                    Notification::make()
+                        ->title('Strategy tag vereist')
+                        ->body('Kies eerst een strategy tag in het Trade Journal voordat je archiveert.')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
                 $wasStoppedOut = $record->action_command === 'STOPPED OUT';
 
                 $record->archiveWithExitPrice(

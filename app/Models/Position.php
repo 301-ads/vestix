@@ -42,6 +42,9 @@ class Position extends Model
             'telegram_a_minus_alert_sent_at' => 'datetime',
             'telegram_a_plus_alert_sent_at' => 'datetime',
             'closed_at' => 'datetime',
+            'freeride_secured_at' => 'datetime',
+            'initial_sl' => 'decimal:2',
+            'risk_reward_ratio' => 'decimal:4',
             'visibility' => PositionVisibility::class,
         ];
     }
@@ -137,6 +140,11 @@ class Position extends Model
         return $this->belongsTo(Position::class, 'cloned_from_id');
     }
 
+    public function strategyTag(): BelongsTo
+    {
+        return $this->belongsTo(StrategyTag::class);
+    }
+
     public function clones(): HasMany
     {
         return $this->hasMany(Position::class, 'cloned_from_id');
@@ -200,6 +208,11 @@ class Position extends Model
             'exit_price' => $exitPrice,
             'status' => 'closed',
             'closed_at' => now(),
+            'risk_reward_ratio' => self::computeRiskRewardRatio(
+                $exitPrice,
+                $this->entry_price,
+                $this->initial_sl ?? $this->current_sl,
+            ),
         ];
 
         if ($exitChartPath !== null) {
@@ -263,7 +276,76 @@ class Position extends Model
             'entry_price' => $entryPrice,
             'quantity' => $quantity,
             'current_sl' => $sl,
+            'initial_sl' => $sl,
         ]);
+    }
+
+    public function isFreerideSecured(): bool
+    {
+        if ($this->freeride_secured_at !== null) {
+            return true;
+        }
+
+        if ($this->status !== 'open') {
+            return false;
+        }
+
+        if ($this->entry_price === null || $this->current_sl === null) {
+            return false;
+        }
+
+        return (float) $this->current_sl > (float) $this->entry_price;
+    }
+
+    public function holdingDays(): int
+    {
+        $start = $this->created_at;
+
+        if ($start === null) {
+            return 0;
+        }
+
+        $end = $this->status === 'closed' && $this->closed_at !== null
+            ? $this->closed_at
+            : now();
+
+        return max(0, (int) $start->diffInDays($end));
+    }
+
+    public function rMultiple(): ?float
+    {
+        if ($this->status !== 'closed') {
+            return null;
+        }
+
+        if ($this->risk_reward_ratio !== null) {
+            return (float) $this->risk_reward_ratio;
+        }
+
+        return self::computeRiskRewardRatio(
+            $this->exit_price,
+            $this->entry_price,
+            $this->initial_sl ?? $this->current_sl,
+        );
+    }
+
+    public static function computeRiskRewardRatio(mixed $exit, mixed $entry, mixed $initialSl): ?float
+    {
+        if ($exit === null || $entry === null || $initialSl === null) {
+            return null;
+        }
+
+        $exit = (float) $exit;
+        $entry = (float) $entry;
+        $initialSl = (float) $initialSl;
+
+        $risk = abs($entry - $initialSl);
+
+        if ($risk <= 0) {
+            return null;
+        }
+
+        return round(abs($exit - $entry) / $risk, 4);
     }
 
     public function scopeOpen(Builder $query): Builder

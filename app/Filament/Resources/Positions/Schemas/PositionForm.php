@@ -4,12 +4,13 @@ namespace App\Filament\Resources\Positions\Schemas;
 
 use App\Enums\PositionVisibility;
 use App\Models\Position;
+use App\Models\StrategyTag;
 use App\Services\SquadContext;
-use App\Support\ClosePriceTrend;
-use App\Support\SlPriceProximity;
 use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
+use App\Support\ClosePriceTrend;
 use App\Support\ScoutSetupScorecard;
+use App\Support\SlPriceProximity;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -52,6 +53,19 @@ class PositionForm
                             ->compact()
                             ->extraAttributes(['class' => 'position-form-journal-section'])
                             ->schema([
+                                Select::make('strategy_tag_id')
+                                    ->label('Strategy tag')
+                                    ->options(fn (): array => StrategyTag::query()
+                                        ->where('is_active', true)
+                                        ->orderBy('sort_order')
+                                        ->pluck('name', 'id')
+                                        ->all())
+                                    ->required(fn (string $operation): bool => $operation === 'create')
+                                    ->native(false)
+                                    ->searchable()
+                                    ->placeholder('Kies je setup-type')
+                                    ->helperText('Verplicht bij aanmaken — gebruikt door Strategy Coach voor edge-analyse.')
+                                    ->columnSpanFull(),
                                 Textarea::make('trade_journal')
                                     ->label('Setup & rationale')
                                     ->hiddenLabel()

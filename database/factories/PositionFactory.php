@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\PositionVisibility;
 use App\Models\Position;
+use App\Models\StrategyTag;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -18,6 +19,7 @@ class PositionFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
+            'strategy_tag_id' => StrategyTag::query()->orderBy('sort_order')->value('id'),
             'ticker' => strtoupper(fake()->lexify('???')),
             'entry_price' => fake()->randomFloat(2, 50, 200),
             'quantity' => fake()->numberBetween(1, 100),

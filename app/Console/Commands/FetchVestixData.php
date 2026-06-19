@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\CheckPositionAlertTriggersJob;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\MarketDataFetcher;
@@ -262,6 +263,8 @@ class FetchVestixData extends Command
 
         $marketDataFetcher->touchApiFetchTimestamp();
         $this->notifyCompletion($userId, $updated, $failed, $positions->count(), $failedTickers);
+
+        CheckPositionAlertTriggersJob::dispatch();
 
         return self::SUCCESS;
     }

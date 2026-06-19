@@ -322,6 +322,7 @@ class PositionResourceTest extends TestCase
                 'entry_price' => 150,
                 'quantity' => 10,
                 'current_sl' => 140,
+                'strategy_tag_id' => $this->defaultStrategyTagId(),
                 'trade_journal' => 'Bounce from 200 EMA, sector bullish.',
             ])
             ->call('create')
@@ -618,7 +619,10 @@ class PositionResourceTest extends TestCase
         $user = $this->authenticateFilament();
 
         Livewire::test(CreateScout::class)
-            ->fillForm(['ticker' => 'APTV'])
+            ->fillForm([
+                'ticker' => 'APTV',
+                'strategy_tag_id' => $this->defaultStrategyTagId(),
+            ])
             ->call('create')
             ->assertHasNoFormErrors();
 

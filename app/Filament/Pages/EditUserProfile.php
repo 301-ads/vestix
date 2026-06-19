@@ -2,11 +2,15 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\AlertEventType;
+use App\Models\UserAlertPreference;
 use App\Services\TelegramLinkService;
 use App\Support\TelegramNotifier;
 use Filament\Actions\Action;
 use Filament\Auth\Pages\EditProfile;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\TimePicker;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
@@ -48,10 +52,72 @@ class EditUserProfile extends EditProfile
                             $this->testTelegramAction(),
                         ]),
                     ]),
+                Section::make('Alert voorkeuren')
+                    ->compact()
+                    ->description('Kies welke Set & Forget meldingen je ontvangt.')
+                    ->schema([
+                        CheckboxList::make('alert_events')
+                            ->label('Meldingen')
+                            ->options([
+                                AlertEventType::SlCanRaise->value => 'Stop-loss kan verhoogd worden',
+                                AlertEventType::FreerideSecured->value => 'Freeride secured (winst veiliggesteld)',
+                                AlertEventType::StoppedOut->value => 'Stopped out',
+                                AlertEventType::DailyDigest->value => 'Dagelijkse digest (21:45)',
+                                AlertEventType::SquadCopyAlert->value => 'Squad copy-alerts (Ghost Mode)',
+                            ])
+                            ->default(AlertEventType::defaults())
+                            ->columns(1)
+                            ->afterStateHydrated(function (CheckboxList $component): void {
+                                UserAlertPreference::ensureDefaultsForUser($this->getUser());
+                                $preference = $this->getUser()
+                                    ->alertPreferences()
+                                    ->where('channel_type', 'telegram')
+                                    ->first();
+
+                                $component->state($preference?->active_events ?? AlertEventType::defaults());
+                            }),
+                        TimePicker::make('daily_digest_time')
+                            ->label('Digest tijd')
+                            ->seconds(false)
+                            ->default('21:45')
+                            ->afterStateHydrated(function (TimePicker $component): void {
+                                $preference = $this->getUser()
+                                    ->alertPreferences()
+                                    ->where('channel_type', 'telegram')
+                                    ->first();
+
+                                if ($preference?->daily_digest_time) {
+                                    $component->state($preference->daily_digest_time);
+                                }
+                            }),
+                    ]),
                 $this->getPasswordFormComponent(),
                 $this->getPasswordConfirmationFormComponent(),
                 $this->getCurrentPasswordFormComponent(),
             ]);
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        if (isset($data['alert_events']) || isset($data['daily_digest_time'])) {
+            UserAlertPreference::ensureDefaultsForUser($this->getUser());
+
+            $preference = $this->getUser()
+                ->alertPreferences()
+                ->where('channel_type', 'telegram')
+                ->first();
+
+            if ($preference) {
+                $preference->update([
+                    'active_events' => $data['alert_events'] ?? AlertEventType::defaults(),
+                    'daily_digest_time' => $data['daily_digest_time'] ?? '21:45:00',
+                ]);
+            }
+
+            unset($data['alert_events'], $data['daily_digest_time']);
+        }
+
+        return $data;
     }
 
     protected function connectTelegramAction(): Action

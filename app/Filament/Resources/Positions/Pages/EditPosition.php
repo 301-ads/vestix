@@ -99,6 +99,7 @@ class EditPosition extends EditRecord
         if ($record->status === 'scout') {
             $actions[] = $this->scoutActivateAction();
         } else {
+            $actions[] = PositionRecordActions::shareSuccess();
             $actions[] = PositionRecordActions::archive();
             $actions[] = $this->applyCalculatedSlAction()
                 ->extraAttributes(['class' => 'hidden']);

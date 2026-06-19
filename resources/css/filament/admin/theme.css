@@ -1902,3 +1902,343 @@
         display: none;
     }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Share cards                                                                */
+/* -------------------------------------------------------------------------- */
+
+.vestix-share-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 2rem;
+    background: #09090b;
+    color: #d4d4d8;
+    font-family: 'Albert Sans', 'Inter', sans-serif;
+    box-shadow: 0 25px 50px -12px rgb(0 212 146 / 0.08);
+    ring: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.vestix-share-card--square {
+    width: 500px;
+    max-width: 100%;
+    aspect-ratio: 1;
+}
+
+.vestix-share-card--landscape {
+    width: 800px;
+    max-width: 100%;
+    aspect-ratio: 1200 / 630;
+}
+
+.vestix-share-card__bg-grid {
+    position: absolute;
+    inset: 0;
+    opacity: 0.5;
+    background-image:
+        linear-gradient(to right, rgb(255 255 255 / 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgb(255 255 255 / 0.04) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+.vestix-share-card__glow {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(80px);
+    pointer-events: none;
+}
+
+.vestix-share-card__glow--green {
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 400px;
+    background: rgb(0 212 146 / 0.2);
+    transform: translate(33%, -50%);
+}
+
+.vestix-share-card__glow--blue {
+    bottom: 0;
+    left: 0;
+    width: 300px;
+    height: 300px;
+    background: rgb(59 130 246 / 0.1);
+    transform: translate(-25%, 33%);
+}
+
+.vestix-share-card__inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 2rem;
+}
+
+.vestix-share-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.vestix-share-card__ticker-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.375rem 1rem 0.375rem 0.375rem;
+    border-radius: 0.75rem;
+    background: rgb(24 24 27 / 0.8);
+    border: 1px solid rgb(255 255 255 / 0.05);
+}
+
+.vestix-share-card__ticker-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    background: #2563eb;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.vestix-share-card__ticker-name {
+    color: #fff;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.vestix-share-card__holding {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #71717a;
+}
+
+.vestix-share-card__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding-top: 0.5rem;
+    color: #a1a1aa;
+    font-weight: 700;
+}
+
+.vestix-share-card__brand-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    background: #00d492;
+    border-radius: 2px;
+    transform: rotate(45deg);
+    box-shadow: 0 0 8px rgb(0 212 146 / 0.8);
+}
+
+.vestix-share-card__hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-top: -1rem;
+}
+
+.vestix-share-card__roi {
+    font-size: clamp(3rem, 14vw, 6.5rem);
+    font-weight: 900;
+    line-height: 0.9;
+    letter-spacing: -0.05em;
+    background: linear-gradient(to bottom, #00d492, #00aa75);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 30px rgb(0 212 146 / 0.5);
+}
+
+.vestix-share-card__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0.75rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.vestix-share-card__badge--freeride {
+    color: #60a5fa;
+    background: rgb(59 130 246 / 0.1);
+    border: 1px solid rgb(59 130 246 / 0.2);
+}
+
+.vestix-share-card__badge--closed,
+.vestix-share-card__badge--open {
+    color: #00d492;
+    background: rgb(0 212 146 / 0.1);
+    border: 1px solid rgb(0 212 146 / 0.2);
+}
+
+.vestix-share-card__footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgb(255 255 255 / 0.05);
+}
+
+.vestix-share-card__stats {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.vestix-share-card__stat-label {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #71717a;
+    margin-bottom: 0.25rem;
+}
+
+.vestix-share-card__stat-label--accent {
+    color: #00d492;
+}
+
+.vestix-share-card__stat-value {
+    color: #fff;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.vestix-share-card__domain {
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #52525b;
+}
+
+.vestix-share-card-modal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.vestix-share-card-preview {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.vestix-share-card-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.vestix-share-card-btn {
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    background: #18181b;
+    color: #fff;
+    cursor: pointer;
+}
+
+.vestix-share-card-btn--primary {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+}
+
+.vestix-share-card__inner--landscape {
+    justify-content: space-between;
+}
+
+.vestix-share-card__landscape-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.vestix-share-card__brand--large span:first-child {
+    color: #fff;
+    font-size: 1.875rem;
+}
+
+.vestix-share-card__tagline {
+    padding: 0.375rem 1rem;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.05);
+    border: 1px solid rgb(255 255 255 / 0.1);
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #a1a1aa;
+}
+
+.vestix-share-card__meta-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.vestix-share-card__ticker-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #e4e4e7;
+}
+
+.vestix-share-card__roi--landscape {
+    font-size: clamp(4rem, 12vw, 7.5rem);
+}
+
+.vestix-share-card__subtitle {
+    color: #a1a1aa;
+    font-size: 1.125rem;
+    margin-top: 0.5rem;
+}
+
+.vestix-share-card__landscape-footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+}
+
+.vestix-share-card__pills {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.vestix-share-card__pill {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.75rem;
+    background: #18181b;
+    border: 1px solid rgb(255 255 255 / 0.05);
+}
+
+.vestix-share-card__domain-large {
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.vestix-share-card__domain-sub {
+    font-size: 0.75rem;
+    color: #71717a;
+    margin-top: 0.25rem;
+}

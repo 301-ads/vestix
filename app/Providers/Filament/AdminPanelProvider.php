@@ -11,6 +11,7 @@ use App\Filament\Pages\EditUserProfile;
 use App\Filament\Pages\ManageSquadSettings;
 use App\Filament\Pages\RegisterSquad;
 use App\Filament\Pages\SquadLeaderboard;
+use App\Filament\Pages\StrategyCoach;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
@@ -32,6 +33,7 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Leandrocfe\FilamentApexCharts\FilamentApexChartsPlugin;
 use Livewire\Livewire;
 
 class AdminPanelProvider extends PanelProvider
@@ -77,6 +79,10 @@ class AdminPanelProvider extends PanelProvider
                 ManageSquadSettings::class,
                 RegisterSquad::class,
                 SquadLeaderboard::class,
+                StrategyCoach::class,
+            ])
+            ->plugins([
+                FilamentApexChartsPlugin::make(),
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([

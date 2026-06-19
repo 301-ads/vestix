@@ -2,9 +2,9 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\Position;
+use App\Models\LeaderboardStat;
 use App\Models\Squad;
-use App\Models\User;
+use App\Services\PositionStatsAggregator;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Pages\Page;
@@ -59,8 +59,19 @@ class SquadLeaderboard extends Page implements HasTable
 
     public function table(Table $table): Table
     {
+        $computedAt = LeaderboardStat::query()
+            ->where('squad_id', $this->squadId)
+            ->max('computed_at');
+
+        $description = 'Ranking op win rate, freerides secured en gemiddelde ROI % — geen dollarbedragen.';
+
+        if ($computedAt) {
+            $description .= ' Bijgewerkt '.date('j M Y H:i', strtotime((string) $computedAt)).'.';
+        }
+
         return $table
             ->heading('Squad Leaderboard')
+            ->description($description)
             ->searchable(false)
             ->paginated(false)
             ->records(fn (): Collection => $this->leaderboardRecords())
@@ -84,29 +95,34 @@ class SquadLeaderboard extends Page implements HasTable
                     }),
             ])
             ->columns([
+                TextColumn::make('rank')
+                    ->label('#')
+                    ->badge()
+                    ->color(fn (array $record): string => match ($record['rank'] ?? 0) {
+                        1 => 'warning',
+                        2, 3 => 'gray',
+                        default => 'primary',
+                    }),
                 TextColumn::make('name')
                     ->label('Analist'),
-                TextColumn::make('shared_setups')
-                    ->label('Gedeelde setups')
-                    ->numeric(),
-                TextColumn::make('clones')
-                    ->label('Clones')
-                    ->numeric(),
-                TextColumn::make('closed_trades')
-                    ->label('Afgesloten')
-                    ->numeric(),
-                TextColumn::make('hit_rate')
-                    ->label('Hit rate')
+                TextColumn::make('win_rate')
+                    ->label('Win rate')
                     ->suffix('%')
                     ->numeric(decimalPlaces: 1),
-                TextColumn::make('avg_return')
-                    ->label('Gem. return')
+                TextColumn::make('avg_roi_pct')
+                    ->label('ROI %')
                     ->suffix('%')
                     ->numeric(decimalPlaces: 2)
-                    ->color(fn (array $record): string => ($record['avg_return'] ?? 0) >= 0 ? 'success' : 'danger'),
+                    ->color(fn (array $record): string => ($record['avg_roi_pct'] ?? 0) >= 0 ? 'success' : 'danger'),
+                TextColumn::make('freeride_count')
+                    ->label('Freerides')
+                    ->numeric(),
+                TextColumn::make('closed_trades_count')
+                    ->label('Trades')
+                    ->numeric(),
             ])
             ->emptyStateHeading('Nog geen squad-statistieken')
-            ->emptyStateDescription('Deel setups op de Gedeelde Radar om hit rates te meten.');
+            ->emptyStateDescription('Sluit minimaal '.PositionStatsAggregator::MIN_TRADES_FOR_RANKING.' trades om op het leaderboard te verschijnen.');
     }
 
     /**
@@ -120,55 +136,16 @@ class SquadLeaderboard extends Page implements HasTable
             return collect();
         }
 
-        $sharedScoutIds = Position::query()
-            ->squadShared($squad->id)
-            ->pluck('id');
-
-        if ($sharedScoutIds->isEmpty()) {
-            return collect();
-        }
-
-        $analystIds = Position::query()
-            ->whereIn('id', $sharedScoutIds)
-            ->pluck('user_id')
-            ->unique();
-
-        return User::query()
-            ->whereIn('id', $analystIds)
-            ->get()
-            ->map(function (User $user) use ($squad): array {
-                $userScoutIds = Position::query()
-                    ->squadShared($squad->id)
-                    ->forUser($user->id)
-                    ->pluck('id');
-
-                $closedClones = Position::query()
-                    ->closed()
-                    ->whereIn('cloned_from_id', $userScoutIds)
-                    ->get();
-
-                $wins = $closedClones->filter(
-                    fn (Position $position): bool => $position->unrealized_pnl > 0
-                )->count();
-
-                $closedCount = $closedClones->count();
-                $hitRate = $closedCount > 0 ? ($wins / $closedCount) * 100 : 0;
-                $avgReturn = $closedCount > 0
-                    ? $closedClones->avg(fn (Position $position): float => $position->unrealized_pnl_percentage)
-                    : 0;
-
-                return [
-                    'name' => $user->name,
-                    'shared_setups' => $userScoutIds->count(),
-                    'clones' => Position::query()
-                        ->whereIn('cloned_from_id', $userScoutIds)
-                        ->count(),
-                    'closed_trades' => $closedCount,
-                    'hit_rate' => round($hitRate, 1),
-                    'avg_return' => round((float) $avgReturn, 2),
-                ];
-            })
-            ->sortByDesc('hit_rate')
+        return app(PositionStatsAggregator::class)
+            ->rankedStatsForSquad($squad->id)
+            ->map(fn (LeaderboardStat $stat): array => [
+                'rank' => $stat->rank,
+                'name' => $stat->user?->name ?? '—',
+                'win_rate' => (float) $stat->win_rate,
+                'avg_roi_pct' => (float) $stat->avg_roi_pct,
+                'freeride_count' => $stat->freeride_count,
+                'closed_trades_count' => $stat->closed_trades_count,
+            ])
             ->values();
     }
 }

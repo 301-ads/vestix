@@ -55,6 +55,7 @@ class ScoutWatchlistTest extends TestCase
         Livewire::test(CreateScout::class)
             ->fillForm([
                 'ticker' => 'APTV',
+                'strategy_tag_id' => $this->defaultStrategyTagId(),
             ])
             ->call('create')
             ->assertHasNoFormErrors();
@@ -79,6 +80,7 @@ class ScoutWatchlistTest extends TestCase
                 'ticker' => 'NVDA',
                 'signal_low' => 118.50,
                 'signal_high' => 122.00,
+                'strategy_tag_id' => $this->defaultStrategyTagId(),
                 'trade_journal' => 'A+ bounce setup op 20 SMA.',
             ])
             ->call('create')
@@ -212,6 +214,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
+            'strategy_tag_id' => $this->defaultStrategyTagId(),
         ]);
         Livewire::test(ListScouts::class)
             ->callTableAction('activate_scout', $scout, data: [

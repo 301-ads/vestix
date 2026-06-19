@@ -35,7 +35,7 @@ Environment (Forge → Site → Environment)
         ALPHA_VANTAGE_API_KEY=... (fallback quote, max 25/dag gratis)
   [ ] Fill overige keys: mail (Resend), VESTIX_ADMIN_NOTIFICATION_EMAILS, PHP_BINARY
   [ ] Resend: domein vestix.io verifiëren, RESEND_API_KEY in Environment
-  [ ] Queue worker in Forge (Site → Queue) voor e-mailnotificaties
+  [ ] Queue worker in Forge (Site → Queue) voor e-mailnotificaties en Telegram alerts (database queue)
 
 Deployment (Forge → Site → Deployment)
   [ ] Zero-downtime deploy script: zie forge/deploy.sh
@@ -68,7 +68,8 @@ Scheduler (Forge → Site → Scheduler)
         Frequency: Every minute (* * * * *)
         Path: /home/forge/vestix.io/current
   [ ] Verify via SSH: cd /home/forge/vestix.io/current && php artisan schedule:list
-      (vestix:fetch-data moet zichtbaar zijn)
+      (vestix:fetch-data, vestix:send-daily-digests, RebuildSquadLeaderboardJob moeten zichtbaar zijn)
+  [ ] npm run build na deploy (html-to-image share cards + ApexCharts)
 
 First admin (SSH) — alleen bij schone installatie ZONDER data-import
   [ ] php artisan vestix:create-user you@example.com --name="You" --password="..." --super-admin

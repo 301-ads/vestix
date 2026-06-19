@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\RebuildSquadLeaderboardJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -13,4 +14,11 @@ Artisan::command('inspire', function () {
 Schedule::command('vestix:fetch-data')
     ->weekdays()
     ->dailyAt('23:00')
+    ->timezone('Europe/Amsterdam');
+
+Schedule::job(new RebuildSquadLeaderboardJob)->hourly();
+
+Schedule::command('vestix:send-daily-digests')
+    ->weekdays()
+    ->dailyAt('21:45')
     ->timezone('Europe/Amsterdam');
