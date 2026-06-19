@@ -2126,17 +2126,25 @@
 }
 
 .vestix-share-card__score {
-    font-size: clamp(3rem, 14vw, 6.5rem);
-    font-weight: 900;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
     line-height: 0.9;
     letter-spacing: -0.05em;
-    color: #fff;
-    text-shadow: 0 0 30px rgb(255 255 255 / 0.15);
 }
 
-.vestix-share-card--scout .vestix-share-card__score {
+.vestix-share-card__score-value {
+    font-size: clamp(3.5rem, 16vw, 7.5rem);
+    font-weight: 900;
     color: #00d492;
     text-shadow: 0 0 30px rgb(0 212 146 / 0.5);
+}
+
+.vestix-share-card__score-divider {
+    font-size: clamp(1.5rem, 6vw, 2.75rem);
+    font-weight: 700;
+    color: #71717a;
+    letter-spacing: -0.03em;
 }
 
 .vestix-share-card__stats--triple {
