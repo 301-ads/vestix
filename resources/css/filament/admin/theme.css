@@ -2129,8 +2129,9 @@
     display: flex;
     align-items: baseline;
     justify-content: center;
+    gap: 0.5rem;
     line-height: 0.9;
-    letter-spacing: -0.05em;
+    letter-spacing: 0;
 }
 
 .vestix-share-card__score-value {
