@@ -1,13 +1,15 @@
 @php
     /** @var array<string, mixed> $card */
+    $template = $template ?? 'share-cards.square';
+    $shareFilename = $card['share_filename'] ?? "vestix-{$card['ticker']}-share.png";
 @endphp
 <div x-data="vestixShareCard" class="vestix-share-card-modal">
     <div
         x-ref="card"
         class="vestix-share-card-preview"
-        data-ticker="{{ $card['ticker'] }}"
+        data-share='@json(['ticker' => $card['ticker'], 'text' => $card['share_text'], 'filename' => $shareFilename])'
     >
-        @include('share-cards.square', ['card' => $card])
+        @include($template, ['card' => $card])
     </div>
 
     <p

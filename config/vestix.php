@@ -39,4 +39,8 @@ return [
     'trade_journal' => [
         'chart_screenshot_max_kb' => (int) env('CHART_SCREENSHOT_MAX_KB', 10240),
     ],
+
+    'strategy_coach' => [
+        'min_closed_trades' => (int) env('STRATEGY_COACH_MIN_TRADES', 20),
+    ],
 ];

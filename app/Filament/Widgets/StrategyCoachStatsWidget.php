@@ -22,10 +22,11 @@ class StrategyCoachStatsWidget extends StatsOverviewWidget
 
         if (! $analytics->hasEnoughTrades($userId)) {
             $remaining = $analytics->tradesUntilCoach($userId);
+            $minimum = $analytics->minTradesForCoach();
 
             return [
                 Stat::make('Strategy Coach', "Nog {$remaining} trades")
-                    ->description('Tot je edge zichtbaar wordt (min. 20 gesloten trades)')
+                    ->description("Tot je edge zichtbaar wordt (min. {$minimum} gesloten trades)")
                     ->color('gray'),
             ];
         }

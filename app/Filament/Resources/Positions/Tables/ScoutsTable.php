@@ -94,6 +94,7 @@ class ScoutsTable
             ])
             ->recordActions([
                 PositionRecordActions::activateScout(),
+                PositionRecordActions::shareSetup(),
                 PositionRecordActions::cloneTarget($resourceClass),
                 ActionGroup::make([
                     PositionRecordActions::fetchMarketData(),

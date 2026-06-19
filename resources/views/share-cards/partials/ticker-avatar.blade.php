@@ -10,6 +10,7 @@
     <div
         class="vestix-share-card__ticker-avatar vestix-share-card__ticker-avatar--logo"
         style="background-color: {{ $logoBackground }};"
+        data-bg-color="{{ $logoBackground }}"
     >
         <img src="{{ $card['ticker_icon_url'] }}" alt="" />
     </div>

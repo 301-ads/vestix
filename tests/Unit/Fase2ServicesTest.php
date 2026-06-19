@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Models\Asset;
 use App\Models\Position;
 use App\Models\StrategyTag;
@@ -55,6 +56,7 @@ class Fase2ServicesTest extends TestCase
         $encoded = json_encode($card);
 
         $this->assertStringContainsString('ASML', $card['ticker']);
+        $this->assertStringContainsString('ASML', $card['share_text']);
         $this->assertStringNotContainsString('500', (string) $encoded);
         $this->assertArrayNotHasKey('quantity', $card);
         $this->assertIsInt($card['ticker_hue']);
@@ -84,6 +86,56 @@ class Fase2ServicesTest extends TestCase
 
         $this->assertNotNull($card['ticker_icon_url']);
         $this->assertStringStartsWith('data:image/png;base64,', $card['ticker_icon_url']);
+    }
+
+    public function test_share_card_factory_builds_scout_setup_card(): void
+    {
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->create([
+            'status' => 'scout',
+            'ticker' => 'NVDA',
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'entry_price' => 102.50,
+            'latest_atr_14' => 5,
+            'quantity' => 25,
+        ]);
+
+        $this->assertTrue(PositionRecordActions::canShareScout($position));
+
+        $card = ShareCardDataFactory::fromScout($position);
+
+        $this->assertSame('7/7', $card['score_formatted']);
+        $this->assertSame('A+ SETUP', $card['grade_label']);
+        $this->assertSame('$101.00', $card['close_price']);
+        $this->assertSame('$100.00', $card['sma_20']);
+        $this->assertSame('$97.50', $card['stop_loss']);
+        $this->assertStringContainsString('NVDA A+ SETUP · 7/7', $card['share_text']);
+        $this->assertSame('vestix-NVDA-setup.png', $card['share_filename']);
+        $this->assertArrayNotHasKey('quantity', $card);
+    }
+
+    public function test_cannot_share_non_a_plus_scout(): void
+    {
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->create([
+            'status' => 'scout',
+            'ticker' => 'NVDA',
+            'signal_low' => 99.90,
+            'latest_close_price' => 99.90,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+        ]);
+
+        $this->assertFalse(PositionRecordActions::canShareScout($position));
     }
 
     public function test_risk_reward_ratio_computed_on_archive(): void

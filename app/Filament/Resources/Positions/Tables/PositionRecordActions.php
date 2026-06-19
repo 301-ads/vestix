@@ -168,6 +168,37 @@ class PositionRecordActions
             ));
     }
 
+    public static function shareSetup(): Action
+    {
+        return Action::make('share_setup')
+            ->label('Deel setup')
+            ->tooltip('Genereer een branded share-card voor je A+ setup (7/7)')
+            ->icon('heroicon-o-share')
+            ->color('info')
+            ->visible(fn (Position $record): bool => self::canShareScout($record))
+            ->modalHeading('Deel je A+ setup')
+            ->modalDescription('Privacy-safe kaart: ticker, setup-score 7/7, Close/SMA/RSI en geplande entry/SL per aandeel.')
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Sluiten')
+            ->modalContent(fn (Position $record): HtmlString => new HtmlString(
+                view('filament.positions.share-card-modal', [
+                    'card' => ShareCardDataFactory::fromScout($record->loadMissing('asset')),
+                    'template' => 'share-cards.scout-square',
+                ])->render()
+            ));
+    }
+
+    public static function canShareScout(Position $record): bool
+    {
+        if ($record->status !== 'scout') {
+            return false;
+        }
+
+        $score = $record->evaluateSetupScore();
+
+        return $score['grade'] === 'A+' && $score['totalPoints'] === 7;
+    }
+
     public static function canSharePosition(Position $record): bool
     {
         if ($record->status === 'open') {

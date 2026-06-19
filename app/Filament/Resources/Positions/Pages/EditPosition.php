@@ -97,6 +97,7 @@ class EditPosition extends EditRecord
         ];
 
         if ($record->status === 'scout') {
+            $actions[] = PositionRecordActions::shareSetup();
             $actions[] = $this->scoutActivateAction();
         } else {
             $actions[] = PositionRecordActions::shareSuccess();

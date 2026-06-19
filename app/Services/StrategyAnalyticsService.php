@@ -10,6 +10,11 @@ class StrategyAnalyticsService
 {
     public const MIN_TRADES_FOR_COACH = 20;
 
+    public function minTradesForCoach(): int
+    {
+        return max(0, (int) config('vestix.strategy_coach.min_closed_trades', self::MIN_TRADES_FOR_COACH));
+    }
+
     /**
      * @return Collection<int, Position>
      */
@@ -25,14 +30,14 @@ class StrategyAnalyticsService
 
     public function hasEnoughTrades(int $userId): bool
     {
-        return $this->closedTradesForUser($userId)->count() >= self::MIN_TRADES_FOR_COACH;
+        return $this->closedTradesForUser($userId)->count() >= $this->minTradesForCoach();
     }
 
     public function tradesUntilCoach(int $userId): int
     {
         $count = $this->closedTradesForUser($userId)->count();
 
-        return max(0, self::MIN_TRADES_FOR_COACH - $count);
+        return max(0, $this->minTradesForCoach() - $count);
     }
 
     /**

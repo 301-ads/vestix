@@ -1913,9 +1913,10 @@
     border-radius: 2rem;
     background: #09090b;
     color: #d4d4d8;
-    font-family: 'Albert Sans', 'Inter', sans-serif;
+    font-family: 'Albert Sans', sans-serif;
+    font-synthesis: none;
     box-shadow: 0 25px 50px -12px rgb(0 212 146 / 0.08);
-    ring: 1px solid rgb(255 255 255 / 0.1);
+    border: 1px solid rgb(255 255 255 / 0.1);
 }
 
 .vestix-share-card--square {
@@ -1997,7 +1998,6 @@
     width: 2rem;
     height: 2rem;
     border-radius: 0.5rem;
-    background: #2563eb;
     color: #fff;
     font-size: 0.75rem;
     font-weight: 700;
@@ -2005,9 +2005,14 @@
     flex-shrink: 0;
 }
 
+.vestix-share-card__ticker-avatar:not(.vestix-share-card__ticker-avatar--logo) {
+    background: #2563eb;
+}
+
 .vestix-share-card__ticker-avatar--logo {
     border: none;
     padding: 0;
+    background-color: #18181b;
 }
 
 .vestix-share-card__ticker-avatar--logo img {
@@ -2100,6 +2105,42 @@
     color: #00d492;
     background: rgb(0 212 146 / 0.1);
     border: 1px solid rgb(0 212 146 / 0.2);
+}
+
+.vestix-share-card__badge--a-plus {
+    color: #00d492;
+    background: rgb(0 212 146 / 0.1);
+    border: 1px solid rgb(0 212 146 / 0.2);
+}
+
+.vestix-share-card__badge--a-minus {
+    color: #fbbf24;
+    background: rgb(251 191 36 / 0.1);
+    border: 1px solid rgb(251 191 36 / 0.2);
+}
+
+.vestix-share-card__badge--bc {
+    color: #a1a1aa;
+    background: rgb(255 255 255 / 0.05);
+    border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.vestix-share-card__score {
+    font-size: clamp(3rem, 14vw, 6.5rem);
+    font-weight: 900;
+    line-height: 0.9;
+    letter-spacing: -0.05em;
+    color: #fff;
+    text-shadow: 0 0 30px rgb(255 255 255 / 0.15);
+}
+
+.vestix-share-card--scout .vestix-share-card__score {
+    color: #00d492;
+    text-shadow: 0 0 30px rgb(0 212 146 / 0.5);
+}
+
+.vestix-share-card__stats--triple {
+    gap: 1rem;
 }
 
 .vestix-share-card__footer {

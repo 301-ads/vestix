@@ -58,6 +58,7 @@ class SetupRadarWidget extends TableWidget
             ])
             ->recordActions([
                 PositionRecordActions::activateScout(),
+                PositionRecordActions::shareSetup(),
                 ActionGroup::make([
                     PositionRecordActions::fetchMarketData(),
                 ])->iconButton(),
