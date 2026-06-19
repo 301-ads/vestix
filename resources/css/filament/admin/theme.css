@@ -1467,13 +1467,14 @@
 .scout-scorecard-hud-score-row {
     display: flex;
     align-items: baseline;
-    gap: 0.125rem;
+    gap: 0.25rem;
 }
 
-.scout-scorecard-hud-score {
+.scout-scorecard-hud.vestix-stat-card .scout-scorecard-hud-score.fi-wi-stats-overview-stat-value {
     font-size: 3.75rem;
     font-weight: 900;
     line-height: 1;
+    letter-spacing: -0.04em;
 }
 
 .scout-scorecard-hud-score.fi-color {
@@ -1484,13 +1485,14 @@
     color: var(--dark-text);
 }
 
-.scout-scorecard-hud-max {
-    font-size: 1.875rem;
-    font-weight: 700;
-    color: var(--gray-600);
+.scout-scorecard-hud.vestix-stat-card .scout-scorecard-hud-max {
+    font-size: 1.425rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--gray-500);
 }
 
-.dark .scout-scorecard-hud-max {
+.dark .scout-scorecard-hud.vestix-stat-card .scout-scorecard-hud-max {
     color: var(--gray-400);
 }
 

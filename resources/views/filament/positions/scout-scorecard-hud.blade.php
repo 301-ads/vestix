@@ -27,7 +27,7 @@
             >
                 {{ $score['totalPoints'] }}
             </span>
-            <span class="scout-scorecard-hud-max">/{{ $score['maxPoints'] }}</span>
+            <span class="scout-scorecard-hud-max"> / {{ $score['maxPoints'] }}</span>
         </div>
     </div>
 
