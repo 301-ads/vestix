@@ -94,9 +94,9 @@ class ScoutsTable
             ])
             ->recordActions([
                 PositionRecordActions::activateScout(),
-                PositionRecordActions::shareSetup(),
                 PositionRecordActions::cloneTarget($resourceClass),
                 ActionGroup::make([
+                    PositionRecordActions::shareSetup(),
                     PositionRecordActions::fetchMarketData(),
                     EditAction::make()
                         ->url(fn (Position $record): string => $resourceClass::getUrl('edit', ['record' => $record]))
