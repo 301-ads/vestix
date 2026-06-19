@@ -6,6 +6,7 @@ use App\Enums\PositionVisibility;
 use App\Models\Position;
 use App\Services\SquadContext;
 use App\Support\ClosePriceTrend;
+use App\Support\SlPriceProximity;
 use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ScoutSetupScorecard;
@@ -934,17 +935,10 @@ class PositionForm
     {
         $action = self::resolveFormActionCommand($get, $record);
 
-        $color = match ($action) {
-            'UPDATE' => 'warning',
-            'HOLD' => 'success',
-            'STOPPED OUT' => 'danger',
-            default => 'gray',
-        };
-
         if ($action === 'STOPPED OUT') {
             return [
                 'text' => 'Liquidatie · onder SL',
-                'color' => $color,
+                'color' => 'danger',
             ];
         }
 
@@ -959,12 +953,15 @@ class PositionForm
             return null;
         }
 
-        $percentage = (((float) $newSl - (float) $close) / (float) $close) * 100;
+        $close = (float) $close;
+        $atr = $get('latest_atr_14') ?? $record?->latest_atr_14;
+        $atr = $atr !== null && $atr !== '' ? (float) $atr : null;
+        $percentage = (((float) $newSl) - $close) / $close * 100;
         $percentagePrefix = $percentage >= 0 ? '+' : '−';
 
         return [
             'text' => $percentagePrefix.number_format(abs($percentage), 2).'% t.o.v. koers',
-            'color' => $color,
+            'color' => SlPriceProximity::color($close, (float) $newSl, $atr),
         ];
     }
 
@@ -1041,20 +1038,15 @@ class PositionForm
         }
 
         $close = (float) $close;
-        $distance = $close - $newSl;
+        $newSl = (float) $newSl;
         $percentage = (($newSl - $close) / $close) * 100;
-        $bufferPercentage = ($distance / $close) * 100;
+        $atr = $get('latest_atr_14') ?? $record?->latest_atr_14;
+        $atr = $atr !== null && $atr !== '' ? (float) $atr : null;
         $percentagePrefix = $percentage >= 0 ? '+' : '−';
-
-        $color = match (true) {
-            $distance <= 0 => 'danger',
-            $bufferPercentage < 2 => 'warning',
-            default => 'gray',
-        };
 
         return [
             'text' => self::formatUsd($close).' · '.$percentagePrefix.number_format(abs($percentage), 1).'%',
-            'color' => $color,
+            'color' => SlPriceProximity::color($close, $newSl, $atr),
         ];
     }
 
