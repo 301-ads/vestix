@@ -20,7 +20,11 @@
 
         <div class="vestix-share-card__hero">
             <div class="vestix-share-card__score">
-                <span class="vestix-share-card__score-value">{{ $card['score'] }}</span><span class="vestix-share-card__score-divider">/{{ $card['max_score'] }}</span>
+                <span class="vestix-share-card__score-value">{{ $card['score'] }}</span>
+                <span class="vestix-share-card__score-suffix">
+                    <span class="vestix-share-card__score-slash">/</span>
+                    <span class="vestix-share-card__score-max">{{ $card['max_score'] }}</span>
+                </span>
             </div>
             <div class="vestix-share-card__badge vestix-share-card__badge--{{ $card['status_variant'] }}">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>

@@ -2129,7 +2129,7 @@
     display: flex;
     align-items: baseline;
     justify-content: center;
-    gap: 0.5rem;
+    /* gap: 0.5rem; */
     line-height: 0.9;
     letter-spacing: 0;
 }
@@ -2141,11 +2141,17 @@
     text-shadow: 0 0 30px rgb(0 212 146 / 0.5);
 }
 
-.vestix-share-card__score-divider {
+.vestix-share-card__score-suffix {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+
+.vestix-share-card__score-slash,
+.vestix-share-card__score-max {
     font-size: clamp(1.5rem, 6vw, 2.75rem);
     font-weight: 700;
     color: #71717a;
-    letter-spacing: -0.03em;
 }
 
 .vestix-share-card__stats--triple {

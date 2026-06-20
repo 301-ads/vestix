@@ -17,6 +17,7 @@ use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupScorecard;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Contracts\Support\Htmlable;
@@ -96,17 +97,21 @@ class EditPosition extends EditRecord
             PositionRecordActions::fetchMarketData(syncButtonStyle: true),
         ];
 
+        $overflowActions = [];
+
         if ($record->status === 'scout') {
-            $actions[] = PositionRecordActions::shareSetup();
             $actions[] = $this->scoutActivateAction();
+            $overflowActions[] = PositionRecordActions::shareSetup();
         } else {
-            $actions[] = PositionRecordActions::shareSuccess();
-            $actions[] = PositionRecordActions::archive();
-            $actions[] = $this->applyCalculatedSlAction()
+            $overflowActions[] = PositionRecordActions::shareSuccess();
+            $overflowActions[] = PositionRecordActions::archive();
+            $overflowActions[] = $this->applyCalculatedSlAction()
                 ->extraAttributes(['class' => 'hidden']);
         }
 
-        $actions[] = DeleteAction::make();
+        $overflowActions[] = DeleteAction::make();
+
+        $actions[] = ActionGroup::make($overflowActions)->iconButton();
 
         return $actions;
     }
