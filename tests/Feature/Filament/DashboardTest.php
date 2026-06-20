@@ -154,6 +154,28 @@ class DashboardTest extends TestCase
             ->assertSee('STOP');
     }
 
+    public function test_action_widget_excludes_hold_positions_when_sl_is_up_to_date(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $holdPosition = Position::factory()->for($user)->create([
+            'ticker' => 'CDNS',
+            'latest_close_price' => 400.00,
+            'latest_sma_20' => 51.71,
+            'latest_atr_14' => 1.13,
+            'current_sl' => 51.15,
+            'status' => 'open',
+        ]);
+
+        $this->assertSame('HOLD', $holdPosition->action_command);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertCanNotSeeTableRecords([$holdPosition])
+            ->assertDontSee('CDNS');
+    }
+
     public function test_action_widget_mark_as_updated_removes_position_from_list(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();

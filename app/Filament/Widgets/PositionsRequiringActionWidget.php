@@ -24,10 +24,13 @@ class PositionsRequiringActionWidget extends TableWidget
     public function table(Table $table): Table
     {
         $userId = auth()->id() ?? 0;
-
-        $scoped = Position::query()->forUser($userId);
-        $updateCount = (clone $scoped)->requiresSlUpdate()->count();
-        $liquidationCount = (clone $scoped)->stoppedOut()->count();
+        $actionablePositions = Position::requiringActionForUser($userId);
+        $updateCount = $actionablePositions
+            ->filter(fn (Position $position): bool => $position->action_command === 'UPDATE')
+            ->count();
+        $liquidationCount = $actionablePositions
+            ->filter(fn (Position $position): bool => $position->action_command === 'STOPPED OUT')
+            ->count();
         $pendingCount = $updateCount + $liquidationCount;
 
         return $table
@@ -35,12 +38,20 @@ class PositionsRequiringActionWidget extends TableWidget
             ->striped(false)
             ->heading($this->buildHeading($pendingCount, $updateCount, $liquidationCount))
             ->searchable(false)
-            ->query(fn (): Builder => Position::query()
-                ->forUser($userId)
-                ->requiresAction()
-                ->with('asset')
-                ->orderByRaw('CASE WHEN latest_close_price <= current_sl THEN 0 ELSE 1 END')
-                ->orderBy('ticker'))
+            ->query(function () use ($userId): Builder {
+                $actionableIds = Position::requiringActionForUser($userId)->pluck('id');
+
+                return Position::query()
+                    ->forUser($userId)
+                    ->when(
+                        $actionableIds->isNotEmpty(),
+                        fn (Builder $query): Builder => $query->whereIn('id', $actionableIds),
+                        fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+                    )
+                    ->with('asset')
+                    ->orderByRaw('CASE WHEN latest_close_price <= current_sl THEN 0 ELSE 1 END')
+                    ->orderBy('ticker');
+            })
             ->columns([
                 TextColumn::make('action_command')
                     ->label('Status')

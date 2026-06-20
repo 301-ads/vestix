@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
@@ -386,7 +387,20 @@ class Position extends Model
             ->whereNotNull('latest_atr_14')
             ->whereNotNull('current_sl')
             ->whereColumn('latest_close_price', '>=', 'current_sl')
-            ->whereRaw('ROUND(latest_sma_20 - (0.5 * latest_atr_14), 2) > current_sl');
+            ->whereRaw('ROUND(latest_sma_20 - (latest_atr_14 / 2), 2) > current_sl');
+    }
+
+    /**
+     * @return Collection<int, self>
+     */
+    public static function requiringActionForUser(int $userId): Collection
+    {
+        return static::query()
+            ->forUser($userId)
+            ->open()
+            ->get()
+            ->filter(fn (self $position): bool => in_array($position->action_command, ['UPDATE', 'STOPPED OUT'], true))
+            ->values();
     }
 
     public function scopeRequiresAction(Builder $query): Builder
@@ -404,7 +418,7 @@ class Position extends Model
             return null;
         }
 
-        return round((float) $sma - (0.5 * (float) $atr), 2);
+        return round((float) $sma - ((float) $atr / 2), 2);
     }
 
     public static function computeBuyStop(mixed $high, mixed $atr): ?float
