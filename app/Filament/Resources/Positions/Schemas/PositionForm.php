@@ -710,6 +710,8 @@ class PositionForm
                     'cardVariant' => 'blue',
                 ]),
             View::make('filament.positions.cockpit-stat-card')
+                ->viewData(fn (Get $get, ?Position $record): array => self::berekendeSlCardViewData($get, $record)),
+            View::make('filament.positions.cockpit-stat-card')
                 ->viewData(function (Get $get, ?Position $record): array {
                     $investment = self::formatPlannedInvestment($get, $record);
 
@@ -721,8 +723,6 @@ class PositionForm
                         'cardVariant' => 'zinc',
                     ];
                 }),
-            View::make('filament.positions.cockpit-stat-card')
-                ->viewData(fn (Get $get, ?Position $record): array => self::berekendeSlCardViewData($get, $record)),
             View::make('filament.positions.cockpit-stat-card')
                 ->viewData(function (Get $get, ?Position $record): array {
                     $risk = self::formatPlannedRiskDescription($get, $record);

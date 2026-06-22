@@ -83,7 +83,7 @@ class PremarketGatekeeperDisplay
             $description = 'Geen live quote beschikbaar.';
             $descriptionColor = 'gray';
         } elseif ($position->premarket_checked_at === null) {
-            $description = 'Gatekeeper check om 15:00 NL.';
+            $description = 'Check om 15:00 NL';
             $descriptionColor = 'info';
         }
 
