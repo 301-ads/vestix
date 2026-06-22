@@ -55,6 +55,7 @@ class FetchVestixDataTest extends TestCase
 
         Cache::forget('vestix:last_api_fetch');
         Cache::forget('vestix:sync_in_progress');
+        Cache::forget('vestix:polygon:last_request_at');
         Cache::lock(MarketDataFetcher::syncLockKey())->forceRelease();
     }
 

@@ -66,8 +66,6 @@ class SetupRadarWidget extends TableWidget
                         : null),
             ])
             ->recordActions([
-                PositionRecordActions::armForToday(),
-                PositionRecordActions::disarmForToday(),
                 PositionRecordActions::activateScout(),
                 ActionGroup::make([
                     PositionRecordActions::shareSetup(),

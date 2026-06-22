@@ -121,14 +121,14 @@ class AlertDispatcherTest extends TestCase
             $user->id,
             $position->id,
             AlertEventType::PremarketGapRisk,
-            ['premarket_price' => 55, 'entry_trigger' => 50, 'gap_pct' => 10],
+            ['premarket_price' => 55, 'bounce_high' => 49, 'gap_pct' => 10],
         ));
 
         $this->assertFalse($dispatcher->dispatchNow(
             $user->id,
             $position->id,
             AlertEventType::PremarketGapRisk,
-            ['premarket_price' => 55, 'entry_trigger' => 50, 'gap_pct' => 10],
+            ['premarket_price' => 55, 'bounce_high' => 49, 'gap_pct' => 10],
         ));
 
         Carbon::setTestNow('2026-06-16 15:00:00');
@@ -137,7 +137,7 @@ class AlertDispatcherTest extends TestCase
             $user->id,
             $position->id,
             AlertEventType::PremarketGapRisk,
-            ['premarket_price' => 56, 'entry_trigger' => 50, 'gap_pct' => 12],
+            ['premarket_price' => 56, 'bounce_high' => 49, 'gap_pct' => 12],
         ));
 
         $this->assertEquals(1, PositionAlert::query()->count());

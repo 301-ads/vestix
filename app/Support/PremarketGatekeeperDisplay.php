@@ -2,43 +2,46 @@
 
 namespace App\Support;
 
-use App\Enums\PremarketGapStatus;
+use App\Enums\PremarketScanResult;
 use App\Models\Position;
-use Illuminate\Support\Carbon;
 
 class PremarketGatekeeperDisplay
 {
     public static function isRelevant(Position $position): bool
     {
-        return $position->isArmedForEntryToday()
-            || ($position->premarket_checked_at !== null
-                && $position->premarket_checked_at->toDateString() === Carbon::now('America/New_York')->toDateString());
+        return $position->wasPremarketCheckedToday();
     }
 
-    public static function gapStatusLabel(Position $position): ?string
+    public static function scanTypeLabel(Position $position): ?string
     {
-        if (! self::isRelevant($position) || $position->premarket_gap_status === null) {
-            return $position->isArmedForEntryToday() && $position->premarket_checked_at === null
-                ? 'Wacht op check'
-                : null;
+        if (! self::isRelevant($position) || $position->premarket_scan_type === null) {
+            return null;
         }
 
-        return $position->premarket_gap_status->label();
+        return $position->premarket_scan_type->label();
     }
 
-    public static function gapStatusColor(Position $position): string
+    public static function scanTypeColor(Position $position): string
     {
-        if ($position->premarket_gap_status instanceof PremarketGapStatus) {
-            return $position->premarket_gap_status->badgeColor();
+        if ($position->premarket_scan_type instanceof PremarketScanResult) {
+            return $position->premarket_scan_type->badgeColor();
         }
 
-        return $position->isArmedForEntryToday() ? 'info' : 'gray';
+        return 'gray';
     }
 
     public static function rowClass(Position $position): ?string
     {
         if ($position->hasPremarketGapUpRisk()) {
             return 'scout-premarket-gap-up';
+        }
+
+        if ($position->hasPremarketReclamation()) {
+            return 'scout-premarket-reclamation';
+        }
+
+        if ($position->hasPremarketLanding()) {
+            return 'scout-premarket-landing';
         }
 
         return null;
@@ -53,7 +56,7 @@ class PremarketGatekeeperDisplay
             return null;
         }
 
-        $status = $position->premarket_gap_status;
+        $result = $position->premarket_scan_type;
         $value = $position->premarket_price !== null
             ? '$'.number_format((float) $position->premarket_price, 2)
             : '—';
@@ -63,34 +66,46 @@ class PremarketGatekeeperDisplay
         $valueColor = null;
         $cardVariant = 'blue';
 
-        if ($status === PremarketGapStatus::GapUp) {
-            $trigger = $position->premarket_entry_trigger ?? $position->entry_price;
+        if ($result === PremarketScanResult::GapRisk) {
+            $reference = $position->premarket_reference_price ?? $position->signal_high;
             $description = sprintf(
-                'Boven entry-trigger ($%s). Risico op chasing!',
-                number_format((float) $trigger, 2),
+                'Boven bounce high ($%s). Risico op chasing!',
+                number_format((float) $reference, 2),
             );
             $descriptionColor = 'danger';
             $valueColor = 'danger';
             $cardVariant = 'amber';
-        } elseif ($status === PremarketGapStatus::Ok) {
-            $description = 'Pre-market op of onder je entry-trigger.';
+        } elseif ($result === PremarketScanResult::Reclamation) {
+            $reference = $position->premarket_reference_price ?? $position->latest_sma_20;
+            $description = sprintf(
+                'Herovert SMA 20 ($%s). Potentiële intraday setup.',
+                number_format((float) $reference, 2),
+            );
             $descriptionColor = 'success';
             $valueColor = 'success';
-        } elseif ($status === PremarketGapStatus::GapDown) {
-            $description = 'Onder entry-trigger — buy-stop triggert niet bij open.';
+            $cardVariant = 'green';
+        } elseif ($result === PremarketScanResult::Landing) {
+            $reference = $position->premarket_reference_price ?? $position->latest_sma_20;
+            $description = sprintf(
+                'Nadert SMA 20 ($%s). Potentiële landing.',
+                number_format((float) $reference, 2),
+            );
             $descriptionColor = 'warning';
-        } elseif ($status === PremarketGapStatus::Unavailable) {
+            $valueColor = 'warning';
+            $cardVariant = 'amber';
+        } elseif ($result === PremarketScanResult::Ok) {
+            $description = 'Geen pre-market signaal vandaag.';
+            $descriptionColor = 'success';
+            $valueColor = 'success';
+        } elseif ($result === PremarketScanResult::Unavailable) {
             $description = 'Geen live quote beschikbaar.';
             $descriptionColor = 'gray';
-        } elseif ($position->premarket_checked_at === null) {
-            $description = 'Check om 15:00 NL';
-            $descriptionColor = 'info';
         }
 
-        if ($position->premarket_gap_pct !== null && $status === PremarketGapStatus::GapUp) {
+        if ($position->premarket_distance_pct !== null && $result === PremarketScanResult::GapRisk) {
             $description = sprintf(
-                '%.2f%% boven trigger. %s',
-                (float) $position->premarket_gap_pct,
+                '%.2f%% boven bounce high. %s',
+                (float) $position->premarket_distance_pct,
                 $description ?? '',
             );
         }

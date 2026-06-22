@@ -191,10 +191,13 @@ class FetchVestixData extends Command
             return self::SUCCESS;
         }
 
-        $delay = config('vestix.polygon.rate_limit_delay', config('vestix.alpha_vantage.rate_limit_delay', 12));
-        $requiredCalls = $positions->count();
+        $delay = (int) config('vestix.polygon.rate_limit_delay', 13);
+        $callsPerPosition = max(1, (int) config('vestix.polygon.estimated_calls_per_position', 2));
+        $positionCount = $positions->count();
+        $estimatedCalls = $positionCount * $callsPerPosition;
+        $estimatedMinutes = (int) ceil(($estimatedCalls * $delay) / 60);
 
-        $this->info("Polygon sync: {$requiredCalls} ticker(s), ~".ceil($requiredCalls * $delay / 60).' min bij 5 calls/min.');
+        $this->info("Polygon sync: {$positionCount} ticker(s), ~{$estimatedMinutes} min ({$estimatedCalls} calls, {$delay}s ertussen).");
 
         $rows = [];
         $updated = 0;
@@ -203,14 +206,10 @@ class FetchVestixData extends Command
         /** @var list<string> $failedTickers */
         $failedTickers = [];
 
-        foreach ($positions as $index => $position) {
+        foreach ($positions as $position) {
             $this->info("Bezig met ophalen data voor ticker: {$position->ticker}");
 
             try {
-                if ($index > 0) {
-                    sleep($delay);
-                }
-
                 $previousScore = $position->status === 'scout'
                     ? ($position->last_setup_score ?? $position->evaluateSetupScore()['totalPoints'])
                     : null;
@@ -417,7 +416,7 @@ class FetchVestixData extends Command
 
         if ($failedTickers !== []) {
             $body .= ' Niet bijgewerkt: '.implode(', ', $failedTickers).'.';
-            $body .= ' Controleer Polygon rate limit (max 5 calls/min op gratis tier).';
+            $body .= ' Sync duurt langer bij veel posities; probeer opnieuw of verhoog POLYGON_RATE_LIMIT_DELAY.';
         }
 
         $status = match (true) {

@@ -701,9 +701,10 @@ class PositionForm
                 Callout::make('Gap-up risico')
                     ->visible(fn (?Position $record): bool => $record?->hasPremarketGapUpRisk() ?? false)
                     ->description(fn (?Position $record): string => sprintf(
-                        'Let op: Pre-market noteert $%s. Dit is boven je entry-trigger ($%s). Risico op chasing!',
+                        'Pas op, risico op chasing bij %s! Pre-market noteert $%s (boven bounce high $%s).',
+                        $record?->ticker ?? '',
                         number_format((float) ($record?->premarket_price ?? 0), 2),
-                        number_format((float) ($record?->premarket_entry_trigger ?? $record?->entry_price ?? 0), 2),
+                        number_format((float) ($record?->premarket_reference_price ?? $record?->signal_high ?? 0), 2),
                     ))
                     ->danger()
                     ->icon('heroicon-o-exclamation-triangle'),

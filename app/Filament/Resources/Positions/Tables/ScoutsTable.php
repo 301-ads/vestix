@@ -97,8 +97,6 @@ class ScoutsTable
                     ]),
             ])
             ->recordActions([
-                PositionRecordActions::armForToday(),
-                PositionRecordActions::disarmForToday(),
                 PositionRecordActions::activateScout(),
                 PositionRecordActions::cloneTarget($resourceClass),
                 ActionGroup::make([

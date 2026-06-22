@@ -12,7 +12,6 @@ use App\Support\FilamentNotifier;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
 use App\Support\ShareCardDataFactory;
-use App\Support\UsMarketSession;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
@@ -112,69 +111,6 @@ class PositionRecordActions
         }
 
         return $action;
-    }
-
-    public static function armForToday(): Action
-    {
-        return Action::make('arm_for_today')
-            ->label('Op scherp')
-            ->tooltip('Zet deze scout op scherp voor vandaag — pre-market check om 15:00')
-            ->icon('heroicon-o-bell-alert')
-            ->iconButton()
-            ->color('warning')
-            ->visible(fn (Position $record): bool => $record->status === 'scout'
-                && $record->isOwnedBy(auth()->user())
-                && $record->entry_price !== null
-                && ! $record->isArmedForEntryToday())
-            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
-            ->action(function (Position $record): void {
-                $tradingDay = UsMarketSession::currentUsTradingDay();
-
-                $record->update([
-                    'armed_for_entry_on' => $tradingDay->toDateString(),
-                    'premarket_price' => null,
-                    'premarket_entry_trigger' => null,
-                    'premarket_gap_status' => null,
-                    'premarket_gap_pct' => null,
-                    'premarket_checked_at' => null,
-                ]);
-
-                FilamentNotifier::send(
-                    title: 'Scout op scherp',
-                    body: "{$record->ticker} wordt vandaag om 15:00 gecontroleerd op gap-up risico.",
-                    status: 'info',
-                );
-            });
-    }
-
-    public static function disarmForToday(): Action
-    {
-        return Action::make('disarm_for_today')
-            ->label('Van scherp')
-            ->tooltip('Haal scout van scherp voor vandaag')
-            ->icon('heroicon-o-bell-slash')
-            ->iconButton()
-            ->color('gray')
-            ->visible(fn (Position $record): bool => $record->status === 'scout'
-                && $record->isOwnedBy(auth()->user())
-                && $record->isArmedForEntryToday())
-            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
-            ->action(function (Position $record): void {
-                $record->update([
-                    'armed_for_entry_on' => null,
-                    'premarket_price' => null,
-                    'premarket_entry_trigger' => null,
-                    'premarket_gap_status' => null,
-                    'premarket_gap_pct' => null,
-                    'premarket_checked_at' => null,
-                ]);
-
-                FilamentNotifier::send(
-                    title: 'Scout van scherp',
-                    body: "{$record->ticker} wordt niet meer gecontroleerd vandaag.",
-                    status: 'info',
-                );
-            });
     }
 
     /**

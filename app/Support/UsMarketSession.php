@@ -18,14 +18,6 @@ class UsMarketSession
 
     public const PREMARKET_START_MINUTE = 0;
 
-    public const GATEKEEPER_START_HOUR = 14;
-
-    public const GATEKEEPER_START_MINUTE = 55;
-
-    public const GATEKEEPER_END_HOUR = 15;
-
-    public const GATEKEEPER_END_MINUTE = 10;
-
     public static function expectedLastCompletedSessionDate(?Carbon $now = null): Carbon
     {
         $now ??= Carbon::now('America/New_York');
@@ -104,10 +96,45 @@ class UsMarketSession
             return false;
         }
 
-        $start = $now->copy()->startOfDay()->setTime(self::GATEKEEPER_START_HOUR, self::GATEKEEPER_START_MINUTE);
-        $end = $now->copy()->startOfDay()->setTime(self::GATEKEEPER_END_HOUR, self::GATEKEEPER_END_MINUTE);
+        $start = self::gatekeeperWindowStart($now);
+        $end = self::gatekeeperWindowEnd($now);
 
         return $now->betweenIncluded($start, $end);
+    }
+
+    public static function gatekeeperWindowStart(?Carbon $now = null): Carbon
+    {
+        $now ??= Carbon::now('Europe/Amsterdam');
+
+        return self::parseGatekeeperTime(
+            (string) config('vestix.premarket.gatekeeper_window_start', '14:25'),
+            $now,
+        );
+    }
+
+    public static function gatekeeperWindowEnd(?Carbon $now = null): Carbon
+    {
+        $now ??= Carbon::now('Europe/Amsterdam');
+
+        return self::parseGatekeeperTime(
+            (string) config('vestix.premarket.gatekeeper_window_end', '15:15'),
+            $now,
+        );
+    }
+
+    public static function gatekeeperWindowLabel(): string
+    {
+        $start = (string) config('vestix.premarket.gatekeeper_window_start', '14:25');
+        $end = (string) config('vestix.premarket.gatekeeper_window_end', '15:15');
+
+        return "{$start}–{$end} Amsterdam";
+    }
+
+    private static function parseGatekeeperTime(string $time, Carbon $day): Carbon
+    {
+        [$hour, $minute] = array_pad(explode(':', $time), 2, '0');
+
+        return $day->copy()->startOfDay()->setTime((int) $hour, (int) $minute);
     }
 
     public static function previousTradingDay(Carbon $date): Carbon

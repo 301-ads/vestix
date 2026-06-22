@@ -16,7 +16,7 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
 
     protected function getColumns(): int|array|null
     {
-        return ['@xl' => 3, '@lg' => 2, 'default' => 1];
+        return ['@xl' => 4, '@lg' => 3, 'default' => 2];
     }
 
     protected function getStats(): array
@@ -60,9 +60,9 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
             return $distance <= 0.01;
         })->count();
 
-        $armedCount = $scouts->filter(fn (Position $scout): bool => $scout->isArmedForEntryToday())->count();
-
         $gapUpCount = $scouts->filter(fn (Position $scout): bool => $scout->hasPremarketGapUpRisk())->count();
+        $reclamationCount = $scouts->filter(fn (Position $scout): bool => $scout->hasPremarketReclamation())->count();
+        $landingCount = $scouts->filter(fn (Position $scout): bool => $scout->hasPremarketLanding())->count();
 
         return [
             Stat::make('Actieve Scouts', (string) $activeCount)
@@ -85,16 +85,21 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-bolt')
                 ->descriptionColor('gray')
                 ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--zinc']),
-            Stat::make('Op Scherp Vandaag', (string) $armedCount)
-                ->description('Pre-market check 15:00')
-                ->descriptionIcon('heroicon-m-bell-alert')
-                ->descriptionColor('warning')
-                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber']),
             Stat::make('Gap-up Risico', (string) $gapUpCount)
-                ->description('Boven entry-trigger')
+                ->description('Boven bounce high (14:30)')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
                 ->descriptionColor($gapUpCount > 0 ? 'danger' : 'success')
                 ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--vestix']),
+            Stat::make('Reclamation PM', (string) $reclamationCount)
+                ->description('Herovert SMA 20 pre-market')
+                ->descriptionIcon('heroicon-m-arrow-trending-up')
+                ->descriptionColor($reclamationCount > 0 ? 'success' : 'gray')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--green']),
+            Stat::make('Landing PM', (string) $landingCount)
+                ->description('Nadert SMA 20 pre-market')
+                ->descriptionIcon('heroicon-m-map-pin')
+                ->descriptionColor($landingCount > 0 ? 'warning' : 'gray')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber']),
         ];
     }
 }

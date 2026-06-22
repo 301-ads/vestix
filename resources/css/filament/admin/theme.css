@@ -975,6 +975,30 @@
     box-shadow: inset 3px 0 0 var(--color-danger-500);
 }
 
+.fi-ta-row:has(.scout-premarket-reclamation) {
+    background-color: color-mix(in srgb, var(--color-success-500) 8%, transparent);
+}
+
+.fi-ta-row:has(.scout-premarket-reclamation):hover {
+    background-color: color-mix(in srgb, var(--color-success-500) 12%, transparent);
+}
+
+.fi-ta-cell.scout-premarket-reclamation {
+    box-shadow: inset 3px 0 0 var(--color-success-500);
+}
+
+.fi-ta-row:has(.scout-premarket-landing) {
+    background-color: color-mix(in srgb, var(--color-warning-500) 8%, transparent);
+}
+
+.fi-ta-row:has(.scout-premarket-landing):hover {
+    background-color: color-mix(in srgb, var(--color-warning-500) 12%, transparent);
+}
+
+.fi-ta-cell.scout-premarket-landing {
+    box-shadow: inset 3px 0 0 var(--color-warning-500);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Ticker with icon                                                           */
 /* -------------------------------------------------------------------------- */

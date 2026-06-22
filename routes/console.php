@@ -23,10 +23,10 @@ Schedule::command('vestix:send-daily-digests')
     ->dailyAt('21:45')
     ->timezone('Europe/Amsterdam');
 
-// Pre-market gatekeeper: 30 min vóór US open (9:30 ET = 15:30 NL, check om 15:00 NL = 9:00 ET).
+// Pre-market gatekeeper: 60 min vóór US open (9:30 ET = 15:30 NL, scan om 14:30 NL = 8:30 ET).
 Schedule::command('vestix:premarket-gatekeeper')
     ->weekdays()
-    ->dailyAt('15:00')
+    ->dailyAt(config('vestix.premarket.gatekeeper_time', '14:30'))
     ->timezone('Europe/Amsterdam');
 
 Schedule::command('vestix:earnings-exit-alerts --phase=warning')

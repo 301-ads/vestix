@@ -55,7 +55,7 @@ class Dashboard extends BaseDashboard
                 ->disabled(fn (): bool => MarketDataFreshness::isSyncInProgress())
                 ->requiresConfirmation()
                 ->modalHeading('Marktdata ophalen')
-                ->modalDescription('Weet je zeker dat je marktdata nu wilt ophalen via Polygon? Let op je rate limit (max 5 calls/min op gratis tier). Dit kan enkele minuten duren.')
+                ->modalDescription('Weet je zeker dat je marktdata nu wilt ophalen via Polygon? Bij veel posities duurt de sync langer (rate limit: max 5 calls/min op gratis tier). Je krijgt een melding zodra alles klaar is.')
                 ->action(function (): void {
                     $userId = auth()->id();
 

@@ -4,7 +4,7 @@ namespace App\Models;
 
 use App\Enums\EarningsExitUrgency;
 use App\Enums\PositionVisibility;
-use App\Enums\PremarketGapStatus;
+use App\Enums\PremarketScanResult;
 use App\Services\AssetSyncService;
 use App\Support\EarningsExitSchedule;
 use App\Support\ScoutSetupScorecard;
@@ -46,11 +46,10 @@ class Position extends Model
             'last_setup_score' => 'integer',
             'telegram_a_minus_alert_sent_at' => 'datetime',
             'telegram_a_plus_alert_sent_at' => 'datetime',
-            'armed_for_entry_on' => 'date',
             'premarket_price' => 'decimal:2',
-            'premarket_entry_trigger' => 'decimal:2',
-            'premarket_gap_status' => PremarketGapStatus::class,
-            'premarket_gap_pct' => 'decimal:4',
+            'premarket_scan_type' => PremarketScanResult::class,
+            'premarket_reference_price' => 'decimal:2',
+            'premarket_distance_pct' => 'decimal:4',
             'premarket_checked_at' => 'datetime',
             'closed_at' => 'datetime',
             'freeride_secured_at' => 'datetime',
@@ -76,9 +75,9 @@ class Position extends Model
                 $position->telegram_a_minus_alert_sent_at = null;
                 $position->telegram_a_plus_alert_sent_at = null;
                 $position->premarket_price = null;
-                $position->premarket_entry_trigger = null;
-                $position->premarket_gap_status = null;
-                $position->premarket_gap_pct = null;
+                $position->premarket_scan_type = null;
+                $position->premarket_reference_price = null;
+                $position->premarket_distance_pct = null;
                 $position->premarket_checked_at = null;
             }
 
@@ -293,11 +292,10 @@ class Position extends Model
             'quantity' => $quantity,
             'current_sl' => $sl,
             'initial_sl' => $sl,
-            'armed_for_entry_on' => null,
             'premarket_price' => null,
-            'premarket_entry_trigger' => null,
-            'premarket_gap_status' => null,
-            'premarket_gap_pct' => null,
+            'premarket_scan_type' => null,
+            'premarket_reference_price' => null,
+            'premarket_distance_pct' => null,
             'premarket_checked_at' => null,
         ]);
     }
@@ -390,28 +388,35 @@ class Position extends Model
         return $query->whereIn('status', ['open', 'scout']);
     }
 
-    public function scopeArmedForEntry(Builder $query, ?Carbon $tradingDay = null): Builder
+    public function wasPremarketCheckedToday(?Carbon $now = null): bool
     {
-        $tradingDay ??= Carbon::now('America/New_York');
-
-        return $query->whereDate('armed_for_entry_on', $tradingDay->toDateString());
-    }
-
-    public function isArmedForEntryToday(?Carbon $now = null): bool
-    {
-        if ($this->armed_for_entry_on === null) {
+        if ($this->premarket_checked_at === null) {
             return false;
         }
 
         $now ??= Carbon::now('America/New_York');
 
-        return $this->armed_for_entry_on->toDateString() === $now->toDateString();
+        return $this->premarket_checked_at
+            ->timezone('America/New_York')
+            ->toDateString() === $now->toDateString();
     }
 
     public function hasPremarketGapUpRisk(): bool
     {
-        return $this->premarket_gap_status === PremarketGapStatus::GapUp
-            && $this->isArmedForEntryToday();
+        return $this->premarket_scan_type === PremarketScanResult::GapRisk
+            && $this->wasPremarketCheckedToday();
+    }
+
+    public function hasPremarketReclamation(): bool
+    {
+        return $this->premarket_scan_type === PremarketScanResult::Reclamation
+            && $this->wasPremarketCheckedToday();
+    }
+
+    public function hasPremarketLanding(): bool
+    {
+        return $this->premarket_scan_type === PremarketScanResult::Landing
+            && $this->wasPremarketCheckedToday();
     }
 
     public function scopeStoppedOut(Builder $query): Builder

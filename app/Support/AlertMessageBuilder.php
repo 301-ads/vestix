@@ -41,11 +41,25 @@ class AlertMessageBuilder
             ),
             AlertEventType::DailyDigest => $context['digest_body'] ?? 'Geen actiepunten vandaag.',
             AlertEventType::PremarketGapRisk => sprintf(
-                '<b>[Swingdash] WAARSCHUWING:</b> %s noteert $%s in pre-market. Dit is %s%% boven je entry-trigger ($%s). Risico op chasing — overweeg order te annuleren. <a href="%s">Open setup</a>',
+                '<b>[Swingdash] WAARSCHUWING:</b> Pas op, risico op chasing bij %s! Pre-market noteert $%s (%.2f%% boven bounce high $%s). <a href="%s">Open setup</a>',
                 e($position->ticker),
                 number_format((float) ($context['premarket_price'] ?? $position->premarket_price ?? 0), 2),
-                number_format((float) ($context['gap_pct'] ?? $position->premarket_gap_pct ?? 0), 2),
-                number_format((float) ($context['entry_trigger'] ?? $position->premarket_entry_trigger ?? $position->entry_price ?? 0), 2),
+                number_format((float) ($context['gap_pct'] ?? $position->premarket_distance_pct ?? 0), 2),
+                number_format((float) ($context['bounce_high'] ?? $position->premarket_reference_price ?? $position->signal_high ?? 0), 2),
+                ScoutResource::getUrl('edit', ['record' => $position]),
+            ),
+            AlertEventType::PremarketReclamation => sprintf(
+                '<b>[Swingdash] Kopers actief!</b> %s herovert SMA 20 pre-market ($%s). Potentiële intraday setup. <a href="%s">Open setup</a>',
+                e($position->ticker),
+                number_format((float) ($context['premarket_price'] ?? $position->premarket_price ?? 0), 2),
+                ScoutResource::getUrl('edit', ['record' => $position]),
+            ),
+            AlertEventType::PremarketLanding => sprintf(
+                '<b>[Swingdash] Landing nadert:</b> %s noteert $%s pre-market (%.2f%% onder SMA 20 $%s). Potentiële landing. <a href="%s">Open setup</a>',
+                e($position->ticker),
+                number_format((float) ($context['premarket_price'] ?? $position->premarket_price ?? 0), 2),
+                number_format((float) ($context['distance_pct'] ?? $position->premarket_distance_pct ?? 0), 2),
+                number_format((float) ($context['sma_20'] ?? $position->premarket_reference_price ?? $position->latest_sma_20 ?? 0), 2),
                 ScoutResource::getUrl('edit', ['record' => $position]),
             ),
             AlertEventType::EarningsWarning => sprintf(

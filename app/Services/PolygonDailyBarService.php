@@ -3,12 +3,16 @@
 namespace App\Services;
 
 use App\Contracts\DailyBarProvider;
+use App\Support\PolygonRateLimiter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class PolygonDailyBarService implements DailyBarProvider
 {
+    public function __construct(
+        private readonly PolygonRateLimiter $rateLimiter,
+    ) {}
     /**
      * @return array{
      *     today: array{open: float, high: float, low: float, close: float, volume: float},
@@ -31,23 +35,16 @@ class PolygonDailyBarService implements DailyBarProvider
         $baseUrl = rtrim(config('vestix.polygon.base_url'), '/');
 
         try {
-            $response = Http::timeout(30)->get(
-                "{$baseUrl}/v2/aggs/ticker/{$ticker}/range/1/day/{$from->format('Y-m-d')}/{$to->format('Y-m-d')}",
-                [
-                    'apiKey' => $apiKey,
-                    'adjusted' => 'true',
-                    'sort' => 'asc',
-                    'limit' => $limit,
-                ],
+            $response = $this->requestDailyBars(
+                $baseUrl,
+                $ticker,
+                $from,
+                $to,
+                $apiKey,
+                $limit,
             );
 
-            if (! $response->successful()) {
-                Log::warning('Polygon daily bars request failed.', [
-                    'status' => $response->status(),
-                    'ticker' => $ticker,
-                    'message' => $response->json('message'),
-                ]);
-
+            if ($response === null) {
                 return null;
             }
 
@@ -117,5 +114,54 @@ class PolygonDailyBarService implements DailyBarProvider
     public static function isBounceDay(float $low, float $close, float $sma20): bool
     {
         return $low < $sma20 && $close > $sma20;
+    }
+
+    /**
+     * @return \Illuminate\Http\Client\Response|null
+     */
+    private function requestDailyBars(
+        string $baseUrl,
+        string $ticker,
+        Carbon $from,
+        Carbon $to,
+        string $apiKey,
+        int $limit,
+    ): ?\Illuminate\Http\Client\Response {
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $this->rateLimiter->waitBeforeRequest();
+
+            $response = Http::timeout(30)->get(
+                "{$baseUrl}/v2/aggs/ticker/{$ticker}/range/1/day/{$from->format('Y-m-d')}/{$to->format('Y-m-d')}",
+                [
+                    'apiKey' => $apiKey,
+                    'adjusted' => 'true',
+                    'sort' => 'asc',
+                    'limit' => $limit,
+                ],
+            );
+
+            if ($response->status() === 429 && $attempt === 0) {
+                Log::warning('Polygon daily bars rate limited — retrying after delay.', [
+                    'ticker' => $ticker,
+                ]);
+                $this->rateLimiter->waitAfterRateLimitResponse();
+
+                continue;
+            }
+
+            if (! $response->successful()) {
+                Log::warning('Polygon daily bars request failed.', [
+                    'status' => $response->status(),
+                    'ticker' => $ticker,
+                    'message' => $response->json('message'),
+                ]);
+
+                return null;
+            }
+
+            return $response;
+        }
+
+        return null;
     }
 }

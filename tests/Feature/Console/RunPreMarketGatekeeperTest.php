@@ -3,7 +3,7 @@
 namespace Tests\Feature\Console;
 
 use App\Contracts\QuoteProvider;
-use App\Enums\PremarketGapStatus;
+use App\Enums\PremarketScanResult;
 use App\Models\Position;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -29,19 +29,13 @@ class RunPreMarketGatekeeperTest extends TestCase
             ->assertSuccessful();
     }
 
-    public function test_command_explains_when_no_scouts_are_armed(): void
+    public function test_command_warns_when_watchlist_is_empty(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Europe/Amsterdam'));
 
-        Position::factory()->scout()->create([
-            'entry_price' => 50.00,
-            'signal_high' => 49.00,
-            'armed_for_entry_on' => null,
-        ]);
-
         $this->artisan('vestix:premarket-gatekeeper --force')
-            ->expectsOutputToContain('Scouts op scherp: 0')
-            ->expectsOutputToContain('Geen scouts op scherp voor vandaag')
+            ->expectsOutputToContain('Scouts op watchlist: 0')
+            ->expectsOutputToContain('Geen scouts op de watchlist')
             ->assertSuccessful();
     }
 
@@ -52,22 +46,24 @@ class RunPreMarketGatekeeperTest extends TestCase
         $position = Position::factory()->scout()->create([
             'entry_price' => 50.00,
             'signal_high' => 49.00,
-            'armed_for_entry_on' => '2026-06-15',
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
         $quoteProvider->shouldReceive('fetchLivePrice')
             ->once()
             ->with($position->ticker)
-            ->andReturn(60.00);
+            ->andReturn(50.00);
 
         $this->app->instance(QuoteProvider::class, $quoteProvider);
 
         $this->artisan('vestix:premarket-gatekeeper --force')
             ->expectsOutputToContain('Pre-Market Gatekeeper gestart')
+            ->expectsOutputToContain('Verwachte API-calls: 1')
+            ->expectsOutputToContain('Geschatte duur: ~13s')
+            ->expectsOutputToContain('Voltooid in')
             ->assertSuccessful();
 
         $position->refresh();
-        $this->assertSame(PremarketGapStatus::GapUp, $position->premarket_gap_status);
+        $this->assertSame(PremarketScanResult::GapRisk, $position->premarket_scan_type);
     }
 }

@@ -408,30 +408,4 @@ class ScoutWatchlistTest extends TestCase
 
         MarketDataTestTime::reset();
     }
-
-    public function test_scout_can_be_armed_and_disarmed_for_today(): void
-    {
-        Carbon::setTestNow(Carbon::parse('2026-06-15 12:00:00', 'America/New_York'));
-
-        $user = $this->authenticateFilament();
-        $scout = Position::factory()->for($user)->scout()->create([
-            'ticker' => 'ON',
-            'entry_price' => 50.00,
-            'signal_high' => 49.00,
-            'latest_atr_14' => 10.00,
-        ]);
-
-        Livewire::test(ListScouts::class)
-            ->callTableAction('arm_for_today', $scout);
-
-        $scout->refresh();
-        $this->assertSame('2026-06-15', $scout->armed_for_entry_on->toDateString());
-        $this->assertTrue($scout->isArmedForEntryToday());
-
-        Livewire::test(ListScouts::class)
-            ->callTableAction('disarm_for_today', $scout);
-
-        $scout->refresh();
-        $this->assertNull($scout->armed_for_entry_on);
-    }
 }

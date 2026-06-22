@@ -15,6 +15,7 @@ class PolygonQuoteProviderTest extends TestCase
         config([
             'vestix.polygon.api_key' => 'test-polygon-key',
             'vestix.polygon.base_url' => 'https://api.polygon.io',
+            'vestix.polygon.rate_limit_delay' => 0,
         ]);
     }
 
@@ -27,7 +28,7 @@ class PolygonQuoteProviderTest extends TestCase
             ]),
         ]);
 
-        $provider = new PolygonQuoteProvider;
+        $provider = app(PolygonQuoteProvider::class);
 
         $this->assertSame(263.22, $provider->fetchLivePrice('PANW'));
     }
@@ -38,7 +39,7 @@ class PolygonQuoteProviderTest extends TestCase
 
         Http::fake();
 
-        $provider = new PolygonQuoteProvider;
+        $provider = app(PolygonQuoteProvider::class);
 
         $this->assertNull($provider->fetchLivePrice('PANW'));
         Http::assertNothingSent();
@@ -53,7 +54,7 @@ class PolygonQuoteProviderTest extends TestCase
             ]),
         ]);
 
-        $provider = new PolygonQuoteProvider;
+        $provider = app(PolygonQuoteProvider::class);
 
         $this->assertNull($provider->fetchLivePrice('PANW'));
     }

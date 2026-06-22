@@ -10,6 +10,8 @@ enum AlertEventType: string
     case DailyDigest = 'daily_digest';
     case SquadCopyAlert = 'squad_copy_alert';
     case PremarketGapRisk = 'premarket_gap_risk';
+    case PremarketReclamation = 'premarket_reclamation';
+    case PremarketLanding = 'premarket_landing';
     case EarningsWarning = 'earnings_warning';
     case EarningsActionRequired = 'earnings_action_required';
 
@@ -24,6 +26,8 @@ enum AlertEventType: string
             self::StoppedOut->value,
             self::DailyDigest->value,
             self::PremarketGapRisk->value,
+            self::PremarketReclamation->value,
+            self::PremarketLanding->value,
             self::EarningsWarning->value,
             self::EarningsActionRequired->value,
         ];
