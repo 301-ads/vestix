@@ -639,16 +639,15 @@ class PositionForm
             ->columnSpanFull()
             ->contained(false)
             ->schema([
-                Callout::make('premarket_gap_warning')
+                Callout::make('Gap-up risico')
                     ->visible(fn (?Position $record): bool => $record?->hasPremarketGapUpRisk() ?? false)
-                    ->color('danger')
-                    ->icon('heroicon-o-exclamation-triangle')
-                    ->title('Gap-up risico')
                     ->description(fn (?Position $record): string => sprintf(
                         'Let op: Pre-market noteert $%s. Dit is boven je entry-trigger ($%s). Risico op chasing!',
                         number_format((float) ($record?->premarket_price ?? 0), 2),
                         number_format((float) ($record?->premarket_entry_trigger ?? $record?->entry_price ?? 0), 2),
-                    )),
+                    ))
+                    ->danger()
+                    ->icon('heroicon-o-exclamation-triangle'),
                 Grid::make(4)
                     ->extraAttributes(['class' => 'position-cockpit-grid'])
                     ->schema(self::scoutCockpitCards())
