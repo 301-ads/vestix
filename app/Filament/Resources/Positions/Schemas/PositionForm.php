@@ -9,6 +9,7 @@ use App\Services\SquadContext;
 use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ClosePriceTrend;
+use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SlPriceProximity;
 use Filament\Forms\Components\Hidden;
@@ -638,6 +639,16 @@ class PositionForm
             ->columnSpanFull()
             ->contained(false)
             ->schema([
+                Callout::make('premarket_gap_warning')
+                    ->visible(fn (?Position $record): bool => $record?->hasPremarketGapUpRisk() ?? false)
+                    ->color('danger')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->title('Gap-up risico')
+                    ->description(fn (?Position $record): string => sprintf(
+                        'Let op: Pre-market noteert $%s. Dit is boven je entry-trigger ($%s). Risico op chasing!',
+                        number_format((float) ($record?->premarket_price ?? 0), 2),
+                        number_format((float) ($record?->premarket_entry_trigger ?? $record?->entry_price ?? 0), 2),
+                    )),
                 Grid::make(4)
                     ->extraAttributes(['class' => 'position-cockpit-grid'])
                     ->schema(self::scoutCockpitCards())
@@ -688,13 +699,25 @@ class PositionForm
      */
     private static function scoutCockpitCards(): array
     {
-        return [
+        $cards = [
             View::make('filament.positions.cockpit-stat-card')
                 ->viewData(fn (Get $get, ?Position $record): array => [
                     'label' => 'Actuele Koers',
                     'value' => self::formatUsd($get('latest_close_price') ?? $record?->latest_close_price),
                     'cardVariant' => 'blue',
                 ]),
+        ];
+
+        $cards[] = View::make('filament.positions.cockpit-stat-card')
+            ->visible(fn (?Position $record): bool => $record !== null && PremarketGatekeeperDisplay::isRelevant($record))
+            ->viewData(fn (Get $get, ?Position $record): array => PremarketGatekeeperDisplay::cockpitCardData($record)
+                ?? [
+                    'label' => 'Pre-Market',
+                    'value' => '—',
+                    'cardVariant' => 'blue',
+                ]);
+
+        $cards = array_merge($cards, [
             View::make('filament.positions.cockpit-stat-card')
                 ->viewData(fn (Get $get, ?Position $record): array => self::berekendeSlCardViewData($get, $record)),
             View::make('filament.positions.cockpit-stat-card')
@@ -722,7 +745,9 @@ class PositionForm
                         'cardVariant' => 'zinc',
                     ];
                 }),
-        ];
+        ]);
+
+        return $cards;
     }
 
     private static function formatSignedPnl(Get $get, ?Position $record): string

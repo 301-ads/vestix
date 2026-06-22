@@ -963,6 +963,18 @@
         0 0 28px rgb(0 212 146 / 0.45);
 }
 
+.fi-ta-row:has(.scout-premarket-gap-up) {
+    background-color: color-mix(in srgb, var(--color-danger-500) 8%, transparent);
+}
+
+.fi-ta-row:has(.scout-premarket-gap-up):hover {
+    background-color: color-mix(in srgb, var(--color-danger-500) 12%, transparent);
+}
+
+.fi-ta-cell.scout-premarket-gap-up {
+    box-shadow: inset 3px 0 0 var(--color-danger-500);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Ticker with icon                                                           */
 /* -------------------------------------------------------------------------- */

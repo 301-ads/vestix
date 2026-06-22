@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Positions\Tables;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\PremarketGatekeeperDisplay;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -35,7 +36,12 @@ class ScoutsTable
                         ->label('Ticker')
                         ->searchable()
                         ->sortable()
-                        ->width('4rem'),
+                        ->width('4rem')
+                        ->extraCellAttributes(function (Position $record): array {
+                            $class = PremarketGatekeeperDisplay::rowClass($record);
+
+                            return $class !== null ? ['class' => $class] : [];
+                        }),
                 ),
                 TextColumn::make('squad.name')
                     ->label('Squad')
@@ -84,6 +90,20 @@ class ScoutsTable
                     ->color(fn (Position $record): string => self::setupGradeColor($record))
                     ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->placeholder('—'),
+                TextColumn::make('armed_for_entry_on')
+                    ->label('Scherp')
+                    ->state(fn (Position $record): ?string => $record->isArmedForEntryToday() ? 'Vandaag' : null)
+                    ->badge()
+                    ->color('warning')
+                    ->placeholder('—')
+                    ->visible(! $squadMode),
+                TextColumn::make('premarket_gap_status')
+                    ->label('Pre-Market')
+                    ->state(fn (Position $record): ?string => PremarketGatekeeperDisplay::gapStatusLabel($record))
+                    ->badge()
+                    ->color(fn (Position $record): string => PremarketGatekeeperDisplay::gapStatusColor($record))
+                    ->placeholder('—')
+                    ->visible(! $squadMode),
                 ColumnGroup::make(PositionsTable::schildGroupLabel())
                     ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
                     ->columns([
@@ -93,6 +113,8 @@ class ScoutsTable
                     ]),
             ])
             ->recordActions([
+                PositionRecordActions::armForToday(),
+                PositionRecordActions::disarmForToday(),
                 PositionRecordActions::activateScout(),
                 PositionRecordActions::cloneTarget($resourceClass),
                 ActionGroup::make([

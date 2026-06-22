@@ -9,6 +9,7 @@ enum AlertEventType: string
     case StoppedOut = 'stopped_out';
     case DailyDigest = 'daily_digest';
     case SquadCopyAlert = 'squad_copy_alert';
+    case PremarketGapRisk = 'premarket_gap_risk';
 
     /**
      * @return list<string>
@@ -20,6 +21,7 @@ enum AlertEventType: string
             self::FreerideSecured->value,
             self::StoppedOut->value,
             self::DailyDigest->value,
+            self::PremarketGapRisk->value,
         ];
     }
 

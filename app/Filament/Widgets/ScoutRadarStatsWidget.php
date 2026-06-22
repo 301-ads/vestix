@@ -16,7 +16,7 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
 
     protected function getColumns(): int|array|null
     {
-        return ['@xl' => 4, '@lg' => 2, 'default' => 1];
+        return ['@xl' => 6, '@lg' => 3, 'default' => 1];
     }
 
     protected function getStats(): array
@@ -60,6 +60,10 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
             return $distance <= 0.01;
         })->count();
 
+        $armedCount = $scouts->filter(fn (Position $scout): bool => $scout->isArmedForEntryToday())->count();
+
+        $gapUpCount = $scouts->filter(fn (Position $scout): bool => $scout->hasPremarketGapUpRisk())->count();
+
         return [
             Stat::make('Actieve Scouts', (string) $activeCount)
                 ->description('Op je watchlist')
@@ -81,6 +85,16 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-bolt')
                 ->descriptionColor('gray')
                 ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--zinc']),
+            Stat::make('Op Scherp Vandaag', (string) $armedCount)
+                ->description('Pre-market check 15:00')
+                ->descriptionIcon('heroicon-m-bell-alert')
+                ->descriptionColor('warning')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber']),
+            Stat::make('Gap-up Risico', (string) $gapUpCount)
+                ->description('Boven entry-trigger')
+                ->descriptionIcon('heroicon-m-exclamation-triangle')
+                ->descriptionColor($gapUpCount > 0 ? 'danger' : 'success')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--vestix']),
         ];
     }
 }

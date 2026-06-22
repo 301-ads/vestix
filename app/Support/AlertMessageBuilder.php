@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\AlertEventType;
+use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Models\User;
 
@@ -37,6 +38,14 @@ class AlertMessageBuilder
                 e($position->ticker),
             ),
             AlertEventType::DailyDigest => $context['digest_body'] ?? 'Geen actiepunten vandaag.',
+            AlertEventType::PremarketGapRisk => sprintf(
+                '<b>[Swingdash] WAARSCHUWING:</b> %s noteert $%s in pre-market. Dit is %s%% boven je entry-trigger ($%s). Risico op chasing — overweeg order te annuleren. <a href="%s">Open setup</a>',
+                e($position->ticker),
+                number_format((float) ($context['premarket_price'] ?? $position->premarket_price ?? 0), 2),
+                number_format((float) ($context['gap_pct'] ?? $position->premarket_gap_pct ?? 0), 2),
+                number_format((float) ($context['entry_trigger'] ?? $position->premarket_entry_trigger ?? $position->entry_price ?? 0), 2),
+                ScoutResource::getUrl('edit', ['record' => $position]),
+            ),
         };
     }
 

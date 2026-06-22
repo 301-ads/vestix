@@ -6,6 +6,7 @@ use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\PremarketGatekeeperDisplay;
 use Filament\Actions\ActionGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -35,7 +36,12 @@ class SetupRadarWidget extends TableWidget
             ->columns([
                 TickerColumn::wrap(
                     TextColumn::make('ticker')
-                        ->label('Ticker'),
+                        ->label('Ticker')
+                        ->extraCellAttributes(function (Position $record): array {
+                            $class = PremarketGatekeeperDisplay::rowClass($record);
+
+                            return $class !== null ? ['class' => $class] : [];
+                        }),
                 ),
                 TextColumn::make('latest_close_price')
                     ->label('Close')
@@ -55,8 +61,16 @@ class SetupRadarWidget extends TableWidget
                     ->suffix('%')
                     ->placeholder('—')
                     ->color('warning'),
+                TextColumn::make('premarket_gap_status')
+                    ->label('Pre-Market')
+                    ->state(fn (Position $record): ?string => PremarketGatekeeperDisplay::gapStatusLabel($record))
+                    ->badge()
+                    ->color(fn (Position $record): string => PremarketGatekeeperDisplay::gapStatusColor($record))
+                    ->placeholder('—'),
             ])
             ->recordActions([
+                PositionRecordActions::armForToday(),
+                PositionRecordActions::disarmForToday(),
                 PositionRecordActions::activateScout(),
                 ActionGroup::make([
                     PositionRecordActions::shareSetup(),

@@ -63,6 +63,7 @@ class EditUserProfile extends EditProfile
                                 AlertEventType::FreerideSecured->value => 'Freeride secured (winst veiliggesteld)',
                                 AlertEventType::StoppedOut->value => 'Stopped out',
                                 AlertEventType::DailyDigest->value => 'Dagelijkse digest (21:45)',
+                                AlertEventType::PremarketGapRisk->value => 'Pre-market gap-up waarschuwing (15:00)',
                                 AlertEventType::SquadCopyAlert->value => 'Squad copy-alerts (Ghost Mode)',
                             ])
                             ->default(AlertEventType::defaults())

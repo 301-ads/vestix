@@ -44,4 +44,33 @@ class UsMarketSessionTest extends TestCase
         $this->assertFalse(UsMarketSession::isBarStale('2026-06-15'));
         $this->assertTrue(UsMarketSession::needsLatestSessionQuote('2026-06-12'));
     }
+
+    public function test_premarket_window_on_weekday_morning(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 08:00:00', 'America/New_York'));
+
+        $this->assertTrue(UsMarketSession::isUsTradingDay());
+        $this->assertTrue(UsMarketSession::isPremarketWindow());
+    }
+
+    public function test_premarket_window_is_false_during_regular_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 11:00:00', 'America/New_York'));
+
+        $this->assertFalse(UsMarketSession::isPremarketWindow());
+    }
+
+    public function test_gatekeeper_window_at_fifteen_hundred_amsterdam(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 15:00:00', 'Europe/Amsterdam'));
+
+        $this->assertTrue(UsMarketSession::isGatekeeperWindow());
+    }
+
+    public function test_gatekeeper_window_is_false_outside_margin(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 14:00:00', 'Europe/Amsterdam'));
+
+        $this->assertFalse(UsMarketSession::isGatekeeperWindow());
+    }
 }

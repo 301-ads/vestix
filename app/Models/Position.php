@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\PositionVisibility;
+use App\Enums\PremarketGapStatus;
 use App\Services\AssetSyncService;
 use App\Support\ScoutSetupScorecard;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
@@ -42,6 +44,12 @@ class Position extends Model
             'last_setup_score' => 'integer',
             'telegram_a_minus_alert_sent_at' => 'datetime',
             'telegram_a_plus_alert_sent_at' => 'datetime',
+            'armed_for_entry_on' => 'date',
+            'premarket_price' => 'decimal:2',
+            'premarket_entry_trigger' => 'decimal:2',
+            'premarket_gap_status' => PremarketGapStatus::class,
+            'premarket_gap_pct' => 'decimal:4',
+            'premarket_checked_at' => 'datetime',
             'closed_at' => 'datetime',
             'freeride_secured_at' => 'datetime',
             'initial_sl' => 'decimal:2',
@@ -65,6 +73,11 @@ class Position extends Model
             if ($position->isDirty('entry_price')) {
                 $position->telegram_a_minus_alert_sent_at = null;
                 $position->telegram_a_plus_alert_sent_at = null;
+                $position->premarket_price = null;
+                $position->premarket_entry_trigger = null;
+                $position->premarket_gap_status = null;
+                $position->premarket_gap_pct = null;
+                $position->premarket_checked_at = null;
             }
 
             $position->deleteReplacedChartScreenshot('entry_chart_screenshot_path');
@@ -278,6 +291,12 @@ class Position extends Model
             'quantity' => $quantity,
             'current_sl' => $sl,
             'initial_sl' => $sl,
+            'armed_for_entry_on' => null,
+            'premarket_price' => null,
+            'premarket_entry_trigger' => null,
+            'premarket_gap_status' => null,
+            'premarket_gap_pct' => null,
+            'premarket_checked_at' => null,
         ]);
     }
 
@@ -367,6 +386,30 @@ class Position extends Model
     public function scopeTracked(Builder $query): Builder
     {
         return $query->whereIn('status', ['open', 'scout']);
+    }
+
+    public function scopeArmedForEntry(Builder $query, ?Carbon $tradingDay = null): Builder
+    {
+        $tradingDay ??= Carbon::now('America/New_York');
+
+        return $query->whereDate('armed_for_entry_on', $tradingDay->toDateString());
+    }
+
+    public function isArmedForEntryToday(?Carbon $now = null): bool
+    {
+        if ($this->armed_for_entry_on === null) {
+            return false;
+        }
+
+        $now ??= Carbon::now('America/New_York');
+
+        return $this->armed_for_entry_on->toDateString() === $now->toDateString();
+    }
+
+    public function hasPremarketGapUpRisk(): bool
+    {
+        return $this->premarket_gap_status === PremarketGapStatus::GapUp
+            && $this->isArmedForEntryToday();
     }
 
     public function scopeStoppedOut(Builder $query): Builder

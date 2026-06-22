@@ -69,14 +69,29 @@ class AlertDispatcher
             }
 
             if ($channel->send($user, $message)) {
-                PositionAlert::query()->create([
-                    'user_id' => $user->id,
-                    'position_id' => $position->id,
-                    'event_type' => $event,
-                    'channel_type' => $preference->channel_type,
-                    'payload' => $context,
-                    'sent_at' => now(),
-                ]);
+                if ($event === AlertEventType::PremarketGapRisk) {
+                    PositionAlert::query()->updateOrCreate(
+                        [
+                            'position_id' => $position->id,
+                            'event_type' => $event,
+                            'channel_type' => $preference->channel_type,
+                        ],
+                        [
+                            'user_id' => $user->id,
+                            'payload' => $context,
+                            'sent_at' => now(),
+                        ],
+                    );
+                } else {
+                    PositionAlert::query()->create([
+                        'user_id' => $user->id,
+                        'position_id' => $position->id,
+                        'event_type' => $event,
+                        'channel_type' => $preference->channel_type,
+                        'payload' => $context,
+                        'sent_at' => now(),
+                    ]);
+                }
                 $sent = true;
             } else {
                 Log::warning('Alert delivery failed.', [
@@ -116,10 +131,17 @@ class AlertDispatcher
             return false;
         }
 
-        return PositionAlert::query()
+        $query = PositionAlert::query()
             ->where('position_id', $positionId)
             ->where('event_type', $event)
-            ->where('channel_type', $channel)
-            ->exists();
+            ->where('channel_type', $channel);
+
+        if ($event === AlertEventType::PremarketGapRisk) {
+            return $query
+                ->whereDate('sent_at', now()->toDateString())
+                ->exists();
+        }
+
+        return $query->exists();
     }
 }
