@@ -16,7 +16,7 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
 
     protected function getColumns(): int|array|null
     {
-        return ['@xl' => 6, '@lg' => 3, 'default' => 1];
+        return ['@xl' => 3, '@lg' => 2, 'default' => 1];
     }
 
     protected function getStats(): array

@@ -60,13 +60,10 @@ class SetupRadarWidget extends TableWidget
                     ->numeric(decimalPlaces: 2)
                     ->suffix('%')
                     ->placeholder('—')
-                    ->color('warning'),
-                TextColumn::make('premarket_gap_status')
-                    ->label('Pre-Market')
-                    ->state(fn (Position $record): ?string => PremarketGatekeeperDisplay::gapStatusLabel($record))
-                    ->badge()
-                    ->color(fn (Position $record): string => PremarketGatekeeperDisplay::gapStatusColor($record))
-                    ->placeholder('—'),
+                    ->color('warning')
+                    ->tooltip(fn (Position $record): ?string => $record->planned_risk_dollars !== null
+                        ? '$'.number_format($record->planned_risk_dollars, 2)
+                        : null),
             ])
             ->recordActions([
                 PositionRecordActions::armForToday(),

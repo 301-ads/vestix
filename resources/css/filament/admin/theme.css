@@ -1207,6 +1207,14 @@
     align-items: stretch;
 }
 
+.vestix-position-edit .position-cockpit-grid--premarket {
+    margin-top: 0;
+}
+
+.vestix-position-edit .position-cockpit-grid--premarket.fi-grid {
+    gap: 1rem;
+}
+
 .vestix-position-edit .position-cockpit-grid .vestix-stat-card {
     padding: 1.5rem;
     border: 1px solid var(--vestix-border);

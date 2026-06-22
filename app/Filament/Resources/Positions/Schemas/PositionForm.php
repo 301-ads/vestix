@@ -650,7 +650,11 @@ class PositionForm
                     ->icon('heroicon-o-exclamation-triangle'),
                 Grid::make(4)
                     ->extraAttributes(['class' => 'position-cockpit-grid'])
-                    ->schema(self::scoutCockpitCards())
+                    ->schema(self::scoutCockpitPrimaryCards())
+                    ->columnSpanFull(),
+                Grid::make(4)
+                    ->extraAttributes(['class' => 'position-cockpit-grid position-cockpit-grid--premarket'])
+                    ->schema(self::scoutPremarketCards())
                     ->columnSpanFull(),
             ]);
     }
@@ -696,27 +700,27 @@ class PositionForm
     /**
      * @return array<int, View>
      */
-    private static function scoutCockpitCards(): array
+    private static function scoutCockpitPrimaryCards(): array
     {
-        $cards = [
+        return [
             View::make('filament.positions.cockpit-stat-card')
                 ->viewData(fn (Get $get, ?Position $record): array => [
                     'label' => 'Actuele Koers',
                     'value' => self::formatUsd($get('latest_close_price') ?? $record?->latest_close_price),
                     'cardVariant' => 'blue',
                 ]),
-        ];
+            View::make('filament.positions.cockpit-stat-card')
+                ->viewData(function (Get $get, ?Position $record): array {
+                    $investment = self::formatPlannedInvestment($get, $record);
 
-        $cards[] = View::make('filament.positions.cockpit-stat-card')
-            ->visible(fn (?Position $record): bool => $record !== null && PremarketGatekeeperDisplay::isRelevant($record))
-            ->viewData(fn (Get $get, ?Position $record): array => PremarketGatekeeperDisplay::cockpitCardData($record)
-                ?? [
-                    'label' => 'Pre-Market',
-                    'value' => '—',
-                    'cardVariant' => 'blue',
-                ]);
-
-        $cards = array_merge($cards, [
+                    return [
+                        'label' => 'Totale inleg',
+                        'value' => $investment['value'],
+                        'description' => $investment['text'] ?? null,
+                        'descriptionColor' => 'gray',
+                        'cardVariant' => 'zinc',
+                    ];
+                }),
             View::make('filament.positions.cockpit-stat-card')
                 ->viewData(fn (Get $get, ?Position $record): array => self::berekendeSlCardViewData($get, $record)),
             View::make('filament.positions.cockpit-stat-card')
@@ -732,21 +736,24 @@ class PositionForm
                         'cardVariant' => 'amber',
                     ];
                 }),
+        ];
+    }
+
+    /**
+     * @return array<int, View>
+     */
+    private static function scoutPremarketCards(): array
+    {
+        return [
             View::make('filament.positions.cockpit-stat-card')
-                ->viewData(function (Get $get, ?Position $record): array {
-                    $investment = self::formatPlannedInvestment($get, $record);
-
-                    return [
-                        'label' => 'Totale inleg',
-                        'value' => $investment['value'],
-                        'description' => $investment['text'] ?? null,
-                        'descriptionColor' => 'gray',
-                        'cardVariant' => 'zinc',
-                    ];
-                }),
-        ]);
-
-        return $cards;
+                ->visible(fn (?Position $record): bool => $record !== null && PremarketGatekeeperDisplay::isRelevant($record))
+                ->viewData(fn (Get $get, ?Position $record): array => PremarketGatekeeperDisplay::cockpitCardData($record)
+                    ?? [
+                        'label' => 'Pre-Market',
+                        'value' => '—',
+                        'cardVariant' => 'blue',
+                    ]),
+        ];
     }
 
     private static function formatSignedPnl(Get $get, ?Position $record): string

@@ -70,18 +70,16 @@ class ScoutsTable
                     ->placeholder('—')
                     ->sortable()
                     ->width('5.5rem'),
-                TextColumn::make('planned_risk_dollars')
-                    ->label('Risico ($)')
-                    ->money('usd')
-                    ->placeholder('—')
-                    ->color('warning')
-                    ->visible(! $squadMode),
                 TextColumn::make('planned_risk_percentage')
                     ->label('Risico (%)')
                     ->numeric(decimalPlaces: 2)
                     ->suffix('%')
                     ->placeholder('—')
                     ->color('warning')
+                    ->sortable()
+                    ->tooltip(fn (Position $record): ?string => $record->planned_risk_dollars !== null
+                        ? '$'.number_format($record->planned_risk_dollars, 2)
+                        : null)
                     ->visible(! $squadMode),
                 TextColumn::make('setup_grade')
                     ->label('Setup Grade')
@@ -90,20 +88,6 @@ class ScoutsTable
                     ->color(fn (Position $record): string => self::setupGradeColor($record))
                     ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->placeholder('—'),
-                TextColumn::make('armed_for_entry_on')
-                    ->label('Scherp')
-                    ->state(fn (Position $record): ?string => $record->isArmedForEntryToday() ? 'Vandaag' : null)
-                    ->badge()
-                    ->color('warning')
-                    ->placeholder('—')
-                    ->visible(! $squadMode),
-                TextColumn::make('premarket_gap_status')
-                    ->label('Pre-Market')
-                    ->state(fn (Position $record): ?string => PremarketGatekeeperDisplay::gapStatusLabel($record))
-                    ->badge()
-                    ->color(fn (Position $record): string => PremarketGatekeeperDisplay::gapStatusColor($record))
-                    ->placeholder('—')
-                    ->visible(! $squadMode),
                 ColumnGroup::make(PositionsTable::schildGroupLabel())
                     ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
                     ->columns([
