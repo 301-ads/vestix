@@ -28,3 +28,13 @@ Schedule::command('vestix:premarket-gatekeeper')
     ->weekdays()
     ->dailyAt('15:00')
     ->timezone('Europe/Amsterdam');
+
+Schedule::command('vestix:earnings-exit-alerts --phase=warning')
+    ->weekdays()
+    ->dailyAt('08:00')
+    ->timezone('Europe/Amsterdam');
+
+Schedule::command('vestix:earnings-exit-alerts --phase=action')
+    ->weekdays()
+    ->dailyAt('15:00')
+    ->timezone('Europe/Amsterdam');

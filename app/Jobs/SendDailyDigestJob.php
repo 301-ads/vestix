@@ -28,7 +28,8 @@ class SendDailyDigestJob implements ShouldQueue
                     $command = $position->action_command;
 
                     return in_array($command, ['UPDATE', 'STOPPED OUT'], true)
-                        || $position->isInDangerZone();
+                        || $position->isInDangerZone()
+                        || $position->requiresEarningsExit();
                 })
                 ->values()
                 ->all();

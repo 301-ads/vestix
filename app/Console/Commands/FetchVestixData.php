@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Jobs\CheckPositionAlertTriggersJob;
 use App\Models\Position;
 use App\Models\User;
+use App\Services\EarningsCalendarSyncService;
 use App\Services\MarketDataFetcher;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
@@ -114,6 +115,11 @@ class FetchVestixData extends Command
 
                 $marketDataFetcher->touchApiFetchTimestamp();
                 $this->info("Succesvol geüpdatet: {$position->ticker}");
+
+                app(EarningsCalendarSyncService::class)->syncTicker($position->ticker, force: true);
+                $position->load('asset');
+
+                $this->info("Earnings sync voltooid voor {$position->ticker}.");
                 $this->notifyPositionCompletion($userId, $position, success: true);
 
                 return self::SUCCESS;
@@ -266,6 +272,9 @@ class FetchVestixData extends Command
 
         CheckPositionAlertTriggersJob::dispatch();
 
+        $earningsSummary = app(EarningsCalendarSyncService::class)->syncTrackedTickers();
+        $this->info("Earnings sync: {$earningsSummary['synced']} bijgewerkt, {$earningsSummary['skipped']} overgeslagen, {$earningsSummary['failed']} mislukt.");
+
         return self::SUCCESS;
     }
 
@@ -324,9 +333,16 @@ class FetchVestixData extends Command
                 ? '$'.number_format((float) $position->latest_close_price, 2)
                 : 'onbekend';
 
+            $body = "{$position->ticker}: koers {$close}, SMA20, SMA50, ATR en RSI opgehaald.";
+            $earningsSnippet = $this->formatEarningsSyncSnippet($position);
+
+            if ($earningsSnippet !== null) {
+                $body .= ' '.$earningsSnippet;
+            }
+
             FilamentNotifier::send(
                 'Marktdata bijgewerkt',
-                "{$position->ticker}: koers {$close}, SMA20, SMA50, ATR en RSI opgehaald.",
+                $body,
                 'success',
                 $recipients,
             );
@@ -423,5 +439,33 @@ class FetchVestixData extends Command
         }
 
         return User::all();
+    }
+
+    private function formatEarningsSyncSnippet(Position $position): ?string
+    {
+        $asset = $position->asset;
+
+        if ($asset === null || $asset->earnings_fetched_at === null) {
+            return null;
+        }
+
+        $effectiveDate = $asset->effectiveEarningsDate();
+
+        if ($effectiveDate === null) {
+            return 'Earnings: geen aankomende datum gevonden in Finnhub.';
+        }
+
+        $hour = $asset->effectiveEarningsHour()->label();
+        $daysUntil = $position->daysUntilEarnings();
+
+        $snippet = 'Earnings: '.$effectiveDate->locale('nl')->isoFormat('D MMM Y')." ({$hour})";
+
+        if ($daysUntil !== null) {
+            $snippet .= $daysUntil <= 14
+                ? " — over {$daysUntil} dagen, let op!"
+                : " — over {$daysUntil} dagen.";
+        }
+
+        return $snippet;
     }
 }

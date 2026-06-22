@@ -34,6 +34,7 @@ trait PollsPositionMarketData
 
         $this->pollPositionMarketData = false;
         $record->refresh();
+        $record->load('asset');
 
         $this->refreshFormData([
             'latest_close_price',
@@ -45,6 +46,8 @@ trait PollsPositionMarketData
             'bounce_volume_above_average',
             'bounce_day_volume',
             'avg_volume_30d',
+            'asset_earnings_date_override',
+            'asset_earnings_hour_override',
         ]);
     }
 }

@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\EarningsExitUrgency;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketGapStatus;
 use App\Services\AssetSyncService;
+use App\Support\EarningsExitSchedule;
 use App\Support\ScoutSetupScorecard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -441,9 +443,47 @@ class Position extends Model
         return static::query()
             ->forUser($userId)
             ->open()
+            ->with('asset')
             ->get()
-            ->filter(fn (self $position): bool => in_array($position->action_command, ['UPDATE', 'STOPPED OUT'], true))
+            ->filter(fn (self $position): bool => in_array($position->action_command, ['UPDATE', 'STOPPED OUT'], true)
+                || $position->requiresEarningsExit())
             ->values();
+    }
+
+    public function effectiveEarningsDate(): ?Carbon
+    {
+        return $this->asset?->effectiveEarningsDate();
+    }
+
+    public function daysUntilEarnings(?Carbon $today = null): ?int
+    {
+        $earningsDate = $this->effectiveEarningsDate();
+
+        if ($earningsDate === null) {
+            return null;
+        }
+
+        return EarningsExitSchedule::daysUntilEarnings($earningsDate, $today);
+    }
+
+    public function requiresEarningsExit(?Carbon $today = null): bool
+    {
+        if ($this->status !== 'open') {
+            return false;
+        }
+
+        return $this->earningsExitUrgency($today) !== null;
+    }
+
+    public function earningsExitUrgency(?Carbon $today = null): ?EarningsExitUrgency
+    {
+        $earningsDate = $this->effectiveEarningsDate();
+
+        if ($earningsDate === null || $this->status !== 'open') {
+            return null;
+        }
+
+        return EarningsExitSchedule::urgency($earningsDate, $today);
     }
 
     public function scopeRequiresAction(Builder $query): Builder

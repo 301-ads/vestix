@@ -64,6 +64,8 @@ class EditUserProfile extends EditProfile
                                 AlertEventType::StoppedOut->value => 'Stopped out',
                                 AlertEventType::DailyDigest->value => 'Dagelijkse digest (21:45)',
                                 AlertEventType::PremarketGapRisk->value => 'Pre-market gap-up waarschuwing (15:00)',
+                                AlertEventType::EarningsWarning->value => 'Earnings waarschuwing — 2 dagen voor exit (08:00)',
+                                AlertEventType::EarningsActionRequired->value => 'Earnings actie — sluit vóór earnings (15:00)',
                                 AlertEventType::SquadCopyAlert->value => 'Squad copy-alerts (Ghost Mode)',
                             ])
                             ->default(AlertEventType::defaults())

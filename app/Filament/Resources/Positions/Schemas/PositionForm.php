@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Positions\Schemas;
 
+use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
 use App\Models\Position;
 use App\Models\StrategyTag;
@@ -9,10 +10,13 @@ use App\Services\SquadContext;
 use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ClosePriceTrend;
+use App\Support\EarningsExitDisplay;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SlPriceProximity;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -22,10 +26,12 @@ use Filament\Schemas\Components\Callout;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Icon;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
+use Illuminate\Support\HtmlString;
 
 class PositionForm
 {
@@ -47,6 +53,7 @@ class PositionForm
                             ->schema([
                                 self::setupDetailsSection($isScoutForm),
                                 self::schildSection(),
+                                self::earningsOverrideSection(),
                                 self::buyStopSection($isScoutForm),
                             ]),
                         Section::make('Trade Journal')
@@ -253,7 +260,59 @@ class PositionForm
                             ->minValue(0.01)
                             ->live(onBlur: true),
                     ]),
+                self::earningsSmartAlert(),
             ]);
+    }
+
+    private static function earningsSmartAlert(): Placeholder
+    {
+        return Placeholder::make('earnings_alert')
+            ->hiddenLabel()
+            ->visible(fn (?Position $record, string $operation): bool => EarningsExitDisplay::isSmartAlertVisible($record, $operation))
+            ->content(fn (?Position $record): HtmlString|string => $record instanceof Position
+                ? EarningsExitDisplay::smartAlertContent($record)
+                : '')
+            ->columnSpanFull();
+    }
+
+    private static function earningsOverrideSection(): Section
+    {
+        return Section::make('Earnings Data (API Override)')
+            ->description('Vestix haalt deze data automatisch op. Vul dit alleen in als de API sync faalt.')
+            ->icon('heroicon-o-calendar')
+            ->afterHeader([
+                Text::make(fn (?Position $record): ?string => EarningsExitDisplay::sectionDaysBadgeLabel($record))
+                    ->badge()
+                    ->color(fn (?Position $record): string => EarningsExitDisplay::sectionDaysBadgeColor($record))
+                    ->visible(fn (?Position $record): bool => EarningsExitDisplay::sectionDaysBadgeLabel($record) !== null),
+            ])
+            ->collapsed()
+            ->compact()
+            ->extraAttributes(['class' => 'position-earnings-section'])
+            ->visible(fn (?Position $record, string $operation): bool => $operation === 'edit'
+                && $record?->status === 'open')
+            ->schema([
+                Placeholder::make('earnings_sync_status')
+                    ->hiddenLabel()
+                    ->content(fn (?Position $record): HtmlString => EarningsExitDisplay::syncStatusContent($record))
+                    ->columnSpanFull(),
+                DatePicker::make('asset_earnings_date_override')
+                    ->label('Earnings datum (override)')
+                    ->native(false)
+                    ->placeholder(fn (?Position $record): string => $record?->asset?->next_earnings_date
+                        ? 'Automatisch: '.$record->asset->next_earnings_date->format('d-m-Y')
+                        : 'Geen automatische datum'),
+                Select::make('asset_earnings_hour_override')
+                    ->label('Publicatietijd (override)')
+                    ->native(false)
+                    ->options([
+                        '' => 'Automatisch',
+                        EarningsReleaseHour::Bmo->value => 'Before Market Open',
+                        EarningsReleaseHour::Amc->value => 'After Market Close',
+                    ]),
+            ])
+            ->columns(2)
+            ->columnSpanFull();
     }
 
     private static function schildSection(): Section
@@ -694,6 +753,14 @@ class PositionForm
                         'cardVariant' => self::resolvePnlCardVariant($get, $record),
                     ];
                 }),
+            View::make('filament.positions.cockpit-stat-card')
+                ->visible(fn (?Position $record): bool => $record !== null && EarningsExitDisplay::isRelevant($record))
+                ->viewData(fn (Get $get, ?Position $record): array => EarningsExitDisplay::cockpitCardData($record)
+                    ?? [
+                        'label' => 'Earnings',
+                        'value' => '—',
+                        'cardVariant' => 'zinc',
+                    ]),
         ];
     }
 

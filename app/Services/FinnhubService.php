@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\EarningsReleaseHour;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -99,6 +100,45 @@ class FinnhubService
             ],
             'adv30' => $adv30,
             'bars' => $bars,
+        ];
+    }
+
+    /**
+     * @return array{date: string, hour: EarningsReleaseHour}|null
+     */
+    public function fetchNextEarnings(string $ticker): ?array
+    {
+        $from = Carbon::today('America/New_York');
+        $to = $from->copy()->addDays(90);
+
+        $data = $this->request('/calendar/earnings', [
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'symbol' => strtoupper(trim($ticker)),
+        ]);
+
+        if ($data === null || ! isset($data['earningsCalendar']) || ! is_array($data['earningsCalendar'])) {
+            return null;
+        }
+
+        $upcoming = collect($data['earningsCalendar'])
+            ->filter(function (array $entry) use ($from): bool {
+                if (! isset($entry['date'])) {
+                    return false;
+                }
+
+                return Carbon::parse($entry['date'], 'America/New_York')->greaterThanOrEqualTo($from);
+            })
+            ->sortBy('date')
+            ->first();
+
+        if ($upcoming === null) {
+            return null;
+        }
+
+        return [
+            'date' => (string) $upcoming['date'],
+            'hour' => EarningsReleaseHour::tryFromApi($upcoming['hour'] ?? null),
         ];
     }
 

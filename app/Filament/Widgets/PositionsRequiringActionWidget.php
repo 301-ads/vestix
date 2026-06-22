@@ -2,9 +2,11 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\EarningsExitUrgency;
 use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\AlertMessageBuilder;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -31,12 +33,15 @@ class PositionsRequiringActionWidget extends TableWidget
         $liquidationCount = $actionablePositions
             ->filter(fn (Position $position): bool => $position->action_command === 'STOPPED OUT')
             ->count();
-        $pendingCount = $updateCount + $liquidationCount;
+        $earningsCount = $actionablePositions
+            ->filter(fn (Position $position): bool => $position->requiresEarningsExit())
+            ->count();
+        $pendingCount = $actionablePositions->count();
 
         return $table
             ->columnManager(false)
             ->striped(false)
-            ->heading($this->buildHeading($pendingCount, $updateCount, $liquidationCount))
+            ->heading($this->buildHeading($pendingCount, $updateCount, $liquidationCount, $earningsCount))
             ->searchable(false)
             ->query(function () use ($userId): Builder {
                 $actionableIds = Position::requiringActionForUser($userId)->pluck('id');
@@ -56,23 +61,16 @@ class PositionsRequiringActionWidget extends TableWidget
                 TextColumn::make('action_command')
                     ->label('Status')
                     ->badge()
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'UPDATE' => 'Update',
-                        'STOPPED OUT' => 'Liquidatie',
-                        default => $state,
-                    })
-                    ->color(fn (string $state): string => match ($state) {
-                        'UPDATE' => 'warning',
-                        'STOPPED OUT' => 'danger',
-                        default => 'gray',
-                    }),
+                    ->formatStateUsing(fn (Position $record): string => $this->formatStatusLabel($record))
+                    ->color(fn (Position $record): string => $this->formatStatusColor($record)),
                 TickerColumn::wrap(
                     TextColumn::make('ticker')
                         ->label('Ticker'),
                 ),
                 TextColumn::make('current_sl')
                     ->label('Huidige SL')
-                    ->money('usd'),
+                    ->money('usd')
+                    ->placeholder('—'),
                 TextColumn::make('new_sl')
                     ->label('Nieuwe SL')
                     ->state(fn (Position $record): ?float => $record->action_command === 'UPDATE'
@@ -95,14 +93,52 @@ class PositionsRequiringActionWidget extends TableWidget
                     ->placeholder('—'),
             ])
             ->recordActions([
-                PositionRecordActions::markAsUpdated(),
+                PositionRecordActions::markAsUpdated()
+                    ->visible(fn (Position $record): bool => $record->action_command === 'UPDATE'),
+                PositionRecordActions::archive()
+                    ->visible(fn (Position $record): bool => $record->requiresEarningsExit()),
             ])
             ->emptyStateHeading('Geen acties vereist')
             ->emptyStateDescription('Alle stop-losses zijn up-to-date en geen posities onder hun stop-loss.')
             ->paginated(false);
     }
 
-    private function buildHeading(int $pendingCount, int $updateCount, int $liquidationCount): string|HtmlString
+    private function formatStatusLabel(Position $record): string
+    {
+        if ($record->requiresEarningsExit()) {
+            return match ($record->earningsExitUrgency()) {
+                EarningsExitUrgency::Prepare => 'Earnings — bereid exit voor',
+                EarningsExitUrgency::ExitToday => 'Earnings — sluit vandaag',
+                EarningsExitUrgency::Overdue => 'Earnings — te laat!',
+                default => AlertMessageBuilder::formatActionLabel($record),
+            };
+        }
+
+        return match ($record->action_command) {
+            'UPDATE' => 'Update',
+            'STOPPED OUT' => 'Liquidatie',
+            default => $record->action_command,
+        };
+    }
+
+    private function formatStatusColor(Position $record): string
+    {
+        if ($record->requiresEarningsExit()) {
+            return match ($record->earningsExitUrgency()) {
+                EarningsExitUrgency::Prepare => 'warning',
+                EarningsExitUrgency::ExitToday, EarningsExitUrgency::Overdue => 'danger',
+                default => 'gray',
+            };
+        }
+
+        return match ($record->action_command) {
+            'UPDATE' => 'warning',
+            'STOPPED OUT' => 'danger',
+            default => 'gray',
+        };
+    }
+
+    private function buildHeading(int $pendingCount, int $updateCount, int $liquidationCount, int $earningsCount): string|HtmlString
     {
         if ($pendingCount === 0) {
             return 'Acties vereist';
@@ -116,6 +152,10 @@ class PositionsRequiringActionWidget extends TableWidget
 
         if ($updateCount > 0) {
             $badges .= '<span class="inline-flex items-center rounded-md bg-warning-500/10 px-2 py-0.5 text-xs font-medium text-warning-400 ring-1 ring-inset ring-warning-500/20">'.$updateCount.'</span>';
+        }
+
+        if ($earningsCount > 0) {
+            $badges .= '<span class="inline-flex items-center rounded-md bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-400 ring-1 ring-inset ring-orange-500/20">'.$earningsCount.'</span>';
         }
 
         return new HtmlString(

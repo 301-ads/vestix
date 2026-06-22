@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\EarningsReleaseHour;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 class Asset extends Model
@@ -17,6 +19,11 @@ class Asset extends Model
     {
         return [
             'fetched_at' => 'datetime',
+            'next_earnings_date' => 'date',
+            'next_earnings_hour' => EarningsReleaseHour::class,
+            'earnings_date_override' => 'date',
+            'earnings_hour_override' => EarningsReleaseHour::class,
+            'earnings_fetched_at' => 'datetime',
         ];
     }
 
@@ -46,5 +53,23 @@ class Asset extends Model
     public static function normalizeTicker(string $ticker): string
     {
         return strtoupper(trim($ticker));
+    }
+
+    public function effectiveEarningsDate(): ?Carbon
+    {
+        $date = $this->earnings_date_override ?? $this->next_earnings_date;
+
+        if ($date === null) {
+            return null;
+        }
+
+        return $date instanceof Carbon ? $date->copy()->startOfDay() : Carbon::parse($date)->startOfDay();
+    }
+
+    public function effectiveEarningsHour(): EarningsReleaseHour
+    {
+        return $this->earnings_hour_override
+            ?? $this->next_earnings_hour
+            ?? EarningsReleaseHour::Unknown;
     }
 }

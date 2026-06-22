@@ -1453,6 +1453,14 @@
     align-items: center;
 }
 
+.position-earnings-section .fi-section-header {
+    align-items: center;
+}
+
+.position-earnings-section .fi-section-collapse-btn {
+    align-self: center;
+}
+
 .scout-scorecard-hud {
     display: flex;
     align-items: center;

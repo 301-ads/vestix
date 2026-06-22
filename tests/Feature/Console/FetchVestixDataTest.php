@@ -193,23 +193,39 @@ class FetchVestixDataTest extends TestCase
                 'status' => 'OK',
                 'results' => PolygonFixtures::dailyBars(latestClose: 78.20),
             ]),
+            'finnhub.io/*' => Http::response([
+                'earningsCalendar' => [
+                    [
+                        'date' => '2026-07-15',
+                        'hour' => 'amc',
+                        'symbol' => 'MSFT',
+                    ],
+                ],
+            ]),
         ]);
+
+        config(['vestix.finnhub.api_key' => 'test-finnhub-key']);
 
         $this->artisan('vestix:fetch-data', [
             '--position-id' => $position->id,
             '--user-id' => $user->id,
         ])->expectsOutput('Succesvol geüpdatet: MSFT')
+            ->expectsOutput('Earnings sync voltooid voor MSFT.')
             ->assertSuccessful();
 
         $position->refresh();
+        $position->load('asset');
 
         $this->assertNotNull($position->latest_close_price);
+        $this->assertSame('2026-07-15', $position->asset?->next_earnings_date?->toDateString());
+        $this->assertNotNull($position->asset?->earnings_fetched_at);
         $this->assertFalse(MarketDataFreshness::isPositionSyncInProgress($position->id));
 
         $notification = $user->fresh()->notifications()->first();
         $this->assertNotNull($notification);
         $this->assertSame('Marktdata bijgewerkt', $notification->data['title']);
         $this->assertStringContainsString('MSFT', $notification->data['body']);
+        $this->assertStringContainsString('Earnings:', $notification->data['body']);
     }
 
     public function test_command_fetches_single_ticker_for_create_form(): void

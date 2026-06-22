@@ -3,7 +3,9 @@
 namespace App\Support;
 
 use App\Enums\AlertEventType;
+use App\Enums\EarningsExitUrgency;
 use App\Filament\Resources\Scouts\ScoutResource;
+use App\Filament\Resources\Positions\PositionResource;
 use App\Models\Position;
 use App\Models\User;
 
@@ -46,7 +48,31 @@ class AlertMessageBuilder
                 number_format((float) ($context['entry_trigger'] ?? $position->premarket_entry_trigger ?? $position->entry_price ?? 0), 2),
                 ScoutResource::getUrl('edit', ['record' => $position]),
             ),
+            AlertEventType::EarningsWarning => sprintf(
+                '⚠️ <b>EARNINGS WARNING:</b> %s publiceert over 2 dagen cijfers. Controleer je huidige winst/verlies en bereid de exit voor morgen voor. <a href="%s">Open positie</a>',
+                e($position->ticker),
+                PositionResource::getUrl('edit', ['record' => $position]),
+            ),
+            AlertEventType::EarningsActionRequired => sprintf(
+                '🚨 <b>EARNINGS ACTION REQUIRED:</b> %s publiceert morgen cijfers. Sluit vandaag alle posities en annuleer openstaande orders vóór de slotbel (22:00 uur). <a href="%s">Open positie</a>',
+                e($position->ticker),
+                PositionResource::getUrl('edit', ['record' => $position]),
+            ),
         };
+    }
+
+    public static function formatActionLabel(Position $position): string
+    {
+        if ($position->requiresEarningsExit()) {
+            return match ($position->earningsExitUrgency()) {
+                EarningsExitUrgency::Prepare => 'EARNINGS — bereid exit voor',
+                EarningsExitUrgency::ExitToday => 'EARNINGS — sluit vandaag',
+                EarningsExitUrgency::Overdue => 'EARNINGS — te laat!',
+                default => $position->action_command,
+            };
+        }
+
+        return $position->action_command;
     }
 
     /**
@@ -61,11 +87,10 @@ class AlertMessageBuilder
         $lines = ['<b>Dagelijkse digest</b> — actiepunten:'];
 
         foreach ($positions as $position) {
-            $command = $position->action_command;
             $lines[] = sprintf(
                 '• %s: %s',
                 e($position->ticker),
-                e($command),
+                e(self::formatActionLabel($position)),
             );
         }
 

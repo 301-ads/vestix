@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Positions\Pages;
 
+use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
 use App\Events\SquadRadarTargetPosted;
 use App\Filament\Concerns\PollsPositionMarketData;
@@ -144,9 +145,24 @@ class EditPosition extends EditRecord
         );
     }
 
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        /** @var Position $record */
+        $record = $this->getRecord();
+        $record->loadMissing('asset');
+
+        if ($record->asset) {
+            $data['asset_earnings_date_override'] = $record->asset->earnings_date_override;
+            $data['asset_earnings_hour_override'] = $record->asset->earnings_hour_override?->value;
+        }
+
+        return $data;
+    }
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
         unset($data['status'], $data['exit_price'], $data['closed_at']);
+        unset($data['asset_earnings_date_override'], $data['asset_earnings_hour_override']);
 
         if (($this->getRecord()->status ?? null) === 'scout') {
             $visibility = PositionVisibility::tryFrom((string) ($data['visibility'] ?? ''))
@@ -179,6 +195,25 @@ class EditPosition extends EditRecord
     {
         /** @var Position $record */
         $record = $this->getRecord();
+        $record->loadMissing('asset');
+
+        $state = $this->form->getRawState();
+        $asset = $record->asset;
+
+        if ($asset && array_key_exists('asset_earnings_date_override', $state)) {
+            $hour = filled($state['asset_earnings_hour_override'] ?? null)
+                ? EarningsReleaseHour::tryFrom((string) $state['asset_earnings_hour_override'])
+                : null;
+
+            if ($hour === EarningsReleaseHour::Unknown) {
+                $hour = null;
+            }
+
+            $asset->update([
+                'earnings_date_override' => $state['asset_earnings_date_override'] ?: null,
+                'earnings_hour_override' => $hour,
+            ]);
+        }
 
         if ($record->status !== 'scout' || $record->visibility !== PositionVisibility::Squad) {
             return;

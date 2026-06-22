@@ -64,7 +64,7 @@ class AlertDispatcher
                 continue;
             }
 
-            if ($this->alreadySent($position->id, $event, $preference->channel_type)) {
+            if ($this->alreadySent($position->id, $event, $preference->channel_type, $context)) {
                 continue;
             }
 
@@ -125,7 +125,7 @@ class AlertDispatcher
         }
     }
 
-    private function alreadySent(int $positionId, AlertEventType $event, AlertChannelType $channel): bool
+    private function alreadySent(int $positionId, AlertEventType $event, AlertChannelType $channel, array $context = []): bool
     {
         if ($event === AlertEventType::DailyDigest) {
             return false;
@@ -139,6 +139,18 @@ class AlertDispatcher
         if ($event === AlertEventType::PremarketGapRisk) {
             return $query
                 ->whereDate('sent_at', now()->toDateString())
+                ->exists();
+        }
+
+        if (in_array($event, [AlertEventType::EarningsWarning, AlertEventType::EarningsActionRequired], true)) {
+            $earningsDate = $context['earnings_date'] ?? null;
+
+            if ($earningsDate === null) {
+                return $query->exists();
+            }
+
+            return $query
+                ->where('payload->earnings_date', $earningsDate)
                 ->exists();
         }
 

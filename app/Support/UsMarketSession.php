@@ -109,4 +109,26 @@ class UsMarketSession
 
         return $now->betweenIncluded($start, $end);
     }
+
+    public static function previousTradingDay(Carbon $date): Carbon
+    {
+        $candidate = $date->copy()->startOfDay()->subDay();
+
+        while (! $candidate->isWeekday()) {
+            $candidate->subDay();
+        }
+
+        return $candidate->startOfDay();
+    }
+
+    public static function subtractTradingDays(Carbon $date, int $days): Carbon
+    {
+        $candidate = $date->copy()->startOfDay();
+
+        for ($i = 0; $i < $days; $i++) {
+            $candidate = self::previousTradingDay($candidate);
+        }
+
+        return $candidate;
+    }
 }
