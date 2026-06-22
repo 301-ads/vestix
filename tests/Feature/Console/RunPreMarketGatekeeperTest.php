@@ -29,6 +29,22 @@ class RunPreMarketGatekeeperTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_command_explains_when_no_scouts_are_armed(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Europe/Amsterdam'));
+
+        Position::factory()->scout()->create([
+            'entry_price' => 50.00,
+            'signal_high' => 49.00,
+            'armed_for_entry_on' => null,
+        ]);
+
+        $this->artisan('vestix:premarket-gatekeeper --force')
+            ->expectsOutputToContain('Scouts op scherp: 0')
+            ->expectsOutputToContain('Geen scouts op scherp voor vandaag')
+            ->assertSuccessful();
+    }
+
     public function test_command_runs_with_force_flag(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00', 'Europe/Amsterdam'));

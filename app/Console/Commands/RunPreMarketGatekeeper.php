@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Position;
 use App\Services\PreMarketGatekeeperService;
 use App\Support\UsMarketSession;
 use Illuminate\Console\Command;
@@ -29,9 +30,32 @@ class RunPreMarketGatekeeper extends Command
             return self::SUCCESS;
         }
 
-        $this->info('Pre-Market Gatekeeper gestart...');
+        $tradingDay = UsMarketSession::currentUsTradingDay();
+        $armedScouts = Position::query()
+            ->scout()
+            ->armedForEntry($tradingDay)
+            ->whereNotNull('entry_price')
+            ->get(['id', 'ticker', 'signal_high']);
 
-        $summary = $gatekeeper->run();
+        $this->info('Pre-Market Gatekeeper gestart...');
+        $this->line("US handelsdag: {$tradingDay->toDateString()}");
+        $this->line("Scouts op scherp: {$armedScouts->count()}");
+
+        if ($armedScouts->isEmpty()) {
+            $this->newLine();
+            $this->warn('Geen scouts op scherp voor vandaag.');
+            $this->line('Zet scouts op scherp via Mijn Radar → bel-icoon "Op scherp" (vereist ingevulde entry/buy-stop).');
+
+            return self::SUCCESS;
+        }
+
+        $missingSignalHigh = $armedScouts->filter(fn (Position $position): bool => $position->signal_high === null);
+
+        if ($missingSignalHigh->isNotEmpty()) {
+            $this->warn('Worden overgeslagen (signal_high ontbreekt): '.$missingSignalHigh->pluck('ticker')->join(', '));
+        }
+
+        $summary = $gatekeeper->run($tradingDay);
 
         $this->table(
             ['Metric', 'Aantal'],
