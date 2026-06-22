@@ -273,7 +273,7 @@ class ScoutWatchlistTest extends TestCase
 
         Livewire::test(CreateScout::class)
             ->assertOk()
-            ->assertSee('Sluipschutter Scorecard')
+            ->assertSee('Sniper Scorecard')
             ->assertSee('Marktdata & Indicatoren')
             ->assertSeeHtml('scout-scorecard-hud');
     }
@@ -294,7 +294,7 @@ class ScoutWatchlistTest extends TestCase
         ]);
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
-            ->assertSee('Sluipschutter Scorecard')
+            ->assertSee('Sniper Scorecard')
             ->assertSee('Marktdata & Indicatoren')
             ->assertSee('SMA 20 (5 dagen geleden)')
             ->assertSee('SMA 50')

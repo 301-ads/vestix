@@ -60,7 +60,7 @@ class PositionForm
                                         ->orderBy('sort_order')
                                         ->pluck('name', 'id')
                                         ->all())
-                                    ->required(fn (string $operation): bool => $operation === 'create')
+                                    // ->required(fn (string $operation): bool => $operation === 'create')
                                     ->native(false)
                                     ->searchable()
                                     ->placeholder('Kies je setup-type')
@@ -457,7 +457,7 @@ class PositionForm
                             ->dehydrated(false)
                             ->visible(fn (Get $get, ?Position $record): bool => filled($get('avg_volume_30d') ?? $record?->avg_volume_30d)),
                     ]),
-                Section::make('Sluipschutter Scorecard')
+                Section::make('Sniper Scorecard')
                     ->description('Objectieve setup-beoordeling (max 7 punten)')
                     ->icon('heroicon-m-viewfinder-circle')
                     ->columnSpan(['default' => 12, 'lg' => 8])
