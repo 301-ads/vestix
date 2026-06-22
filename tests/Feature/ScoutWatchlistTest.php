@@ -229,6 +229,30 @@ class ScoutWatchlistTest extends TestCase
         $this->assertEquals(8, (float) $scout->quantity);
     }
 
+    public function test_activate_scout_action_works_without_strategy_tag(): void
+    {
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 78.00,
+            'latest_close_price' => 78.20,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'strategy_tag_id' => null,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->callTableAction('activate_scout', $scout, data: [
+                'entry_price' => 79.00,
+                'quantity' => 8,
+            ])
+            ->assertHasNoErrors();
+
+        $scout->refresh();
+
+        $this->assertEquals('open', $scout->status);
+        $this->assertNull($scout->strategy_tag_id);
+    }
+
     public function test_fetch_market_data_action_updates_scout(): void
     {
         config([

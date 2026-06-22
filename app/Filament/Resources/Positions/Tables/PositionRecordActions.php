@@ -15,7 +15,6 @@ use App\Support\ShareCardDataFactory;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Illuminate\Support\HtmlString;
 
@@ -95,16 +94,6 @@ class PositionRecordActions
                     )),
             ])
             ->action(function (Position $record, array $data): void {
-                if (blank($record->strategy_tag_id)) {
-                    Notification::make()
-                        ->title('Strategy tag vereist')
-                        ->body('Kies eerst een strategy tag in het Trade Journal voordat je activeert.')
-                        ->warning()
-                        ->send();
-
-                    return;
-                }
-
                 $record->activateAsPosition(
                     (float) $data['entry_price'],
                     (float) $data['quantity'],
@@ -260,16 +249,6 @@ class PositionRecordActions
                     ->helperText('Optioneel: upload je exit-chart voor je trade journal. '.ChartScreenshotUpload::maxSizeLabel()),
             ])
             ->action(function (Position $record, array $data): void {
-                if (blank($record->strategy_tag_id)) {
-                    Notification::make()
-                        ->title('Strategy tag vereist')
-                        ->body('Kies eerst een strategy tag in het Trade Journal voordat je archiveert.')
-                        ->warning()
-                        ->send();
-
-                    return;
-                }
-
                 $wasStoppedOut = $record->action_command === 'STOPPED OUT';
 
                 $record->archiveWithExitPrice(

@@ -64,7 +64,7 @@ class PositionForm
                                     ->native(false)
                                     ->searchable()
                                     ->placeholder('Kies je setup-type')
-                                    ->helperText('Verplicht bij aanmaken — gebruikt door Strategy Coach voor edge-analyse.')
+                                    ->helperText('Optioneel — gebruikt door Strategy Coach voor edge-analyse.')
                                     ->columnSpanFull(),
                                 Textarea::make('trade_journal')
                                     ->label('Setup & rationale')
