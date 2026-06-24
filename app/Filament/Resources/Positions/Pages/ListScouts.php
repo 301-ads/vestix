@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Positions\Pages;
 use App\Filament\Resources\Positions\Tables\ScoutsTable;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Widgets\ScoutRadarStatsWidget;
+use App\Support\ScoutRadarFilters;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
 use Filament\Resources\Pages\ListRecords;
@@ -12,8 +13,11 @@ use Filament\Schemas\Components\EmbeddedTable;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\RenderHook;
 use Filament\Schemas\Schema;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Filament\View\PanelsRenderHook;
+use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 
 class ListScouts extends ListRecords
 {
@@ -25,21 +29,38 @@ class ListScouts extends ListRecords
 
     public function table(Table $table): Table
     {
-        return ScoutsTable::configure(
-            $table,
-            squadMode: false,
-            resourceClass: ScoutResource::class,
-        );
+        return $this->configureRadarTable($table);
     }
 
     protected function makeTable(): Table
     {
-        return ScoutsTable::configure(
+        return $this->configureRadarTable(
             Table::make($this)
                 ->query(fn () => $this->getTableQuery()),
-            squadMode: false,
-            resourceClass: ScoutResource::class,
         );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getWidgetData(): array
+    {
+        return [
+            ...parent::getWidgetData(),
+            'tableFilters' => $this->tableFilters,
+        ];
+    }
+
+    #[On('toggle-radar-focus')]
+    public function toggleRadarFocus(?string $focus = null): void
+    {
+        $current = $this->tableFilters['radar_focus']['value'] ?? null;
+
+        $this->tableFilters = $current === $focus
+            ? []
+            : ['radar_focus' => ['value' => $focus]];
+
+        $this->updatedTableFilters();
     }
 
     public function content(Schema $schema): Schema
@@ -80,5 +101,29 @@ class ListScouts extends ListRecords
                 ->url(ScoutResource::getUrl('create'))
                 ->visible(fn (): bool => ScoutResource::canCreate()),
         ];
+    }
+
+    private function configureRadarTable(Table $table): Table
+    {
+        return ScoutsTable::configure(
+            $table,
+            squadMode: false,
+            resourceClass: ScoutResource::class,
+        )
+            ->deferFilters(false)
+            ->filters([
+                SelectFilter::make('radar_focus')
+                    ->label('Radar focus')
+                    ->options(ScoutRadarFilters::options())
+                    ->query(fn (Builder $query, array $data): Builder => ScoutRadarFilters::apply(
+                        $query,
+                        filled($data['value'] ?? null) ? (string) $data['value'] : null,
+                    ))
+                    ->indicateUsing(function (array $data): ?string {
+                        $label = ScoutRadarFilters::indicatorLabel($data['value'] ?? null);
+
+                        return $label !== null ? "Focus: {$label}" : null;
+                    }),
+            ]);
     }
 }

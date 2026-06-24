@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
+use App\Enums\BrokerOrderStatus;
 use App\Events\PositionLiquidated;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
@@ -111,6 +112,50 @@ class PositionRecordActions
         }
 
         return $action;
+    }
+
+    public static function markBuyStopPlaced(): Action
+    {
+        return Action::make('mark_buy_stop_placed')
+            ->label('Order geplaatst')
+            ->tooltip('Buy-stop staat bij je broker')
+            ->icon('heroicon-o-clock')
+            ->color('warning')
+            ->iconButton()
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->isOwnedBy(auth()->user())
+                && ($record->broker_order_status === null || $record->broker_order_status === BrokerOrderStatus::Scout))
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->action(function (Position $record): void {
+                $record->update(['broker_order_status' => BrokerOrderStatus::Pending]);
+
+                FilamentNotifier::send(
+                    title: 'Order gemarkeerd als live',
+                    body: "{$record->ticker} staat nu op Pending in je radar.",
+                );
+            });
+    }
+
+    public static function clearBuyStop(): Action
+    {
+        return Action::make('clear_buy_stop')
+            ->label('Terug naar scout')
+            ->tooltip('Order bij broker geannuleerd of gewijzigd')
+            ->icon('heroicon-o-arrow-uturn-left')
+            ->color('gray')
+            ->iconButton()
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->isOwnedBy(auth()->user())
+                && $record->broker_order_status === BrokerOrderStatus::Pending)
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->action(function (Position $record): void {
+                $record->update(['broker_order_status' => BrokerOrderStatus::Scout]);
+
+                FilamentNotifier::send(
+                    title: 'Terug naar scout',
+                    body: "{$record->ticker} staat weer op Scout in je radar.",
+                );
+            });
     }
 
     /**

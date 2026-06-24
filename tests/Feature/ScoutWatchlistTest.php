@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Enums\BrokerOrderStatus;
 use App\Enums\PositionVisibility;
+use App\Enums\PremarketScanResult;
 use App\Filament\Resources\Positions\Pages\CreateScout;
 use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListScouts;
@@ -407,5 +409,140 @@ class ScoutWatchlistTest extends TestCase
         $this->assertEqualsWithDelta(250.00, (float) $scout->latest_close_price, 0.01);
 
         MarketDataTestTime::reset();
+    }
+
+    public function test_radar_focus_filter_shows_only_ready_scouts(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $ready = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'READY',
+            'entry_price' => 100.00,
+            'latest_close_price' => 100.50,
+        ]);
+
+        $waiting = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'WAIT',
+            'entry_price' => 100.00,
+            'latest_close_price' => 90.00,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->filterTable('radar_focus', 'ready')
+            ->assertCanSeeTableRecords([$ready])
+            ->assertCanNotSeeTableRecords([$waiting]);
+    }
+
+    public function test_toggle_radar_focus_clears_when_clicked_twice(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->scout()->create([
+            'entry_price' => 100.00,
+            'latest_close_price' => 100.50,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->call('toggleRadarFocus', focus: 'ready')
+            ->assertSet('tableFilters.radar_focus.value', 'ready')
+            ->call('toggleRadarFocus', focus: 'ready')
+            ->assertSet('tableFilters', []);
+    }
+
+    public function test_mark_buy_stop_placed_sets_pending_status(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'WIT',
+            'broker_order_status' => BrokerOrderStatus::Scout,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->callTableAction('mark_buy_stop_placed', $scout);
+
+        $scout->refresh();
+
+        $this->assertSame(BrokerOrderStatus::Pending, $scout->broker_order_status);
+    }
+
+    public function test_clear_buy_stop_resets_scout_status(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
+            'ticker' => 'KDP',
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->callTableAction('clear_buy_stop', $scout);
+
+        $scout->refresh();
+
+        $this->assertSame(BrokerOrderStatus::Scout, $scout->broker_order_status);
+    }
+
+    public function test_activated_scout_disappears_from_radar_list(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 78.00,
+            'latest_close_price' => 78.20,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->assertCanSeeTableRecords([$scout])
+            ->callTableAction('activate_scout', $scout, data: [
+                'entry_price' => 79.00,
+                'quantity' => 8,
+            ]);
+
+        $scout->refresh();
+
+        $this->assertSame('open', $scout->status);
+
+        Livewire::test(ListScouts::class)
+            ->assertCanNotSeeTableRecords([$scout]);
+    }
+
+    public function test_radar_list_shows_broker_status_column(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
+            'ticker' => 'PEND',
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->assertOk()
+            ->assertSee('Status')
+            ->assertSee('Pending');
+    }
+
+    public function test_gap_up_filter_uses_premarket_scan(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-24 10:00:00', 'America/New_York'));
+
+        $user = $this->authenticateFilament();
+
+        $gapUp = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'GAP',
+            'premarket_scan_type' => PremarketScanResult::GapRisk,
+            'premarket_checked_at' => now(),
+        ]);
+
+        $normal = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'NORM',
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->filterTable('radar_focus', 'gap_up')
+            ->assertCanSeeTableRecords([$gapUp])
+            ->assertCanNotSeeTableRecords([$normal]);
+
+        Carbon::setTestNow();
     }
 }

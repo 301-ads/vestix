@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\BrokerOrderStatus;
 use App\Enums\EarningsExitUrgency;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
@@ -56,6 +57,7 @@ class Position extends Model
             'initial_sl' => 'decimal:2',
             'risk_reward_ratio' => 'decimal:4',
             'visibility' => PositionVisibility::class,
+            'broker_order_status' => BrokerOrderStatus::class,
         ];
     }
 

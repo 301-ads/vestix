@@ -1,0 +1,135 @@
+<?php
+
+namespace App\Support;
+
+use App\Enums\BrokerOrderStatus;
+use App\Models\Position;
+use Illuminate\Database\Eloquent\Builder;
+
+class ScoutRadarFilters
+{
+    /**
+     * @return array<string, string>
+     */
+    public static function options(): array
+    {
+        return [
+            'ready' => 'Klaar voor executie',
+            'gap_up' => 'Gap-up risico',
+            'reclamation' => 'Reclamation PM',
+            'landing' => 'Landing PM',
+            'a_plus' => 'Top setups (A+)',
+            'scout_only' => 'Nog geen order bij broker',
+            'pending_only' => 'Order live bij broker',
+            'track_a' => 'Track A — Landing',
+            'track_b' => 'Track B — Reclamation',
+        ];
+    }
+
+    public static function indicatorLabel(?string $focus): ?string
+    {
+        if (blank($focus)) {
+            return null;
+        }
+
+        return self::options()[$focus] ?? null;
+    }
+
+    public static function matches(Position $scout, string $focus): bool
+    {
+        return match ($focus) {
+            'ready' => self::isReadyForExecution($scout),
+            'gap_up' => $scout->hasPremarketGapUpRisk(),
+            'reclamation' => $scout->hasPremarketReclamation(),
+            'landing' => $scout->hasPremarketLanding(),
+            'a_plus' => self::isAPlusSetup($scout),
+            'scout_only' => $scout->broker_order_status === BrokerOrderStatus::Scout
+                || $scout->broker_order_status === null,
+            'pending_only' => $scout->broker_order_status === BrokerOrderStatus::Pending,
+            'track_a' => $scout->hasPremarketLanding(),
+            'track_b' => $scout->hasPremarketReclamation(),
+            default => false,
+        };
+    }
+
+    public static function apply(Builder $query, ?string $focus): Builder
+    {
+        if (blank($focus)) {
+            return $query;
+        }
+
+        $ids = (clone $query)->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        $matchingIds = Position::query()
+            ->whereIn('id', $ids)
+            ->get()
+            ->filter(fn (Position $scout): bool => self::matches($scout, $focus))
+            ->pluck('id');
+
+        if ($matchingIds->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereIn('id', $matchingIds);
+    }
+
+    public static function riskColor(?float $percentage): string
+    {
+        return match (true) {
+            $percentage === null => 'gray',
+            $percentage < 4 => 'success',
+            $percentage <= 6 => 'warning',
+            default => 'danger',
+        };
+    }
+
+    public static function trackLabel(Position $scout): ?string
+    {
+        if ($scout->hasPremarketReclamation()) {
+            return 'B';
+        }
+
+        if ($scout->hasPremarketLanding()) {
+            return 'A';
+        }
+
+        return null;
+    }
+
+    public static function trackColor(Position $scout): string
+    {
+        return match (self::trackLabel($scout)) {
+            'A' => 'warning',
+            'B' => 'success',
+            default => 'gray',
+        };
+    }
+
+    private static function isReadyForExecution(Position $scout): bool
+    {
+        if ($scout->entry_price === null || $scout->latest_close_price === null || (float) $scout->entry_price <= 0) {
+            return false;
+        }
+
+        $distance = abs((float) $scout->latest_close_price - (float) $scout->entry_price) / (float) $scout->entry_price;
+
+        return $distance <= 0.01;
+    }
+
+    private static function isAPlusSetup(Position $scout): bool
+    {
+        if (
+            ($scout->signal_low === null && $scout->latest_close_price === null)
+            || $scout->latest_sma_20 === null
+            || $scout->scout_rsi === null
+        ) {
+            return false;
+        }
+
+        return $scout->evaluateSetupScore()['grade'] === 'A+';
+    }
+}

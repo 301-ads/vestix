@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\BrokerOrderStatus;
 use App\Enums\PositionVisibility;
 use App\Models\Position;
 use App\Models\StrategyTag;
@@ -53,11 +54,19 @@ class PositionFactory extends Factory
     {
         return $this->state(fn (): array => [
             'status' => 'scout',
+            'broker_order_status' => BrokerOrderStatus::Scout,
             'entry_price' => null,
             'quantity' => null,
             'current_sl' => null,
             'signal_high' => null,
             'signal_low' => null,
+        ]);
+    }
+
+    public function pendingBrokerOrder(): static
+    {
+        return $this->state(fn (): array => [
+            'broker_order_status' => BrokerOrderStatus::Pending,
         ]);
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Positions\Schemas;
 
+use App\Enums\BrokerOrderStatus;
 use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
 use App\Models\Position;
@@ -708,6 +709,14 @@ class PositionForm
                     ))
                     ->danger()
                     ->icon('heroicon-o-exclamation-triangle'),
+                Select::make('broker_order_status')
+                    ->label('Status bij broker')
+                    ->options([
+                        BrokerOrderStatus::Scout->value => 'Scout — setup klaar, nog geen order',
+                        BrokerOrderStatus::Pending->value => 'Pending — buy-stop live bij broker',
+                    ])
+                    ->native(false)
+                    ->columnSpanFull(),
                 Grid::make(4)
                     ->extraAttributes(['class' => 'position-cockpit-grid'])
                     ->schema(self::scoutCockpitPrimaryCards())

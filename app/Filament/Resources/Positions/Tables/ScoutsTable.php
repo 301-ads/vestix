@@ -2,10 +2,12 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
+use App\Enums\BrokerOrderStatus;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\PremarketGatekeeperDisplay;
+use App\Support\ScoutRadarFilters;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -43,6 +45,22 @@ class ScoutsTable
                             return $class !== null ? ['class' => $class] : [];
                         }),
                 ),
+                TextColumn::make('broker_order_status')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn (?BrokerOrderStatus $state): string => ($state ?? BrokerOrderStatus::Scout)->tableLabel())
+                    ->color(fn (?BrokerOrderStatus $state): string => ($state ?? BrokerOrderStatus::Scout)->badgeColor())
+                    ->icon(fn (?BrokerOrderStatus $state): ?string => ($state ?? BrokerOrderStatus::Scout)->tableIcon())
+                    ->sortable()
+                    ->width('5.5rem'),
+                TextColumn::make('track')
+                    ->label('Track')
+                    ->state(fn (Position $record): ?string => ScoutRadarFilters::trackLabel($record))
+                    ->badge()
+                    ->color(fn (Position $record): string => ScoutRadarFilters::trackColor($record))
+                    ->placeholder('—')
+                    ->width('3.5rem')
+                    ->visible($squadMode),
                 TextColumn::make('squad.name')
                     ->label('Squad')
                     ->color('gray')
@@ -59,13 +77,13 @@ class ScoutsTable
                     ->extraCellAttributes(['class' => 'vestix-spotted-by-cell'])
                     ->visible($squadMode),
                 TextColumn::make('entry_price')
-                    ->label('Geplande entry')
+                    ->label('Entry')
                     ->money('usd')
                     ->placeholder('—')
                     ->sortable()
                     ->width('5.5rem'),
                 TextColumn::make('new_sl')
-                    ->label('Berekende SL')
+                    ->label('Stop-Loss')
                     ->money('usd')
                     ->placeholder('—')
                     ->sortable()
@@ -75,7 +93,7 @@ class ScoutsTable
                     ->numeric(decimalPlaces: 2)
                     ->suffix('%')
                     ->placeholder('—')
-                    ->color('warning')
+                    ->color(fn (?float $state): string => ScoutRadarFilters::riskColor($state))
                     ->sortable()
                     ->tooltip(fn (Position $record): ?string => $record->planned_risk_dollars !== null
                         ? '$'.number_format($record->planned_risk_dollars, 2)
@@ -97,6 +115,8 @@ class ScoutsTable
                     ]),
             ])
             ->recordActions([
+                PositionRecordActions::markBuyStopPlaced(),
+                PositionRecordActions::clearBuyStop(),
                 PositionRecordActions::activateScout(),
                 PositionRecordActions::cloneTarget($resourceClass),
                 ActionGroup::make([

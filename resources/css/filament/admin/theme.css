@@ -278,6 +278,46 @@
     background: linear-gradient(to bottom right, rgb(113 113 122 / 0.05), transparent);
 }
 
+.fi-wi-stats-overview-stat.vestix-stat-card--green::before,
+.vestix-stat-card--green::before {
+    background: linear-gradient(to bottom right, rgb(34 197 94 / 0.08), transparent);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--green::before,
+.dark .vestix-stat-card--green::before {
+    background: linear-gradient(to bottom right, rgb(34 197 94 / 0.05), transparent);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--vestix,
+.vestix-stat-card--vestix {
+    --vestix-stat-accent: var(--vestix-primary);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--blue,
+.vestix-stat-card--blue {
+    --vestix-stat-accent: rgb(59 130 246);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--amber,
+.vestix-stat-card--amber {
+    --vestix-stat-accent: rgb(245 158 11);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--zinc,
+.vestix-stat-card--zinc {
+    --vestix-stat-accent: rgb(113 113 122);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--green,
+.vestix-stat-card--green {
+    --vestix-stat-accent: rgb(34 197 94);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--rose,
+.vestix-stat-card--rose {
+    --vestix-stat-accent: rgb(244 63 94);
+}
+
 .fi-wi-stats-overview-stat.vestix-stat-card .fi-wi-stats-overview-stat-content,
 .vestix-stat-card .fi-wi-stats-overview-stat-content {
     position: relative;
@@ -1312,6 +1352,37 @@
 .vestix-stat-card--actionable .vestix-stat-card__action-btn:hover {
     background: rgb(245 158 11 / 0.2);
     border-color: rgb(245 158 11 / 0.5);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--filterable,
+.vestix-stat-card--filterable {
+    cursor: pointer;
+    transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--filterable:hover,
+.vestix-stat-card--filterable:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--vestix-stat-accent, var(--vestix-primary)) 55%, rgb(228 228 231));
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--filterable:hover,
+.dark .vestix-stat-card--filterable:hover {
+    border-color: color-mix(in srgb, var(--vestix-stat-accent, var(--vestix-primary)) 60%, var(--vestix-border));
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--filterable.vestix-stat-card--active,
+.vestix-stat-card--filterable.vestix-stat-card--active {
+    border-color: var(--vestix-stat-accent, var(--vestix-primary));
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--filterable.vestix-stat-card--active,
+.dark .vestix-stat-card--filterable.vestix-stat-card--active {
+    border-color: var(--vestix-stat-accent, var(--vestix-primary));
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
 }
 
 .vestix-stat-card--blue .fi-wi-stats-overview-stat-description.fi-color-info {
