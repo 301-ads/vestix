@@ -276,7 +276,9 @@ class ScoutWatchlistTest extends TestCase
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertSee('Bankroll instellen')
             ->assertSee('Position sizing')
-            ->assertDontSee('bijv. 1000');
+            ->assertSee('bijv. 1000')
+            ->fillForm(['_planned_investment' => 1000])
+            ->assertFormSet(['quantity' => '4']);
     }
 
     public function test_scout_cockpit_shows_percent_of_bankroll(): void

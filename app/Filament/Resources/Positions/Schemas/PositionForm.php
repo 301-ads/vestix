@@ -495,8 +495,7 @@ class PositionForm
             ->minValue(0.01)
             ->dehydrated(false)
             ->placeholder('bijv. 1000')
-            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation)
-                && self::userHasBankroll())
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
             ->helperText(fn (Get $get, ?Position $record): ?string => self::plannedInvestmentHelperText($get, $record))
             ->live()
             ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncPlannedQuantityFromInvestment($set, $get, $record))
@@ -513,7 +512,7 @@ class PositionForm
             ->icon('heroicon-o-banknotes')
             ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation)
                 && ! self::userHasBankroll())
-            ->description('Stel je bankroll in via Profiel → Position sizing om je positiegrootte te berekenen.')
+            ->description('Stel je bankroll in via Profiel → Position sizing om de risicowaakhond te activeren.')
             ->columnSpanFull();
     }
 
@@ -548,7 +547,7 @@ class PositionForm
 
     private static function syncPlannedQuantityFromInvestment(Set $set, Get $get, ?Position $record): void
     {
-        if (! self::isScoutSizingContext($record) || ! self::userHasBankroll()) {
+        if (! self::isScoutSizingContext($record)) {
             return;
         }
 
@@ -572,7 +571,7 @@ class PositionForm
 
     private static function hydratePlannedInvestmentField(Set $set, Get $get, ?Position $record): void
     {
-        if (! self::isScoutSizingContext($record) || ! self::userHasBankroll()) {
+        if (! self::isScoutSizingContext($record)) {
             return;
         }
 
