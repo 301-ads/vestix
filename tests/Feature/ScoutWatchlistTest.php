@@ -172,6 +172,151 @@ class ScoutWatchlistTest extends TestCase
         $this->assertEqualsWithDelta(4.875, $scout->planned_risk_percentage, 0.001);
     }
 
+    public function test_scout_quantity_from_planned_investment(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10942,
+            'default_risk_percent' => 1,
+        ]);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 231.48,
+            'latest_sma_20' => 231.48,
+            'latest_atr_14' => 18.94,
+            'quantity' => null,
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->fillForm(['_planned_investment' => 2550])
+            ->assertFormSet(['quantity' => '11']);
+    }
+
+    public function test_scout_risk_guard_green_when_within_limit(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10942,
+            'default_risk_percent' => 1,
+        ]);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 25.64,
+            'latest_sma_20' => 26.12,
+            'latest_atr_14' => 2.00,
+            'quantity' => null,
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->fillForm(['_planned_investment' => 1000])
+            ->assertFormSet(['quantity' => '39'])
+            ->assertSee('van bankroll')
+            ->assertDontSee('boven limiet');
+    }
+
+    public function test_scout_risk_guard_red_when_over_limit(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10942,
+            'default_risk_percent' => 1,
+        ]);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 28.85,
+            'latest_sma_20' => 28.85,
+            'latest_atr_14' => 6.10,
+            'quantity' => null,
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->fillForm(['_planned_investment' => 3000])
+            ->assertFormSet(['quantity' => '103'])
+            ->assertSee('boven limiet');
+    }
+
+    public function test_scout_risk_guard_allows_save_when_over_limit(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10942,
+            'default_risk_percent' => 1,
+        ]);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'WULF',
+            'entry_price' => 28.85,
+            'latest_sma_20' => 28.85,
+            'latest_atr_14' => 6.10,
+            'quantity' => null,
+            'strategy_tag_id' => $this->defaultStrategyTagId(),
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->fillForm(['_planned_investment' => 3000])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $scout->refresh();
+
+        $this->assertEquals(103, (float) $scout->quantity);
+    }
+
+    public function test_scout_without_bankroll_shows_profile_cta(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update(['trading_bankroll' => null]);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 231.48,
+            'latest_sma_20' => 231.48,
+            'latest_atr_14' => 18.94,
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->assertSee('Bankroll instellen')
+            ->assertSee('Position sizing')
+            ->assertDontSee('bijv. 1000');
+    }
+
+    public function test_scout_cockpit_shows_percent_of_bankroll(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10942,
+            'default_risk_percent' => 1,
+        ]);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 25.64,
+            'quantity' => 39,
+            'latest_sma_20' => 26.12,
+            'latest_atr_14' => 2.00,
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->assertSee('van bankroll');
+    }
+
+    public function test_edit_scout_hud_shows_total_planned_risk(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10942,
+            'default_risk_percent' => 1,
+        ]);
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 80.00,
+            'quantity' => 10,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->assertSee('$39.00')
+            ->assertSee('van bankroll');
+    }
+
     public function test_scout_action_command_is_scout(): void
     {
         $scout = Position::factory()->scout()->create();
@@ -203,7 +348,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertOk()
             ->assertSee('Scout')
             ->assertSee('Berekende SL')
-            ->assertSee('Risico bij entry')
+            ->assertSee('Gepland risico')
             ->assertSee('Totale inleg')
             ->assertSee('Activeren')
             ->assertDontSee('Actie / Executie');

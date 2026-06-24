@@ -32,6 +32,8 @@ class Position extends Model
         return [
             'entry_price' => 'decimal:2',
             'quantity' => 'decimal:6',
+            'risk_budget' => 'decimal:2',
+            'risk_percent' => 'decimal:2',
             'current_sl' => 'decimal:2',
             'latest_close_price' => 'decimal:2',
             'recent_close_prices' => 'array',

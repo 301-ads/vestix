@@ -5,12 +5,15 @@ namespace App\Filament\Pages;
 use App\Enums\AlertEventType;
 use App\Models\UserAlertPreference;
 use App\Services\TelegramLinkService;
+use App\Support\PositionSizing;
 use App\Support\TelegramNotifier;
 use Filament\Actions\Action;
 use Filament\Auth\Pages\EditProfile;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
@@ -95,6 +98,23 @@ class EditUserProfile extends EditProfile
                                     $component->state($preference->daily_digest_time);
                                 }
                             }),
+                    ]),
+                Section::make('Position sizing')
+                    ->compact()
+                    ->description('Bankroll en standaard risico-limiet voor de waakhond op scouts.')
+                    ->schema([
+                        TextInput::make('trading_bankroll')
+                            ->label('Mijn Totale Trading Kapitaal (Bankroll)')
+                            ->numeric()
+                            ->prefix('$')
+                            ->minValue(0.01)
+                            ->helperText('Kopieer het totaal uit je broker (Revolut: Beleggingsrekening). Update wekelijks of maandelijks.'),
+                        ToggleButtons::make('default_risk_percent')
+                            ->label('Standaard risico-niveau')
+                            ->options(PositionSizing::riskPercentOptions())
+                            ->default('1')
+                            ->inline()
+                            ->required(),
                     ]),
                 $this->getPasswordFormComponent(),
                 $this->getPasswordConfirmationFormComponent(),

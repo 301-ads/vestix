@@ -12,6 +12,7 @@ use App\Support\ChartScreenshotUpload;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
+use App\Support\PositionSizing;
 use App\Support\ShareCardDataFactory;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
@@ -66,8 +67,16 @@ class PositionRecordActions
                 && auth()->user() !== null
                 && app(SquadContext::class)->userCanInAnySquad(auth()->user(), 'position.activate'))
             ->authorize(fn (Position $record): bool => auth()->user()?->can('activate', $record) ?? false)
-            ->modalHeading('Scout activeren als positie')
-            ->modalDescription('Vul je werkelijke fill en aantal in. De broker stop-loss wordt automatisch gezet op de berekende SL.')
+            ->requiresConfirmation(fn (Position $record): bool => self::scoutExceedsRiskLimit($record))
+            ->modalHeading(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
+                ? 'Risicomanagement overschreden'
+                : 'Scout activeren als positie')
+            ->modalDescription(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
+                ? self::scoutRiskOverrideDescription($record)
+                : 'Vul je werkelijke fill en aantal in. De broker stop-loss wordt automatisch gezet op de berekende SL.')
+            ->modalSubmitActionLabel(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
+                ? 'Toch doordrukken'
+                : 'Activeren')
             ->schema([
                 TextInput::make('entry_price')
                     ->label('Entry prijs')
@@ -93,6 +102,34 @@ class PositionRecordActions
                     ->content(fn (Position $record): HtmlString => new HtmlString(
                         '<span class="text-lg font-semibold">'.self::formatPreviewSl($record).'</span>'
                     )),
+                Placeholder::make('planned_risk_preview')
+                    ->label('Gepland risico')
+                    ->visible(fn (Position $record): bool => $record->planned_risk_dollars !== null)
+                    ->content(function (Position $record): HtmlString {
+                        $guard = self::resolveScoutRiskGuardState($record);
+                        $plannedRisk = (float) $record->planned_risk_dollars;
+                        $colorClass = $guard['exceeds']
+                            ? 'text-danger-600 dark:text-danger-400'
+                            : 'text-success-600 dark:text-success-400';
+
+                        $lines = ['<span class="text-lg font-semibold '.$colorClass.'">$'.number_format($plannedRisk, 2).'</span>'];
+
+                        if ($guard['riskPercentOfBankroll'] !== null) {
+                            $riskPctLabel = rtrim(rtrim(number_format($guard['riskPercentOfBankroll'], 1), '0'), '.');
+                            $lines[] = '<span class="block text-sm text-gray-600 dark:text-gray-400 mt-1">'.$riskPctLabel.'% van bankroll</span>';
+                        }
+
+                        if ($guard['exceeds'] && $guard['overByPercentPoints'] !== null) {
+                            $overLabel = rtrim(rtrim(number_format($guard['overByPercentPoints'], 1), '0'), '.');
+                            $lines[] = '<span class="block text-sm text-danger-600 dark:text-danger-400 mt-1">'.$overLabel.'% boven limiet</span>';
+                        }
+
+                        if ($record->quantity !== null) {
+                            $lines[] = '<span class="block text-sm text-gray-600 dark:text-gray-400 mt-1">'.number_format((float) $record->quantity, 0).' stuks</span>';
+                        }
+
+                        return new HtmlString(implode('', $lines));
+                    }),
             ])
             ->action(function (Position $record, array $data): void {
                 $record->activateAsPosition(
@@ -331,6 +368,58 @@ class PositionRecordActions
         }
 
         return '$'.number_format($sl, 2);
+    }
+
+    /**
+     * @return array{
+     *     riskLimit: ?float,
+     *     riskPercentOfBankroll: ?float,
+     *     exceeds: bool,
+     *     overByPercentPoints: ?float,
+     *     limitPercent: float
+     * }
+     */
+    private static function resolveScoutRiskGuardState(Position $record): array
+    {
+        $user = auth()->user();
+        $bankroll = $user?->trading_bankroll !== null ? (float) $user->trading_bankroll : null;
+        $limitPercent = (float) ($user?->default_risk_percent ?? 1);
+        $riskLimit = PositionSizing::resolveRiskLimitFromProfile($bankroll, $limitPercent);
+        $plannedRisk = $record->planned_risk_dollars !== null ? (float) $record->planned_risk_dollars : null;
+        $riskPercentOfBankroll = ($plannedRisk !== null && $bankroll !== null && $bankroll > 0)
+            ? PositionSizing::riskAsPercentOfBankroll($plannedRisk, $bankroll)
+            : null;
+        $overByPercentPoints = $riskPercentOfBankroll !== null
+            ? PositionSizing::overLimitByPercentPoints($riskPercentOfBankroll, $limitPercent)
+            : null;
+
+        return [
+            'riskLimit' => $riskLimit,
+            'riskPercentOfBankroll' => $riskPercentOfBankroll,
+            'exceeds' => $plannedRisk !== null && PositionSizing::exceedsRiskLimit($plannedRisk, $riskLimit),
+            'overByPercentPoints' => $overByPercentPoints,
+            'limitPercent' => $limitPercent,
+        ];
+    }
+
+    private static function scoutExceedsRiskLimit(Position $record): bool
+    {
+        return self::resolveScoutRiskGuardState($record)['exceeds'];
+    }
+
+    private static function scoutRiskOverrideDescription(Position $record): string
+    {
+        $guard = self::resolveScoutRiskGuardState($record);
+        $plannedRisk = (float) $record->planned_risk_dollars;
+        $limitPercentLabel = rtrim(rtrim(number_format($guard['limitPercent'], 2), '0'), '.');
+
+        if ($guard['riskLimit'] === null) {
+            return 'Je staat op het punt om je risicomanagement te breken. Wil je dit toch doorzetten?';
+        }
+
+        return 'Je riskeert $'.number_format($plannedRisk, 2)
+            .', terwijl je limiet $'.number_format($guard['riskLimit'], 2)
+            ." is ({$limitPercentLabel}% van bankroll). Wil je dit toch doorzetten of je inleg aanpassen?";
     }
 
     /**

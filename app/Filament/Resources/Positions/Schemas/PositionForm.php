@@ -12,6 +12,7 @@ use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ClosePriceTrend;
 use App\Support\EarningsExitDisplay;
+use App\Support\PositionSizing;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SlPriceProximity;
@@ -36,8 +37,11 @@ use Illuminate\Support\HtmlString;
 
 class PositionForm
 {
+    private static bool $scoutFormMode = false;
+
     public static function configure(Schema $schema, bool $scoutMode = false): Schema
     {
+        self::$scoutFormMode = $scoutMode;
         $isScoutForm = fn (?Position $record, string $operation): bool => $scoutMode || $record?->status === 'scout';
 
         return $schema
@@ -228,6 +232,7 @@ class PositionForm
                 Grid::make(3)
                     ->schema([
                         self::tickerField(),
+                        self::plannedInvestmentField($isScoutForm),
                         TextInput::make('quantity')
                             ->label(function (?Position $record, string $operation) use ($isScoutForm): string {
                                 return $isScoutForm($record, $operation) ? 'Gepland aantal' : 'Aantal';
@@ -239,6 +244,10 @@ class PositionForm
                             ->inputMode('decimal')
                             ->step('any')
                             ->minValue(0.000001)
+                            ->readOnly(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
+                            ->helperText(fn (?Position $record, string $operation): ?string => $isScoutForm($record, $operation)
+                                ? 'Auto-berekend uit totale inleg ÷ entry'
+                                : null)
                             ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace(',', '.', $state) : null)
                             ->rules(function (?Position $record, string $operation) use ($isScoutForm): array {
                                 return $isScoutForm($record, $operation)
@@ -247,8 +256,14 @@ class PositionForm
                             })
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record))
-                            ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record)),
-                        self::totalInvestmentField(),
+                            ->afterStateHydrated(function (Set $set, Get $get, ?Position $record, string $operation) use ($isScoutForm): void {
+                                self::syncTotalInvestmentField($set, $get, $record);
+
+                                if ($isScoutForm($record, $operation)) {
+                                    self::hydratePlannedInvestmentField($set, $get, $record);
+                                }
+                            }),
+                        self::totalInvestmentField($isScoutForm),
                     ]),
                 Grid::make(2)
                     ->schema([
@@ -268,8 +283,20 @@ class PositionForm
                                     : ['required', 'numeric', 'min:0.01'];
                             })
                             ->live(onBlur: true)
-                            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record))
-                            ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record)),
+                            ->afterStateUpdated(function (Set $set, Get $get, ?Position $record, string $operation) use ($isScoutForm): void {
+                                self::syncTotalInvestmentField($set, $get, $record);
+
+                                if ($isScoutForm($record, $operation)) {
+                                    self::syncPlannedQuantityFromInvestment($set, $get, $record);
+                                }
+                            })
+                            ->afterStateHydrated(function (Set $set, Get $get, ?Position $record, string $operation) use ($isScoutForm): void {
+                                self::syncTotalInvestmentField($set, $get, $record);
+
+                                if ($isScoutForm($record, $operation)) {
+                                    self::syncPlannedQuantityFromInvestment($set, $get, $record);
+                                }
+                            }),
                         self::brokerOrderStatusToggle()
                             ->visible(function (?Position $record, string $operation) use ($isScoutForm): bool {
                                 return $operation === 'edit' && $isScoutForm($record, $operation);
@@ -287,6 +314,7 @@ class PositionForm
                             ->minValue(0.01)
                             ->live(onBlur: true),
                     ]),
+                self::bankrollSetupCallout($isScoutForm),
                 self::earningsSmartAlert(),
             ]);
     }
@@ -370,13 +398,16 @@ class PositionForm
                 ->label('SMA 20')
                 ->numeric()
                 ->prefix('$')
-                ->live(onBlur: true),
+                ->live(onBlur: true)
+                ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncPlannedQuantityFromInvestment($set, $get, $record)),
             TextInput::make('latest_atr_14')
                 ->label('ATR 14')
                 ->numeric()
                 ->prefix('$')
                 ->live(onBlur: true)
                 ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
+                    self::syncPlannedQuantityFromInvestment($set, $get, $record);
+
                     if (blank($get('signal_high')) && blank($record?->signal_high)) {
                         return;
                     }
@@ -452,7 +483,44 @@ class PositionForm
             ->live(onBlur: true);
     }
 
-    private static function totalInvestmentField(): TextInput
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function plannedInvestmentField(callable $isScoutForm): TextInput
+    {
+        return TextInput::make('_planned_investment')
+            ->label('Totale inleg')
+            ->prefix('$')
+            ->numeric()
+            ->minValue(0.01)
+            ->dehydrated(false)
+            ->placeholder('bijv. 1000')
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation)
+                && self::userHasBankroll())
+            ->helperText(fn (Get $get, ?Position $record): ?string => self::plannedInvestmentHelperText($get, $record))
+            ->live()
+            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncPlannedQuantityFromInvestment($set, $get, $record))
+            ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::hydratePlannedInvestmentField($set, $get, $record));
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function bankrollSetupCallout(callable $isScoutForm): Callout
+    {
+        return Callout::make('Bankroll instellen')
+            ->info()
+            ->icon('heroicon-o-banknotes')
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation)
+                && ! self::userHasBankroll())
+            ->description('Stel je bankroll in via Profiel → Position sizing om je positiegrootte te berekenen.')
+            ->columnSpanFull();
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function totalInvestmentField(callable $isScoutForm): TextInput
     {
         return TextInput::make('_total_investment')
             ->label('Totale inleg')
@@ -460,6 +528,7 @@ class PositionForm
             ->readOnly()
             ->dehydrated(false)
             ->placeholder('—')
+            ->visible(fn (?Position $record, string $operation): bool => ! $isScoutForm($record, $operation))
             ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record));
     }
 
@@ -477,6 +546,132 @@ class PositionForm
         $set('_total_investment', number_format((float) $entry * (float) $quantity, 2, '.', ''));
     }
 
+    private static function syncPlannedQuantityFromInvestment(Set $set, Get $get, ?Position $record): void
+    {
+        if (! self::isScoutSizingContext($record) || ! self::userHasBankroll()) {
+            return;
+        }
+
+        $investment = $get('_planned_investment');
+        $entry = $get('entry_price') ?? $record?->entry_price;
+
+        if (blank($investment) || $entry === null || $entry === '') {
+            return;
+        }
+
+        $quantity = PositionSizing::quantityFromInvestment((float) $investment, (float) $entry);
+
+        if ($quantity === null || $quantity < 1) {
+            $set('quantity', null);
+
+            return;
+        }
+
+        $set('quantity', (string) $quantity);
+    }
+
+    private static function hydratePlannedInvestmentField(Set $set, Get $get, ?Position $record): void
+    {
+        if (! self::isScoutSizingContext($record) || ! self::userHasBankroll()) {
+            return;
+        }
+
+        if (filled($get('_planned_investment'))) {
+            self::syncPlannedQuantityFromInvestment($set, $get, $record);
+
+            return;
+        }
+
+        $entry = $get('entry_price') ?? $record?->entry_price;
+        $quantity = $get('quantity') ?? $record?->quantity;
+
+        if ($entry !== null && $entry !== '' && $quantity !== null && $quantity !== '') {
+            $set('_planned_investment', number_format((float) $entry * (float) $quantity, 2, '.', ''));
+
+            return;
+        }
+
+        self::syncPlannedQuantityFromInvestment($set, $get, $record);
+    }
+
+    private static function plannedInvestmentHelperText(Get $get, ?Position $record): ?string
+    {
+        if (! self::userHasBankroll()) {
+            return null;
+        }
+
+        $bankroll = (float) auth()->user()->trading_bankroll;
+        $limitPercent = (float) (auth()->user()?->default_risk_percent ?? 1);
+        $riskLimit = PositionSizing::resolveRiskLimitFromProfile($bankroll, $limitPercent);
+
+        if ($riskLimit === null) {
+            return null;
+        }
+
+        $percentLabel = rtrim(rtrim(number_format($limitPercent, 2), '0'), '.');
+
+        return "Limiet: {$percentLabel}% van $".number_format($bankroll, 2).' = $'.number_format($riskLimit, 2).' max risico';
+    }
+
+    private static function userHasBankroll(): bool
+    {
+        $bankroll = auth()->user()?->trading_bankroll;
+
+        return $bankroll !== null && (float) $bankroll > 0;
+    }
+
+    /**
+     * @return array{
+     *     bankroll: ?float,
+     *     limitPercent: float,
+     *     riskLimit: ?float,
+     *     plannedRisk: ?float,
+     *     riskPercentOfBankroll: ?float,
+     *     exceeds: bool,
+     *     overByPercentPoints: ?float
+     * }
+     */
+    private static function resolveRiskGuardState(Get $get, ?Position $record): array
+    {
+        $bankroll = self::userHasBankroll() ? (float) auth()->user()->trading_bankroll : null;
+        $limitPercent = (float) (auth()->user()?->default_risk_percent ?? 1);
+        $riskLimit = PositionSizing::resolveRiskLimitFromProfile($bankroll, $limitPercent);
+        $entry = $get('entry_price') ?? $record?->entry_price;
+        $quantity = $get('quantity') ?? $record?->quantity;
+        $stopLoss = Position::computeNewSl(
+            $get('latest_sma_20') ?? $record?->latest_sma_20,
+            $get('latest_atr_14') ?? $record?->latest_atr_14,
+        );
+
+        $plannedRisk = null;
+        $riskPercentOfBankroll = null;
+        $overByPercentPoints = null;
+
+        if ($entry !== null && $entry !== '' && $quantity !== null && $quantity !== '' && $stopLoss !== null) {
+            $plannedRisk = PositionSizing::plannedRiskTotal((int) floor((float) $quantity), (float) $entry, $stopLoss);
+        }
+
+        if ($plannedRisk !== null && $bankroll !== null) {
+            $riskPercentOfBankroll = PositionSizing::riskAsPercentOfBankroll($plannedRisk, $bankroll);
+            $overByPercentPoints = PositionSizing::overLimitByPercentPoints($riskPercentOfBankroll, $limitPercent);
+        }
+
+        return [
+            'bankroll' => $bankroll,
+            'limitPercent' => $limitPercent,
+            'riskLimit' => $riskLimit,
+            'plannedRisk' => $plannedRisk,
+            'riskPercentOfBankroll' => $riskPercentOfBankroll,
+            'exceeds' => $plannedRisk !== null && PositionSizing::exceedsRiskLimit($plannedRisk, $riskLimit),
+            'overByPercentPoints' => $overByPercentPoints,
+        ];
+    }
+
+    private static function isScoutSizingContext(?Position $record): bool
+    {
+        return self::$scoutFormMode || $record?->status === 'scout';
+    }
+
     private static function syncBuyStopFromInputs(Set $set, Get $get, ?Position $record): void
     {
         $buyStop = Position::computeBuyStop(
@@ -490,6 +685,7 @@ class PositionForm
 
         $set('advised_entry', $buyStop);
         $set('entry_price', $buyStop);
+        self::syncPlannedQuantityFromInvestment($set, $get, $record);
     }
 
     /**
@@ -823,12 +1019,12 @@ class PositionForm
                     $risk = self::formatPlannedRiskDescription($get, $record);
 
                     return [
-                        'label' => 'Risico bij entry',
+                        'label' => 'Gepland risico',
                         'value' => $risk['value'] ?? '—',
                         'valueColor' => $risk['valueColor'] ?? null,
                         'description' => $risk['text'] ?? null,
                         'descriptionColor' => $risk['color'] ?? 'gray',
-                        'cardVariant' => 'amber',
+                        'cardVariant' => $risk['cardVariant'] ?? 'amber',
                     ];
                 }),
         ];
@@ -1191,11 +1387,12 @@ class PositionForm
     }
 
     /**
-     * @return array{value: string, valueColor: ?string, text: ?string, color: string}|null
+     * @return array{value: string, valueColor: ?string, text: ?string, color: string, cardVariant: string}|null
      */
     private static function formatPlannedRiskDescription(Get $get, ?Position $record): ?array
     {
         $entry = $get('entry_price') ?? $record?->entry_price;
+        $quantity = $get('quantity') ?? $record?->quantity;
         $newSl = Position::computeNewSl(
             $get('latest_sma_20') ?? $record?->latest_sma_20,
             $get('latest_atr_14') ?? $record?->latest_atr_14,
@@ -1205,15 +1402,52 @@ class PositionForm
             return null;
         }
 
-        $perShare = (float) $entry - $newSl;
+        $perShare = round((float) $entry - $newSl, 2);
         $percentage = ($perShare / (float) $entry) * 100;
-        $color = $perShare > 0 ? 'warning' : 'danger';
+        $guard = self::resolveRiskGuardState($get, $record);
+
+        if ($guard['plannedRisk'] !== null && $guard['bankroll'] !== null && $guard['riskPercentOfBankroll'] !== null) {
+            $riskPctLabel = rtrim(rtrim(number_format($guard['riskPercentOfBankroll'], 1), '0'), '.');
+
+            if ($guard['exceeds'] && $guard['overByPercentPoints'] !== null) {
+                $overLabel = rtrim(rtrim(number_format($guard['overByPercentPoints'], 1), '0'), '.');
+
+                return [
+                    'value' => self::formatUsd($guard['plannedRisk']),
+                    'valueColor' => 'danger',
+                    'text' => "{$riskPctLabel}% van bankroll · {$overLabel}% boven limiet",
+                    'color' => 'danger',
+                    'cardVariant' => 'rose',
+                ];
+            }
+
+            return [
+                'value' => self::formatUsd($guard['plannedRisk']),
+                'valueColor' => 'success',
+                'text' => "{$riskPctLabel}% van bankroll",
+                'color' => 'success',
+                'cardVariant' => 'green',
+            ];
+        }
+
+        if ($quantity !== null && $quantity !== '') {
+            $totalRisk = $perShare * (float) $quantity;
+
+            return [
+                'value' => self::formatUsd($totalRisk),
+                'valueColor' => 'warning',
+                'text' => self::formatUsd($perShare).'/aandeel · '.number_format((float) $quantity, 0).' stuks',
+                'color' => 'warning',
+                'cardVariant' => 'amber',
+            ];
+        }
 
         return [
             'value' => self::formatUsd($perShare),
-            'valueColor' => $color,
+            'valueColor' => $perShare > 0 ? 'warning' : 'danger',
             'text' => number_format($percentage, 2).'% t.o.v. entry',
-            'color' => $color,
+            'color' => $perShare > 0 ? 'warning' : 'danger',
+            'cardVariant' => 'amber',
         ];
     }
 
@@ -1222,6 +1456,20 @@ class PositionForm
      */
     private static function formatPlannedInvestment(Get $get, ?Position $record): array
     {
+        $plannedInvestment = $get('_planned_investment');
+
+        if (filled($plannedInvestment)) {
+            $entry = $get('entry_price') ?? $record?->entry_price;
+            $quantity = $get('quantity') ?? $record?->quantity;
+
+            return [
+                'value' => '$'.number_format((float) $plannedInvestment, 2),
+                'text' => ($entry !== null && $entry !== '' && $quantity !== null && $quantity !== '')
+                    ? number_format((float) $quantity, 0).' × '.self::formatUsd($entry)
+                    : null,
+            ];
+        }
+
         $entry = $get('entry_price') ?? $record?->entry_price;
         $quantity = $get('quantity') ?? $record?->quantity;
 
