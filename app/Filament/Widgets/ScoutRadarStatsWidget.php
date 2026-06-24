@@ -92,16 +92,16 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
                 ->descriptionColor('warning')
                 ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber']),
-            Stat::make('Orders Live', (string) $pendingCount)
-                ->description('Buy-stop bij broker')
-                ->descriptionIcon('heroicon-m-clock')
-                ->descriptionColor($pendingCount > 0 ? 'warning' : 'gray')
-                ->extraAttributes($this->filterableStatAttributes('pending_only', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber')),
             Stat::make('Klaar voor Executie', (string) $readyCount)
                 ->description('Binnen 1% van entry')
                 ->descriptionIcon('heroicon-m-bolt')
                 ->descriptionColor('gray')
                 ->extraAttributes($this->filterableStatAttributes('ready', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--zinc')),
+            Stat::make('Orders Live', (string) $pendingCount)
+                ->description('Buy-stop bij broker')
+                ->descriptionIcon('heroicon-m-clock')
+                ->descriptionColor($pendingCount > 0 ? 'warning' : 'gray')
+                ->extraAttributes($this->filterableStatAttributes('pending_only', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber')),
             Stat::make('Gap-up Risico', (string) $gapUpCount)
                 ->description('Boven bounce high (14:30)')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')

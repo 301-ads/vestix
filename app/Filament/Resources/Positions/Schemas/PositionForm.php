@@ -193,6 +193,28 @@ class PositionForm
             });
     }
 
+    private static function brokerOrderStatusToggle(): Toggle
+    {
+        return Toggle::make('broker_order_status')
+            ->label('Buy-stop bij broker')
+            ->inline(false)
+            ->onIcon('heroicon-m-clock')
+            ->offIcon('heroicon-m-viewfinder-circle')
+            ->onColor('warning')
+            ->offColor('gray')
+            ->formatStateUsing(function ($state): bool {
+                if ($state instanceof BrokerOrderStatus) {
+                    return $state === BrokerOrderStatus::Pending;
+                }
+
+                return BrokerOrderStatus::tryFrom((string) $state) === BrokerOrderStatus::Pending;
+            })
+            ->dehydrateStateUsing(fn (bool $state): string => $state
+                ? BrokerOrderStatus::Pending->value
+                : BrokerOrderStatus::Scout->value)
+            ->helperText('Aan: buy-stop live (pending). Uit: setup klaar (scout).');
+    }
+
     /**
      * @param  callable(?Position, string): bool  $isScoutForm
      */
@@ -248,6 +270,10 @@ class PositionForm
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record))
                             ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record)),
+                        self::brokerOrderStatusToggle()
+                            ->visible(function (?Position $record, string $operation) use ($isScoutForm): bool {
+                                return $operation === 'edit' && $isScoutForm($record, $operation);
+                            }),
                         TextInput::make('current_sl')
                             ->label('Huidige stop-loss')
                             ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
@@ -709,14 +735,6 @@ class PositionForm
                     ))
                     ->danger()
                     ->icon('heroicon-o-exclamation-triangle'),
-                Select::make('broker_order_status')
-                    ->label('Status bij broker')
-                    ->options([
-                        BrokerOrderStatus::Scout->value => 'Scout — setup klaar, nog geen order',
-                        BrokerOrderStatus::Pending->value => 'Pending — buy-stop live bij broker',
-                    ])
-                    ->native(false)
-                    ->columnSpanFull(),
                 Grid::make(4)
                     ->extraAttributes(['class' => 'position-cockpit-grid'])
                     ->schema(self::scoutCockpitPrimaryCards())
