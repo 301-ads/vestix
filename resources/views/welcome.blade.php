@@ -7,6 +7,8 @@
 
     <link rel="icon" href="{{ asset('images/favicon.svg') }}" type="image/svg+xml">
     <link rel="icon" href="{{ asset('images/favicon.png') }}" type="image/png">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('images/favicon-180x180.png') }}">
+    <link rel="manifest" href="{{ asset('manifest.json') }}">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">

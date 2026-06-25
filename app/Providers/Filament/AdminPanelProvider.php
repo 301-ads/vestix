@@ -110,6 +110,10 @@ class AdminPanelProvider extends PanelProvider
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->globalSearchFieldKeyBindingSuffix()
             ->renderHook(
+                PanelsRenderHook::HEAD_START,
+                fn (): string => '<link rel="apple-touch-icon" sizes="180x180" href="' . asset('images/favicon-180x180.png') . '">' . "\n" . '<link rel="manifest" href="' . asset('manifest.json') . '">'
+            )
+            ->renderHook(
                 PanelsRenderHook::PAGE_HEADER_ACTIONS_BEFORE,
                 fn (): string => view('filament.dashboard.market-data-status')->render(),
                 scopes: [Dashboard::class],
