@@ -13,7 +13,7 @@
         "type": "image/png"
       }
     ],
-    "start_url": "/admin/dashboard",
+    "start_url": "/admin",
     "display": "standalone",
     "theme_color": "#00D492",
     "background_color": "#181818"
