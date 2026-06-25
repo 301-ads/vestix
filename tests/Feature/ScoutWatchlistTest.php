@@ -268,7 +268,7 @@ class ScoutWatchlistTest extends TestCase
         $user->update(['trading_bankroll' => null]);
 
         $scout = Position::factory()->for($user)->scout()->create([
-            'entry_price' => 231.48,
+            'entry_price' => 250.00,
             'latest_sma_20' => 231.48,
             'latest_atr_14' => 18.94,
         ]);
@@ -349,7 +349,7 @@ class ScoutWatchlistTest extends TestCase
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
             ->assertSee('Scout')
-            ->assertSee('Berekende SL')
+            ->assertSee('Geplande Entry')
             ->assertSee('Gepland risico')
             ->assertSee('Totale inleg')
             ->assertSee('Activeren')

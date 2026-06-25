@@ -512,7 +512,7 @@ class PositionForm
             ->icon('heroicon-o-banknotes')
             ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation)
                 && ! self::userHasBankroll())
-            ->description('Stel je bankroll in via Profiel → Position sizing om de risicowaakhond te activeren.')
+            ->description('Stel je bankroll in via Profiel → Position sizing om je positiegrootte te berekenen.')
             ->columnSpanFull();
     }
 
@@ -994,13 +994,9 @@ class PositionForm
     {
         return [
             View::make('filament.positions.cockpit-stat-card')
-                ->viewData(fn (Get $get, ?Position $record): array => [
-                    'label' => 'Actuele Koers',
-                    'value' => self::formatUsd($get('latest_close_price') ?? $record?->latest_close_price),
-                    'cardVariant' => 'blue',
-                ]),
+                ->viewData(fn (Get $get, ?Position $record): array => self::actueleKoersCardViewData($get, $record)),
             View::make('filament.positions.cockpit-stat-card')
-                ->viewData(fn (Get $get, ?Position $record): array => self::berekendeSlCardViewData($get, $record)),
+                ->viewData(fn (Get $get, ?Position $record): array => self::geplandeEntryCardViewData($get, $record)),
             View::make('filament.positions.cockpit-stat-card')
                 ->viewData(function (Get $get, ?Position $record): array {
                     $investment = self::formatPlannedInvestment($get, $record);
@@ -1325,6 +1321,24 @@ class PositionForm
     /**
      * @return array<string, mixed>
      */
+    private static function geplandeEntryCardViewData(Get $get, ?Position $record): array
+    {
+        $entry = $get('entry_price') ?? $record?->entry_price;
+        $distance = self::formatGeplandeEntryDistanceDescription($get, $record);
+
+        return [
+            'label' => 'Geplande Entry',
+            'value' => self::formatUsd($entry),
+            'copyValue' => self::formatNewSlCopyValue($entry !== null && $entry !== '' ? (float) $entry : null),
+            'description' => $distance['text'] ?? null,
+            'descriptionColor' => $distance['color'] ?? 'gray',
+            'cardVariant' => 'amber',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private static function berekendeSlCardViewData(Get $get, ?Position $record): array
     {
         $newSl = self::resolveComputedNewSl($get, $record);
@@ -1360,6 +1374,40 @@ class PositionForm
     /**
      * @return array{text: string, color: string}|null
      */
+    private static function formatGeplandeEntryDistanceDescription(Get $get, ?Position $record): ?array
+    {
+        $close = $get('latest_close_price') ?? $record?->latest_close_price;
+        $entry = $get('entry_price') ?? $record?->entry_price;
+
+        if ($close === null || $close === '' || $entry === null || $entry === '') {
+            return null;
+        }
+
+        $close = (float) $close;
+        $entry = (float) $entry;
+        $percentage = (($entry - $close) / $close) * 100;
+        
+        // Voor entry gebruiken we dezelfde kleurlogica als SL maar dan omgedraaid? Nee, we kijken gewoon 
+        // naar "hoe ver is de entry nog weg t.o.v. de actuele koers".
+        // Eigenlijk is de kleur op de radar voor entry vaak neutraal, maar we houden het op amber/danger bij break.
+        $color = 'gray'; // Default if not using SlPriceProximity
+        $atr = $get('latest_atr_14') ?? $record?->latest_atr_14;
+        $atr = $atr !== null && $atr !== '' ? (float) $atr : null;
+        if ($atr !== null) {
+            $color = SlPriceProximity::color($close, $entry, $atr);
+        }
+
+        $percentagePrefix = $percentage >= 0 ? '+' : '−';
+
+        return [
+            'text' => $percentagePrefix.number_format(abs($percentage), 2).'% t.o.v. koers',
+            'color' => $color,
+        ];
+    }
+
+    /**
+     * @return array{text: string, color: string}|null
+     */
     private static function formatNewSlDistanceDescription(Get $get, ?Position $record): ?array
     {
         $close = $get('latest_close_price') ?? $record?->latest_close_price;
@@ -1380,7 +1428,7 @@ class PositionForm
         $percentagePrefix = $percentage >= 0 ? '+' : '−';
 
         return [
-            'text' => self::formatUsd($close).' · '.$percentagePrefix.number_format(abs($percentage), 1).'%',
+            'text' => $percentagePrefix.number_format(abs($percentage), 2).'% t.o.v. koers',
             'color' => SlPriceProximity::color($close, $newSl, $atr),
         ];
     }
