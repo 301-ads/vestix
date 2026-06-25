@@ -65,7 +65,7 @@ class Dashboard extends BaseDashboard
 
                     FilamentNotifier::send(
                         title: 'API-sync gestart',
-                        body: 'De Sluipschutter Engine draait op de achtergrond. Je krijgt een melding zodra de sync klaar is.',
+                        body: 'De Sniper Engine draait op de achtergrond. Je krijgt een melding zodra de sync klaar is.',
                         recipients: auth()->user(),
                     );
                 }),

@@ -44,7 +44,7 @@
             </div>
             <div class="vestix-share-card__domain-block">
                 <div class="vestix-share-card__domain-large">vestix.io</div>
-                <div class="vestix-share-card__domain-sub">Sluipschutter Terminal</div>
+                <div class="vestix-share-card__domain-sub">Sniper Terminal</div>
             </div>
         </div>
     </div>

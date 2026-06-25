@@ -64,7 +64,7 @@ class FetchVestixData extends Command
                 return $this->runTickerFetch($marketDataFetcher, $ticker, $userId);
             }
 
-            $this->info('Sluipschutter Engine gestart: API data ophalen...');
+            $this->info('Sniper Engine gestart: API data ophalen...');
 
             $positions = Position::tracked()->get();
 
@@ -125,7 +125,7 @@ class FetchVestixData extends Command
                 return self::SUCCESS;
             }
         } catch (\Throwable $exception) {
-            Log::error("Sluipschutter API fout voor {$position->ticker}: {$exception->getMessage()}");
+            Log::error("Sniper API fout voor {$position->ticker}: {$exception->getMessage()}");
             $this->error("Er ging iets mis bij {$position->ticker}. Check de logs.");
             $this->notifyPositionCompletion($userId, $position, success: false);
 
@@ -165,7 +165,7 @@ class FetchVestixData extends Command
 
             return self::SUCCESS;
         } catch (\Throwable $exception) {
-            Log::error("Sluipschutter API fout voor {$ticker}: {$exception->getMessage()}");
+            Log::error("Sniper API fout voor {$ticker}: {$exception->getMessage()}");
             $this->error("Er ging iets mis bij {$ticker}. Check de logs.");
             $this->notifyTickerCompletion($userId, $ticker, null);
 
@@ -250,7 +250,7 @@ class FetchVestixData extends Command
                         : $position->action_command,
                 ];
             } catch (\Throwable $exception) {
-                Log::error("Sluipschutter API fout voor {$position->ticker}: {$exception->getMessage()}");
+                Log::error("Sniper API fout voor {$position->ticker}: {$exception->getMessage()}");
 
                 $this->error("Er ging iets mis bij {$position->ticker}. Check de logs.");
                 $failed++;
@@ -263,7 +263,7 @@ class FetchVestixData extends Command
         $this->info('Alle beschikbare posities zijn wiskundig geanalyseerd!');
 
         if ($alertsSent > 0) {
-            $this->info("{$alertsSent} Sluipschutter Telegram-alert(s) verstuurd.");
+            $this->info("{$alertsSent} Sniper Telegram-alert(s) verstuurd.");
         }
 
         $marketDataFetcher->touchApiFetchTimestamp();

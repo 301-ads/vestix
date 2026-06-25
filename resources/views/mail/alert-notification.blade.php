@@ -1,5 +1,5 @@
 {{ $alertMessage }}
 
 —
-Vestix | Sluipschutter Terminal
+Vestix | Sniper Terminal
 https://vestix.io

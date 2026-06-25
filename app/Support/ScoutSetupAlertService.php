@@ -41,7 +41,7 @@ class ScoutSetupAlertService
             && $position->telegram_a_minus_alert_sent_at === null
         ) {
             $message = sprintf(
-                '🎯 Sluipschutter Alert: %s is nu een A- Setup (%d/%d). Koers is geland op de SMA 20. Open de setup en vul Low/High in voor je Buy-Stop.',
+                '🎯 Sniper Alert: %s is nu een A- Setup (%d/%d). Koers is geland op de SMA 20. Open de setup en vul Low/High in voor je Buy-Stop.',
                 $position->ticker,
                 $newScore,
                 $newScorecard['maxPoints'],
