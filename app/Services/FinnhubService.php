@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 class FinnhubService
 {
     /**
-     * @return array{close: float, high: float|null, low: float|null}|null
+     * @return array{open: float|null, close: float, high: float|null, low: float|null}|null
      */
     public function fetchQuote(string $ticker): ?array
     {
@@ -23,6 +23,7 @@ class FinnhubService
         }
 
         return [
+            'open' => isset($data['o']) && (float) $data['o'] > 0 ? (float) $data['o'] : null,
             'close' => (float) $data['c'],
             'high' => isset($data['h']) && (float) $data['h'] > 0 ? (float) $data['h'] : null,
             'low' => isset($data['l']) && (float) $data['l'] > 0 ? (float) $data['l'] : null,

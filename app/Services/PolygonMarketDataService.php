@@ -160,12 +160,13 @@ class PolygonMarketDataService
         $high = (float) ($quote['high'] ?? $close);
         $low = (float) ($quote['low'] ?? $close);
         $previousClose = $bars !== [] ? (float) $bars[array_key_last($bars)]['close'] : $close;
+        $open = (float) ($quote['open'] ?? $previousClose);
 
         $sessionVolume = $this->sessionVolumeResolver->resolve($ticker, $sessionDate)
             ?? (float) $barsPayload['today']['volume'];
 
         $bars[] = [
-            'open' => $previousClose,
+            'open' => $open,
             'high' => $high,
             'low' => $low,
             'close' => $close,

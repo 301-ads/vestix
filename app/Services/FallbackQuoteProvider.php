@@ -20,6 +20,9 @@ class FallbackQuoteProvider implements QuoteProvider
         return $quote['close'] ?? null;
     }
 
+    /**
+     * @return array{open: float|null, close: float, high: float|null, low: float|null, provider?: string}|null
+     */
     public function fetchSessionQuote(string $ticker): ?array
     {
         $quote = $this->fetchSessionQuoteWithProvider($ticker);
@@ -29,15 +32,16 @@ class FallbackQuoteProvider implements QuoteProvider
         }
 
         return [
+            'open' => $quote['open'] ?? null,
             'close' => $quote['close'],
-            'high' => $quote['high'],
-            'low' => $quote['low'],
+            'high' => $quote['high'] ?? null,
+            'low' => $quote['low'] ?? null,
             'provider' => $quote['provider'],
         ];
     }
 
     /**
-     * @return array{close: float, high: float|null, low: float|null, provider: string}|null
+     * @return array{open: float|null, close: float, high: float|null, low: float|null, provider: string}|null
      */
     public function fetchSessionQuoteWithProvider(string $ticker): ?array
     {
@@ -52,6 +56,7 @@ class FallbackQuoteProvider implements QuoteProvider
 
             if ($quote !== null && isset($quote['close'])) {
                 return [
+                    'open' => $quote['open'] ?? null,
                     'close' => $quote['close'],
                     'high' => $quote['high'] ?? null,
                     'low' => $quote['low'] ?? null,

@@ -13,6 +13,9 @@ class AlphaVantageQuoteProvider implements QuoteProvider
         return $this->alphaVantage->fetchQuote($ticker);
     }
 
+    /**
+     * @return array{open: float|null, close: float, high: float|null, low: float|null}|null
+     */
     public function fetchSessionQuote(string $ticker): ?array
     {
         return $this->alphaVantage->fetchGlobalQuote($ticker);

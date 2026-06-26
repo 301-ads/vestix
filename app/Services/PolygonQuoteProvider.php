@@ -62,6 +62,9 @@ class PolygonQuoteProvider implements QuoteProvider
         }
     }
 
+    /**
+     * @return array{open: float|null, close: float, high: float|null, low: float|null}|null
+     */
     public function fetchSessionQuote(string $ticker): ?array
     {
         $price = $this->fetchLivePrice($ticker);
@@ -71,6 +74,7 @@ class PolygonQuoteProvider implements QuoteProvider
         }
 
         return [
+            'open' => null,
             'close' => $price,
             'high' => null,
             'low' => null,

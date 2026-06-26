@@ -42,6 +42,7 @@ class AlphaVantageServiceTest extends TestCase
         Http::fake([
             '*' => Http::response([
                 'Global Quote' => [
+                    '02. open' => '77.00',
                     '03. high' => '79.50',
                     '04. low' => '76.80',
                     '05. price' => '78.20',
@@ -50,6 +51,7 @@ class AlphaVantageServiceTest extends TestCase
         ]);
 
         $this->assertSame([
+            'open' => 77.00,
             'close' => 78.20,
             'high' => 79.50,
             'low' => 76.80,
