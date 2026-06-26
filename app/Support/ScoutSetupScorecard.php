@@ -181,7 +181,11 @@ class ScoutSetupScorecard
         $open = self::resolveOpenPrice($inputs);
         $close = self::resolveClosePrice($inputs);
 
-        if ($open !== null && $close !== null && $close < $open) {
+        if ($open === null || $close === null) {
+            return self::criterion('volume', 'Volume bevestiging', 0, 1, 'fail', 'Open/slotkoers ontbreekt voor volume-check');
+        }
+
+        if ($close < $open) {
             return self::criterion('volume', 'Volume bevestiging', 0, 1, 'fail', 'Vallend mes: hoog volume maar slotkoers onder openingskoers');
         }
 

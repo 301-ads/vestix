@@ -37,6 +37,7 @@ trait PollsPositionMarketData
         $record->load('asset');
 
         $this->refreshFormData([
+            'latest_open_price',
             'latest_close_price',
             'latest_sma_20',
             'sma_20_five_days_ago',

@@ -284,4 +284,19 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertStringContainsString('Vallend mes', $result['criteria'][3]['detail']);
         $this->assertContains('Vallend mes — hoog volume maar slotkoers onder openingskoers', $result['hardFailReasons']);
     }
+
+    public function test_volume_score_requires_open_price_when_volume_confirmed(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'bounce_volume_above_average' => true,
+            'latest_open_price' => null,
+            'latest_close_price' => 100.50,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][3]['points']);
+        $this->assertSame('fail', $result['criteria'][3]['status']);
+        $this->assertStringContainsString('Open/slotkoers ontbreekt', $result['criteria'][3]['detail']);
+        $this->assertSame(6, $result['totalPoints']);
+        $this->assertNotSame('A+', $result['grade']);
+    }
 }

@@ -137,7 +137,10 @@ class ScoutsTable
             ]);
     }
 
-    private static function setupGradeLabel(Position $record): ?string
+    /**
+     * @return array{grade: string, gradeLabel: string, hardFailReasons: array<int, string>}|null
+     */
+    private static function resolveSetupScore(Position $record): ?array
     {
         if (
             ($record->signal_low === null && $record->latest_close_price === null)
@@ -147,20 +150,27 @@ class ScoutsTable
             return null;
         }
 
-        return $record->evaluateSetupScore()['gradeLabel'];
+        return $record->evaluateSetupScore();
+    }
+
+    private static function setupGradeLabel(Position $record): ?string
+    {
+        return self::resolveSetupScore($record)['gradeLabel'] ?? null;
     }
 
     private static function setupGradeColor(Position $record): string
     {
-        if (
-            ($record->signal_low === null && $record->latest_close_price === null)
-            || $record->latest_sma_20 === null
-            || $record->scout_rsi === null
-        ) {
+        $score = self::resolveSetupScore($record);
+
+        if ($score === null) {
             return 'gray';
         }
 
-        return match ($record->evaluateSetupScore()['grade']) {
+        if ($score['hardFailReasons'] !== []) {
+            return 'danger';
+        }
+
+        return match ($score['grade']) {
             'A+' => 'success',
             'A-' => 'warning',
             default => 'gray',

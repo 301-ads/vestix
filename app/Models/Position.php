@@ -748,6 +748,7 @@ class Position extends Model
     {
         $inputs = [
             'signal_low' => $overrides['signal_low'] ?? $this->signal_low,
+            'latest_open_price' => $overrides['latest_open_price'] ?? $this->latest_open_price,
             'latest_close_price' => $overrides['latest_close_price'] ?? $this->latest_close_price,
             'latest_sma_20' => $overrides['latest_sma_20'] ?? $this->latest_sma_20,
             'sma_20_five_days_ago' => $overrides['sma_20_five_days_ago'] ?? $this->sma_20_five_days_ago,
