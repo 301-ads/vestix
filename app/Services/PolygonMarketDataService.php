@@ -20,6 +20,7 @@ class PolygonMarketDataService
 
     /**
      * @return array{
+     *     latest_open_price: float,
      *     latest_close_price: float,
      *     recent_close_prices: array<int, float>,
      *     latest_sma_20: float,
@@ -66,6 +67,7 @@ class PolygonMarketDataService
             $bars['bars'],
         );
 
+        $open = $bars['today']['open'];
         $close = $bars['today']['close'];
         $sma20 = TechnicalIndicators::smaAtOffset($closes, 20, 0);
         $sma20FiveDaysAgo = TechnicalIndicators::smaAtOffset($closes, 20, 5);
@@ -78,6 +80,7 @@ class PolygonMarketDataService
         }
 
         $payload = [
+            'latest_open_price' => $open,
             'latest_close_price' => $close,
             'recent_close_prices' => self::extractRecentClosePrices($bars['bars']),
             'latest_sma_20' => $sma20,

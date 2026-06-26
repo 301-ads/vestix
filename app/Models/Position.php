@@ -35,6 +35,7 @@ class Position extends Model
             'risk_budget' => 'decimal:2',
             'risk_percent' => 'decimal:2',
             'current_sl' => 'decimal:2',
+            'latest_open_price' => 'decimal:2',
             'latest_close_price' => 'decimal:2',
             'recent_close_prices' => 'array',
             'exit_price' => 'decimal:2',
@@ -93,6 +94,7 @@ class Position extends Model
             }
 
             $frozenFields = [
+                'latest_open_price',
                 'latest_close_price',
                 'latest_sma_20',
                 'latest_sma_50',

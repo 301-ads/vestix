@@ -13,7 +13,7 @@ class AlphaVantageService
     }
 
     /**
-     * @return array{close: float, high: float|null, low: float|null}|null
+     * @return array{open: float|null, close: float, high: float|null, low: float|null}|null
      */
     public function fetchGlobalQuote(string $ticker): ?array
     {
@@ -29,6 +29,7 @@ class AlphaVantageService
         }
 
         return [
+            'open' => isset($quote['02. open']) ? (float) $quote['02. open'] : null,
             'close' => (float) $quote['05. price'],
             'high' => isset($quote['03. high']) ? (float) $quote['03. high'] : null,
             'low' => isset($quote['04. low']) ? (float) $quote['04. low'] : null,

@@ -16,6 +16,7 @@ class ScoutSetupScorecardTest extends TestCase
     {
         return array_merge([
             'signal_low' => 100.50,
+            'latest_open_price' => 100.00,
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
@@ -214,6 +215,7 @@ class ScoutSetupScorecardTest extends TestCase
     {
         $result = ScoutSetupScorecard::evaluate([
             'signal_low' => $landing,
+            'latest_open_price' => $landing,
             'latest_close_price' => $landing,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
@@ -254,5 +256,32 @@ class ScoutSetupScorecardTest extends TestCase
             'too hot for points' => [68.0, 0],
             'too weak' => [39.0, 0],
         ];
+    }
+
+    public function test_volume_score_green_candle(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'bounce_volume_above_average' => true,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 102.00,
+        ]));
+
+        $this->assertSame(1, $result['criteria'][3]['points']);
+        $this->assertSame('pass', $result['criteria'][3]['status']);
+        $this->assertStringContainsString('Echte bounce', $result['criteria'][3]['detail']);
+    }
+
+    public function test_volume_score_red_candle(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'bounce_volume_above_average' => true,
+            'latest_open_price' => 102.00,
+            'latest_close_price' => 100.00,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][3]['points']);
+        $this->assertSame('fail', $result['criteria'][3]['status']);
+        $this->assertStringContainsString('Vallend mes', $result['criteria'][3]['detail']);
+        $this->assertContains('Vallend mes — hoog volume maar slotkoers onder openingskoers', $result['hardFailReasons']);
     }
 }

@@ -16,6 +16,7 @@ class MarketDataFetcher
 
     /**
      * @return array{
+     *     latest_open_price: float|null,
      *     latest_close_price: float,
      *     recent_close_prices: array<int, float>,
      *     latest_sma_20: float,
@@ -104,6 +105,7 @@ class MarketDataFetcher
 
     /**
      * @return array{
+     *     latest_open_price: float|null,
      *     latest_close_price: float,
      *     recent_close_prices: array<int, float>,
      *     latest_sma_20: float,
@@ -163,6 +165,7 @@ class MarketDataFetcher
             : [round((float) $close, 2)];
 
         $payload = [
+            'latest_open_price' => $globalQuote['open'] ?? null,
             'latest_close_price' => $close,
             'recent_close_prices' => $recentClosePrices,
             'latest_sma_20' => $sma,

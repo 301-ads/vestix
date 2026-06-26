@@ -7,6 +7,7 @@ class ScoutSetupScorecard
     /**
      * @param  array{
      *     signal_low?: float|null,
+     *     latest_open_price?: float|null,
      *     latest_close_price?: float|null,
      *     latest_sma_20?: float|null,
      *     sma_20_five_days_ago?: float|null,
@@ -173,11 +174,18 @@ class ScoutSetupScorecard
     {
         $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
 
-        if ($confirmed) {
-            return self::criterion('volume', 'Volume bevestiging', 1, 1, 'pass', 'Volume boven 30-daags gemiddelde');
+        if (! $confirmed) {
+            return self::criterion('volume', 'Volume bevestiging', 0, 1, 'fail', 'Nog niet bevestigd');
         }
 
-        return self::criterion('volume', 'Volume bevestiging', 0, 1, 'fail', 'Nog niet bevestigd');
+        $open = self::resolveOpenPrice($inputs);
+        $close = self::resolveClosePrice($inputs);
+
+        if ($open !== null && $close !== null && $close < $open) {
+            return self::criterion('volume', 'Volume bevestiging', 0, 1, 'fail', 'Vallend mes: hoog volume maar slotkoers onder openingskoers');
+        }
+
+        return self::criterion('volume', 'Volume bevestiging', 1, 1, 'pass', 'Echte bounce: hoog volume en koers gesloten in het groen');
     }
 
     /**
@@ -194,11 +202,18 @@ class ScoutSetupScorecard
             $reasons[] = 'RSI oververhit (>70) — geen A-setup mogelijk';
         }
 
+        $open = self::resolveOpenPrice($inputs);
         $close = self::resolveClosePrice($inputs);
         $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
 
         if ($close !== null && $sma !== null && $close < $sma) {
             $reasons[] = 'Close onder SMA 20 — trampoline gebroken';
+        }
+
+        $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
+
+        if ($confirmed && $open !== null && $close !== null && $close < $open) {
+            $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
         }
 
         return $reasons;
@@ -224,6 +239,14 @@ class ScoutSetupScorecard
     private static function resolveClosePrice(array $inputs): ?float
     {
         return self::toFloat($inputs['latest_close_price'] ?? null);
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function resolveOpenPrice(array $inputs): ?float
+    {
+        return self::toFloat($inputs['latest_open_price'] ?? null);
     }
 
     /**

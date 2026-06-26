@@ -377,7 +377,7 @@ class PositionForm
             ->divided()
             ->visible(fn (?Position $record): bool => $record?->status !== 'closed')
             ->schema([
-                Grid::make(3)
+                Grid::make(4)
                     ->schema(self::schildMarketDataFields())
                     ->columnSpanFull(),
             ]);
@@ -389,6 +389,11 @@ class PositionForm
     private static function schildMarketDataFields(): array
     {
         return [
+            TextInput::make('latest_open_price')
+                ->label('Open prijs')
+                ->numeric()
+                ->prefix('$')
+                ->live(),
             TextInput::make('latest_close_price')
                 ->label('Close prijs')
                 ->numeric()
@@ -1632,6 +1637,7 @@ class PositionForm
     {
         return [
             'signal_low' => $get('signal_low') ?? $record?->signal_low,
+            'latest_open_price' => $get('latest_open_price') ?? $record?->latest_open_price,
             'latest_close_price' => $get('latest_close_price') ?? $record?->latest_close_price,
             'latest_sma_20' => $get('latest_sma_20') ?? $record?->latest_sma_20,
             'sma_20_five_days_ago' => $get('sma_20_five_days_ago') ?? $record?->sma_20_five_days_ago,
