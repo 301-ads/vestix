@@ -634,4 +634,58 @@ class PositionResourceTest extends TestCase
             'signal_high' => null,
         ]);
     }
+
+    public function test_open_tab_shows_open_positions_stats_widget(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->create(['status' => 'open']);
+
+        Livewire::test(ListPositions::class)
+            ->assertOk()
+            ->assertSee('Totaal Open Risico')
+            ->assertDontSee('Profit Factor');
+    }
+
+    public function test_archive_tab_shows_post_mortem_stats_widget(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->closed()->create([
+            'entry_price' => 100,
+            'exit_price' => 110,
+            'quantity' => 10,
+            'freeride_secured_at' => now(),
+        ]);
+
+        Livewire::test(ListPositions::class)
+            ->set('activeTab', 'closed')
+            ->assertOk()
+            ->assertSee('Profit Factor')
+            ->assertSee('Grootste Misser')
+            ->assertSee('Freeride Hitrate')
+            ->assertDontSee('Totaal Open Risico');
+    }
+
+    public function test_archive_tab_shows_table_summary_net_pnl(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->closed()->create([
+            'entry_price' => 100,
+            'exit_price' => 105,
+            'quantity' => 10,
+        ]);
+        Position::factory()->for($user)->closed()->create([
+            'entry_price' => 100,
+            'exit_price' => 103,
+            'quantity' => 10,
+        ]);
+
+        Livewire::test(ListPositions::class)
+            ->set('activeTab', 'closed')
+            ->assertOk()
+            ->assertSee('Netto')
+            ->assertSee('$80.00');
+    }
 }

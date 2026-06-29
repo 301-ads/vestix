@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Positions\Pages;
 
 use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Widgets\ArchivePostMortemStatsWidget;
 use App\Filament\Widgets\OpenPositionsStatsWidget;
 use App\Services\SquadContext;
 use Filament\Actions\CreateAction;
@@ -44,9 +45,11 @@ class ListPositions extends ListRecords
         return $schema
             ->components([
                 Grid::make(['@xl' => 4, '@lg' => 2, 'default' => 1])
-                    ->schema(fn (): array => $this->getWidgetsSchemaComponents([
-                        OpenPositionsStatsWidget::class,
-                    ]))
+                    ->schema(fn (): array => $this->getWidgetsSchemaComponents(
+                        ($this->activeTab ?? 'open') === 'closed'
+                            ? [ArchivePostMortemStatsWidget::class]
+                            : [OpenPositionsStatsWidget::class],
+                    ))
                     ->columnSpanFull(),
                 $this->getTabsContentComponent(),
                 RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_BEFORE),

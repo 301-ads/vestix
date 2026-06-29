@@ -194,6 +194,96 @@ class StrategyAnalyticsService
         return round($maxDrawdown, 2);
     }
 
+    public function profitFactor(int $userId): ?float
+    {
+        $trades = $this->closedTradesForUser($userId);
+
+        if ($trades->isEmpty()) {
+            return null;
+        }
+
+        $totalWins = (float) $trades
+            ->filter(fn (Position $p): bool => $p->unrealized_pnl > 0)
+            ->sum(fn (Position $p): float => $p->unrealized_pnl);
+        $totalLosses = abs((float) $trades
+            ->filter(fn (Position $p): bool => $p->unrealized_pnl < 0)
+            ->sum(fn (Position $p): float => $p->unrealized_pnl));
+
+        if ($totalLosses <= 0) {
+            return $totalWins > 0 ? null : 0.0;
+        }
+
+        return round($totalWins / $totalLosses, 2);
+    }
+
+    /**
+     * @return array{
+     *     dollars: float,
+     *     pct_of_archive_investment: float,
+     *     ticker: string,
+     * }|null
+     */
+    public function biggestLoss(int $userId): ?array
+    {
+        $trades = $this->closedTradesForUser($userId);
+
+        if ($trades->isEmpty()) {
+            return null;
+        }
+
+        /** @var Position $worst */
+        $worst = $trades->sortBy('unrealized_pnl')->first();
+        $lossDollars = $worst->unrealized_pnl;
+
+        if ($lossDollars >= 0) {
+            return null;
+        }
+
+        $archiveInvestment = (float) $trades->sum(fn (Position $p): float => $p->investment);
+        $pctOfArchive = $archiveInvestment > 0
+            ? round((abs($lossDollars) / $archiveInvestment) * 100, 1)
+            : 0.0;
+
+        return [
+            'dollars' => $lossDollars,
+            'pct_of_archive_investment' => $pctOfArchive,
+            'ticker' => $worst->ticker,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     hit_rate: float,
+     *     hits: int,
+     *     total: int,
+     *     miss_rate: float,
+     * }
+     */
+    public function freerideHitRate(int $userId): array
+    {
+        $trades = $this->closedTradesForUser($userId);
+        $total = $trades->count();
+
+        if ($total === 0) {
+            return [
+                'hit_rate' => 0.0,
+                'hits' => 0,
+                'total' => 0,
+                'miss_rate' => 0.0,
+            ];
+        }
+
+        $hits = $trades->filter(fn (Position $p): bool => $p->freeride_secured_at !== null)->count();
+        $hitRate = round(($hits / $total) * 100, 1);
+
+        return [
+            'hit_rate' => $hitRate,
+            'hits' => $hits,
+            'total' => $total,
+            'miss_rate' => round(100 - $hitRate, 1),
+        ];
+    }
+
     /**
      * @return array<int, array{id: int, name: string}>
      */

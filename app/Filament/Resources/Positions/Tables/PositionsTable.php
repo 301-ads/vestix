@@ -11,10 +11,14 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\ColumnGroup;
+use Filament\Tables\Columns\Summarizers\Average;
+use Filament\Tables\Columns\Summarizers\Count;
+use Filament\Tables\Columns\Summarizers\Sum;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 
 class PositionsTable
@@ -25,6 +29,10 @@ class PositionsTable
             ->columnManager(false)
             ->striped(false)
             ->defaultSort('unrealized_pnl_percentage', 'desc')
+            ->summaries(
+                pageCondition: fn (HasTable $livewire): bool => self::isArchiveTab($livewire),
+                allTableCondition: fn (HasTable $livewire): bool => self::isArchiveTab($livewire),
+            )
             ->columns([
                 TickerColumn::wrap(
                     TextColumn::make('ticker')
@@ -41,7 +49,12 @@ class PositionsTable
                     ->sortable()
                     ->toggleable()
                     ->width('4.5rem')
-                    ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire) || self::isArchiveTab($livewire)),
+                    ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire) || self::isArchiveTab($livewire))
+                    ->summarize(
+                        Count::make()
+                            ->label('Trades')
+                            ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire)),
+                    ),
                 TextColumn::make('entry_price')
                     ->label(fn (HasTable $livewire): string => self::isArchiveTab($livewire) ? 'Entry Prijs' : 'Entry')
                     ->money('usd')
@@ -87,7 +100,15 @@ class PositionsTable
                         ))
                     ->toggleable()
                     ->width('5rem')
-                    ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire) || self::isArchiveTab($livewire)),
+                    ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire) || self::isArchiveTab($livewire))
+                    ->summarize(
+                        Average::make()
+                            ->label('Gem.')
+                            ->suffix('%')
+                            ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire))
+                            ->query(fn ($query) => $query)
+                            ->using(fn ($query) => $query->avg(DB::raw('((exit_price - entry_price) / NULLIF(entry_price, 0)) * 100'))),
+                    ),
                 ColumnGroup::make(static::schildGroupLabel())
                     ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
                     ->columns([
@@ -155,7 +176,15 @@ class PositionsTable
                     })
                     ->toggleable()
                     ->width('5.5rem')
-                    ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire)),
+                    ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire))
+                    ->summarize(
+                        Sum::make()
+                            ->label('Netto')
+                            ->money('usd')
+                            ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire))
+                            ->query(fn ($query) => $query)
+                            ->using(fn ($query) => $query->sum(DB::raw('(exit_price - entry_price) * quantity'))),
+                    ),
                 TextColumn::make('closed_at')
                     ->label('Datum Gesloten')
                     ->dateTime()
