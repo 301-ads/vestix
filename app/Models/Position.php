@@ -6,9 +6,11 @@ use App\Enums\BrokerOrderStatus;
 use App\Enums\EarningsExitUrgency;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
+use App\Enums\TrailingStopMode;
 use App\Services\AssetSyncService;
 use App\Support\EarningsExitSchedule;
 use App\Support\ScoutSetupScorecard;
+use App\Support\StopLossProtocol;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -43,6 +45,7 @@ class Position extends Model
             'latest_sma_50' => 'decimal:2',
             'sma_20_five_days_ago' => 'decimal:2',
             'latest_atr_14' => 'decimal:2',
+            'prior_day_low' => 'decimal:2',
             'signal_high' => 'decimal:2',
             'signal_low' => 'decimal:2',
             'scout_rsi' => 'decimal:2',
@@ -436,6 +439,7 @@ class Position extends Model
 
     public function scopeRequiresSlUpdate(Builder $query): Builder
     {
+        // SQL uses standard formula only; pre-earnings aggressive mode is resolved via StopLossProtocol in PHP.
         return $query
             ->where('status', 'open')
             ->whereNotNull('latest_close_price')
@@ -508,11 +512,7 @@ class Position extends Model
 
     public static function computeNewSl(mixed $sma, mixed $atr): ?float
     {
-        if ($sma === null || $atr === null || $sma === '' || $atr === '') {
-            return null;
-        }
-
-        return round((float) $sma - ((float) $atr / 2), 2);
+        return StopLossProtocol::computeStandard($sma, $atr);
     }
 
     public static function computeBuyStop(mixed $high, mixed $atr): ?float
@@ -531,8 +531,13 @@ class Position extends Model
         return round($high + (0.10 * $atr), 2);
     }
 
-    public static function resolveActionCommand(mixed $close, mixed $currentSl, mixed $sma, mixed $atr): string
-    {
+    public static function resolveActionCommand(
+        mixed $close,
+        mixed $currentSl,
+        mixed $sma,
+        mixed $atr,
+        ?Position $position = null,
+    ): string {
         if ($close === null || $close === '') {
             return 'AWAITING DATA';
         }
@@ -545,7 +550,9 @@ class Position extends Model
             return 'STOPPED OUT';
         }
 
-        $newSl = self::computeNewSl($sma, $atr);
+        $newSl = $position !== null
+            ? StopLossProtocol::resolve($position)
+            : StopLossProtocol::resolveForIndicators($sma, $atr);
 
         if ($newSl && $newSl > (float) $currentSl) {
             return 'UPDATE';
@@ -556,7 +563,12 @@ class Position extends Model
 
     public function getNewSlAttribute(): ?float
     {
-        return self::computeNewSl($this->latest_sma_20, $this->latest_atr_14);
+        return StopLossProtocol::resolve($this);
+    }
+
+    public function getTrailingStopModeAttribute(): TrailingStopMode
+    {
+        return StopLossProtocol::activeMode($this);
     }
 
     public function getActionCommandAttribute(): string
@@ -574,6 +586,7 @@ class Position extends Model
             $this->current_sl,
             $this->latest_sma_20,
             $this->latest_atr_14,
+            $this,
         );
     }
 

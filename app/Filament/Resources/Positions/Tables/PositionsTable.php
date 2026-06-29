@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
+use App\Enums\TrailingStopMode;
 use App\Filament\Resources\Positions\Pages\ListPositions;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\StopLossProtocol;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -67,7 +69,10 @@ class PositionsTable
                     ->money('usd')
                     ->placeholder('—')
                     ->sortable()
-                    ->tooltip('Berekende stop-loss (SMA20 − 0,5 × ATR14).')
+                    ->tooltip(fn (Position $record): string => match (StopLossProtocol::activeMode($record)) {
+                        TrailingStopMode::AggressivePreEarnings => 'Pre-earnings agressief: '.StopLossProtocol::aggressiveFormulaLabel(),
+                        default => 'Berekende stop-loss (SMA20 − 0,5 × ATR14).',
+                    })
                     ->toggleable()
                     ->width('5.5rem')
                     ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire)),

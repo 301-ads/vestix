@@ -24,6 +24,7 @@ class MarketDataFetcher
      *     latest_sma_50: float,
      *     latest_atr_14: float,
      *     scout_rsi: float,
+     *     prior_day_low: float|null,
      *     bounce_volume_above_average?: bool,
      *     bounce_day_volume?: int|null,
      *     avg_volume_30d?: int|null,
@@ -113,6 +114,7 @@ class MarketDataFetcher
      *     latest_sma_50: float,
      *     latest_atr_14: float,
      *     scout_rsi: float,
+     *     prior_day_low: float|null,
      *     bounce_volume_above_average?: bool,
      *     bounce_day_volume?: int|null,
      *     avg_volume_30d?: int|null,
@@ -163,6 +165,9 @@ class MarketDataFetcher
         $recentClosePrices = $bars !== null
             ? PolygonMarketDataService::extractRecentClosePrices($bars['bars'])
             : [round((float) $close, 2)];
+        $priorDayLow = $bars !== null
+            ? PolygonMarketDataService::extractPriorDayLow($bars['bars'])
+            : null;
 
         $payload = [
             'latest_open_price' => $globalQuote['open'] ?? null,
@@ -173,6 +178,7 @@ class MarketDataFetcher
             'latest_sma_50' => $sma50,
             'latest_atr_14' => $atr,
             'scout_rsi' => $rsi,
+            'prior_day_low' => $priorDayLow,
         ];
 
         $volumeData = $this->resolveVolumeData($ticker, $sma, $bounceVolumeAboveAverage);

@@ -14,6 +14,7 @@ use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
 use App\Support\PositionSizing;
 use App\Support\ShareCardDataFactory;
+use App\Support\StopLossProtocol;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
@@ -361,7 +362,7 @@ class PositionRecordActions
 
     private static function formatPreviewSl(Position $record): string
     {
-        $sl = Position::computeNewSl($record->latest_sma_20, $record->latest_atr_14);
+        $sl = StopLossProtocol::resolve($record);
 
         if ($sl === null) {
             return '— (haal eerst marktdata op)';

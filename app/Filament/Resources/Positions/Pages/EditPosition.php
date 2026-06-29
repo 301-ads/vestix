@@ -17,6 +17,7 @@ use App\Services\SquadContext;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupScorecard;
+use App\Support\StopLossProtocol;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
@@ -266,10 +267,14 @@ class EditPosition extends EditRecord
                     return false;
                 }
 
-                $newSl = Position::computeNewSl(
-                    $this->data['latest_sma_20'] ?? $record->latest_sma_20,
-                    $this->data['latest_atr_14'] ?? $record->latest_atr_14,
-                );
+                $position = StopLossProtocol::applyOverrides($record, [
+                    'latest_sma_20' => $this->data['latest_sma_20'] ?? $record->latest_sma_20,
+                    'latest_atr_14' => $this->data['latest_atr_14'] ?? $record->latest_atr_14,
+                    'latest_close_price' => $this->data['latest_close_price'] ?? $record->latest_close_price,
+                    'scout_rsi' => $this->data['scout_rsi'] ?? $record->scout_rsi,
+                    'prior_day_low' => $this->data['prior_day_low'] ?? $record->prior_day_low,
+                ]);
+                $newSl = StopLossProtocol::resolve($position);
                 $currentSl = $this->data['current_sl'] ?? $record->current_sl;
 
                 return $newSl !== null
@@ -283,10 +288,14 @@ class EditPosition extends EditRecord
                 /** @var Position $record */
                 $record = $this->getRecord();
 
-                $newSl = Position::computeNewSl(
-                    $this->data['latest_sma_20'] ?? $record->latest_sma_20,
-                    $this->data['latest_atr_14'] ?? $record->latest_atr_14,
-                );
+                $position = StopLossProtocol::applyOverrides($record, [
+                    'latest_sma_20' => $this->data['latest_sma_20'] ?? $record->latest_sma_20,
+                    'latest_atr_14' => $this->data['latest_atr_14'] ?? $record->latest_atr_14,
+                    'latest_close_price' => $this->data['latest_close_price'] ?? $record->latest_close_price,
+                    'scout_rsi' => $this->data['scout_rsi'] ?? $record->scout_rsi,
+                    'prior_day_low' => $this->data['prior_day_low'] ?? $record->prior_day_low,
+                ]);
+                $newSl = StopLossProtocol::resolve($position);
 
                 if ($newSl === null) {
                     return;

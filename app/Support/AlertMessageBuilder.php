@@ -4,8 +4,9 @@ namespace App\Support;
 
 use App\Enums\AlertEventType;
 use App\Enums\EarningsExitUrgency;
-use App\Filament\Resources\Scouts\ScoutResource;
+use App\Enums\TrailingStopMode;
 use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Models\User;
 
@@ -17,9 +18,12 @@ class AlertMessageBuilder
 
         return match ($event) {
             AlertEventType::SlCanRaise => sprintf(
-                '<b>%s</b>: stop-loss kan wiskundig verhoogd worden naar $%s. <a href="%s">Inloggen</a>',
+                '<b>%s</b>: stop-loss kan wiskundig verhoogd worden naar $%s%s. <a href="%s">Inloggen</a>',
                 e($position->ticker),
                 number_format((float) ($context['new_sl'] ?? $position->new_sl), 2),
+                StopLossProtocol::activeMode($position) === TrailingStopMode::AggressivePreEarnings
+                    ? ' (pre-earnings agressief: '.e(StopLossProtocol::aggressiveFormulaLabel()).')'
+                    : '',
                 $loginUrl,
             ),
             AlertEventType::FreerideSecured => sprintf(

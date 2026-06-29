@@ -9,20 +9,21 @@ use App\Support\UsMarketSession;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Mockery;
+use Tests\Support\MarketDataTestTime;
 use Tests\TestCase;
 
 class PolygonMarketDataServiceTest extends TestCase
 {
     protected function tearDown(): void
     {
-        \Tests\Support\MarketDataTestTime::reset();
+        MarketDataTestTime::reset();
         Mockery::close();
         parent::tearDown();
     }
 
     public function test_fetch_for_ticker_builds_full_payload_from_single_polygon_request(): void
     {
-        \Tests\Support\MarketDataTestTime::freezeBeforeUsMarketClose();
+        MarketDataTestTime::freezeBeforeUsMarketClose();
 
         config([
             'vestix.polygon.api_key' => 'test-polygon-key',
@@ -67,6 +68,23 @@ class PolygonMarketDataServiceTest extends TestCase
         $this->assertEquals(1_000_000, $payload['avg_volume_30d']);
         $this->assertCount(14, $payload['recent_close_prices']);
         $this->assertEqualsWithDelta(106.0, end($payload['recent_close_prices']), 0.01);
+        $this->assertNotNull($payload['prior_day_low']);
+    }
+
+    public function test_extract_prior_day_low_returns_second_to_last_bar_low(): void
+    {
+        $bars = [
+            ['low' => 10.0],
+            ['low' => 11.5],
+            ['low' => 12.0],
+        ];
+
+        $this->assertEquals(11.5, PolygonMarketDataService::extractPriorDayLow($bars));
+    }
+
+    public function test_extract_prior_day_low_returns_null_with_insufficient_bars(): void
+    {
+        $this->assertNull(PolygonMarketDataService::extractPriorDayLow([['low' => 10.0]]));
     }
 
     public function test_fetch_for_ticker_supplements_stale_polygon_bar_with_quote_provider(): void
@@ -240,7 +258,7 @@ class PolygonMarketDataServiceTest extends TestCase
 
     public function test_fetch_for_ticker_returns_null_when_polygon_has_insufficient_bars(): void
     {
-        \Tests\Support\MarketDataTestTime::freezeBeforeUsMarketClose();
+        MarketDataTestTime::freezeBeforeUsMarketClose();
 
         config([
             'vestix.polygon.api_key' => 'test-polygon-key',

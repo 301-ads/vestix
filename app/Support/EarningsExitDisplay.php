@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Enums\EarningsExitUrgency;
 use App\Enums\EarningsReleaseHour;
+use App\Enums\TrailingStopMode;
 use App\Models\Position;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
@@ -220,6 +221,13 @@ class EarningsExitDisplay
             $hourLabel,
             $deadlineLabel,
         );
+
+        if (StopLossProtocol::isPreEarningsWindow($position)) {
+            $trailingLabel = StopLossProtocol::activeMode($position) === TrailingStopMode::AggressivePreEarnings
+                ? 'Agressief trailing ('.StopLossProtocol::aggressiveFormulaLabel().')'
+                : 'Standaard trailing';
+            $description .= ' · Pre-earnings modus: '.$trailingLabel;
+        }
 
         $descriptionColor = 'gray';
         $valueColor = null;

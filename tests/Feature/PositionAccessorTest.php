@@ -2,13 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrailingStopMode;
+use App\Models\Asset;
 use App\Models\Position;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class PositionAccessorTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
 
     public function test_new_sl_calculates_sma_minus_half_atr(): void
     {
@@ -374,5 +383,55 @@ class PositionAccessorTest extends TestCase
         $this->assertEquals(88.00, (float) $fresh->current_sl);
         $this->assertEquals(100.00, (float) $fresh->entry_price);
         $this->assertEquals(5, (float) $fresh->quantity);
+    }
+
+    public function test_pre_earnings_scenario_a_uses_standard_sl_when_not_overheated(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'SCNA',
+            'next_earnings_date' => '2026-03-10',
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'SCNA',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'latest_close_price' => 78.00,
+            'scout_rsi' => 55.00,
+            'current_sl' => 74.50,
+        ]);
+
+        $this->assertSame(TrailingStopMode::Standard, $position->trailing_stop_mode);
+        $this->assertEquals(76.10, $position->new_sl);
+        $this->assertEquals('UPDATE', $position->action_command);
+    }
+
+    public function test_pre_earnings_scenario_b_uses_aggressive_sl_when_overheated(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'SCNB',
+            'next_earnings_date' => '2026-03-10',
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'SCNB',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+            'latest_sma_20' => 40.00,
+            'latest_atr_14' => 2.00,
+            'latest_close_price' => 50.00,
+            'scout_rsi' => 72.00,
+            'current_sl' => 39.00,
+        ]);
+
+        $this->assertSame(TrailingStopMode::AggressivePreEarnings, $position->trailing_stop_mode);
+        $this->assertEquals(47.00, $position->new_sl);
+        $this->assertEquals('UPDATE', $position->action_command);
     }
 }

@@ -16,6 +16,7 @@ use App\Support\PositionSizing;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SlPriceProximity;
+use App\Support\StopLossProtocol;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -642,10 +643,7 @@ class PositionForm
         $riskLimit = PositionSizing::resolveRiskLimitFromProfile($bankroll, $limitPercent);
         $entry = $get('entry_price') ?? $record?->entry_price;
         $quantity = $get('quantity') ?? $record?->quantity;
-        $stopLoss = Position::computeNewSl(
-            $get('latest_sma_20') ?? $record?->latest_sma_20,
-            $get('latest_atr_14') ?? $record?->latest_atr_14,
-        );
+        $stopLoss = self::resolveComputedNewSl($get, $record);
 
         $plannedRisk = null;
         $riskPercentOfBankroll = null;
@@ -1103,12 +1101,39 @@ class PositionForm
 
     private static function resolveFormActionCommand(Get $get, ?Position $record): string
     {
+        $position = self::resolvePositionForProtocol($get, $record);
+
         return Position::resolveActionCommand(
             $get('latest_close_price') ?? $record?->latest_close_price,
             $get('current_sl') ?? $record?->current_sl,
             $get('latest_sma_20') ?? $record?->latest_sma_20,
             $get('latest_atr_14') ?? $record?->latest_atr_14,
+            $position,
         );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function marketFieldOverrides(Get $get, ?Position $record): array
+    {
+        return [
+            'latest_sma_20' => $get('latest_sma_20') ?? $record?->latest_sma_20,
+            'latest_atr_14' => $get('latest_atr_14') ?? $record?->latest_atr_14,
+            'latest_close_price' => $get('latest_close_price') ?? $record?->latest_close_price,
+            'scout_rsi' => $get('scout_rsi') ?? $record?->scout_rsi,
+            'prior_day_low' => $get('prior_day_low') ?? $record?->prior_day_low,
+            'current_sl' => $get('current_sl') ?? $record?->current_sl,
+        ];
+    }
+
+    private static function resolvePositionForProtocol(Get $get, ?Position $record): ?Position
+    {
+        if ($record === null || $record->status !== 'open') {
+            return null;
+        }
+
+        return StopLossProtocol::applyOverrides($record, self::marketFieldOverrides($get, $record));
     }
 
     /**
@@ -1361,7 +1386,11 @@ class PositionForm
 
     private static function resolveComputedNewSl(Get $get, ?Position $record): ?float
     {
-        return Position::computeNewSl(
+        if ($record !== null && $record->status === 'open') {
+            return StopLossProtocol::resolveWithOverrides($record, self::marketFieldOverrides($get, $record));
+        }
+
+        return StopLossProtocol::resolveForIndicators(
             $get('latest_sma_20') ?? $record?->latest_sma_20,
             $get('latest_atr_14') ?? $record?->latest_atr_14,
         );
@@ -1391,8 +1420,8 @@ class PositionForm
         $close = (float) $close;
         $entry = (float) $entry;
         $percentage = (($entry - $close) / $close) * 100;
-        
-        // Voor entry gebruiken we dezelfde kleurlogica als SL maar dan omgedraaid? Nee, we kijken gewoon 
+
+        // Voor entry gebruiken we dezelfde kleurlogica als SL maar dan omgedraaid? Nee, we kijken gewoon
         // naar "hoe ver is de entry nog weg t.o.v. de actuele koers".
         // Eigenlijk is de kleur op de radar voor entry vaak neutraal, maar we houden het op amber/danger bij break.
         $color = 'gray'; // Default if not using SlPriceProximity
@@ -1416,10 +1445,7 @@ class PositionForm
     private static function formatNewSlDistanceDescription(Get $get, ?Position $record): ?array
     {
         $close = $get('latest_close_price') ?? $record?->latest_close_price;
-        $newSl = Position::computeNewSl(
-            $get('latest_sma_20') ?? $record?->latest_sma_20,
-            $get('latest_atr_14') ?? $record?->latest_atr_14,
-        );
+        $newSl = self::resolveComputedNewSl($get, $record);
 
         if ($close === null || $close === '' || $newSl === null) {
             return null;
@@ -1445,10 +1471,7 @@ class PositionForm
     {
         $entry = $get('entry_price') ?? $record?->entry_price;
         $quantity = $get('quantity') ?? $record?->quantity;
-        $newSl = Position::computeNewSl(
-            $get('latest_sma_20') ?? $record?->latest_sma_20,
-            $get('latest_atr_14') ?? $record?->latest_atr_14,
-        );
+        $newSl = self::resolveComputedNewSl($get, $record);
 
         if ($entry === null || $entry === '' || $newSl === null) {
             return null;

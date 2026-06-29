@@ -28,6 +28,7 @@ class PolygonMarketDataService
      *     latest_sma_50: float,
      *     latest_atr_14: float,
      *     scout_rsi: float,
+     *     prior_day_low: float|null,
      *     bounce_volume_above_average?: bool,
      *     bounce_day_volume?: int|null,
      *     avg_volume_30d?: int|null,
@@ -88,6 +89,7 @@ class PolygonMarketDataService
             'latest_sma_50' => $sma50,
             'latest_atr_14' => $atr,
             'scout_rsi' => $rsi,
+            'prior_day_low' => self::extractPriorDayLow($bars['bars']),
         ];
 
         $volumeData = $this->resolveVolumeData($bars, $sma20, $bounceVolumeAboveAverage);
@@ -112,6 +114,20 @@ class PolygonMarketDataService
             static fn (mixed $close): float => round((float) $close, 2),
             $recent,
         ));
+    }
+
+    /**
+     * @param  array<int, array{low: float}>  $bars
+     */
+    public static function extractPriorDayLow(array $bars): ?float
+    {
+        if (count($bars) < 2) {
+            return null;
+        }
+
+        $priorBar = $bars[count($bars) - 2];
+
+        return round((float) $priorBar['low'], 2);
     }
 
     /**
