@@ -6,7 +6,7 @@ use App\Models\LeaderboardStat;
 use App\Models\Squad;
 use App\Services\PositionStatsAggregator;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Select;
+use Filament\Actions\ActionGroup;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\EmbeddedTable;
 use Filament\Schemas\Schema;
@@ -47,6 +47,8 @@ class SquadLeaderboard extends Page implements HasTable
         if ($this->squadId === null) {
             $this->squadId = auth()->user()?->squads()->orderBy('squads.id')->value('squads.id');
         }
+
+        $this->rebuildLeaderboardForSelectedSquad();
     }
 
     public function content(Schema $schema): Schema
@@ -63,7 +65,11 @@ class SquadLeaderboard extends Page implements HasTable
             ->where('squad_id', $this->squadId)
             ->max('computed_at');
 
-        $description = 'Ranking op win rate, freerides secured en gemiddelde ROI % — geen dollarbedragen.';
+        $squadName = Squad::query()->find($this->squadId)?->name;
+
+        $description = $squadName !== null
+            ? "Squad: {$squadName}. Ranking op win rate, freerides secured en gemiddelde ROI % — geen dollarbedragen."
+            : 'Ranking op win rate, freerides secured en gemiddelde ROI % — geen dollarbedragen.';
 
         if ($computedAt) {
             $description .= ' Bijgewerkt '.date('j M Y H:i', strtotime((string) $computedAt)).'.';
@@ -76,23 +82,11 @@ class SquadLeaderboard extends Page implements HasTable
             ->paginated(false)
             ->records(fn (): Collection => $this->leaderboardRecords())
             ->headerActions([
-                Action::make('select_squad')
-                    ->label('Squad')
-                    ->schema([
-                        Select::make('squad_id')
-                            ->label('Squad')
-                            ->options(fn (): array => auth()->user()
-                                ?->squads()
-                                ->orderBy('squads.name')
-                                ->pluck('squads.name', 'squads.id')
-                                ->all() ?? [])
-                            ->default(fn (): ?int => $this->squadId)
-                            ->required()
-                            ->native(false),
-                    ])
-                    ->action(function (array $data): void {
-                        $this->squadId = (int) $data['squad_id'];
-                    }),
+                Action::make('refresh_leaderboard')
+                    ->label('Verversen')
+                    ->icon('heroicon-o-arrow-path')
+                    ->action(fn (): mixed => $this->rebuildLeaderboardForSelectedSquad()),
+                $this->squadSwitcherActionGroup(),
             ])
             ->columns([
                 TextColumn::make('rank')
@@ -147,5 +141,40 @@ class SquadLeaderboard extends Page implements HasTable
                 'closed_trades_count' => $stat->closed_trades_count,
             ])
             ->values();
+    }
+
+    private function rebuildLeaderboardForSelectedSquad(): void
+    {
+        $squad = Squad::query()->find($this->squadId);
+
+        if (! $squad instanceof Squad) {
+            return;
+        }
+
+        app(PositionStatsAggregator::class)->rebuildForSquad($squad);
+    }
+
+    private function squadSwitcherActionGroup(): ActionGroup
+    {
+        $user = auth()->user();
+
+        $actions = $user?->squads()
+            ->orderBy('squads.name')
+            ->get()
+            ->map(function (Squad $squad): Action {
+                return Action::make('switch_squad_'.$squad->id)
+                    ->label($squad->name)
+                    ->action(function () use ($squad): void {
+                        $this->squadId = $squad->id;
+                        $this->rebuildLeaderboardForSelectedSquad();
+                    });
+            })
+            ->all() ?? [];
+
+        return ActionGroup::make($actions)
+            ->label(fn (): string => Squad::query()->find($this->squadId)?->name ?? 'Kies squad')
+            ->button()
+            ->color('primary')
+            ->visible(fn (): bool => count($actions) > 1);
     }
 }

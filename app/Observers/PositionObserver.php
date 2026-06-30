@@ -33,7 +33,7 @@ class PositionObserver
                     $position->fresh(),
                     'een positie gesloten op',
                 );
-                RebuildSquadLeaderboardJob::dispatch();
+                RebuildSquadLeaderboardJob::dispatchSync();
             }
         }
     }
