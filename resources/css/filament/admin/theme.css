@@ -1521,6 +1521,24 @@
     color: rgb(251 191 36);
 }
 
+.vestix-sma-extension-telemetry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem;
+}
+
+.vestix-sma-extension-telemetry__suffix {
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.25rem;
+    color: rgb(113 113 122);
+}
+
+.dark .vestix-sma-extension-telemetry__suffix {
+    color: rgb(161 161 170);
+}
+
 .vestix-rsi-telemetry__badge {
     cursor: help;
     flex-shrink: 0;
