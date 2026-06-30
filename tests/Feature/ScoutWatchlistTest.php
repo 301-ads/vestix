@@ -692,4 +692,48 @@ class ScoutWatchlistTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_scouts_list_sorts_setup_grade_a_plus_first(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $bSetup = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BCSC',
+            'signal_low' => 99.90,
+            'latest_close_price' => 99.90,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'last_setup_score' => 2,
+        ]);
+
+        $aMinus = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'AMNS',
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 55,
+            'last_setup_score' => 5,
+        ]);
+
+        $aPlus = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'APLS',
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'last_setup_score' => 7,
+        ]);
+
+        $ordered = Position::scout()
+            ->forUser($user->id)
+            ->orderBySetupGrade('asc')
+            ->pluck('ticker')
+            ->all();
+
+        $this->assertSame(['APLS', 'AMNS', 'BCSC'], $ordered);
+
+        Livewire::test(ListScouts::class)
+            ->assertOk()
+            ->assertSeeInOrder(['APLS', 'AMNS', 'BCSC']);
+    }
 }

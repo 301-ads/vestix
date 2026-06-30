@@ -254,6 +254,24 @@ class ScoutSetupScorecard
     }
 
     /**
+     * SQL rank for setup grade sorting: 1 = A+, 2 = A-, 3 = B/C, 4 = incomplete data.
+     */
+    public static function setupGradeSortRankSql(): string
+    {
+        return <<<'SQL'
+CASE
+    WHEN (signal_low IS NULL AND latest_close_price IS NULL) OR latest_sma_20 IS NULL OR scout_rsi IS NULL THEN 4
+    WHEN scout_rsi > 70 THEN 3
+    WHEN latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL AND latest_close_price < latest_sma_20 THEN 3
+    WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price THEN 3
+    WHEN last_setup_score = 7 THEN 1
+    WHEN last_setup_score >= 5 THEN 2
+    ELSE 3
+END
+SQL;
+    }
+
+    /**
      * @param  array<int, string>  $hardFailReasons
      * @return array{0: string, 1: string}
      */

@@ -179,6 +179,15 @@ class Position extends Model
         return $query->where('user_id', $userId);
     }
 
+    public function scopeOrderBySetupGrade(Builder $query, string $direction = 'asc'): Builder
+    {
+        $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+
+        return $query
+            ->orderByRaw(ScoutSetupScorecard::setupGradeSortRankSql().' '.$direction)
+            ->orderBy('ticker');
+    }
+
     public function scopePersonalScouts(Builder $query, int $userId): Builder
     {
         return $query->scout()->forUser($userId);

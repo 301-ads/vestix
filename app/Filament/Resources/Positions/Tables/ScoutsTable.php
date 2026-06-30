@@ -17,6 +17,7 @@ use Filament\Resources\Resource;
 use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
 
 class ScoutsTable
@@ -29,6 +30,7 @@ class ScoutsTable
         return $table
             ->columnManager(false)
             ->striped(false)
+            ->defaultSort('setup_grade', 'asc')
             ->recordUrl(fn (Position $record): ?string => $squadMode && ! $record->isOwnedBy(auth()->user())
                 ? null
                 : $resourceClass::getUrl('edit', ['record' => $record]))
@@ -105,7 +107,8 @@ class ScoutsTable
                     ->badge()
                     ->color(fn (Position $record): string => self::setupGradeColor($record))
                     ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBySetupGrade($direction)),
                 ColumnGroup::make(PositionsTable::schildGroupLabel())
                     ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
                     ->columns([
