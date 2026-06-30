@@ -699,11 +699,20 @@ class ScoutWatchlistTest extends TestCase
 
         $bSetup = Position::factory()->for($user)->scout()->create([
             'ticker' => 'BCSC',
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'last_setup_score' => 2,
+        ]);
+
+        $hardFail = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'FAIL',
             'signal_low' => 99.90,
             'latest_close_price' => 99.90,
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
-            'last_setup_score' => 2,
+            'last_setup_score' => 5,
         ]);
 
         $aMinus = Position::factory()->for($user)->scout()->create([
@@ -730,10 +739,10 @@ class ScoutWatchlistTest extends TestCase
             ->pluck('ticker')
             ->all();
 
-        $this->assertSame(['APLS', 'AMNS', 'BCSC'], $ordered);
+        $this->assertSame(['APLS', 'AMNS', 'BCSC', 'FAIL'], $ordered);
 
         Livewire::test(ListScouts::class)
             ->assertOk()
-            ->assertSeeInOrder(['APLS', 'AMNS', 'BCSC']);
+            ->assertSeeInOrder(['APLS', 'AMNS', 'BCSC', 'FAIL']);
     }
 }
