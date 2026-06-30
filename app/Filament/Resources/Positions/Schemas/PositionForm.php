@@ -320,14 +320,13 @@ class PositionForm
             ]);
     }
 
-    private static function earningsSmartAlert(): Placeholder
+    private static function earningsSmartAlert(): View
     {
-        return Placeholder::make('earnings_alert')
-            ->hiddenLabel()
+        return View::make('filament.positions.earnings-smart-alert')
             ->visible(fn (?Position $record, string $operation): bool => EarningsExitDisplay::isSmartAlertVisible($record, $operation))
-            ->content(fn (?Position $record): HtmlString|string => $record instanceof Position
-                ? EarningsExitDisplay::smartAlertContent($record)
-                : '')
+            ->viewData(fn (?Position $record): array => $record instanceof Position
+                ? EarningsExitDisplay::smartAlertViewData($record)
+                : [])
             ->columnSpanFull();
     }
 

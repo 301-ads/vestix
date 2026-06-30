@@ -96,7 +96,7 @@ class EarningsExitDisplay
             && self::isWithinAlertWindow($position);
     }
 
-    public static function smartAlertContent(Position $position): HtmlString
+    public static function smartAlertViewData(Position $position): array
     {
         $daysUntil = (int) $position->daysUntilEarnings();
         $earningsDate = $position->effectiveEarningsDate();
@@ -104,11 +104,6 @@ class EarningsExitDisplay
 
         $isDanger = $daysUntil <= self::DANGER_THRESHOLD_DAYS
             || in_array($position->earningsExitUrgency(), [EarningsExitUrgency::ExitToday, EarningsExitUrgency::Overdue], true);
-
-        $colorClass = $isDanger
-            ? 'text-rose-500 bg-rose-500/10 border-rose-500/20'
-            : 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-        $iconColor = $isDanger ? 'text-rose-500' : 'text-amber-500';
 
         $daysLabel = match (true) {
             $daysUntil === 0 => 'vandaag',
@@ -131,16 +126,26 @@ class EarningsExitDisplay
             ? "Verwacht op {$dateString} — {$timeString}. Sluit uiterlijk {$exitDeadline} vóór slotbel."
             : "Verwacht op {$dateString} — {$timeString}.";
 
+        $trailingNote = null;
+
+        if (StopLossProtocol::isPreEarningsWindow($position)) {
+            $trailingNote = StopLossProtocol::activeMode($position) === TrailingStopMode::AggressivePreEarnings
+                ? 'Pre-earnings SL: agressief ('.StopLossProtocol::aggressiveFormulaLabel().')'
+                : 'Pre-earnings SL: standaard trailing';
+        }
+
+        return [
+            'daysLabel' => $daysLabel,
+            'subtitle' => $subtitle,
+            'trailingNote' => $trailingNote,
+            'isDanger' => $isDanger,
+        ];
+    }
+
+    public static function smartAlertContent(Position $position): HtmlString
+    {
         return new HtmlString(
-            '<div class="flex items-center gap-3 px-4 py-3 rounded-xl border '.$colorClass.'">'
-            .'<svg class="w-5 h-5 '.$iconColor.' shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">'
-            .'<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />'
-            .'</svg>'
-            .'<div class="flex flex-col">'
-            .'<span class="font-bold text-sm tracking-tight">Let op: Earnings report over '.$daysLabel.'!</span>'
-            .'<span class="text-xs opacity-80 font-medium">'.e($subtitle).'</span>'
-            .'</div>'
-            .'</div>'
+            view('filament.positions.earnings-smart-alert', self::smartAlertViewData($position))->render(),
         );
     }
 
@@ -193,6 +198,8 @@ class EarningsExitDisplay
      *     valueColor: string|null,
      *     description: string|null,
      *     descriptionColor: string,
+     *     descriptionWrap: bool,
+     *     secondaryDescription: array{text: string, color?: string, icon?: string|null, tooltip?: string|null}|null,
      *     cardVariant: string,
      * }|null
      */
@@ -222,11 +229,18 @@ class EarningsExitDisplay
             $deadlineLabel,
         );
 
+        $secondaryDescription = null;
+
         if (StopLossProtocol::isPreEarningsWindow($position)) {
-            $trailingLabel = StopLossProtocol::activeMode($position) === TrailingStopMode::AggressivePreEarnings
-                ? 'Agressief trailing ('.StopLossProtocol::aggressiveFormulaLabel().')'
-                : 'Standaard trailing';
-            $description .= ' · Pre-earnings modus: '.$trailingLabel;
+            $isAggressive = StopLossProtocol::activeMode($position) === TrailingStopMode::AggressivePreEarnings;
+            $secondaryDescription = [
+                'text' => $isAggressive ? 'Pre-earnings: agressief SL' : 'Pre-earnings: standaard SL',
+                'color' => $isAggressive ? 'warning' : 'gray',
+                'icon' => $isAggressive ? 'heroicon-m-exclamation-triangle' : null,
+                'tooltip' => $isAggressive
+                    ? 'Agressief trailing actief ('.StopLossProtocol::aggressiveFormulaLabel().')'
+                    : 'Nog niet oververhit — standaard trailing (SMA20 − 0,5×ATR).',
+            ];
         }
 
         $descriptionColor = 'gray';
@@ -250,6 +264,8 @@ class EarningsExitDisplay
             'valueColor' => $valueColor,
             'description' => $description,
             'descriptionColor' => $descriptionColor,
+            'descriptionWrap' => true,
+            'secondaryDescription' => $secondaryDescription,
             'cardVariant' => $cardVariant,
         ];
     }

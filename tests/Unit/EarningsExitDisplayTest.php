@@ -87,7 +87,7 @@ class EarningsExitDisplayTest extends TestCase
 
         $this->assertStringContainsString('Let op: Earnings report over 4 dagen!', $html);
         $this->assertStringContainsString('Voor beurs (BMO)', $html);
-        $this->assertStringContainsString('text-amber-500', $html);
+        $this->assertStringContainsString('vestix-earnings-smart-alert--warning', $html);
     }
 
     public function test_smart_alert_uses_danger_styling_within_three_days(): void
@@ -108,7 +108,7 @@ class EarningsExitDisplayTest extends TestCase
 
         $html = EarningsExitDisplay::smartAlertContent($position)->toHtml();
 
-        $this->assertStringContainsString('text-rose-500', $html);
+        $this->assertStringContainsString('vestix-earnings-smart-alert--danger', $html);
         $this->assertStringContainsString('1 dag', $html);
     }
 

@@ -1556,6 +1556,89 @@
     align-self: center;
 }
 
+.vestix-earnings-smart-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+}
+
+.vestix-earnings-smart-alert--warning {
+    color: rgb(217 119 6);
+    background: rgb(245 158 11 / 0.1);
+    border-color: rgb(245 158 11 / 0.2);
+}
+
+.dark .vestix-earnings-smart-alert--warning {
+    color: rgb(251 191 36);
+    background: rgb(245 158 11 / 0.12);
+    border-color: rgb(245 158 11 / 0.25);
+}
+
+.vestix-earnings-smart-alert--danger {
+    color: rgb(225 29 72);
+    background: rgb(244 63 94 / 0.1);
+    border-color: rgb(244 63 94 / 0.2);
+}
+
+.dark .vestix-earnings-smart-alert--danger {
+    color: rgb(251 113 133);
+    background: rgb(244 63 94 / 0.12);
+    border-color: rgb(244 63 94 / 0.25);
+}
+
+.vestix-earnings-smart-alert__icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.125rem;
+}
+
+.vestix-earnings-smart-alert__content {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.vestix-earnings-smart-alert__title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.25rem;
+    letter-spacing: -0.01em;
+}
+
+.vestix-earnings-smart-alert__subtitle,
+.vestix-earnings-smart-alert__trailing {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.125rem;
+    opacity: 0.85;
+}
+
+.vestix-stat-card__description--wrap {
+    white-space: normal;
+    line-height: 1.25rem;
+}
+
+.vestix-position-edit .position-cockpit-grid .vestix-stat-card__meta-row .vestix-stat-card__description--wrap {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+
+.vestix-stat-card__meta-row--stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
 .scout-scorecard-hud {
     display: flex;
     align-items: center;

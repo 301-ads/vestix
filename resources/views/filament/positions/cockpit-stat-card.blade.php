@@ -13,6 +13,7 @@
     $cardVariant = $cardVariant ?? 'zinc';
     $copyValue = $copyValue ?? null;
     $secondaryDescription = $secondaryDescription ?? null;
+    $descriptionWrap = $descriptionWrap ?? false;
     $chart = $chart ?? null;
     $chartColor = $chartColor ?? 'gray';
     $chartValues = filled($chart) ? array_values($chart) : [];
@@ -99,15 +100,23 @@
             @endif
         </div>
 
-        <div class="vestix-stat-card__meta-row">
+        <div @class([
+            'vestix-stat-card__meta-row',
+            'vestix-stat-card__meta-row--stacked' => filled($secondaryDescription),
+        ])>
             @if (filled($description))
                 <div {{ (new ComponentAttributeBag)->color(DescriptionComponent::class, $descriptionColor)->class(['fi-wi-stats-overview-stat-description']) }}>
-                    <span class="whitespace-nowrap">{{ $description }}</span>
+                    <span @class([
+                        'vestix-stat-card__description--wrap' => $descriptionWrap,
+                        'whitespace-nowrap' => ! $descriptionWrap,
+                    ])>{{ $description }}</span>
                     @if (filled($descriptionIcon))
                         {{ \Filament\Support\generate_icon_html($descriptionIcon) }}
                     @endif
                 </div>
-            @elseif (filled($secondaryDescription))
+            @endif
+
+            @if (filled($secondaryDescription))
                 <div {{ (new ComponentAttributeBag)->color(DescriptionComponent::class, $secondaryDescription['color'] ?? 'info')->class(['fi-wi-stats-overview-stat-description']) }}>
                     <span
                         class="whitespace-nowrap inline-flex items-center gap-1"
