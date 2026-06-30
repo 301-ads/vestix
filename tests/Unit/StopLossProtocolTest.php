@@ -110,6 +110,12 @@ class StopLossProtocolTest extends TestCase
         $this->assertEquals(76.10, StopLossProtocol::resolveForIndicators(77.50, 2.80));
     }
 
+    public function test_compute_sma_extension_pct(): void
+    {
+        $this->assertEqualsWithDelta(4.23, StopLossProtocol::computeSmaExtensionPct(57.88, 55.53), 0.01);
+        $this->assertNull(StopLossProtocol::computeSmaExtensionPct(null, 55.53));
+    }
+
     public function test_overheated_requires_both_rsi_and_sma_extension(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));

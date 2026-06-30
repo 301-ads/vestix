@@ -40,7 +40,11 @@ class StopLossProtocol
             return false;
         }
 
-        $extensionPct = (((float) $close - $sma) / $sma) * 100;
+        $extensionPct = self::computeSmaExtensionPct($close, $sma);
+
+        if ($extensionPct === null) {
+            return false;
+        }
 
         return (float) $rsi > self::rsiThreshold()
             && $extensionPct > self::smaExtensionPct();
@@ -53,6 +57,21 @@ class StopLossProtocol
         }
 
         return TrailingStopMode::Standard;
+    }
+
+    public static function computeSmaExtensionPct(mixed $close, mixed $sma): ?float
+    {
+        if ($close === null || $close === '' || $sma === null || $sma === '') {
+            return null;
+        }
+
+        $sma = (float) $sma;
+
+        if ($sma <= 0) {
+            return null;
+        }
+
+        return round((((float) $close - $sma) / $sma) * 100, 2);
     }
 
     public static function computeStandard(mixed $sma, mixed $atr): ?float

@@ -377,7 +377,7 @@ class PositionForm
             ->divided()
             ->visible(fn (?Position $record): bool => $record?->status !== 'closed')
             ->schema([
-                Grid::make(4)
+                Grid::make(3)
                     ->schema(self::schildMarketDataFields())
                     ->columnSpanFull(),
             ]);
@@ -419,7 +419,78 @@ class PositionForm
 
                     self::syncBuyStopFromInputs($set, $get, $record);
                 }),
+            TextInput::make('scout_rsi')
+                ->label('RSI 14')
+                ->numeric()
+                ->minValue(0)
+                ->maxValue(100)
+                ->disabled()
+                ->dehydrated()
+                ->visible(fn (?Position $record): bool => $record?->status === 'open')
+                ->helperText(fn (Get $get, ?Position $record): ?string => self::schildRsiHelperText($get, $record)),
+            Placeholder::make('sma_extension_pct')
+                ->label('Extensie SMA20')
+                ->content(fn (Get $get, ?Position $record): string => self::formatSmaExtensionIndicator($get, $record))
+                ->helperText(fn (Get $get, ?Position $record): ?string => self::schildExtensionHelperText($get, $record))
+                ->visible(fn (?Position $record): bool => $record?->status === 'open'),
         ];
+    }
+
+    private static function schildRsiHelperText(Get $get, ?Position $record): ?string
+    {
+        if ($record?->status !== 'open' || ! StopLossProtocol::isPreEarningsWindow($record)) {
+            return 'Auto ingevuld bij Data ophalen';
+        }
+
+        $rsi = $get('scout_rsi') ?? $record->scout_rsi;
+
+        if ($rsi === null || $rsi === '') {
+            return 'Data ophalen om RSI te laden';
+        }
+
+        $threshold = StopLossProtocol::rsiThreshold();
+
+        return (float) $rsi > $threshold
+            ? "Boven drempel ({$threshold}) — voldoet voor agressief SL"
+            : "Onder drempel ({$threshold}) — nog niet oververhit";
+    }
+
+    private static function formatSmaExtensionIndicator(Get $get, ?Position $record): string
+    {
+        $extension = StopLossProtocol::computeSmaExtensionPct(
+            $get('latest_close_price') ?? $record?->latest_close_price,
+            $get('latest_sma_20') ?? $record?->latest_sma_20,
+        );
+
+        if ($extension === null) {
+            return '—';
+        }
+
+        $prefix = $extension >= 0 ? '+' : '−';
+
+        return $prefix.number_format(abs($extension), 2, ',', '').'% t.o.v. SMA20';
+    }
+
+    private static function schildExtensionHelperText(Get $get, ?Position $record): ?string
+    {
+        if ($record?->status !== 'open' || ! StopLossProtocol::isPreEarningsWindow($record)) {
+            return null;
+        }
+
+        $extension = StopLossProtocol::computeSmaExtensionPct(
+            $get('latest_close_price') ?? $record?->latest_close_price,
+            $get('latest_sma_20') ?? $record?->latest_sma_20,
+        );
+
+        if ($extension === null) {
+            return null;
+        }
+
+        $threshold = StopLossProtocol::smaExtensionPct();
+
+        return $extension > $threshold
+            ? "Boven drempel ({$threshold}%) — voldoet voor agressief SL"
+            : "Onder drempel ({$threshold}%) — nog niet oververhit";
     }
 
     /**
