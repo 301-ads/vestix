@@ -54,7 +54,6 @@ class SquadLeaderboard extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
-            $this->squadSwitcherActionGroup(),
             Action::make('refresh_leaderboard')
                 ->label('Verversen')
                 ->icon('heroicon-o-arrow-path')
@@ -62,6 +61,7 @@ class SquadLeaderboard extends Page implements HasTable
                 ->outlined()
                 ->extraAttributes(['class' => 'vestix-sync-btn'])
                 ->action(fn (): mixed => $this->rebuildLeaderboardForSelectedSquad()),
+            $this->squadSwitcherActionGroup(),
         ];
     }
 
@@ -182,7 +182,7 @@ class SquadLeaderboard extends Page implements HasTable
             ->label(fn (): string => Squad::query()->find($this->squadId)?->name ?? 'Kies squad')
             ->button()
             ->color('primary')
-            ->outlined()
+            ->extraAttributes(['class' => 'vestix-btn-primary'])
             ->visible(fn (): bool => count($actions) > 1);
     }
 }
