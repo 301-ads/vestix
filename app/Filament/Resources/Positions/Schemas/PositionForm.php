@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Positions\Schemas;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
+use App\Enums\TrailingStopMode;
 use App\Models\Position;
 use App\Models\StrategyTag;
 use App\Services\SquadContext;
@@ -59,6 +60,7 @@ class PositionForm
                             ->schema([
                                 self::setupDetailsSection($isScoutForm),
                                 self::schildSection(),
+                                self::schildStatusSection(),
                                 self::earningsOverrideSection(),
                                 self::buyStopSection($isScoutForm),
                             ]),
@@ -304,6 +306,10 @@ class PositionForm
                             }),
                         TextInput::make('current_sl')
                             ->label('Huidige stop-loss')
+                            ->hint(fn (Get $get, ?Position $record): ?string => self::currentSlStatusLabel($get, $record))
+                            ->hintIcon(fn (Get $get, ?Position $record): ?string => self::currentSlStatusIcon($get, $record))
+                            ->hintIconTooltip(fn (Get $get, ?Position $record): ?string => self::currentSlStatusTooltip($get, $record))
+                            ->hintColor(fn (Get $get, ?Position $record): string => self::currentSlStatusColor($get, $record))
                             ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
                                 return ! $isScoutForm($record, $operation);
                             })
@@ -383,6 +389,54 @@ class PositionForm
             ]);
     }
 
+    private static function schildStatusSection(): Section
+    {
+        return Section::make('Schild status')
+            ->compact()
+            ->extraAttributes(['class' => 'vestix-schild-status-section'])
+            ->visible(fn (?Position $record): bool => $record?->status === 'open')
+            ->schema([
+                Grid::make(3)
+                    ->extraAttributes(['class' => 'vestix-schild-status-grid'])
+                    ->schema(self::schildStatusFields())
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    /**
+     * @return array<int, Placeholder>
+     */
+    private static function schildStatusFields(): array
+    {
+        return [
+            Placeholder::make('rsi_telemetry')
+                ->label('RSI (14)')
+                ->content(fn (Get $get, ?Position $record): HtmlString => new HtmlString(
+                    view('filament.positions.rsi-telemetry', [
+                        'rsi' => $get('scout_rsi') ?? $record?->scout_rsi,
+                        'threshold' => StopLossProtocol::rsiThreshold(),
+                    ])->render(),
+                )),
+            Placeholder::make('atr_telemetry')
+                ->label('ATR 14')
+                ->content(fn (Get $get, ?Position $record): HtmlString => new HtmlString(
+                    view('filament.positions.atr-telemetry', [
+                        'atr' => $get('latest_atr_14') ?? $record?->latest_atr_14,
+                    ])->render(),
+                )),
+            Placeholder::make('sma_extension_pct')
+                ->label('Extensie SMA20')
+                ->content(fn (Get $get, ?Position $record): HtmlString => new HtmlString(
+                    view('filament.positions.sma-extension-telemetry', [
+                        'extension' => StopLossProtocol::computeSmaExtensionPct(
+                            $get('latest_close_price') ?? $record?->latest_close_price,
+                            $get('latest_sma_20') ?? $record?->latest_sma_20,
+                        ),
+                    ])->render(),
+                )),
+        ];
+    }
+
     /**
      * @return array<int, TextInput>
      */
@@ -410,6 +464,7 @@ class PositionForm
                 ->numeric()
                 ->prefix('$')
                 ->live(onBlur: true)
+                ->visible(fn (?Position $record): bool => $record?->status !== 'open')
                 ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
                     self::syncPlannedQuantityFromInvestment($set, $get, $record);
 
@@ -419,78 +474,90 @@ class PositionForm
 
                     self::syncBuyStopFromInputs($set, $get, $record);
                 }),
-            TextInput::make('scout_rsi')
-                ->label('RSI 14')
-                ->numeric()
-                ->minValue(0)
-                ->maxValue(100)
-                ->disabled()
-                ->dehydrated()
-                ->visible(fn (?Position $record): bool => $record?->status === 'open')
-                ->helperText(fn (Get $get, ?Position $record): ?string => self::schildRsiHelperText($get, $record)),
-            Placeholder::make('sma_extension_pct')
-                ->label('Extensie SMA20')
-                ->content(fn (Get $get, ?Position $record): string => self::formatSmaExtensionIndicator($get, $record))
-                ->helperText(fn (Get $get, ?Position $record): ?string => self::schildExtensionHelperText($get, $record))
-                ->visible(fn (?Position $record): bool => $record?->status === 'open'),
         ];
     }
 
-    private static function schildRsiHelperText(Get $get, ?Position $record): ?string
+    private static function currentSlStatusLabel(Get $get, ?Position $record): ?string
     {
-        if ($record?->status !== 'open' || ! StopLossProtocol::isPreEarningsWindow($record)) {
-            return 'Auto ingevuld bij Data ophalen';
-        }
+        $position = self::resolvePositionForProtocol($get, $record);
 
-        $rsi = $get('scout_rsi') ?? $record->scout_rsi;
-
-        if ($rsi === null || $rsi === '') {
-            return 'Data ophalen om RSI te laden';
-        }
-
-        $threshold = StopLossProtocol::rsiThreshold();
-
-        return (float) $rsi > $threshold
-            ? "Boven drempel ({$threshold}) — voldoet voor agressief SL"
-            : "Onder drempel ({$threshold}) — nog niet oververhit";
-    }
-
-    private static function formatSmaExtensionIndicator(Get $get, ?Position $record): string
-    {
-        $extension = StopLossProtocol::computeSmaExtensionPct(
-            $get('latest_close_price') ?? $record?->latest_close_price,
-            $get('latest_sma_20') ?? $record?->latest_sma_20,
-        );
-
-        if ($extension === null) {
-            return '—';
-        }
-
-        $prefix = $extension >= 0 ? '+' : '−';
-
-        return $prefix.number_format(abs($extension), 2, ',', '').'% t.o.v. SMA20';
-    }
-
-    private static function schildExtensionHelperText(Get $get, ?Position $record): ?string
-    {
-        if ($record?->status !== 'open' || ! StopLossProtocol::isPreEarningsWindow($record)) {
+        if ($position === null) {
             return null;
         }
 
-        $extension = StopLossProtocol::computeSmaExtensionPct(
-            $get('latest_close_price') ?? $record?->latest_close_price,
-            $get('latest_sma_20') ?? $record?->latest_sma_20,
-        );
+        return match (StopLossProtocol::activeMode($position)) {
+            TrailingStopMode::AggressivePreEarnings => 'Escalatie',
+            TrailingStopMode::AggressiveOverbought => 'Agressief',
+            default => null,
+        };
+    }
 
-        if ($extension === null) {
+    private static function currentSlStatusIcon(Get $get, ?Position $record): ?string
+    {
+        $position = self::resolvePositionForProtocol($get, $record);
+
+        if ($position === null) {
             return null;
         }
 
-        $threshold = StopLossProtocol::smaExtensionPct();
+        return match (StopLossProtocol::activeMode($position)) {
+            TrailingStopMode::Standard => null,
+            default => 'heroicon-m-bolt',
+        };
+    }
 
-        return $extension > $threshold
-            ? "Boven drempel ({$threshold}%) — voldoet voor agressief SL"
-            : "Onder drempel ({$threshold}%) — nog niet oververhit";
+    private static function currentSlStatusColor(Get $get, ?Position $record): string
+    {
+        $position = self::resolvePositionForProtocol($get, $record);
+
+        if ($position === null) {
+            return 'gray';
+        }
+
+        return match (StopLossProtocol::activeMode($position)) {
+            TrailingStopMode::AggressivePreEarnings => 'danger',
+            TrailingStopMode::AggressiveOverbought => 'warning',
+            default => 'gray',
+        };
+    }
+
+    private static function currentSlStatusTooltip(Get $get, ?Position $record): ?string
+    {
+        $position = self::resolvePositionForProtocol($get, $record);
+
+        if ($position === null) {
+            return null;
+        }
+
+        $mode = StopLossProtocol::activeMode($position);
+
+        if ($mode === TrailingStopMode::Standard) {
+            return null;
+        }
+
+        $newSl = self::resolveComputedNewSl($get, $record);
+        $action = self::resolveFormActionCommand($get, $record);
+
+        $formula = match ($mode) {
+            TrailingStopMode::AggressivePreEarnings => StopLossProtocol::aggressiveFormulaLabel(),
+            default => StopLossProtocol::overboughtFormulaLabel(),
+        };
+
+        $context = match ($mode) {
+            TrailingStopMode::AggressivePreEarnings => 'Pre-earnings escalatie actief',
+            default => 'RSI oververhit — agressieve ATR-trailing actief',
+        };
+
+        if ($action === 'UPDATE' && $newSl !== null) {
+            return sprintf(
+                "Systeem adviseert %s.\n%s (%s).",
+                self::formatUsd($newSl),
+                $context,
+                $formula,
+            );
+        }
+
+        return sprintf('%s (%s).', $context, $formula);
     }
 
     /**
@@ -1263,9 +1330,12 @@ class PositionForm
         $action = self::resolveFormActionCommand($get, $record);
         $newSl = self::resolveComputedNewSl($get, $record);
         $actionDescription = self::formatSchildSubtext($get, $record);
+        $position = self::resolvePositionForProtocol($get, $record);
 
         return [
             'action' => $action,
+            'label' => 'Berekende SL',
+            'showOverboughtBadge' => $position !== null && StopLossProtocol::isRsiOverbought($position),
             'value' => self::formatUsd($newSl),
             'copyValue' => self::formatNewSlCopyValue($newSl),
             'valuePulse' => $action === 'UPDATE',
@@ -1375,6 +1445,20 @@ class PositionForm
 
         if ($action === 'AWAITING DATA') {
             return null;
+        }
+
+        $position = self::resolvePositionForProtocol($get, $record);
+
+        if ($action === 'HOLD' && $position !== null && StopLossProtocol::isRsiOverbought($position)) {
+            $mode = StopLossProtocol::activeMode($position);
+
+            return [
+                'text' => match ($mode) {
+                    TrailingStopMode::AggressivePreEarnings => 'Pre-earnings escalatie actief',
+                    default => 'Oververhit — agressief schild actief',
+                },
+                'color' => $mode === TrailingStopMode::AggressivePreEarnings ? 'danger' : 'warning',
+            ];
         }
 
         $close = $get('latest_close_price') ?? $record?->latest_close_price;

@@ -20,7 +20,7 @@ class StopLossProtocolTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_standard_sl_outside_earnings_window_even_when_overheated(): void
+    public function test_overbought_sl_outside_earnings_window_when_rsi_high(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
 
@@ -31,11 +31,13 @@ class StopLossProtocolTest extends TestCase
             'scout_rsi' => 75.00,
         ]);
 
-        $this->assertSame(TrailingStopMode::Standard, StopLossProtocol::activeMode($position));
-        $this->assertEquals(76.10, StopLossProtocol::resolve($position));
+        $this->assertTrue(StopLossProtocol::isRsiOverbought($position));
+        $this->assertFalse(StopLossProtocol::isPreEarningsEscalated($position));
+        $this->assertSame(TrailingStopMode::AggressiveOverbought, StopLossProtocol::activeMode($position));
+        $this->assertEquals(85.80, StopLossProtocol::resolve($position));
     }
 
-    public function test_standard_sl_in_window_when_not_overheated_scenario_a(): void
+    public function test_standard_sl_in_window_when_rsi_below_threshold_scenario_a(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
 
@@ -47,12 +49,31 @@ class StopLossProtocolTest extends TestCase
         ]);
 
         $this->assertTrue(StopLossProtocol::isPreEarningsWindow($position));
-        $this->assertFalse(StopLossProtocol::isOverheated($position));
+        $this->assertFalse(StopLossProtocol::isRsiOverbought($position));
+        $this->assertFalse(StopLossProtocol::isPreEarningsEscalated($position));
         $this->assertSame(TrailingStopMode::Standard, StopLossProtocol::activeMode($position));
         $this->assertEquals(76.10, StopLossProtocol::resolve($position));
     }
 
-    public function test_aggressive_atr_sl_in_window_when_overheated_scenario_b(): void
+    public function test_bac_scenario_tier_one_overbought_without_extension_escalation(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
+
+        $position = $this->makeOpenPositionWithEarnings('2026-03-10', [
+            'latest_sma_20' => 55.53,
+            'latest_atr_14' => 1.20,
+            'latest_close_price' => 57.88,
+            'scout_rsi' => 71.00,
+        ], 'BAC');
+
+        $this->assertEqualsWithDelta(4.23, StopLossProtocol::computeSmaExtensionPct(57.88, 55.53), 0.01);
+        $this->assertTrue(StopLossProtocol::isRsiOverbought($position));
+        $this->assertFalse(StopLossProtocol::isPreEarningsEscalated($position));
+        $this->assertSame(TrailingStopMode::AggressiveOverbought, StopLossProtocol::activeMode($position));
+        $this->assertEquals(56.08, StopLossProtocol::resolve($position));
+    }
+
+    public function test_pre_earnings_escalation_when_rsi_and_extension_both_high_scenario_b(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
 
@@ -64,12 +85,13 @@ class StopLossProtocolTest extends TestCase
         ]);
 
         $this->assertTrue(StopLossProtocol::isPreEarningsWindow($position));
+        $this->assertTrue(StopLossProtocol::isPreEarningsEscalated($position));
         $this->assertTrue(StopLossProtocol::isOverheated($position));
         $this->assertSame(TrailingStopMode::AggressivePreEarnings, StopLossProtocol::activeMode($position));
         $this->assertEquals(47.00, StopLossProtocol::resolve($position));
     }
 
-    public function test_aggressive_prior_day_low_method(): void
+    public function test_aggressive_prior_day_low_method_for_escalation(): void
     {
         config(['vestix.pre_earnings_trailing.aggressive_method' => 'prior_day_low']);
 
@@ -98,11 +120,26 @@ class StopLossProtocolTest extends TestCase
         ]);
 
         $standard = 43.75;
-        $aggressive = 49.25;
+        $overboughtAtr = 49.25;
 
         $this->assertEquals($standard, StopLossProtocol::computeStandard(44.00, 0.50));
-        $this->assertEquals($aggressive, StopLossProtocol::computeAggressive($position));
-        $this->assertEquals(max($standard, $aggressive), StopLossProtocol::resolve($position));
+        $this->assertEquals($overboughtAtr, StopLossProtocol::computeOverboughtAtr($position));
+        $this->assertEquals(max($standard, $overboughtAtr), StopLossProtocol::resolve($position));
+    }
+
+    public function test_rsi_exactly_at_threshold_triggers_overbought(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
+
+        $position = $this->makeOpenPositionWithEarnings('2026-04-01', [
+            'latest_sma_20' => 50.00,
+            'latest_atr_14' => 2.00,
+            'latest_close_price' => 55.00,
+            'scout_rsi' => 70.00,
+        ]);
+
+        $this->assertTrue(StopLossProtocol::isRsiOverbought($position));
+        $this->assertSame(TrailingStopMode::AggressiveOverbought, StopLossProtocol::activeMode($position));
     }
 
     public function test_resolve_for_indicators_always_uses_standard(): void
@@ -116,7 +153,7 @@ class StopLossProtocolTest extends TestCase
         $this->assertNull(StopLossProtocol::computeSmaExtensionPct(null, 55.53));
     }
 
-    public function test_overheated_requires_both_rsi_and_sma_extension(): void
+    public function test_pre_earnings_escalated_requires_rsi_and_extension(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
 
@@ -132,8 +169,10 @@ class StopLossProtocolTest extends TestCase
             'scout_rsi' => 60.00,
         ], 'EXT1');
 
-        $this->assertFalse(StopLossProtocol::isOverheated($highRsiOnly));
-        $this->assertFalse(StopLossProtocol::isOverheated($highExtensionOnly));
+        $this->assertTrue(StopLossProtocol::isRsiOverbought($highRsiOnly));
+        $this->assertFalse(StopLossProtocol::isPreEarningsEscalated($highRsiOnly));
+        $this->assertFalse(StopLossProtocol::isRsiOverbought($highExtensionOnly));
+        $this->assertFalse(StopLossProtocol::isPreEarningsEscalated($highExtensionOnly));
     }
 
     /**

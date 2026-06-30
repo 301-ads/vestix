@@ -21,9 +21,7 @@ class AlertMessageBuilder
                 '<b>%s</b>: stop-loss kan wiskundig verhoogd worden naar $%s%s. <a href="%s">Inloggen</a>',
                 e($position->ticker),
                 number_format((float) ($context['new_sl'] ?? $position->new_sl), 2),
-                StopLossProtocol::activeMode($position) === TrailingStopMode::AggressivePreEarnings
-                    ? ' (pre-earnings agressief: '.e(StopLossProtocol::aggressiveFormulaLabel()).')'
-                    : '',
+                self::trailingModeSuffix($position),
                 $loginUrl,
             ),
             AlertEventType::FreerideSecured => sprintf(
@@ -76,6 +74,22 @@ class AlertMessageBuilder
                 e($position->ticker),
                 PositionResource::getUrl('edit', ['record' => $position]),
             ),
+            AlertEventType::Overbought => sprintf(
+                '<b>OVERBOUGHT ALERT:</b> %s RSI %s — agressief trailing actief (%s). <a href="%s">Open positie → Update SL</a>',
+                e($position->ticker),
+                number_format((float) ($context['rsi'] ?? $position->scout_rsi ?? 0), 1),
+                e(StopLossProtocol::overboughtFormulaLabel()),
+                PositionResource::getUrl('edit', ['record' => $position]),
+            ),
+        };
+    }
+
+    private static function trailingModeSuffix(Position $position): string
+    {
+        return match (StopLossProtocol::activeMode($position)) {
+            TrailingStopMode::AggressivePreEarnings => ' (pre-earnings escalatie: '.StopLossProtocol::aggressiveFormulaLabel().')',
+            TrailingStopMode::AggressiveOverbought => ' (oververhit: '.StopLossProtocol::overboughtFormulaLabel().')',
+            default => '',
         };
     }
 

@@ -5,6 +5,8 @@ namespace App\Jobs;
 use App\Alerts\AlertDispatcher;
 use App\Enums\AlertEventType;
 use App\Models\Position;
+use App\Models\PositionAlert;
+use App\Support\StopLossProtocol;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -25,6 +27,17 @@ class CheckPositionAlertTriggersJob implements ShouldQueue
         }
 
         foreach ($query->get() as $position) {
+            if (StopLossProtocol::isRsiOverbought($position)) {
+                $dispatcher->queue($position, AlertEventType::Overbought, [
+                    'rsi' => $position->scout_rsi,
+                ]);
+            } else {
+                PositionAlert::query()
+                    ->where('position_id', $position->id)
+                    ->where('event_type', AlertEventType::Overbought)
+                    ->delete();
+            }
+
             $command = $position->action_command;
 
             if ($command === 'UPDATE') {

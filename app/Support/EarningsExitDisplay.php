@@ -129,9 +129,13 @@ class EarningsExitDisplay
         $trailingNote = null;
 
         if (StopLossProtocol::isPreEarningsWindow($position)) {
-            $trailingNote = StopLossProtocol::activeMode($position) === TrailingStopMode::AggressivePreEarnings
-                ? 'Pre-earnings SL: agressief ('.StopLossProtocol::aggressiveFormulaLabel().')'
-                : 'Pre-earnings SL: standaard trailing';
+            $trailingNote = match (StopLossProtocol::activeMode($position)) {
+                TrailingStopMode::AggressivePreEarnings => 'Pre-earnings escalatie ('.StopLossProtocol::aggressiveFormulaLabel().')',
+                TrailingStopMode::AggressiveOverbought => 'Oververhit: agressief ATR ('.StopLossProtocol::overboughtFormulaLabel().')',
+                default => 'Pre-earnings: standaard trailing',
+            };
+        } elseif (StopLossProtocol::isRsiOverbought($position)) {
+            $trailingNote = 'Oververhit: agressief ATR ('.StopLossProtocol::overboughtFormulaLabel().')';
         }
 
         return [
@@ -232,15 +236,27 @@ class EarningsExitDisplay
         $secondaryDescription = null;
 
         if (StopLossProtocol::isPreEarningsWindow($position)) {
-            $isAggressive = StopLossProtocol::activeMode($position) === TrailingStopMode::AggressivePreEarnings;
-            $secondaryDescription = [
-                'text' => $isAggressive ? 'Pre-earnings: agressief SL' : 'Pre-earnings: standaard SL',
-                'color' => $isAggressive ? 'warning' : 'gray',
-                'icon' => $isAggressive ? 'heroicon-m-exclamation-triangle' : null,
-                'tooltip' => $isAggressive
-                    ? 'Agressief trailing actief ('.StopLossProtocol::aggressiveFormulaLabel().')'
-                    : 'Nog niet oververhit — standaard trailing (SMA20 − 0,5×ATR).',
-            ];
+            $mode = StopLossProtocol::activeMode($position);
+            $secondaryDescription = match ($mode) {
+                TrailingStopMode::AggressivePreEarnings => [
+                    'text' => 'Pre-earnings escalatie',
+                    'color' => 'danger',
+                    'icon' => 'heroicon-m-exclamation-triangle',
+                    'tooltip' => 'Strengste trailing actief ('.StopLossProtocol::aggressiveFormulaLabel().')',
+                ],
+                TrailingStopMode::AggressiveOverbought => [
+                    'text' => 'Oververhit: agressief SL',
+                    'color' => 'warning',
+                    'icon' => 'heroicon-m-bolt',
+                    'tooltip' => 'Agressief ATR-trailing actief ('.StopLossProtocol::overboughtFormulaLabel().')',
+                ],
+                default => [
+                    'text' => 'Pre-earnings: standaard SL',
+                    'color' => 'gray',
+                    'icon' => null,
+                    'tooltip' => 'Nog niet oververhit — standaard trailing (SMA20 − 0,5×ATR).',
+                ],
+            };
         }
 
         $descriptionColor = 'gray';

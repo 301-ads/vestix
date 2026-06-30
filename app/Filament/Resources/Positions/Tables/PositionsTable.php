@@ -70,7 +70,8 @@ class PositionsTable
                     ->placeholder('—')
                     ->sortable()
                     ->tooltip(fn (Position $record): string => match (StopLossProtocol::activeMode($record)) {
-                        TrailingStopMode::AggressivePreEarnings => 'Pre-earnings agressief: '.StopLossProtocol::aggressiveFormulaLabel(),
+                        TrailingStopMode::AggressivePreEarnings => 'Pre-earnings escalatie: '.StopLossProtocol::aggressiveFormulaLabel(),
+                        TrailingStopMode::AggressiveOverbought => 'Oververhit: '.StopLossProtocol::overboughtFormulaLabel(),
                         default => 'Berekende stop-loss (SMA20 − 0,5 × ATR14).',
                     })
                     ->toggleable()

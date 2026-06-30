@@ -410,7 +410,32 @@ class PositionAccessorTest extends TestCase
         $this->assertEquals('UPDATE', $position->action_command);
     }
 
-    public function test_pre_earnings_scenario_b_uses_aggressive_sl_when_overheated(): void
+    public function test_pre_earnings_tier_one_when_rsi_high_without_extension(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'BAC',
+            'next_earnings_date' => '2026-03-10',
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'BAC',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+            'latest_sma_20' => 55.53,
+            'latest_atr_14' => 1.20,
+            'latest_close_price' => 57.88,
+            'scout_rsi' => 71.00,
+            'current_sl' => 54.96,
+        ]);
+
+        $this->assertSame(TrailingStopMode::AggressiveOverbought, $position->trailing_stop_mode);
+        $this->assertEquals(56.08, $position->new_sl);
+        $this->assertEquals('UPDATE', $position->action_command);
+    }
+
+    public function test_pre_earnings_tier_two_escalation_when_rsi_and_extension_high(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
 

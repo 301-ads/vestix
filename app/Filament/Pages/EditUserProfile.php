@@ -71,6 +71,7 @@ class EditUserProfile extends EditProfile
                                 AlertEventType::PremarketLanding->value => 'Pre-market landing — nadert SMA 20 (14:30)',
                                 AlertEventType::EarningsWarning->value => 'Earnings waarschuwing — 2 dagen voor exit (08:00)',
                                 AlertEventType::EarningsActionRequired->value => 'Earnings actie — sluit vóór earnings (15:00)',
+                                AlertEventType::Overbought->value => 'Overbought alert — RSI ≥ 70 (23:00)',
                                 AlertEventType::SquadCopyAlert->value => 'Squad copy-alerts (Ghost Mode)',
                             ])
                             ->default(AlertEventType::defaults())

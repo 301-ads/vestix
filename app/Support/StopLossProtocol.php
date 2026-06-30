@@ -24,19 +24,31 @@ class StopLossProtocol
         return $daysUntil >= 0 && $daysUntil <= $windowDays;
     }
 
-    public static function isOverheated(Position $position): bool
+    public static function isRsiOverbought(Position $position): bool
     {
-        $rsi = $position->scout_rsi;
-        $close = $position->latest_close_price;
-        $sma = $position->latest_sma_20;
-
-        if ($rsi === null || $rsi === '' || $close === null || $close === '' || $sma === null || $sma === '') {
+        if ($position->status !== 'open') {
             return false;
         }
 
-        $sma = (float) $sma;
+        $rsi = $position->scout_rsi;
 
-        if ($sma <= 0) {
+        if ($rsi === null || $rsi === '') {
+            return false;
+        }
+
+        return (float) $rsi >= self::rsiThreshold();
+    }
+
+    public static function isPreEarningsEscalated(Position $position): bool
+    {
+        if (! self::isPreEarningsWindow($position) || ! self::isRsiOverbought($position)) {
+            return false;
+        }
+
+        $close = $position->latest_close_price;
+        $sma = $position->latest_sma_20;
+
+        if ($close === null || $close === '' || $sma === null || $sma === '') {
             return false;
         }
 
@@ -46,14 +58,25 @@ class StopLossProtocol
             return false;
         }
 
-        return (float) $rsi > self::rsiThreshold()
-            && $extensionPct > self::smaExtensionPct();
+        return $extensionPct > self::smaExtensionPct();
+    }
+
+    /**
+     * @deprecated Use isPreEarningsEscalated() for tier-2 escalation checks.
+     */
+    public static function isOverheated(Position $position): bool
+    {
+        return self::isPreEarningsEscalated($position);
     }
 
     public static function activeMode(Position $position): TrailingStopMode
     {
-        if (self::isPreEarningsWindow($position) && self::isOverheated($position)) {
+        if (self::isPreEarningsEscalated($position)) {
             return TrailingStopMode::AggressivePreEarnings;
+        }
+
+        if (self::isRsiOverbought($position)) {
+            return TrailingStopMode::AggressiveOverbought;
         }
 
         return TrailingStopMode::Standard;
@@ -87,29 +110,43 @@ class StopLossProtocol
     {
         return match (self::aggressiveMethod()) {
             'prior_day_low' => self::computeAggressivePriorDayLow($position),
-            default => self::computeAggressiveAtr($position),
+            default => self::computeEscalatedAtr($position),
         };
+    }
+
+    public static function computeOverboughtAtr(Position $position): ?float
+    {
+        $close = $position->latest_close_price;
+        $atr = $position->latest_atr_14;
+
+        if ($close === null || $close === '' || $atr === null || $atr === '') {
+            return null;
+        }
+
+        return round((float) $close - (self::overboughtAtrMultiplier() * (float) $atr), 2);
     }
 
     public static function resolve(Position $position): ?float
     {
         $standard = self::computeStandard($position->latest_sma_20, $position->latest_atr_14);
+        $mode = self::activeMode($position);
 
-        if (self::activeMode($position) !== TrailingStopMode::AggressivePreEarnings) {
+        if ($mode === TrailingStopMode::Standard) {
             return $standard;
         }
 
-        $aggressive = self::computeAggressive($position);
+        $overboughtAtr = self::computeOverboughtAtr($position);
 
-        if ($aggressive === null) {
-            return $standard;
+        if ($mode === TrailingStopMode::AggressiveOverbought) {
+            return self::maxWithStandard($overboughtAtr, $standard);
         }
 
-        if ($standard === null) {
-            return $aggressive;
-        }
+        $escalated = self::computeAggressive($position);
 
-        return max($aggressive, $standard);
+        return self::maxWithStandard(
+            self::maxNullable($escalated, $overboughtAtr),
+            $standard,
+        );
     }
 
     public static function resolveForIndicators(mixed $sma, mixed $atr): ?float
@@ -152,6 +189,11 @@ class StopLossProtocol
         return $working;
     }
 
+    public static function overboughtFormulaLabel(): string
+    {
+        return sprintf('close − %.1f×ATR', self::overboughtAtrMultiplier());
+    }
+
     public static function aggressiveFormulaLabel(): string
     {
         return match (self::aggressiveMethod()) {
@@ -167,7 +209,7 @@ class StopLossProtocol
 
     public static function rsiThreshold(): float
     {
-        return (float) config('vestix.pre_earnings_trailing.rsi_threshold', 70);
+        return (float) config('vestix.overbought_trailing.rsi_threshold', 70);
     }
 
     public static function smaExtensionPct(): float
@@ -180,6 +222,11 @@ class StopLossProtocol
         return (string) config('vestix.pre_earnings_trailing.aggressive_method', 'atr');
     }
 
+    public static function overboughtAtrMultiplier(): float
+    {
+        return (float) config('vestix.overbought_trailing.atr_multiplier', 1.5);
+    }
+
     public static function atrMultiplier(): float
     {
         return (float) config('vestix.pre_earnings_trailing.atr_multiplier', 1.5);
@@ -190,7 +237,7 @@ class StopLossProtocol
         return (float) config('vestix.pre_earnings_trailing.prior_day_buffer_pct', 0.1);
     }
 
-    private static function computeAggressiveAtr(Position $position): ?float
+    private static function computeEscalatedAtr(Position $position): ?float
     {
         $close = $position->latest_close_price;
         $atr = $position->latest_atr_14;
@@ -213,5 +260,31 @@ class StopLossProtocol
         $bufferFactor = 1 - (self::priorDayBufferPct() / 100);
 
         return round((float) $priorDayLow * $bufferFactor, 2);
+    }
+
+    private static function maxWithStandard(?float $candidate, ?float $standard): ?float
+    {
+        if ($candidate === null) {
+            return $standard;
+        }
+
+        if ($standard === null) {
+            return $candidate;
+        }
+
+        return max($candidate, $standard);
+    }
+
+    private static function maxNullable(?float $a, ?float $b): ?float
+    {
+        if ($a === null) {
+            return $b;
+        }
+
+        if ($b === null) {
+            return $a;
+        }
+
+        return max($a, $b);
     }
 }

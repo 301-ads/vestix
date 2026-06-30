@@ -55,9 +55,13 @@ return [
         'landing_distance_pct' => (float) env('PREMARKET_LANDING_DISTANCE_PCT', 1.5),
     ],
 
+    'overbought_trailing' => [
+        'rsi_threshold' => (float) env('OVERBOUGHT_TRAILING_RSI_THRESHOLD', 70),
+        'atr_multiplier' => (float) env('OVERBOUGHT_TRAILING_ATR_MULTIPLIER', 1.5),
+    ],
+
     'pre_earnings_trailing' => [
         'window_days' => (int) env('PRE_EARNINGS_TRAILING_WINDOW_DAYS', 14),
-        'rsi_threshold' => (float) env('PRE_EARNINGS_TRAILING_RSI_THRESHOLD', 70),
         'sma_extension_pct' => (float) env('PRE_EARNINGS_TRAILING_SMA_EXTENSION_PCT', 5.0),
         'aggressive_method' => env('PRE_EARNINGS_TRAILING_AGGRESSIVE_METHOD', 'atr'),
         'atr_multiplier' => (float) env('PRE_EARNINGS_TRAILING_ATR_MULTIPLIER', 1.5),

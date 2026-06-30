@@ -3,6 +3,8 @@
     use Illuminate\View\ComponentAttributeBag;
 
     $action = $action ?? 'HOLD';
+    $label = $label ?? 'Berekende SL';
+    $showOverboughtBadge = $showOverboughtBadge ?? false;
     $value = $value ?? '—';
     $copyValue = $copyValue ?? null;
     $description = $description ?? null;
@@ -21,11 +23,17 @@
 ])>
     <div class="fi-wi-stats-overview-stat-content">
         <div class="vestix-stat-card__header flex items-start justify-between gap-2">
-            <span class="fi-wi-stats-overview-stat-label">Berekende SL</span>
+            <span class="fi-wi-stats-overview-stat-label">{{ $label }}</span>
 
-            @if ($isActionable)
-                <span class="vestix-stat-card__corner-badge">Update</span>
-            @endif
+            <div class="flex items-center gap-1.5">
+                @if ($showOverboughtBadge && ! $isActionable)
+                    <span class="vestix-stat-card__corner-badge vestix-stat-card__corner-badge--overbought">Oververhit</span>
+                @endif
+
+                @if ($isActionable)
+                    <span class="vestix-stat-card__corner-badge">Update</span>
+                @endif
+            </div>
         </div>
 
         <div class="vestix-stat-card__value-row flex items-center gap-1.5">
