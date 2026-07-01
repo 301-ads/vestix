@@ -8,6 +8,7 @@ use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
+use App\Support\SetupGradeDisplay;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -113,9 +114,9 @@ class ScoutsTable
                     ->visible(! $squadMode),
                 TextColumn::make('setup_grade')
                     ->label('Setup Grade')
-                    ->state(fn (Position $record): ?string => self::setupGradeLabel($record))
+                    ->state(fn (Position $record): ?string => SetupGradeDisplay::label($record))
                     ->badge()
-                    ->color(fn (Position $record): string => self::setupGradeColor($record))
+                    ->color(fn (Position $record): string => SetupGradeDisplay::color($record))
                     ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->placeholder('—')
                     ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBySetupGrade($direction)),
@@ -149,45 +150,5 @@ class ScoutsTable
                         ->visible(! $squadMode),
                 ]),
             ]);
-    }
-
-    /**
-     * @return array{grade: string, gradeLabel: string, hardFailReasons: array<int, string>}|null
-     */
-    private static function resolveSetupScore(Position $record): ?array
-    {
-        if (
-            ($record->signal_low === null && $record->latest_close_price === null)
-            || $record->latest_sma_20 === null
-            || $record->scout_rsi === null
-        ) {
-            return null;
-        }
-
-        return $record->evaluateSetupScore();
-    }
-
-    private static function setupGradeLabel(Position $record): ?string
-    {
-        return self::resolveSetupScore($record)['gradeLabel'] ?? null;
-    }
-
-    private static function setupGradeColor(Position $record): string
-    {
-        $score = self::resolveSetupScore($record);
-
-        if ($score === null) {
-            return 'gray';
-        }
-
-        if ($score['hardFailReasons'] !== []) {
-            return 'danger';
-        }
-
-        return match ($score['grade']) {
-            'A+' => 'success',
-            'A-' => 'warning',
-            default => 'gray',
-        };
     }
 }

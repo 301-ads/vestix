@@ -521,11 +521,66 @@ class ScoutWatchlistTest extends TestCase
     public function test_setup_radar_widget_lists_scouts_only(): void
     {
         $user = $this->authenticateFilament();
-        $scout = Position::factory()->for($user)->scout()->create(['ticker' => 'RADAR']);
+        $scout = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aPlusSetupAttributes(),
+            ['ticker' => 'RADAR'],
+        ));
         Position::factory()->create(['ticker' => 'OPEN']);
         Livewire::test(SetupRadarWidget::class)
             ->assertCanSeeTableRecords([$scout])
             ->assertSee('Setup Radar');
+    }
+
+    public function test_setup_radar_widget_defaults_to_strong_setups(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $aPlus = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aPlusSetupAttributes(),
+            ['ticker' => 'APLS'],
+        ));
+
+        $aMinus = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aMinusSetupAttributes(),
+            ['ticker' => 'AMNS'],
+        ));
+
+        $bSetup = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->bSetupAttributes(),
+            ['ticker' => 'BCSC'],
+        ));
+
+        Livewire::test(SetupRadarWidget::class)
+            ->assertCanSeeTableRecords([$aPlus, $aMinus])
+            ->assertCanNotSeeTableRecords([$bSetup]);
+    }
+
+    public function test_setup_radar_widget_can_search_by_ticker(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $aPlus = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aPlusSetupAttributes(),
+            ['ticker' => 'FINDM'],
+        ));
+
+        $other = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aPlusSetupAttributes(),
+            ['ticker' => 'OTHER'],
+        ));
+
+        Livewire::test(SetupRadarWidget::class)
+            ->searchTable('FINDM')
+            ->assertCanSeeTableRecords([$aPlus])
+            ->assertCanNotSeeTableRecords([$other]);
+    }
+
+    public function test_setup_radar_widget_does_not_show_berekende_sl(): void
+    {
+        $this->authenticateFilament();
+
+        Livewire::test(SetupRadarWidget::class)
+            ->assertDontSee('Berekende SL');
     }
 
     public function test_market_data_fetcher_syncs_position(): void
@@ -817,5 +872,53 @@ class ScoutWatchlistTest extends TestCase
         Livewire::test(ListScouts::class)
             ->assertOk()
             ->assertSeeInOrder(['APLS', 'AMNS', 'BCSC', 'FAIL']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function aPlusSetupAttributes(): array
+    {
+        return [
+            'signal_low' => 101.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function aMinusSetupAttributes(): array
+    {
+        return [
+            'signal_low' => 100.50,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 68.00,
+            'bounce_volume_above_average' => true,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function bSetupAttributes(): array
+    {
+        return [
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'bounce_volume_above_average' => false,
+        ];
     }
 }

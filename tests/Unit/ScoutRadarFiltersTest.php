@@ -119,4 +119,41 @@ class ScoutRadarFiltersTest extends TestCase
         $this->assertTrue(ScoutRadarFilters::matches($reminder, 'execution_pipeline'));
         $this->assertFalse(ScoutRadarFilters::matches($plain, 'execution_pipeline'));
     }
+
+    public function test_matches_strong_setups_for_a_plus_and_a_minus(): void
+    {
+        $aPlus = Position::factory()->scout()->create([
+            'signal_low' => 101.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+        ]);
+
+        $aMinus = Position::factory()->scout()->create([
+            'signal_low' => 100.50,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 68.00,
+            'bounce_volume_above_average' => true,
+        ]);
+
+        $bSetup = Position::factory()->scout()->create([
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'bounce_volume_above_average' => false,
+        ]);
+
+        $this->assertTrue(ScoutRadarFilters::matches($aPlus, 'strong_setups'));
+        $this->assertTrue(ScoutRadarFilters::matches($aMinus, 'strong_setups'));
+        $this->assertFalse(ScoutRadarFilters::matches($bSetup, 'strong_setups'));
+    }
 }

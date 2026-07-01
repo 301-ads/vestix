@@ -18,6 +18,7 @@ class ScoutRadarFilters
             'gap_up' => 'Gap-up risico',
             'reclamation' => 'Reclamation PM',
             'landing' => 'Landing PM',
+            'strong_setups' => 'Sterke setups (A+/A-)',
             'a_plus' => 'Top setups (A+)',
             'scout_only' => 'Status: Scout',
             'market_open_pending' => 'Status: Pending (market open)',
@@ -27,6 +28,18 @@ class ScoutRadarFilters
             'execution_pipeline' => 'Executie (live + reminder)',
             'track_a' => 'Track A — Landing',
             'track_b' => 'Track B — Reclamation',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function dashboardOptions(): array
+    {
+        return [
+            'strong_setups' => 'Sterke setups (A+/A-)',
+            'a_plus' => 'Alleen A+',
+            'ready' => 'Klaar voor executie',
         ];
     }
 
@@ -46,6 +59,7 @@ class ScoutRadarFilters
             'gap_up' => $scout->hasPremarketGapUpRisk(),
             'reclamation' => $scout->hasPremarketReclamation(),
             'landing' => $scout->hasPremarketLanding(),
+            'strong_setups' => self::isStrongSetup($scout),
             'a_plus' => self::isAPlusSetup($scout),
             'scout_only' => self::pipelineStatus($scout) === ScoutPipelineStatus::Scout,
             'market_open_pending' => self::pipelineStatus($scout) === ScoutPipelineStatus::Pending,
@@ -128,15 +142,29 @@ class ScoutRadarFilters
 
     private static function isAPlusSetup(Position $scout): bool
     {
-        if (
-            ($scout->signal_low === null && $scout->latest_close_price === null)
-            || $scout->latest_sma_20 === null
-            || $scout->scout_rsi === null
-        ) {
+        if (! self::hasCompleteSetupData($scout)) {
             return false;
         }
 
         return $scout->evaluateSetupScore()['grade'] === 'A+';
+    }
+
+    private static function isStrongSetup(Position $scout): bool
+    {
+        if (! self::hasCompleteSetupData($scout)) {
+            return false;
+        }
+
+        return in_array($scout->evaluateSetupScore()['grade'], ['A+', 'A-'], true);
+    }
+
+    private static function hasCompleteSetupData(Position $scout): bool
+    {
+        return ! (
+            ($scout->signal_low === null && $scout->latest_close_price === null)
+            || $scout->latest_sma_20 === null
+            || $scout->scout_rsi === null
+        );
     }
 
     private static function hasPremarketSignal(Position $scout): bool
