@@ -22,7 +22,7 @@ class MarketOpenBuyStopReminderService
         $today ??= Carbon::today('Europe/Amsterdam');
         $summary = ['sent' => 0, 'skipped' => 0];
 
-        if (! UsMarketSession::isUsTradingDay($today->copy()->timezone('America/New_York'))) {
+        if (! UsMarketSession::isUsTradingDay(Carbon::now('America/New_York'))) {
             return $summary;
         }
 
@@ -49,7 +49,12 @@ class MarketOpenBuyStopReminderService
                 'user' => $user,
             ];
 
-            $this->alertDispatcher->queue($scout, AlertEventType::MarketOpenBuyStopReminder, $context);
+            $this->alertDispatcher->dispatchNow(
+                $user->id,
+                $scout->id,
+                AlertEventType::MarketOpenBuyStopReminder,
+                $context,
+            );
 
             $scout->update(['market_open_reminder_on' => null]);
 

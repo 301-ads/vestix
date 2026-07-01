@@ -218,13 +218,32 @@ class Position extends Model
         return ScoutPipelineStatus::fromPosition($this);
     }
 
-    public function scheduleMarketOpenReminder(?Carbon $from = null): void
+    public function scheduleMarketOpenReminder(?Carbon $now = null): void
     {
-        $from ??= Carbon::today('Europe/Amsterdam');
+        $now ??= Carbon::now('Europe/Amsterdam');
 
         $this->update([
-            'market_open_reminder_on' => UsMarketSession::nextTradingDay($from->copy()->startOfDay())->toDateString(),
+            'market_open_reminder_on' => self::resolveMarketOpenReminderDate($now)->toDateString(),
         ]);
+    }
+
+    public static function resolveMarketOpenReminderDate(?Carbon $now = null): Carbon
+    {
+        $now ??= Carbon::now('Europe/Amsterdam');
+        $today = $now->copy()->startOfDay();
+
+        $reminderTime = (string) config('vestix.market_open_reminder.time', '15:35');
+        [$hour, $minute] = array_pad(explode(':', $reminderTime), 2, '0');
+        $reminderAt = $today->copy()->setTime((int) $hour, (int) $minute);
+
+        if (
+            UsMarketSession::isUsTradingDay($now->copy()->timezone('America/New_York'))
+            && $now->lessThan($reminderAt)
+        ) {
+            return $today;
+        }
+
+        return UsMarketSession::nextTradingDay($today);
     }
 
     public function clearMarketOpenReminder(): void

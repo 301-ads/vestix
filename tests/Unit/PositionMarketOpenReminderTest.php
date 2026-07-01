@@ -18,9 +18,38 @@ class PositionMarketOpenReminderTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_schedule_market_open_reminder_sets_next_trading_day(): void
+    public function test_schedule_market_open_reminder_same_day_when_before_reminder_time(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-07-03 10:00:00', 'Europe/Amsterdam'));
+        Carbon::setTestNow(Carbon::parse('2026-07-01 14:00:00', 'Europe/Amsterdam'));
+
+        $scout = Position::factory()->scout()->create();
+
+        $scout->scheduleMarketOpenReminder();
+
+        $scout->refresh();
+
+        $this->assertSame('2026-07-01', $scout->market_open_reminder_on?->toDateString());
+    }
+
+    public function test_schedule_market_open_reminder_next_day_when_after_reminder_time(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-01 16:00:00', 'Europe/Amsterdam'));
+
+        $scout = Position::factory()->scout()->create();
+
+        $scout->scheduleMarketOpenReminder();
+
+        $scout->refresh();
+
+        $this->assertSame(
+            UsMarketSession::nextTradingDay(Carbon::parse('2026-07-01', 'Europe/Amsterdam'))->toDateString(),
+            $scout->market_open_reminder_on?->toDateString(),
+        );
+    }
+
+    public function test_schedule_market_open_reminder_sets_next_trading_day_on_weekend(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-04 10:00:00', 'Europe/Amsterdam'));
 
         $scout = Position::factory()->scout()->create();
 

@@ -2,16 +2,13 @@
 
 namespace Tests\Feature\Console;
 
-use App\Enums\AlertEventType;
 use App\Enums\BrokerOrderStatus;
-use App\Jobs\SendAlertJob;
 use App\Models\Position;
 use App\Models\User;
 use App\Models\UserAlertPreference;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class RunMarketOpenBuyStopRemindersTest extends TestCase
@@ -24,11 +21,12 @@ class RunMarketOpenBuyStopRemindersTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_command_queues_reminder_and_clears_scheduled_date(): void
+    public function test_command_sends_reminder_immediately_and_clears_scheduled_date(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-02 15:35:00', 'Europe/Amsterdam'));
 
-        Queue::fake();
+        config(['vestix.telegram.bot_token' => 'test-token']);
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
 
         $user = User::factory()->create(['telegram_chat_id' => '12345']);
         UserAlertPreference::ensureDefaultsForUser($user);
@@ -44,10 +42,7 @@ class RunMarketOpenBuyStopRemindersTest extends TestCase
         $this->artisan('vestix:market-open-buy-stop-reminders')
             ->assertSuccessful();
 
-        Queue::assertPushed(SendAlertJob::class, function (SendAlertJob $job) use ($scout): bool {
-            return $job->positionId === $scout->id
-                && $job->event === AlertEventType::MarketOpenBuyStopReminder;
-        });
+        Http::assertSent(fn ($request): bool => str_contains($request->data()['text'] ?? '', 'BUY-STOP REMINDER: NVDA'));
 
         $scout->refresh();
 
@@ -57,8 +52,6 @@ class RunMarketOpenBuyStopRemindersTest extends TestCase
     public function test_command_skips_scout_without_entry_price(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-02 15:35:00', 'Europe/Amsterdam'));
-
-        Queue::fake();
 
         $user = User::factory()->create(['telegram_chat_id' => '12345']);
 
@@ -70,8 +63,6 @@ class RunMarketOpenBuyStopRemindersTest extends TestCase
         $this->artisan('vestix:market-open-buy-stop-reminders')
             ->assertSuccessful();
 
-        Queue::assertNothingPushed();
-
         $scout->refresh();
 
         $this->assertSame('2026-07-02', $scout->market_open_reminder_on?->toDateString());
@@ -80,8 +71,6 @@ class RunMarketOpenBuyStopRemindersTest extends TestCase
     public function test_command_skips_user_without_telegram(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-02 15:35:00', 'Europe/Amsterdam'));
-
-        Queue::fake();
 
         $user = User::factory()->create(['telegram_chat_id' => null]);
 
@@ -92,8 +81,6 @@ class RunMarketOpenBuyStopRemindersTest extends TestCase
 
         $this->artisan('vestix:market-open-buy-stop-reminders')
             ->assertSuccessful();
-
-        Queue::assertNothingPushed();
 
         $scout->refresh();
 
