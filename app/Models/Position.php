@@ -12,6 +12,7 @@ use App\Services\AssetSyncService;
 use App\Support\EarningsExitSchedule;
 use App\Support\ScoutSetupScorecard;
 use App\Support\StopLossProtocol;
+use App\Support\UsMarketSession;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -215,6 +216,20 @@ class Position extends Model
     public function scoutPipelineStatus(): ScoutPipelineStatus
     {
         return ScoutPipelineStatus::fromPosition($this);
+    }
+
+    public function scheduleMarketOpenReminder(?Carbon $from = null): void
+    {
+        $from ??= Carbon::today('Europe/Amsterdam');
+
+        $this->update([
+            'market_open_reminder_on' => UsMarketSession::nextTradingDay($from->copy()->startOfDay())->toDateString(),
+        ]);
+    }
+
+    public function clearMarketOpenReminder(): void
+    {
+        $this->update(['market_open_reminder_on' => null]);
     }
 
     public function cloneForUser(User $user): self

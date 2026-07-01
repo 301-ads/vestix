@@ -1,17 +1,23 @@
 @php
+    use App\Enums\ScoutPipelineStatus;
     use Filament\Support\View\Components\BadgeComponent;
     use Illuminate\View\ComponentAttributeBag;
 
-    $badgeColor = match ($status) {
-        'open' => 'success',
-        'scout' => 'info',
-        default => 'gray',
-    };
-    $badgeLabel = match ($status) {
-        'open' => 'Open',
-        'scout' => 'Scout',
-        default => 'Gesloten',
-    };
+    if ($status === 'scout' && isset($pipelineStatus) && $pipelineStatus instanceof ScoutPipelineStatus) {
+        $badgeColor = $pipelineStatus->badgeColor();
+        $badgeLabel = $pipelineStatus->label();
+    } else {
+        $badgeColor = match ($status) {
+            'open' => 'success',
+            'scout' => 'info',
+            default => 'gray',
+        };
+        $badgeLabel = match ($status) {
+            'open' => 'Open',
+            'scout' => 'Scout',
+            default => 'Gesloten',
+        };
+    }
 @endphp
 
 <span class="position-edit-heading inline-flex items-center gap-5">

@@ -153,6 +153,51 @@ class PositionRecordActions
         return $action;
     }
 
+    public static function toggleMarketOpenReminder(): Action
+    {
+        return Action::make('toggle_market_open_reminder')
+            ->label(fn (Position $record): string => $record->market_open_reminder_on !== null
+                ? 'Reminder uit'
+                : 'Herinner bij market open')
+            ->tooltip(fn (Position $record): string => $record->market_open_reminder_on !== null
+                ? 'Annuleer market open reminder'
+                : 'Plan Telegram-reminder voor volgende handelsdag (15:35)')
+            ->icon(fn (Position $record): string => $record->market_open_reminder_on !== null
+                ? 'heroicon-s-bell-alert'
+                : 'heroicon-o-bell-alert')
+            ->color('info')
+            ->iconButton()
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->isOwnedBy(auth()->user())
+                && $record->scoutPipelineStatus() !== ScoutPipelineStatus::Active
+                && $record->entry_price !== null)
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->action(function (Position $record): void {
+                if ($record->market_open_reminder_on !== null) {
+                    $record->clearMarketOpenReminder();
+
+                    FilamentNotifier::send(
+                        title: 'Reminder geannuleerd',
+                        body: "{$record->ticker} staat weer op Scout.",
+                    );
+
+                    return;
+                }
+
+                $record->scheduleMarketOpenReminder();
+
+                FilamentNotifier::send(
+                    title: 'Reminder gepland',
+                    body: sprintf(
+                        '%s: Telegram op %s om %s.',
+                        $record->ticker,
+                        $record->fresh()->market_open_reminder_on?->format('d-m-Y') ?? 'volgende handelsdag',
+                        config('vestix.market_open_reminder.time', '15:35'),
+                    ),
+                );
+            });
+    }
+
     public static function markBuyStopPlaced(): Action
     {
         return Action::make('mark_buy_stop_placed')

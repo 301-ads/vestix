@@ -129,6 +129,7 @@ class ScoutsTable
             ])
             ->recordActions([
                 PositionRecordActions::markBuyStopPlaced(),
+                PositionRecordActions::toggleMarketOpenReminder(),
                 PositionRecordActions::clearBuyStop(),
                 PositionRecordActions::activateScout(),
                 PositionRecordActions::cloneTarget($resourceClass),

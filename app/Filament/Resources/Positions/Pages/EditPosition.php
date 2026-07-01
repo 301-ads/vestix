@@ -126,6 +126,7 @@ class EditPosition extends EditRecord
         return new HtmlString(view('filament.positions.edit-page-heading', [
             'title' => $this->getRecordTitle(),
             'status' => $record->status,
+            'pipelineStatus' => $record->status === 'scout' ? $record->scoutPipelineStatus() : null,
             'iconUrl' => $record->asset?->icon_url,
         ])->render());
     }

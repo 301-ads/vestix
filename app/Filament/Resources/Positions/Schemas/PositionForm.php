@@ -17,7 +17,6 @@ use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SlPriceProximity;
 use App\Support\StopLossProtocol;
-use App\Support\UsMarketSession;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -35,7 +34,6 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
 
 class PositionForm
@@ -203,28 +201,30 @@ class PositionForm
 
     private static function marketOpenReminderToggle(): Toggle
     {
-        return Toggle::make('market_open_reminder_on')
+        return Toggle::make('market_open_reminder_enabled')
             ->label('Herinner bij market open')
             ->inline(false)
             ->onIcon('heroicon-m-bell-alert')
             ->offIcon('heroicon-m-bell-slash')
             ->onColor('info')
             ->offColor('gray')
-            ->formatStateUsing(function ($state): bool {
-                return $state !== null && $state !== '';
+            ->dehydrated(false)
+            ->afterStateHydrated(function (Toggle $component, ?Position $record): void {
+                $component->state($record?->market_open_reminder_on !== null);
             })
-            ->dehydrateStateUsing(function (bool $state, ?Position $record): ?string {
-                if (! $state) {
-                    return null;
+            ->live()
+            ->afterStateUpdated(function (bool $state, ?Position $record): void {
+                if (! $record instanceof Position) {
+                    return;
                 }
 
-                if ($record?->market_open_reminder_on !== null) {
-                    return $record->market_open_reminder_on->toDateString();
+                if ($state) {
+                    $record->scheduleMarketOpenReminder();
+                } else {
+                    $record->clearMarketOpenReminder();
                 }
 
-                return UsMarketSession::nextTradingDay(
-                    Carbon::today('Europe/Amsterdam'),
-                )->toDateString();
+                $record->refresh();
             })
             ->disabled(fn (Get $get): bool => blank($get('entry_price')))
             ->helperText(function (Get $get, ?Position $record): string {
@@ -232,6 +232,7 @@ class PositionForm
                     return 'Vul eerst Low/High in zodat de buy-stop berekend is.';
                 }
 
+                $record?->refresh();
                 $reminderOn = $record?->market_open_reminder_on;
 
                 if ($reminderOn !== null) {

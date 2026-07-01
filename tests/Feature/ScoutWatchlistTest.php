@@ -680,6 +680,24 @@ class ScoutWatchlistTest extends TestCase
             ->assertSeeHtml('vestix-stat-card');
     }
 
+    public function test_toggle_market_open_reminder_from_table_sets_pending_status(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'LIN',
+            'entry_price' => 523.66,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->callTableAction('toggle_market_open_reminder', $scout);
+
+        $scout->refresh();
+
+        $this->assertNotNull($scout->market_open_reminder_on);
+        $this->assertSame(ScoutPipelineStatus::Pending, $scout->scoutPipelineStatus());
+    }
+
     public function test_radar_list_shows_pipeline_status_column(): void
     {
         $user = $this->authenticateFilament();
