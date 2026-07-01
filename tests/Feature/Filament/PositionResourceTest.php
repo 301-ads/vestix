@@ -141,7 +141,7 @@ class PositionResourceTest extends TestCase
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertSee('Positiewaarde')
-            ->assertSee('Geen veiliggestelde winst');
+            ->assertSee('Nog 7.14% tot Freeride');
     }
 
     public function test_edit_page_cockpit_sl_action_updates_current_sl(): void

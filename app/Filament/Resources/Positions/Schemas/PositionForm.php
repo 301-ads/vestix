@@ -12,6 +12,7 @@ use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ClosePriceTrend;
 use App\Support\EarningsExitDisplay;
+use App\Support\FreerideDisplay;
 use App\Support\PositionSizing;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutSetupScorecard;
@@ -1336,7 +1337,8 @@ class PositionForm
             $descriptionIcon = 'heroicon-m-lock-closed';
             $descriptionColor = 'info';
         } else {
-            $description = 'Geen veiliggestelde winst';
+            $freerideGap = self::resolveFreerideGap($get, $record);
+            $description = FreerideDisplay::distanceSubtext($freerideGap) ?? 'Geen veiliggestelde winst';
             $descriptionIcon = 'heroicon-m-lock-open';
             $descriptionColor = 'gray';
         }
@@ -1435,6 +1437,26 @@ class PositionForm
             'color' => $trend['color'],
             'chart' => count($chart) >= 2 ? $chart : null,
         ];
+    }
+
+    /**
+     * @return array{percentage: float, dollars: float}|null
+     */
+    private static function resolveFreerideGap(Get $get, ?Position $record): ?array
+    {
+        if ($record?->status === 'closed') {
+            return null;
+        }
+
+        $entry = $get('entry_price') ?? $record?->entry_price;
+        $currentSl = $get('current_sl') ?? $record?->current_sl;
+        $quantity = $get('quantity') ?? $record?->quantity;
+
+        if ($entry === null || $entry === '' || $currentSl === null || $currentSl === '' || $quantity === null || $quantity === '') {
+            return null;
+        }
+
+        return FreerideDisplay::gapToFreeride((float) $entry, (float) $currentSl, (float) $quantity);
     }
 
     private static function resolveLockedInProfitDollars(Get $get, ?Position $record): float
