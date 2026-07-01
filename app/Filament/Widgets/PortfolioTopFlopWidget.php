@@ -48,11 +48,15 @@ class PortfolioTopFlopWidget extends TableWidget
                 TextColumn::make('locked_in_profit_dollars')
                     ->label('Locked')
                     ->badge()
+                    ->alignStart()
                     ->formatStateUsing(fn (float $state): string => $state > 0
                         ? '+$'.number_format($state, 2)
                         : 'Geen lock')
                     ->color(fn (float $state): string => $state > 0 ? 'info' : 'gray')
                     ->icon(fn (float $state): ?string => $state > 0 ? 'heroicon-m-lock-closed' : null)
+                    ->extraCellAttributes(['class' => 'vestix-locked-badge-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-locked-badge-cell'])
+                    ->width('7.5rem')
                     ->tooltip(fn (Position $record): string => $record->locked_in_profit_dollars > 0
                         ? 'Winst veiliggesteld: je stop-loss staat boven entry. Laat je winnaars lopen.'
                         : 'Stop-loss staat nog op of onder entry — winst is nog niet gelockt.'),

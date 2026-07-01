@@ -47,15 +47,12 @@ class ListPositions extends ListRecords
 
     public function table(Table $table): Table
     {
-        return $this->configurePositionsTable($table);
+        return $this->applyPositionFilters(PositionsTable::configure($table));
     }
 
     protected function makeTable(): Table
     {
-        return $this->configurePositionsTable(
-            Table::make($this)
-                ->query(fn () => $this->getTableQuery()),
-        );
+        return $this->applyPositionFilters(parent::makeTable());
     }
 
     /**
@@ -125,9 +122,9 @@ class ListPositions extends ListRecords
         ];
     }
 
-    private function configurePositionsTable(Table $table): Table
+    private function applyPositionFilters(Table $table): Table
     {
-        return PositionsTable::configure($table)
+        return $table
             ->deferFilters(false)
             ->filters([
                 SelectFilter::make('position_focus')

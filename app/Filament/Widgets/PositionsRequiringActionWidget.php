@@ -61,8 +61,12 @@ class PositionsRequiringActionWidget extends TableWidget
                 TextColumn::make('action_command')
                     ->label('Status')
                     ->badge()
+                    ->alignStart()
                     ->formatStateUsing(fn (Position $record): string => $this->formatStatusLabel($record))
-                    ->color(fn (Position $record): string => $this->formatStatusColor($record)),
+                    ->color(fn (Position $record): string => $this->formatStatusColor($record))
+                    ->extraCellAttributes(['class' => 'vestix-status-badge-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-status-badge-cell']),
+                    // ->width('6.5rem'),
                 TickerColumn::wrap(
                     TextColumn::make('ticker')
                         ->label('Ticker'),

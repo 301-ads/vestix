@@ -31,6 +31,22 @@ class PositionResourceTest extends TestCase
             ->assertOk();
     }
 
+    public function test_positions_list_rows_link_to_edit_page(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'LINK',
+            'status' => 'open',
+        ]);
+
+        $editUrl = PositionResource::getUrl('edit', ['record' => $position]);
+
+        Livewire::test(ListPositions::class)
+            ->assertSeeHtml('fi-clickable')
+            ->assertSeeHtml($editUrl);
+    }
+
     public function test_open_positions_table_uses_new_column_layout(): void
     {
         $user = $this->authenticateFilament();

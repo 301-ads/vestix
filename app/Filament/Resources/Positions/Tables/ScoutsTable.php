@@ -116,9 +116,12 @@ class ScoutsTable
                     ->label('Setup Grade')
                     ->state(fn (Position $record): ?string => SetupGradeDisplay::label($record))
                     ->badge()
+                    ->alignStart()
                     ->color(fn (Position $record): string => SetupGradeDisplay::color($record))
                     ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->placeholder('—')
+                    ->width('6.5rem')
                     ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBySetupGrade($direction)),
                 ColumnGroup::make(PositionsTable::schildGroupLabel())
                     ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
