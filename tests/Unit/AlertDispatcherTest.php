@@ -143,4 +143,42 @@ class AlertDispatcherTest extends TestCase
         $this->assertEquals(1, PositionAlert::query()->count());
         $this->assertSame('2026-06-16', PositionAlert::query()->first()?->sent_at?->toDateString());
     }
+
+    public function test_market_open_reminder_is_not_sent_twice_for_same_reminder_date(): void
+    {
+        config(['vestix.telegram.bot_token' => 'test-token']);
+
+        Http::fake([
+            'api.telegram.org/*' => Http::response(['ok' => true], 200),
+        ]);
+
+        $user = User::factory()->create(['telegram_chat_id' => '12345']);
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $position = Position::factory()->scout()->create([
+            'user_id' => $user->id,
+            'ticker' => 'AAPL',
+            'entry_price' => 100,
+            'quantity' => 2,
+        ]);
+
+        $dispatcher = app(AlertDispatcher::class);
+        $context = ['reminder_date' => '2026-07-02', 'user' => $user];
+
+        $this->assertTrue($dispatcher->dispatchNow(
+            $user->id,
+            $position->id,
+            AlertEventType::MarketOpenBuyStopReminder,
+            $context,
+        ));
+
+        $this->assertFalse($dispatcher->dispatchNow(
+            $user->id,
+            $position->id,
+            AlertEventType::MarketOpenBuyStopReminder,
+            $context,
+        ));
+
+        $this->assertEquals(1, PositionAlert::query()->count());
+    }
 }

@@ -76,6 +76,10 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
             fn (Position $scout): bool => $scout->broker_order_status === BrokerOrderStatus::Pending,
         )->count();
 
+        $reminderCount = $scouts->filter(
+            fn (Position $scout): bool => $scout->market_open_reminder_on !== null,
+        )->count();
+
         return [
             Stat::make('Actieve Scouts', (string) $activeCount)
                 ->description('Op je watchlist')
@@ -98,10 +102,15 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
                 ->descriptionColor('gray')
                 ->extraAttributes($this->filterableStatAttributes('ready', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--zinc')),
             Stat::make('Orders Live', (string) $pendingCount)
-                ->description('Buy-stop bij broker')
+                ->description('Buy-stop geplaatst bij broker')
                 ->descriptionIcon('heroicon-m-clock')
                 ->descriptionColor($pendingCount > 0 ? 'warning' : 'gray')
                 ->extraAttributes($this->filterableStatAttributes('pending_only', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber')),
+            Stat::make('Reminder Gepland', (string) $reminderCount)
+                ->description('Market open Telegram (15:35)')
+                ->descriptionIcon('heroicon-m-bell-alert')
+                ->descriptionColor($reminderCount > 0 ? 'info' : 'gray')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--blue']),
             Stat::make('Gap-up Risico', (string) $gapUpCount)
                 ->description('Boven bounce high (14:30)')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')

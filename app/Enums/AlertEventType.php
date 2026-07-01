@@ -15,6 +15,7 @@ enum AlertEventType: string
     case EarningsWarning = 'earnings_warning';
     case EarningsActionRequired = 'earnings_action_required';
     case Overbought = 'overbought';
+    case MarketOpenBuyStopReminder = 'market_open_buy_stop_reminder';
 
     /**
      * @return list<string>
@@ -32,6 +33,7 @@ enum AlertEventType: string
             self::EarningsWarning->value,
             self::EarningsActionRequired->value,
             self::Overbought->value,
+            self::MarketOpenBuyStopReminder->value,
         ];
     }
 

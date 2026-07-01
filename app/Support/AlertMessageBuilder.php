@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\AlertEventType;
+use App\Enums\Broker;
 use App\Enums\EarningsExitUrgency;
 use App\Enums\TrailingStopMode;
 use App\Filament\Resources\Positions\PositionResource;
@@ -81,7 +82,62 @@ class AlertMessageBuilder
                 e(StopLossProtocol::overboughtFormulaLabel()),
                 PositionResource::getUrl('edit', ['record' => $position]),
             ),
+            AlertEventType::MarketOpenBuyStopReminder => self::marketOpenBuyStopReminder($position, $context),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private static function marketOpenBuyStopReminder(Position $position, array $context): string
+    {
+        $user = $context['user'] ?? $position->user;
+        $broker = $user instanceof User ? $user->primary_broker : null;
+
+        if ($broker === null) {
+            $broker = Broker::Revolut;
+        }
+
+        $lines = [
+            sprintf('🎯 <b>BUY-STOP REMINDER: %s</b>', e($position->ticker)),
+            sprintf('Entry (stop): $%s', number_format((float) $position->entry_price, 2)),
+        ];
+
+        $investmentLine = self::plannedInvestmentLine($position);
+
+        if ($investmentLine !== null) {
+            $lines[] = $investmentLine;
+        }
+
+        $lines[] = 'Plaats nu je stop order — niet vóór market open.';
+
+        $brokerUrl = BrokerDeepLink::forStock($broker, $position->ticker);
+        $brokerLabel = BrokerDeepLink::linkLabel($broker);
+
+        if ($brokerUrl !== null && $brokerLabel !== null) {
+            $lines[] = sprintf('<a href="%s">%s</a>', e($brokerUrl), e($brokerLabel));
+        }
+
+        $lines[] = sprintf('<a href="%s">Open setup</a>', ScoutResource::getUrl('edit', ['record' => $position]));
+
+        return implode("\n", $lines);
+    }
+
+    private static function plannedInvestmentLine(Position $position): ?string
+    {
+        $entry = (float) $position->entry_price;
+        $quantity = $position->quantity !== null ? (float) $position->quantity : null;
+
+        if ($entry <= 0 || $quantity === null || $quantity <= 0) {
+            return null;
+        }
+
+        $investment = $entry * $quantity;
+        $sharesLabel = floor($quantity) === $quantity
+            ? sprintf('≈ %d aandelen', (int) $quantity)
+            : sprintf('≈ %s aandelen', rtrim(rtrim(number_format($quantity, 6, '.', ''), '0'), '.'));
+
+        return sprintf('Inleg: $%s (%s)', number_format($investment, 2), $sharesLabel);
     }
 
     private static function trailingModeSuffix(Position $position): string

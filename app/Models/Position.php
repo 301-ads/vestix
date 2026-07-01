@@ -64,6 +64,7 @@ class Position extends Model
             'risk_reward_ratio' => 'decimal:4',
             'visibility' => PositionVisibility::class,
             'broker_order_status' => BrokerOrderStatus::class,
+            'market_open_reminder_on' => 'date',
         ];
     }
 

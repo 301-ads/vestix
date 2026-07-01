@@ -69,7 +69,7 @@ class AlertDispatcher
             }
 
             if ($channel->send($user, $message)) {
-                if ($event === AlertEventType::PremarketGapRisk) {
+                if (in_array($event, [AlertEventType::PremarketGapRisk, AlertEventType::MarketOpenBuyStopReminder], true)) {
                     PositionAlert::query()->updateOrCreate(
                         [
                             'position_id' => $position->id,
@@ -139,6 +139,20 @@ class AlertDispatcher
         if ($event === AlertEventType::PremarketGapRisk) {
             return $query
                 ->whereDate('sent_at', now()->toDateString())
+                ->exists();
+        }
+
+        if ($event === AlertEventType::MarketOpenBuyStopReminder) {
+            $reminderDate = $context['reminder_date'] ?? null;
+
+            if ($reminderDate === null) {
+                return $query
+                    ->whereDate('sent_at', now()->toDateString())
+                    ->exists();
+            }
+
+            return $query
+                ->where('payload->reminder_date', $reminderDate)
                 ->exists();
         }
 

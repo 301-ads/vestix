@@ -55,6 +55,16 @@ return [
         'landing_distance_pct' => (float) env('PREMARKET_LANDING_DISTANCE_PCT', 1.5),
     ],
 
+    'market_open_reminder' => [
+        'time' => env('MARKET_OPEN_REMINDER_TIME', '15:35'),
+    ],
+
+    'brokers' => [
+        'revolut' => [
+            'stock_url' => env('REVOLUT_STOCK_URL_TEMPLATE', 'https://www.revolut.com/app-invest/stocks/{ticker}'),
+        ],
+    ],
+
     'overbought_trailing' => [
         'rsi_threshold' => (float) env('OVERBOUGHT_TRAILING_RSI_THRESHOLD', 70),
         'atr_multiplier' => (float) env('OVERBOUGHT_TRAILING_ATR_MULTIPLIER', 1.5),

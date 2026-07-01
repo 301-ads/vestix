@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Positions\Schemas;
 
-use App\Enums\BrokerOrderStatus;
 use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
 use App\Enums\TrailingStopMode;
@@ -18,6 +17,7 @@ use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SlPriceProximity;
 use App\Support\StopLossProtocol;
+use App\Support\UsMarketSession;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -35,6 +35,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
 
 class PositionForm
@@ -200,26 +201,52 @@ class PositionForm
             });
     }
 
-    private static function brokerOrderStatusToggle(): Toggle
+    private static function marketOpenReminderToggle(): Toggle
     {
-        return Toggle::make('broker_order_status')
-            ->label('Buy-stop bij broker')
+        return Toggle::make('market_open_reminder_on')
+            ->label('Herinner bij market open')
             ->inline(false)
-            ->onIcon('heroicon-m-clock')
-            ->offIcon('heroicon-m-viewfinder-circle')
-            ->onColor('warning')
+            ->onIcon('heroicon-m-bell-alert')
+            ->offIcon('heroicon-m-bell-slash')
+            ->onColor('info')
             ->offColor('gray')
             ->formatStateUsing(function ($state): bool {
-                if ($state instanceof BrokerOrderStatus) {
-                    return $state === BrokerOrderStatus::Pending;
+                return $state !== null && $state !== '';
+            })
+            ->dehydrateStateUsing(function (bool $state, ?Position $record): ?string {
+                if (! $state) {
+                    return null;
                 }
 
-                return BrokerOrderStatus::tryFrom((string) $state) === BrokerOrderStatus::Pending;
+                if ($record?->market_open_reminder_on !== null) {
+                    return $record->market_open_reminder_on->toDateString();
+                }
+
+                return UsMarketSession::nextTradingDay(
+                    Carbon::today('Europe/Amsterdam'),
+                )->toDateString();
             })
-            ->dehydrateStateUsing(fn (bool $state): string => $state
-                ? BrokerOrderStatus::Pending->value
-                : BrokerOrderStatus::Scout->value)
-            ->helperText('Aan: buy-stop live (pending). Uit: setup klaar (scout).');
+            ->disabled(fn (Get $get): bool => blank($get('entry_price')))
+            ->helperText(function (Get $get, ?Position $record): string {
+                if (blank($get('entry_price'))) {
+                    return 'Vul eerst Low/High in zodat de buy-stop berekend is.';
+                }
+
+                $reminderOn = $record?->market_open_reminder_on;
+
+                if ($reminderOn !== null) {
+                    return sprintf(
+                        'Reminder gepland op %s om %s — Telegram met buy-stop en broker-link.',
+                        $reminderOn->format('d-m-Y'),
+                        config('vestix.market_open_reminder.time', '15:35'),
+                    );
+                }
+
+                return sprintf(
+                    'Aan: volgende handelsdag om %s Telegram-reminder. Plaats je order pas ná market open.',
+                    config('vestix.market_open_reminder.time', '15:35'),
+                );
+            });
     }
 
     /**
@@ -300,7 +327,7 @@ class PositionForm
                                     self::syncPlannedQuantityFromInvestment($set, $get, $record);
                                 }
                             }),
-                        self::brokerOrderStatusToggle()
+                        self::marketOpenReminderToggle()
                             ->visible(function (?Position $record, string $operation) use ($isScoutForm): bool {
                                 return $operation === 'edit' && $isScoutForm($record, $operation);
                             }),
@@ -573,6 +600,7 @@ class PositionForm
                         "Fase 1–2: laat dit blok leeg.\n"
                         ."Fase 3: na Telegram-alert vul je Low/High in van de bounce-dagkaars (TradingView, 1D).\n"
                         ."Buy-Stop: High + 10% × ATR 14 (ATR staat in Setup).\n"
+                        ."Plaats je buy-stop niet de avond ervoor — zet de reminder aan wanneer je klaar bent; je krijgt de volgende handelsdag een Telegram vlak na market open.\n"
                         .'Zet de Buy-Stop exact zo in je broker — nooit market buy.'
                     )
                     ->color('gray'),

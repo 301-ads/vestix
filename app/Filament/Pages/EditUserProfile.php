@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Enums\AlertEventType;
+use App\Enums\Broker;
 use App\Models\UserAlertPreference;
 use App\Services\TelegramLinkService;
 use App\Support\PositionSizing;
@@ -72,6 +73,7 @@ class EditUserProfile extends EditProfile
                                 AlertEventType::EarningsWarning->value => 'Earnings waarschuwing — 2 dagen voor exit (08:00)',
                                 AlertEventType::EarningsActionRequired->value => 'Earnings actie — sluit vóór earnings (15:00)',
                                 AlertEventType::Overbought->value => 'Overbought alert — RSI ≥ 70 (23:00)',
+                                AlertEventType::MarketOpenBuyStopReminder->value => 'Buy-stop reminder bij market open (15:35)',
                                 AlertEventType::SquadCopyAlert->value => 'Squad copy-alerts (Ghost Mode)',
                             ])
                             ->default(AlertEventType::defaults())
@@ -116,6 +118,13 @@ class EditUserProfile extends EditProfile
                             ->default('1')
                             ->inline()
                             ->required(),
+                        ToggleButtons::make('primary_broker')
+                            ->label('Mijn broker')
+                            ->options(Broker::options())
+                            ->default(Broker::Revolut->value)
+                            ->inline()
+                            ->required()
+                            ->helperText('Voor deeplinks in buy-stop reminders (opent het aandeel in je broker-app).'),
                     ]),
                 $this->getPasswordFormComponent(),
                 $this->getPasswordConfirmationFormComponent(),

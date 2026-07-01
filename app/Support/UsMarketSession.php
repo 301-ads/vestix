@@ -148,6 +148,17 @@ class UsMarketSession
         return $candidate->startOfDay();
     }
 
+    public static function nextTradingDay(Carbon $date): Carbon
+    {
+        $candidate = $date->copy()->startOfDay()->addDay();
+
+        while (! $candidate->isWeekday()) {
+            $candidate->addDay();
+        }
+
+        return $candidate->startOfDay();
+    }
+
     public static function subtractTradingDays(Carbon $date, int $days): Carbon
     {
         $candidate = $date->copy()->startOfDay();

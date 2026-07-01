@@ -48,13 +48,22 @@ class ScoutsTable
                         }),
                 ),
                 TextColumn::make('broker_order_status')
-                    ->label('Status')
+                    ->label('Order')
                     ->badge()
                     ->formatStateUsing(fn (?BrokerOrderStatus $state): string => ($state ?? BrokerOrderStatus::Scout)->tableLabel())
                     ->color(fn (?BrokerOrderStatus $state): string => ($state ?? BrokerOrderStatus::Scout)->badgeColor())
                     ->icon(fn (?BrokerOrderStatus $state): ?string => ($state ?? BrokerOrderStatus::Scout)->tableIcon())
                     ->sortable()
                     ->width('5.5rem'),
+                TextColumn::make('market_open_reminder_on')
+                    ->label('Reminder')
+                    ->date('d-m')
+                    ->badge()
+                    ->color('info')
+                    ->icon('heroicon-m-bell-alert')
+                    ->placeholder('—')
+                    ->sortable()
+                    ->width('4.5rem'),
                 TextColumn::make('track')
                     ->label('Track')
                     ->state(fn (Position $record): ?string => ScoutRadarFilters::trackLabel($record))

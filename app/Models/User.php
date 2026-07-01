@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Broker;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -14,7 +15,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'is_super_admin', 'telegram_chat_id', 'telegram_link_token', 'default_risk_per_trade', 'trading_bankroll', 'default_risk_percent'])]
+#[Fillable(['name', 'email', 'password', 'is_super_admin', 'telegram_chat_id', 'telegram_link_token', 'default_risk_per_trade', 'trading_bankroll', 'default_risk_percent', 'primary_broker'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -105,6 +106,7 @@ class User extends Authenticatable implements FilamentUser
             'default_risk_per_trade' => 'decimal:2',
             'trading_bankroll' => 'decimal:2',
             'default_risk_percent' => 'decimal:2',
+            'primary_broker' => Broker::class,
         ];
     }
 }
