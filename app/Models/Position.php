@@ -761,8 +761,8 @@ class Position extends Model
             ->whereNotNull('latest_close_price')
             ->whereNotNull('current_sl')
             ->where('latest_close_price', '>', 0)
-            ->whereRaw('((latest_close_price - current_sl) / latest_close_price) * 100 >= 0')
-            ->whereRaw('((latest_close_price - current_sl) / latest_close_price) * 100 < ?', [$threshold]);
+            ->whereRaw('(CAST(latest_close_price AS REAL) - CAST(current_sl AS REAL)) / CAST(latest_close_price AS REAL) * 100 >= 0')
+            ->whereRaw('(CAST(latest_close_price AS REAL) - CAST(current_sl AS REAL)) / CAST(latest_close_price AS REAL) * 100 < ?', [$threshold]);
     }
 
     public function getCurrentValueAttribute(): float

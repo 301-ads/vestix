@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\Positions\Pages;
 
 use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Resources\Positions\Tables\PositionsTable;
 use App\Filament\Widgets\ArchivePostMortemStatsWidget;
 use App\Filament\Widgets\OpenPositionsStatsWidget;
 use App\Services\SquadContext;
+use App\Support\OpenPositionsFilters;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
 use Filament\Resources\Pages\ListRecords;
@@ -14,8 +16,11 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\RenderHook;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 
 class ListPositions extends ListRecords
 {
@@ -38,6 +43,42 @@ class ListPositions extends ListRecords
         return parent::getTableQuery()
             ?->when($userId, fn (Builder $query) => $query->forUser($userId))
             ->with('asset');
+    }
+
+    public function table(Table $table): Table
+    {
+        return $this->configurePositionsTable($table);
+    }
+
+    protected function makeTable(): Table
+    {
+        return $this->configurePositionsTable(
+            Table::make($this)
+                ->query(fn () => $this->getTableQuery()),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getWidgetData(): array
+    {
+        return [
+            ...parent::getWidgetData(),
+            'tableFilters' => $this->tableFilters,
+        ];
+    }
+
+    #[On('toggle-position-focus')]
+    public function togglePositionFocus(?string $focus = null): void
+    {
+        $current = $this->tableFilters['position_focus']['value'] ?? null;
+
+        $this->tableFilters = $current === $focus
+            ? []
+            : ['position_focus' => ['value' => $focus]];
+
+        $this->updatedTableFilters();
     }
 
     public function content(Schema $schema): Schema
@@ -82,5 +123,25 @@ class ListPositions extends ListRecords
                     && (($user = auth()->user()) !== null
                         && app(SquadContext::class)->userCanInAnySquad($user, 'position.manage'))),
         ];
+    }
+
+    private function configurePositionsTable(Table $table): Table
+    {
+        return PositionsTable::configure($table)
+            ->deferFilters(false)
+            ->filters([
+                SelectFilter::make('position_focus')
+                    ->label('Positie focus')
+                    ->options(OpenPositionsFilters::options())
+                    ->query(fn (Builder $query, array $data): Builder => OpenPositionsFilters::apply(
+                        $query,
+                        filled($data['value'] ?? null) ? (string) $data['value'] : null,
+                    ))
+                    ->indicateUsing(function (array $data): ?string {
+                        $label = OpenPositionsFilters::indicatorLabel($data['value'] ?? null);
+
+                        return $label !== null ? "Focus: {$label}" : null;
+                    }),
+            ]);
     }
 }

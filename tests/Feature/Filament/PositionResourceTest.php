@@ -688,4 +688,45 @@ class PositionResourceTest extends TestCase
             ->assertSee('Netto')
             ->assertSee('$80.00');
     }
+
+    public function test_position_focus_filter_shows_only_danger_zone_positions(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $danger = Position::factory()->for($user)->create([
+            'ticker' => 'DANGER',
+            'status' => 'open',
+            'latest_close_price' => 100.00,
+            'current_sl' => 99.00,
+        ]);
+
+        $safe = Position::factory()->for($user)->create([
+            'ticker' => 'SAFE',
+            'status' => 'open',
+            'latest_close_price' => 100.00,
+            'current_sl' => 95.00,
+        ]);
+
+        Livewire::test(ListPositions::class)
+            ->filterTable('position_focus', 'danger_zone')
+            ->assertCanSeeTableRecords([$danger])
+            ->assertCanNotSeeTableRecords([$safe]);
+    }
+
+    public function test_toggle_position_focus_clears_when_clicked_twice(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->create([
+            'status' => 'open',
+            'latest_close_price' => 100.00,
+            'current_sl' => 99.00,
+        ]);
+
+        Livewire::test(ListPositions::class)
+            ->call('togglePositionFocus', focus: 'danger_zone')
+            ->assertSet('tableFilters.position_focus.value', 'danger_zone')
+            ->call('togglePositionFocus', focus: 'danger_zone')
+            ->assertSet('tableFilters', []);
+    }
 }
