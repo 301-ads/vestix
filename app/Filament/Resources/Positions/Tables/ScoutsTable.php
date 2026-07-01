@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
-use App\Enums\BrokerOrderStatus;
+use App\Enums\ScoutPipelineStatus;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
@@ -47,23 +47,24 @@ class ScoutsTable
                             return $class !== null ? ['class' => $class] : [];
                         }),
                 ),
-                TextColumn::make('broker_order_status')
-                    ->label('Order')
+                TextColumn::make('pipeline_status')
+                    ->label('Status')
                     ->badge()
-                    ->formatStateUsing(fn (?BrokerOrderStatus $state): string => ($state ?? BrokerOrderStatus::Scout)->tableLabel())
-                    ->color(fn (?BrokerOrderStatus $state): string => ($state ?? BrokerOrderStatus::Scout)->badgeColor())
-                    ->icon(fn (?BrokerOrderStatus $state): ?string => ($state ?? BrokerOrderStatus::Scout)->tableIcon())
-                    ->sortable()
-                    ->width('5.5rem'),
-                TextColumn::make('market_open_reminder_on')
-                    ->label('Reminder')
-                    ->date('d-m')
-                    ->badge()
-                    ->color('info')
-                    ->icon('heroicon-m-bell-alert')
-                    ->placeholder('—')
-                    ->sortable()
-                    ->width('4.5rem'),
+                    ->state(fn (Position $record): ScoutPipelineStatus => $record->scoutPipelineStatus())
+                    ->formatStateUsing(fn (ScoutPipelineStatus $state): string => $state->label())
+                    ->color(fn (ScoutPipelineStatus $state): string => $state->badgeColor())
+                    ->icon(fn (ScoutPipelineStatus $state): ?string => $state->tableIcon())
+                    ->tooltip(fn (Position $record): ?string => $record->scoutPipelineStatus()->tooltip($record))
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderByRaw(
+                            "CASE
+                                WHEN broker_order_status = 'pending' THEN 2
+                                WHEN market_open_reminder_on IS NOT NULL THEN 1
+                                ELSE 0
+                            END {$direction}",
+                        );
+                    })
+                    ->width('6rem'),
                 TextColumn::make('track')
                     ->label('Track')
                     ->state(fn (Position $record): ?string => ScoutRadarFilters::trackLabel($record))

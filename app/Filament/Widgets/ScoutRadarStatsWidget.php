@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Enums\BrokerOrderStatus;
+use App\Enums\ScoutPipelineStatus;
 use App\Models\Position;
 use App\Support\ScoutRadarFilters;
 use Filament\Widgets\StatsOverviewWidget;
@@ -64,11 +64,11 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
         )->count();
 
         $pendingCount = $scouts->filter(
-            fn (Position $scout): bool => $scout->broker_order_status === BrokerOrderStatus::Pending,
+            fn (Position $scout): bool => $scout->scoutPipelineStatus() === ScoutPipelineStatus::Pending,
         )->count();
 
-        $reminderCount = $scouts->filter(
-            fn (Position $scout): bool => $scout->market_open_reminder_on !== null,
+        $activeCount = $scouts->filter(
+            fn (Position $scout): bool => $scout->scoutPipelineStatus() === ScoutPipelineStatus::Active,
         )->count();
 
         $executionCount = $scouts->filter(
@@ -91,9 +91,9 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
                 ->descriptionColor(self::premarketColor($gapUpCount, $reclamationCount, $landingCount))
                 ->extraAttributes($this->filterableStatAttributes('premarket_signals', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--vestix')),
             Stat::make('Executie', (string) $executionCount)
-                ->description(self::executionDescription($pendingCount, $reminderCount))
+                ->description(self::executionDescription($activeCount, $pendingCount))
                 ->descriptionIcon('heroicon-m-clock')
-                ->descriptionColor(self::executionColor($pendingCount, $reminderCount))
+                ->descriptionColor(self::executionColor($activeCount, $pendingCount))
                 ->extraAttributes($this->filterableStatAttributes('execution_pipeline', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber')),
             Stat::make('Top Setups (A+)', (string) $aPlusCount)
                 ->description('Hoogste succesratio')
@@ -108,9 +108,9 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
         return sprintf('%d gap · %d recl. · %d landing', $gapUp, $reclamation, $landing);
     }
 
-    private static function executionDescription(int $pending, int $reminder): string
+    private static function executionDescription(int $active, int $pending): string
     {
-        return sprintf('%d live · %d reminder', $pending, $reminder);
+        return sprintf('%d active · %d pending', $active, $pending);
     }
 
     private static function premarketColor(int $gapUp, int $reclamation, int $landing): string
@@ -123,11 +123,11 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
         };
     }
 
-    private static function executionColor(int $pending, int $reminder): string
+    private static function executionColor(int $active, int $pending): string
     {
         return match (true) {
-            $pending > 0 => 'warning',
-            $reminder > 0 => 'info',
+            $active > 0 => 'warning',
+            $pending > 0 => 'info',
             default => 'gray',
         };
     }

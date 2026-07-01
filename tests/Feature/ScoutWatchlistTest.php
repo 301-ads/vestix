@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
+use App\Enums\ScoutPipelineStatus;
 use App\Filament\Resources\Positions\Pages\CreateScout;
 use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListScouts;
@@ -611,6 +612,7 @@ class ScoutWatchlistTest extends TestCase
         $scout->refresh();
 
         $this->assertSame(BrokerOrderStatus::Pending, $scout->broker_order_status);
+        $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
     }
 
     public function test_clear_buy_stop_resets_scout_status(): void
@@ -627,6 +629,7 @@ class ScoutWatchlistTest extends TestCase
         $scout->refresh();
 
         $this->assertSame(BrokerOrderStatus::Scout, $scout->broker_order_status);
+        $this->assertSame(ScoutPipelineStatus::Scout, $scout->scoutPipelineStatus());
     }
 
     public function test_activated_scout_disappears_from_radar_list(): void
@@ -677,7 +680,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertSeeHtml('vestix-stat-card');
     }
 
-    public function test_radar_list_shows_broker_status_column(): void
+    public function test_radar_list_shows_pipeline_status_column(): void
     {
         $user = $this->authenticateFilament();
 
@@ -685,10 +688,17 @@ class ScoutWatchlistTest extends TestCase
             'ticker' => 'PEND',
         ]);
 
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'SCOUT',
+            'market_open_reminder_on' => '2026-07-03',
+        ]);
+
         Livewire::test(ListScouts::class)
             ->assertOk()
-            ->assertSee('Order')
-            ->assertSee('Pending');
+            ->assertSee('Status')
+            ->assertSee('Active')
+            ->assertSee('Pending')
+            ->assertDontSee('Reminder');
     }
 
     public function test_gap_up_filter_uses_premarket_scan(): void
@@ -715,12 +725,12 @@ class ScoutWatchlistTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_execution_pipeline_filter_shows_pending_and_reminder_scouts(): void
+    public function test_execution_pipeline_filter_shows_active_and_market_open_pending_scouts(): void
     {
         $user = $this->authenticateFilament();
 
-        $pending = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
-            'ticker' => 'PEND',
+        $active = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
+            'ticker' => 'ACTV',
         ]);
 
         $reminder = Position::factory()->for($user)->scout()->create([
@@ -734,7 +744,7 @@ class ScoutWatchlistTest extends TestCase
 
         Livewire::test(ListScouts::class)
             ->filterTable('radar_focus', 'execution_pipeline')
-            ->assertCanSeeTableRecords([$pending, $reminder])
+            ->assertCanSeeTableRecords([$active, $reminder])
             ->assertCanNotSeeTableRecords([$plain]);
     }
 

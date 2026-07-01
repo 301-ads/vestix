@@ -6,6 +6,7 @@ use App\Enums\BrokerOrderStatus;
 use App\Enums\EarningsExitUrgency;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
+use App\Enums\ScoutPipelineStatus;
 use App\Enums\TrailingStopMode;
 use App\Services\AssetSyncService;
 use App\Support\EarningsExitSchedule;
@@ -209,6 +210,11 @@ class Position extends Model
         }
 
         return (int) $this->user_id === (int) $user->id;
+    }
+
+    public function scoutPipelineStatus(): ScoutPipelineStatus
+    {
+        return ScoutPipelineStatus::fromPosition($this);
     }
 
     public function cloneForUser(User $user): self

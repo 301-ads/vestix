@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Positions\Tables;
 
 use App\Enums\BrokerOrderStatus;
+use App\Enums\ScoutPipelineStatus;
 use App\Events\PositionLiquidated;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
@@ -156,20 +157,23 @@ class PositionRecordActions
     {
         return Action::make('mark_buy_stop_placed')
             ->label('Order geplaatst')
-            ->tooltip('Buy-stop staat bij je broker')
+            ->tooltip('Markeer als Active — buy-stop staat bij je broker')
             ->icon('heroicon-o-clock')
             ->color('warning')
             ->iconButton()
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
-                && ($record->broker_order_status === null || $record->broker_order_status === BrokerOrderStatus::Scout))
+                && $record->scoutPipelineStatus() !== ScoutPipelineStatus::Active)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
             ->action(function (Position $record): void {
-                $record->update(['broker_order_status' => BrokerOrderStatus::Pending]);
+                $record->update([
+                    'broker_order_status' => BrokerOrderStatus::Pending,
+                    'market_open_reminder_on' => null,
+                ]);
 
                 FilamentNotifier::send(
-                    title: 'Order gemarkeerd als live',
-                    body: "{$record->ticker} staat nu op Pending in je radar.",
+                    title: 'Order gemarkeerd als Active',
+                    body: "{$record->ticker} staat nu op Active in je radar.",
                 );
             });
     }
@@ -184,7 +188,7 @@ class PositionRecordActions
             ->iconButton()
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
-                && $record->broker_order_status === BrokerOrderStatus::Pending)
+                && $record->scoutPipelineStatus() === ScoutPipelineStatus::Active)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
             ->action(function (Position $record): void {
                 $record->update(['broker_order_status' => BrokerOrderStatus::Scout]);

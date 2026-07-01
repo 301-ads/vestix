@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Enums\BrokerOrderStatus;
+use App\Enums\ScoutPipelineStatus;
 use App\Models\Position;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -19,8 +19,10 @@ class ScoutRadarFilters
             'reclamation' => 'Reclamation PM',
             'landing' => 'Landing PM',
             'a_plus' => 'Top setups (A+)',
-            'scout_only' => 'Nog geen order bij broker',
-            'pending_only' => 'Order live bij broker',
+            'scout_only' => 'Status: Scout',
+            'market_open_pending' => 'Status: Pending (market open)',
+            'active_only' => 'Status: Active (order live)',
+            'pending_only' => 'Status: Active (order live)',
             'premarket_signals' => 'Pre-market signalen',
             'execution_pipeline' => 'Executie (live + reminder)',
             'track_a' => 'Track A — Landing',
@@ -45,9 +47,9 @@ class ScoutRadarFilters
             'reclamation' => $scout->hasPremarketReclamation(),
             'landing' => $scout->hasPremarketLanding(),
             'a_plus' => self::isAPlusSetup($scout),
-            'scout_only' => $scout->broker_order_status === BrokerOrderStatus::Scout
-                || $scout->broker_order_status === null,
-            'pending_only' => $scout->broker_order_status === BrokerOrderStatus::Pending,
+            'scout_only' => self::pipelineStatus($scout) === ScoutPipelineStatus::Scout,
+            'market_open_pending' => self::pipelineStatus($scout) === ScoutPipelineStatus::Pending,
+            'active_only', 'pending_only' => self::pipelineStatus($scout) === ScoutPipelineStatus::Active,
             'premarket_signals' => self::hasPremarketSignal($scout),
             'execution_pipeline' => self::isInExecutionPipeline($scout),
             'track_a' => $scout->hasPremarketLanding(),
@@ -144,9 +146,16 @@ class ScoutRadarFilters
             || $scout->hasPremarketLanding();
     }
 
+    private static function pipelineStatus(Position $scout): ScoutPipelineStatus
+    {
+        return ScoutPipelineStatus::fromPosition($scout);
+    }
+
     private static function isInExecutionPipeline(Position $scout): bool
     {
-        return $scout->broker_order_status === BrokerOrderStatus::Pending
-            || $scout->market_open_reminder_on !== null;
+        return in_array(self::pipelineStatus($scout), [
+            ScoutPipelineStatus::Pending,
+            ScoutPipelineStatus::Active,
+        ], true);
     }
 }

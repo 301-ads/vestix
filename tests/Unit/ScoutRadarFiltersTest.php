@@ -52,11 +52,16 @@ class ScoutRadarFiltersTest extends TestCase
             'broker_order_status' => BrokerOrderStatus::Scout,
         ]);
 
-        $pending = Position::factory()->scout()->pendingBrokerOrder()->create();
+        $active = Position::factory()->scout()->pendingBrokerOrder()->create();
+
+        $reminder = Position::factory()->scout()->create([
+            'market_open_reminder_on' => '2026-07-03',
+        ]);
 
         $this->assertTrue(ScoutRadarFilters::matches($scout, 'scout_only'));
-        $this->assertFalse(ScoutRadarFilters::matches($scout, 'pending_only'));
-        $this->assertTrue(ScoutRadarFilters::matches($pending, 'pending_only'));
+        $this->assertFalse(ScoutRadarFilters::matches($scout, 'active_only'));
+        $this->assertTrue(ScoutRadarFilters::matches($active, 'active_only'));
+        $this->assertTrue(ScoutRadarFilters::matches($reminder, 'market_open_pending'));
     }
 
     public function test_risk_color_thresholds(): void
@@ -100,9 +105,9 @@ class ScoutRadarFiltersTest extends TestCase
         $this->assertFalse(ScoutRadarFilters::matches($plain, 'premarket_signals'));
     }
 
-    public function test_matches_execution_pipeline_for_pending_or_reminder(): void
+    public function test_matches_execution_pipeline_for_active_or_market_open_pending(): void
     {
-        $pending = Position::factory()->scout()->pendingBrokerOrder()->create();
+        $active = Position::factory()->scout()->pendingBrokerOrder()->create();
 
         $reminder = Position::factory()->scout()->create([
             'market_open_reminder_on' => '2026-07-03',
@@ -110,7 +115,7 @@ class ScoutRadarFiltersTest extends TestCase
 
         $plain = Position::factory()->scout()->create();
 
-        $this->assertTrue(ScoutRadarFilters::matches($pending, 'execution_pipeline'));
+        $this->assertTrue(ScoutRadarFilters::matches($active, 'execution_pipeline'));
         $this->assertTrue(ScoutRadarFilters::matches($reminder, 'execution_pipeline'));
         $this->assertFalse(ScoutRadarFilters::matches($plain, 'execution_pipeline'));
     }
