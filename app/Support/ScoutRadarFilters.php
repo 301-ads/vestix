@@ -21,6 +21,8 @@ class ScoutRadarFilters
             'a_plus' => 'Top setups (A+)',
             'scout_only' => 'Nog geen order bij broker',
             'pending_only' => 'Order live bij broker',
+            'premarket_signals' => 'Pre-market signalen',
+            'execution_pipeline' => 'Executie (live + reminder)',
             'track_a' => 'Track A — Landing',
             'track_b' => 'Track B — Reclamation',
         ];
@@ -46,6 +48,8 @@ class ScoutRadarFilters
             'scout_only' => $scout->broker_order_status === BrokerOrderStatus::Scout
                 || $scout->broker_order_status === null,
             'pending_only' => $scout->broker_order_status === BrokerOrderStatus::Pending,
+            'premarket_signals' => self::hasPremarketSignal($scout),
+            'execution_pipeline' => self::isInExecutionPipeline($scout),
             'track_a' => $scout->hasPremarketLanding(),
             'track_b' => $scout->hasPremarketReclamation(),
             default => false,
@@ -131,5 +135,18 @@ class ScoutRadarFilters
         }
 
         return $scout->evaluateSetupScore()['grade'] === 'A+';
+    }
+
+    private static function hasPremarketSignal(Position $scout): bool
+    {
+        return $scout->hasPremarketGapUpRisk()
+            || $scout->hasPremarketReclamation()
+            || $scout->hasPremarketLanding();
+    }
+
+    private static function isInExecutionPipeline(Position $scout): bool
+    {
+        return $scout->broker_order_status === BrokerOrderStatus::Pending
+            || $scout->market_open_reminder_on !== null;
     }
 }

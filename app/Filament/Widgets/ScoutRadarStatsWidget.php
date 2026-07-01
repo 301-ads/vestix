@@ -25,7 +25,7 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
 
     protected function getColumns(): int|array|null
     {
-        return ['@xl' => 4, '@lg' => 3, 'default' => 2];
+        return ['@xl' => 4, '@lg' => 2, 'default' => 1];
     }
 
     public function updatedTableFilters(): void
@@ -42,19 +42,6 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
         }
 
         $scouts = Position::scout()->forUser($userId)->get();
-        $activeCount = $scouts->count();
-
-        $aPlusCount = $scouts->filter(
-            fn (Position $scout): bool => ScoutRadarFilters::matches($scout, 'a_plus'),
-        )->count();
-
-        $riskPercentages = $scouts
-            ->map(fn (Position $scout) => $scout->planned_risk_percentage)
-            ->filter(fn (?float $value): bool => $value !== null);
-
-        $avgRisk = $riskPercentages->isNotEmpty()
-            ? $riskPercentages->avg()
-            : 0;
 
         $readyCount = $scouts->filter(
             fn (Position $scout): bool => ScoutRadarFilters::matches($scout, 'ready'),
@@ -72,6 +59,10 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
             fn (Position $scout): bool => ScoutRadarFilters::matches($scout, 'landing'),
         )->count();
 
+        $premarketCount = $scouts->filter(
+            fn (Position $scout): bool => ScoutRadarFilters::matches($scout, 'premarket_signals'),
+        )->count();
+
         $pendingCount = $scouts->filter(
             fn (Position $scout): bool => $scout->broker_order_status === BrokerOrderStatus::Pending,
         )->count();
@@ -80,53 +71,65 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
             fn (Position $scout): bool => $scout->market_open_reminder_on !== null,
         )->count();
 
+        $executionCount = $scouts->filter(
+            fn (Position $scout): bool => ScoutRadarFilters::matches($scout, 'execution_pipeline'),
+        )->count();
+
+        $aPlusCount = $scouts->filter(
+            fn (Position $scout): bool => ScoutRadarFilters::matches($scout, 'a_plus'),
+        )->count();
+
         return [
-            Stat::make('Actieve Scouts', (string) $activeCount)
-                ->description('Op je watchlist')
-                ->descriptionIcon('heroicon-m-eye')
-                ->descriptionColor('success')
-                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--vestix']),
-            Stat::make('Top Setups (A+)', (string) $aPlusCount)
-                ->description('Hoogste succesratio')
-                ->descriptionIcon('heroicon-m-star')
-                ->descriptionColor('info')
-                ->extraAttributes($this->filterableStatAttributes('a_plus', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--blue')),
-            Stat::make('Gem. Gepland Risico', number_format($avgRisk, 2).'%')
-                ->description('Per transactie')
-                ->descriptionIcon('heroicon-m-exclamation-triangle')
-                ->descriptionColor('warning')
-                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber']),
             Stat::make('Klaar voor Executie', (string) $readyCount)
                 ->description('Binnen 1% van entry')
                 ->descriptionIcon('heroicon-m-bolt')
                 ->descriptionColor('gray')
                 ->extraAttributes($this->filterableStatAttributes('ready', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--zinc')),
-            Stat::make('Orders Live', (string) $pendingCount)
-                ->description('Buy-stop geplaatst bij broker')
+            Stat::make('Pre-market scan', (string) $premarketCount)
+                ->description(self::premarketDescription($gapUpCount, $reclamationCount, $landingCount))
+                ->descriptionIcon('heroicon-m-sun')
+                ->descriptionColor(self::premarketColor($gapUpCount, $reclamationCount, $landingCount))
+                ->extraAttributes($this->filterableStatAttributes('premarket_signals', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--vestix')),
+            Stat::make('Executie', (string) $executionCount)
+                ->description(self::executionDescription($pendingCount, $reminderCount))
                 ->descriptionIcon('heroicon-m-clock')
-                ->descriptionColor($pendingCount > 0 ? 'warning' : 'gray')
-                ->extraAttributes($this->filterableStatAttributes('pending_only', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber')),
-            Stat::make('Reminder Gepland', (string) $reminderCount)
-                ->description('Market open Telegram (15:35)')
-                ->descriptionIcon('heroicon-m-bell-alert')
-                ->descriptionColor($reminderCount > 0 ? 'info' : 'gray')
-                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--blue']),
-            Stat::make('Gap-up Risico', (string) $gapUpCount)
-                ->description('Boven bounce high (14:30)')
-                ->descriptionIcon('heroicon-m-exclamation-triangle')
-                ->descriptionColor($gapUpCount > 0 ? 'danger' : 'success')
-                ->extraAttributes($this->filterableStatAttributes('gap_up', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--vestix')),
-            Stat::make('Reclamation PM', (string) $reclamationCount)
-                ->description('Herovert SMA 20 pre-market')
-                ->descriptionIcon('heroicon-m-arrow-trending-up')
-                ->descriptionColor($reclamationCount > 0 ? 'success' : 'gray')
-                ->extraAttributes($this->filterableStatAttributes('reclamation', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--green')),
-            Stat::make('Landing PM', (string) $landingCount)
-                ->description('Nadert SMA 20 pre-market')
-                ->descriptionIcon('heroicon-m-map-pin')
-                ->descriptionColor($landingCount > 0 ? 'warning' : 'gray')
-                ->extraAttributes($this->filterableStatAttributes('landing', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber')),
+                ->descriptionColor(self::executionColor($pendingCount, $reminderCount))
+                ->extraAttributes($this->filterableStatAttributes('execution_pipeline', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber')),
+            Stat::make('Top Setups (A+)', (string) $aPlusCount)
+                ->description('Hoogste succesratio')
+                ->descriptionIcon('heroicon-m-star')
+                ->descriptionColor('info')
+                ->extraAttributes($this->filterableStatAttributes('a_plus', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--blue')),
         ];
+    }
+
+    private static function premarketDescription(int $gapUp, int $reclamation, int $landing): string
+    {
+        return sprintf('%d gap · %d recl. · %d landing', $gapUp, $reclamation, $landing);
+    }
+
+    private static function executionDescription(int $pending, int $reminder): string
+    {
+        return sprintf('%d live · %d reminder', $pending, $reminder);
+    }
+
+    private static function premarketColor(int $gapUp, int $reclamation, int $landing): string
+    {
+        return match (true) {
+            $gapUp > 0 => 'danger',
+            $landing > 0 => 'warning',
+            $reclamation > 0 => 'success',
+            default => 'gray',
+        };
+    }
+
+    private static function executionColor(int $pending, int $reminder): string
+    {
+        return match (true) {
+            $pending > 0 => 'warning',
+            $reminder > 0 => 'info',
+            default => 'gray',
+        };
     }
 
     /**

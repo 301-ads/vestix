@@ -84,4 +84,34 @@ class ScoutRadarFiltersTest extends TestCase
         $this->assertSame('A', ScoutRadarFilters::trackLabel($landing));
         $this->assertSame('B', ScoutRadarFilters::trackLabel($reclamation));
     }
+
+    public function test_matches_premarket_signals_when_any_premarket_scan_applies(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-24 10:00:00', 'America/New_York'));
+
+        $gap = Position::factory()->scout()->create([
+            'premarket_scan_type' => PremarketScanResult::GapRisk,
+            'premarket_checked_at' => now(),
+        ]);
+
+        $plain = Position::factory()->scout()->create();
+
+        $this->assertTrue(ScoutRadarFilters::matches($gap, 'premarket_signals'));
+        $this->assertFalse(ScoutRadarFilters::matches($plain, 'premarket_signals'));
+    }
+
+    public function test_matches_execution_pipeline_for_pending_or_reminder(): void
+    {
+        $pending = Position::factory()->scout()->pendingBrokerOrder()->create();
+
+        $reminder = Position::factory()->scout()->create([
+            'market_open_reminder_on' => '2026-07-03',
+        ]);
+
+        $plain = Position::factory()->scout()->create();
+
+        $this->assertTrue(ScoutRadarFilters::matches($pending, 'execution_pipeline'));
+        $this->assertTrue(ScoutRadarFilters::matches($reminder, 'execution_pipeline'));
+        $this->assertFalse(ScoutRadarFilters::matches($plain, 'execution_pipeline'));
+    }
 }

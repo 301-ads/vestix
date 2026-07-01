@@ -655,6 +655,28 @@ class ScoutWatchlistTest extends TestCase
             ->assertCanNotSeeTableRecords([$scout]);
     }
 
+    public function test_radar_list_shows_simplified_stat_widgets(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'LIN',
+            'entry_price' => 100.00,
+            'latest_close_price' => 100.50,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->assertOk()
+            ->assertSee('Klaar voor Executie')
+            ->assertSee('Pre-market scan')
+            ->assertSee('Executie')
+            ->assertSee('Top Setups (A+)')
+            ->assertDontSee('Actieve Scouts')
+            ->assertDontSee('Gem. Gepland Risico')
+            ->assertDontSee('Reminder Gepland')
+            ->assertSeeHtml('vestix-stat-card');
+    }
+
     public function test_radar_list_shows_broker_status_column(): void
     {
         $user = $this->authenticateFilament();
@@ -665,7 +687,7 @@ class ScoutWatchlistTest extends TestCase
 
         Livewire::test(ListScouts::class)
             ->assertOk()
-            ->assertSee('Status')
+            ->assertSee('Order')
             ->assertSee('Pending');
     }
 
@@ -691,6 +713,29 @@ class ScoutWatchlistTest extends TestCase
             ->assertCanNotSeeTableRecords([$normal]);
 
         Carbon::setTestNow();
+    }
+
+    public function test_execution_pipeline_filter_shows_pending_and_reminder_scouts(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $pending = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
+            'ticker' => 'PEND',
+        ]);
+
+        $reminder = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'REM',
+            'market_open_reminder_on' => '2026-07-03',
+        ]);
+
+        $plain = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'PLAIN',
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->filterTable('radar_focus', 'execution_pipeline')
+            ->assertCanSeeTableRecords([$pending, $reminder])
+            ->assertCanNotSeeTableRecords([$plain]);
     }
 
     public function test_scouts_list_sorts_setup_grade_a_plus_first(): void
