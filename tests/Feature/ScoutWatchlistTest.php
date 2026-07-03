@@ -874,6 +874,15 @@ class ScoutWatchlistTest extends TestCase
             ->assertSeeInOrder(['APLS', 'AMNS', 'BCSC', 'FAIL']);
     }
 
+    public function test_scouts_list_polls_every_ten_seconds(): void
+    {
+        $this->authenticateFilament();
+
+        Livewire::test(ListScouts::class)
+            ->assertOk()
+            ->assertSeeHtml('wire:poll.10s');
+    }
+
     /**
      * @return array<string, mixed>
      */

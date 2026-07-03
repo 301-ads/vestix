@@ -111,7 +111,7 @@ class AdminPanelProvider extends PanelProvider
             ->globalSearchFieldKeyBindingSuffix()
             ->renderHook(
                 PanelsRenderHook::HEAD_START,
-                fn (): string => '<link rel="apple-touch-icon" sizes="180x180" href="' . asset('images/apple-touch-icon.png') . '">' . "\n" . '<link rel="manifest" href="' . asset('manifest.json') . '">'
+                fn (): string => '<link rel="apple-touch-icon" sizes="180x180" href="'.asset('images/apple-touch-icon.png').'">'."\n".'<link rel="manifest" href="'.asset('manifest.json').'">'
             )
             ->renderHook(
                 PanelsRenderHook::PAGE_HEADER_ACTIONS_BEFORE,
@@ -121,6 +121,10 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn (): string => view('filament.hooks.share-card-export')->render(),
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.hooks.pwa-pull-to-refresh')->render(),
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,

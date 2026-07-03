@@ -6,6 +6,7 @@ use App\Enums\ScoutPipelineStatus;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\FilamentPolling;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
 use App\Support\SetupGradeDisplay;
@@ -29,6 +30,7 @@ class ScoutsTable
     public static function configure(Table $table, bool $squadMode = false, string $resourceClass = ScoutResource::class): Table
     {
         return $table
+            ->poll(FilamentPolling::INTERVAL)
             ->columnManager(false)
             ->striped(false)
             ->defaultSort('setup_grade', 'asc')

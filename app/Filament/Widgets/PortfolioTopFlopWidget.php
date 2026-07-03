@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\FilamentPolling;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -21,6 +22,7 @@ class PortfolioTopFlopWidget extends TableWidget
     public function table(Table $table): Table
     {
         return $table
+            ->poll(FilamentPolling::INTERVAL)
             ->columnManager(false)
             ->striped(false)
             ->heading('Portfolio Top / Flop')

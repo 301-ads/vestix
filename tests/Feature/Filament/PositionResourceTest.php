@@ -9,6 +9,7 @@ use App\Filament\Resources\Positions\Pages\EditPosition;
 use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListPositions;
 use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Widgets\OpenPositionsStatsWidget;
 use App\Models\Asset;
 use App\Models\Position;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -744,5 +745,23 @@ class PositionResourceTest extends TestCase
             ->assertSet('tableFilters.position_focus.value', 'danger_zone')
             ->call('togglePositionFocus', focus: 'danger_zone')
             ->assertSet('tableFilters', []);
+    }
+
+    public function test_positions_list_polls_every_ten_seconds(): void
+    {
+        $this->authenticateFilament();
+
+        Livewire::test(ListPositions::class)
+            ->assertOk()
+            ->assertSeeHtml('wire:poll.10s');
+    }
+
+    public function test_open_positions_stats_widget_polls_every_ten_seconds(): void
+    {
+        $this->authenticateFilament();
+
+        Livewire::test(OpenPositionsStatsWidget::class)
+            ->assertOk()
+            ->assertSeeHtml('wire:poll.10s');
     }
 }

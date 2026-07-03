@@ -229,6 +229,17 @@ class DashboardTest extends TestCase
             ->assertSee('Geen lock');
     }
 
+    public function test_admin_panel_includes_pwa_pull_to_refresh_script(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        $this->get('/admin')
+            ->assertOk()
+            ->assertSee('pwa-pull-to-refresh', false);
+    }
+
     public function test_action_widget_does_not_show_archive_action(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();

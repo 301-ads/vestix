@@ -3,12 +3,15 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Position;
+use App\Support\FilamentPolling;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class PortfolioExposureWidget extends StatsOverviewWidget
 {
     protected static bool $isLazy = false;
+
+    protected ?string $pollingInterval = FilamentPolling::INTERVAL;
 
     protected static ?int $sort = 1;
 

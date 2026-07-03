@@ -7,6 +7,7 @@ use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\AlertMessageBuilder;
+use App\Support\FilamentPolling;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -39,6 +40,7 @@ class PositionsRequiringActionWidget extends TableWidget
         $pendingCount = $actionablePositions->count();
 
         return $table
+            ->poll(FilamentPolling::INTERVAL)
             ->columnManager(false)
             ->striped(false)
             ->heading($this->buildHeading($pendingCount, $updateCount, $liquidationCount, $earningsCount))
@@ -66,7 +68,7 @@ class PositionsRequiringActionWidget extends TableWidget
                     ->color(fn (Position $record): string => $this->formatStatusColor($record))
                     ->extraCellAttributes(['class' => 'vestix-status-badge-cell'])
                     ->extraHeaderAttributes(['class' => 'vestix-status-badge-cell']),
-                    // ->width('6.5rem'),
+                // ->width('6.5rem'),
                 TickerColumn::wrap(
                     TextColumn::make('ticker')
                         ->label('Ticker'),

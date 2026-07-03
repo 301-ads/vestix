@@ -3,9 +3,11 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Position;
+use App\Support\FilamentPolling;
 use App\Support\OpenPositionsFilters;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Reactive;
 
 class OpenPositionsStatsWidget extends StatsOverviewWidget
@@ -13,6 +15,8 @@ class OpenPositionsStatsWidget extends StatsOverviewWidget
     protected static bool $isDiscovered = false;
 
     protected static bool $isLazy = false;
+
+    protected ?string $pollingInterval = FilamentPolling::INTERVAL;
 
     protected int|string|array $columnSpan = 'full';
 
@@ -110,7 +114,7 @@ class OpenPositionsStatsWidget extends StatsOverviewWidget
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Position>  $dangerPositions
+     * @param  Collection<int, Position>  $dangerPositions
      */
     private static function dangerZoneDescription($dangerPositions): string
     {

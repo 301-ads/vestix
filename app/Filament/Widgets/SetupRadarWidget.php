@@ -6,6 +6,7 @@ use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\FilamentPolling;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
 use App\Support\SetupGradeDisplay;
@@ -35,6 +36,7 @@ class SetupRadarWidget extends TableWidget
     public function table(Table $table): Table
     {
         return $table
+            ->poll(FilamentPolling::INTERVAL)
             ->columnManager(false)
             ->striped(false)
             ->heading('Setup Radar')

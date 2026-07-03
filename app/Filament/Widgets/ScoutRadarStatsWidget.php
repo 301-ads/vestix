@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Enums\ScoutPipelineStatus;
 use App\Models\Position;
+use App\Support\FilamentPolling;
 use App\Support\ScoutRadarFilters;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -14,6 +15,8 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
     protected static bool $isDiscovered = false;
 
     protected static bool $isLazy = false;
+
+    protected ?string $pollingInterval = FilamentPolling::INTERVAL;
 
     protected int|string|array $columnSpan = 'full';
 

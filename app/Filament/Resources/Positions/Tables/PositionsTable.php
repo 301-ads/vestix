@@ -6,6 +6,7 @@ use App\Enums\TrailingStopMode;
 use App\Filament\Resources\Positions\Pages\ListPositions;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\FilamentPolling;
 use App\Support\StopLossProtocol;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -28,6 +29,7 @@ class PositionsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->poll(FilamentPolling::INTERVAL)
             ->columnManager(false)
             ->striped(false)
             ->defaultSort('unrealized_pnl_percentage', 'desc')
