@@ -61,13 +61,16 @@ class ArchivePostMortemStatsWidget extends StatsOverviewWidget
             ? '∞'
             : number_format($profitFactor ?? 0, 2);
         $isProfitable = $profitFactor === null ? $totalWins > 0 : $profitFactor >= 1;
+        $profitFactorDescription = $profitFactor === null && $totalWins > 0
+            ? 'Alleen winst in archief'
+            : sprintf('$%s winst per $1 verlies', number_format($profitFactor ?? 0, 2));
 
         $biggestLoss = $analytics->biggestLoss($userId);
         $freeride = $analytics->freerideHitRate($userId);
 
         return [
             Stat::make('Profit Factor', $profitFactorLabel)
-                ->description($isProfitable ? 'Wiskundig winstgevend' : 'Wiskundig verliesgevend')
+                ->description($profitFactorDescription)
                 ->descriptionIcon('heroicon-m-calculator')
                 ->descriptionColor($isProfitable ? 'success' : 'danger')
                 ->color($isProfitable ? 'success' : 'danger')
