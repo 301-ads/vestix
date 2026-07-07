@@ -98,7 +98,7 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-clock')
                 ->descriptionColor(self::executionColor($activeCount, $pendingCount))
                 ->extraAttributes($this->filterableStatAttributes('execution_pipeline', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--amber')),
-            Stat::make('Top Setups (A++)', (string) $aPlusCount)
+            Stat::make('Top Setups (A+)', (string) $aPlusCount)
                 ->description('Hoogste succesratio')
                 ->descriptionIcon('heroicon-m-star')
                 ->descriptionColor('info')

@@ -19,7 +19,7 @@ class ScoutRadarFilters
             'reclamation' => 'Reclamation PM',
             'landing' => 'Landing PM',
             'strong_setups' => 'Sterke setups (A/A++)',
-            'a_plus' => 'Top setups (A++)',
+            'a_plus' => 'Top setups (A+)',
             'scout_only' => 'Status: Scout',
             'market_open_pending' => 'Status: Pending (market open)',
             'active_only' => 'Status: Active (order live)',
@@ -38,7 +38,7 @@ class ScoutRadarFilters
     {
         return [
             'strong_setups' => 'Sterke setups (A+/A-)',
-            'a_plus' => 'Alleen A++',
+            'a_plus' => 'Alleen A+',
             'ready' => 'Klaar voor executie',
         ];
     }
@@ -146,7 +146,7 @@ class ScoutRadarFilters
             return false;
         }
 
-        return $scout->evaluateSetupScore()['grade'] === 'A++';
+        return $scout->evaluateSetupScore()['grade'] === 'A';
     }
 
     private static function isStrongSetup(Position $scout): bool

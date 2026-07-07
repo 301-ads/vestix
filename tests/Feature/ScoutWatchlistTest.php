@@ -725,7 +725,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertSee('Klaar voor Executie')
             ->assertSee('Pre-market scan')
             ->assertSee('Executie')
-            ->assertSee('Top Setups (A++)')
+            ->assertSee('Top Setups (A+)')
             ->assertDontSee('Actieve Scouts')
             ->assertDontSee('Gem. Gepland Risico')
             ->assertDontSee('Reminder Gepland')

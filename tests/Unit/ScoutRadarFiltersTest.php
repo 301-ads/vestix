@@ -164,4 +164,40 @@ class ScoutRadarFiltersTest extends TestCase
         $this->assertTrue(ScoutRadarFilters::matches($aGrade, 'strong_setups'));
         $this->assertFalse(ScoutRadarFilters::matches($bSetup, 'strong_setups'));
     }
+
+    public function test_matches_a_plus_for_grade_a_only(): void
+    {
+        $aPlusPlus = Position::factory()->scout()->create([
+            'signal_low' => 101.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
+        ]);
+
+        $aGrade = Position::factory()->scout()->create([
+            'signal_low' => 100.50,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.50,
+        ]);
+
+        $this->assertFalse(ScoutRadarFilters::matches($aPlusPlus, 'a_plus'));
+        $this->assertTrue(ScoutRadarFilters::matches($aGrade, 'a_plus'));
+    }
 }
