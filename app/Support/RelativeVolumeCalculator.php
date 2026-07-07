@@ -11,6 +11,20 @@ class RelativeVolumeCalculator
         return (float) config('vestix.sniper_scorecard.rvol_threshold', 1.2);
     }
 
+    public static function formatThresholdPercent(): string
+    {
+        return self::formatPercent(self::rvolThreshold()) ?? '120%';
+    }
+
+    public static function formatPercent(float|int|string|null $rvol): ?string
+    {
+        if ($rvol === null || $rvol === '') {
+            return null;
+        }
+
+        return (int) round((float) $rvol * 100).'%';
+    }
+
     /**
      * @param  array{
      *     today: array{open: float, high: float, low: float, close: float, volume: float},

@@ -31,6 +31,13 @@ class TrampolineDepthMetricsTest extends TestCase
         $this->assertFalse($result['bounce_volume_above_average']);
     }
 
+    public function test_formats_rvol_as_percentage(): void
+    {
+        $this->assertSame('88%', RelativeVolumeCalculator::formatPercent(0.88));
+        $this->assertSame('120%', RelativeVolumeCalculator::formatThresholdPercent());
+        $this->assertSame('145%', RelativeVolumeCalculator::formatPercent(1.45));
+    }
+
     public function test_calculates_max_extension_before_bounce(): void
     {
         $bars = [

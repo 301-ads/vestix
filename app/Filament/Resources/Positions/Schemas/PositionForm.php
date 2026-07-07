@@ -342,15 +342,15 @@ class PositionForm
                 ->live(onBlur: true)
                 ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncPlannedQuantityFromInvestment($set, $get, $record)),
             Toggle::make('bounce_volume_above_average')
-                ->label('RVol bevestigd (≥ '.RelativeVolumeCalculator::rvolThreshold().')')
+                ->label('RVol bevestigd (≥ '.RelativeVolumeCalculator::formatThresholdPercent().')')
                 ->disabled()
                 ->dehydrated()
                 ->helperText('Automatisch bij Data ophalen op bounce-dag'),
             TextInput::make('relative_volume')
                 ->label('Relative Volume (RVol)')
-                ->numeric()
                 ->readOnly()
                 ->dehydrated(false)
+                ->formatStateUsing(fn (mixed $state): ?string => RelativeVolumeCalculator::formatPercent($state))
                 ->visible(fn (Get $get, ?Position $record): bool => filled($get('relative_volume') ?? $record?->relative_volume)),
             TextInput::make('volume_sma_20')
                 ->label('Volume SMA 20')
@@ -993,7 +993,7 @@ class PositionForm
 
         $volumeLabel = $rvolFloat === null
             ? 'RVol: — (wacht op data)'
-            : sprintf('RVol: %.2f (%s)', $rvolFloat, match (true) {
+            : sprintf('RVol: %s (%s)', RelativeVolumeCalculator::formatPercent($rvolFloat), match (true) {
                 $rvolFloat >= $rvolThreshold => 'Geldstroom actief',
                 $rvolFloat < 1.0 => 'Zwak',
                 default => 'Matig',

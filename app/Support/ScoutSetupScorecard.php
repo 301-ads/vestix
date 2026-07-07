@@ -211,7 +211,11 @@ class ScoutSetupScorecard
                 0,
                 1,
                 'fail',
-                sprintf('RVol %.2f — onder drempel (%.1f)', $effectiveRvol, $threshold),
+                sprintf(
+                    'RVol %s — onder drempel (%s)',
+                    RelativeVolumeCalculator::formatPercent($effectiveRvol) ?? '—',
+                    RelativeVolumeCalculator::formatThresholdPercent(),
+                ),
             );
         }
 
@@ -221,7 +225,10 @@ class ScoutSetupScorecard
             1,
             1,
             'pass',
-            sprintf('RVol %.2f — institutionele buy-in bevestigd', $effectiveRvol),
+            sprintf(
+                'RVol %s — institutionele buy-in bevestigd',
+                RelativeVolumeCalculator::formatPercent($effectiveRvol) ?? '—',
+            ),
         );
     }
 

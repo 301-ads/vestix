@@ -310,7 +310,7 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame(1, $result['criteria'][3]['points']);
         $this->assertSame('pass', $result['criteria'][3]['status']);
-        $this->assertStringContainsString('RVol', $result['criteria'][3]['detail']);
+        $this->assertStringContainsString('RVol 145%', $result['criteria'][3]['detail']);
     }
 
     public function test_volume_score_red_candle(): void
