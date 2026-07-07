@@ -1851,6 +1851,15 @@
     text-align: right;
 }
 
+.scout-scorecard-criteria.fi-grid {
+    gap: 0.5rem;
+}
+
+.scout-scorecard-criteria .scout-scorecard-criterion {
+    height: auto;
+    padding: 0.75rem 0.875rem;
+}
+
 .scout-scorecard-criterion {
     position: relative;
     overflow: hidden;
@@ -1890,6 +1899,52 @@
 
 .dark .scout-scorecard-criterion--fail {
     border-color: rgb(244 63 94 / 0.35);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Scout cockpit layout                                                       */
+/* -------------------------------------------------------------------------- */
+
+@media (min-width: 1024px) {
+    .scout-cockpit-grid.fi-grid,
+    .position-cockpit-grid.fi-grid {
+        align-items: start;
+    }
+
+    .scout-cockpit-motor,
+    .position-cockpit-motor {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        width: 100%;
+    }
+
+    .scout-cockpit-telemetry,
+    .position-cockpit-telemetry {
+        position: sticky;
+        top: 5.5rem;
+        align-self: start;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+}
+
+.trampoline-validation-matrix--stacked .trampoline-validation-matrix-item {
+    padding: 0.625rem 0.75rem;
+}
+
+.trampoline-validation-matrix--stacked .trampoline-validation-matrix-item span:last-child {
+    font-size: 0.8125rem;
+}
+
+.scout-journal-kelder.fi-sc-section,
+.position-journal-kelder.fi-sc-section {
+    margin-top: 0.5rem;
+}
+
+.position-journal-sidebar.fi-sc-section {
+    margin-top: 0;
 }
 
 .fi-header-heading .position-edit-heading {

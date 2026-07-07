@@ -165,8 +165,9 @@ class ShareCardDataFactory
     private static function scoutStatusVariant(string $grade): string
     {
         return match ($grade) {
-            'A+' => 'a-plus',
-            'A-' => 'a-minus',
+            'A++' => 'a-plus',
+            'A' => 'a-minus',
+            'B' => 'bc',
             default => 'bc',
         };
     }

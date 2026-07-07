@@ -6,6 +6,16 @@
     $scoreColor = $scoreColor ?? 'gray';
     $cardVariant = $cardVariant ?? 'zinc';
     $hasHardFail = ! empty($score['hardFailReasons']);
+    $progressPct = $score['maxPoints'] > 0
+        ? min(100, (int) round(($score['totalPoints'] / $score['maxPoints']) * 100))
+        : 0;
+    $progressColor = match (true) {
+        $hasHardFail => 'bg-danger-500',
+        $score['totalPoints'] >= ($score['maxPoints'] ?? 10) => 'bg-success-500',
+        $score['totalPoints'] >= 8 => 'bg-success-400',
+        $score['totalPoints'] >= 7 => 'bg-warning-500',
+        default => 'bg-danger-500',
+    };
 @endphp
 
 <div @class([
@@ -28,6 +38,9 @@
                 {{ $score['totalPoints'] }}
             </span>
             <span class="scout-scorecard-hud-max"> / {{ $score['maxPoints'] }}</span>
+        </div>
+        <div class="scout-scorecard-hud-progress mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+            <div class="{{ $progressColor }} h-full rounded-full transition-all duration-300" style="width: {{ $progressPct }}%"></div>
         </div>
     </div>
 

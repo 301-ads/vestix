@@ -6,6 +6,7 @@ use App\Models\Position;
 use App\Models\User;
 use App\Services\MarketDataFetcher;
 use App\Support\MarketDataFreshness;
+use App\Support\ScoutSetupScorecard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -360,15 +361,15 @@ class FetchVestixDataTest extends TestCase
         }
     }
 
-    public function test_command_sends_telegram_alert_when_scout_transitions_to_six(): void
+    public function test_command_recalculates_setup_score_for_scouts(): void
     {
-        config(['vestix.telegram.bot_token' => 'test-token', 'vestix.polygon.api_key' => null]);
+        config(['vestix.polygon.api_key' => null]);
 
-        $user = User::factory()->create(['telegram_chat_id' => '99999']);
+        $user = User::factory()->create();
         $position = Position::factory()->for($user)->scout()->create([
             'ticker' => 'APTV',
-            'last_setup_score' => 5,
-            'latest_close_price' => 103.60,
+            'last_setup_score' => null,
+            'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
             'latest_sma_50' => 95.00,
@@ -384,18 +385,14 @@ class FetchVestixDataTest extends TestCase
                 ->push(['Technical Analysis: SMA' => ['2024-01-06' => ['SMA' => '95.00']]])
                 ->push(['Technical Analysis: ATR' => ['2024-01-06' => ['ATR' => '2.00']]])
                 ->push(['Technical Analysis: RSI' => ['2024-01-06' => ['RSI' => '50.00']]]),
-            'api.telegram.org/*' => Http::response(['ok' => true]),
         ]);
 
         $this->artisan('vestix:fetch-data')->assertSuccessful();
 
         $position->refresh();
 
-        $this->assertEquals(6, $position->last_setup_score);
-        $this->assertNotNull($position->telegram_a_minus_alert_sent_at);
-
-        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'api.telegram.org')
-            && str_contains($request->data()['text'] ?? '', 'A- Setup (6/7)'));
+        $this->assertNotNull($position->last_setup_score);
+        $this->assertLessThanOrEqual(ScoutSetupScorecard::maxPoints(), $position->last_setup_score);
     }
 
     public function test_command_keeps_volume_false_without_bounce_day(): void

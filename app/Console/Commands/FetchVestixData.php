@@ -10,6 +10,7 @@ use App\Services\MarketDataFetcher;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupAlertService;
+use App\Support\ScoutSetupScorecard;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -245,7 +246,7 @@ class FetchVestixData extends Command
                     $position->latest_atr_14 ?? '—',
                     $position->status === 'scout'
                         ? ($position->last_setup_score !== null
-                            ? $position->last_setup_score.'/7'
+                            ? $position->last_setup_score.'/'.ScoutSetupScorecard::maxPoints()
                             : '—')
                         : $position->action_command,
                 ];

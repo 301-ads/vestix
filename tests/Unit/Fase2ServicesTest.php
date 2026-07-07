@@ -95,12 +95,17 @@ class Fase2ServicesTest extends TestCase
             'status' => 'scout',
             'ticker' => 'NVDA',
             'signal_low' => 101.00,
+            'latest_open_price' => 100.00,
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
             'entry_price' => 102.50,
             'latest_atr_14' => 5,
             'quantity' => 25,
@@ -110,12 +115,12 @@ class Fase2ServicesTest extends TestCase
 
         $card = ShareCardDataFactory::fromScout($position);
 
-        $this->assertSame('7/7', $card['score_formatted']);
-        $this->assertSame('A+ SETUP', $card['grade_label']);
+        $this->assertSame('10/10', $card['score_formatted']);
+        $this->assertSame('A++ SETUP', $card['grade_label']);
         $this->assertSame('$101.00', $card['close_price']);
         $this->assertSame('$100.00', $card['sma_20']);
         $this->assertSame('$97.50', $card['stop_loss']);
-        $this->assertStringContainsString('NVDA A+ SETUP · 7/7', $card['share_text']);
+        $this->assertStringContainsString('NVDA A++ SETUP · 10/10', $card['share_text']);
         $this->assertSame('vestix-NVDA-setup.png', $card['share_filename']);
         $this->assertArrayNotHasKey('quantity', $card);
     }

@@ -33,18 +33,20 @@ class ScoutSetupAlertService
         }
 
         $newScore = $newScorecard['totalPoints'];
+        $maxPoints = $newScorecard['maxPoints'];
         $alertsSent = 0;
 
         if (
-            $previousScore < 6
-            && $newScore >= 6
+            $previousScore < 8
+            && $newScore >= 8
+            && $newScore < $maxPoints
             && $position->telegram_a_minus_alert_sent_at === null
         ) {
             $message = sprintf(
-                '🎯 Sniper Alert: %s is nu een A- Setup (%d/%d). Koers is geland op de SMA 20. Open de setup en vul Low/High in voor je Buy-Stop.',
+                '🎯 Sniper Alert: %s is nu een A SETUP (%d/%d). Koers is geland op de SMA 20. Open de setup en vul Low/High in voor je Buy-Stop.',
                 $position->ticker,
                 $newScore,
-                $newScorecard['maxPoints'],
+                $maxPoints,
             );
 
             if (TelegramNotifier::sendToUser($owner, $message)) {
@@ -54,13 +56,15 @@ class ScoutSetupAlertService
         }
 
         if (
-            $previousScore < 7
-            && $newScore === 7
+            $previousScore < $maxPoints
+            && $newScore === $maxPoints
             && $position->telegram_a_plus_alert_sent_at === null
         ) {
             $message = sprintf(
-                '🔥 UPGRADE: %s is geëvolueerd naar een A+ Setup (7/7). Massaal kopersvolume bevestigd op de bounce!',
+                '🔥 UPGRADE: %s is geëvolueerd naar een A++ SETUP (%d/%d). Maximale wiskundige edge bevestigd op de bounce!',
                 $position->ticker,
+                $newScore,
+                $maxPoints,
             );
 
             if (TelegramNotifier::sendToUser($owner, $message)) {

@@ -23,19 +23,24 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLF',
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
         ], $overrides);
     }
 
-    public function test_perfect_a_plus_setup_scores_seven(): void
+    public function test_perfect_setup_scores_ten(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 101.00,
             'latest_close_price' => 101.00,
         ]));
 
-        $this->assertSame(7, $result['totalPoints']);
-        $this->assertSame('A+', $result['grade']);
-        $this->assertSame('A+ SETUP', $result['gradeLabel']);
+        $this->assertSame(10, $result['totalPoints']);
+        $this->assertSame(10, $result['maxPoints']);
+        $this->assertSame('A++', $result['grade']);
+        $this->assertSame('A++ SETUP', $result['gradeLabel']);
         $this->assertSame([], $result['hardFailReasons']);
     }
 
@@ -48,7 +53,7 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame(0, $result['criteria'][0]['points']);
         $this->assertStringContainsString('trampoline gebroken', $result['criteria'][0]['detail']);
-        $this->assertSame('B/C', $result['grade']);
+        $this->assertSame('NO TRADE', $result['grade']);
         $this->assertContains('Close onder SMA 20 — trampoline gebroken', $result['hardFailReasons']);
     }
 
@@ -145,6 +150,7 @@ class ScoutSetupScorecardTest extends TestCase
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'sma_20_five_days_ago' => 100.00,
             'bounce_volume_above_average' => false,
+            'relative_volume' => null,
         ]));
 
         $this->assertSame(2, $result['criteria'][1]['points']);
@@ -157,6 +163,7 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_sma_20' => 99.00,
             'sma_20_five_days_ago' => 100.00,
             'bounce_volume_above_average' => false,
+            'relative_volume' => null,
         ]));
 
         $this->assertSame(0, $result['criteria'][1]['points']);
@@ -170,6 +177,7 @@ class ScoutSetupScorecardTest extends TestCase
             'sma_20_five_days_ago' => 100.00,
             'latest_sma_50' => 105.00,
             'bounce_volume_above_average' => false,
+            'relative_volume' => null,
         ]));
 
         $this->assertSame(0, $result['criteria'][1]['points']);
@@ -182,32 +190,60 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_sma_20' => 100.50,
             'sma_20_five_days_ago' => 101.00,
             'bounce_volume_above_average' => false,
+            'relative_volume' => null,
         ]));
 
         $this->assertSame(0, $result['criteria'][1]['points']);
         $this->assertStringContainsString('Dalende SMA over 5 dagen', $result['criteria'][1]['detail']);
     }
 
-    public function test_rsi_above_seventy_forces_bc_grade_despite_high_score(): void
+    public function test_rsi_above_seventy_forces_no_trade_despite_high_score(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'scout_rsi' => 76.00,
         ]));
 
-        $this->assertSame(5, $result['totalPoints']);
-        $this->assertSame('B/C', $result['grade']);
+        $this->assertSame('NO TRADE', $result['grade']);
         $this->assertContains('RSI oververhit (>70) — geen A-setup mogelijk', $result['hardFailReasons']);
     }
 
-    public function test_rsi_sixty_eight_can_still_be_a_minus(): void
+    public function test_rsi_sixty_eight_scores_zero_rsi_points(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'scout_rsi' => 68.00,
         ]));
 
         $this->assertSame(0, $result['criteria'][2]['points']);
-        $this->assertSame(5, $result['totalPoints']);
-        $this->assertSame('A-', $result['grade']);
+        $this->assertSame(8, $result['totalPoints']);
+        $this->assertSame('A', $result['grade']);
+    }
+
+    public function test_sector_sync_scores_two_when_trend_positive(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs());
+
+        $this->assertSame(2, $result['criteria'][4]['points']);
+        $this->assertStringContainsString('Windkracht', $result['criteria'][4]['detail']);
+    }
+
+    public function test_sector_sync_scores_zero_when_trend_negative(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'sector_trend_positive' => false,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][4]['points']);
+        $this->assertStringContainsString('Tegenwind', $result['criteria'][4]['detail']);
+    }
+
+    public function test_extension_scores_one_when_above_threshold(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'pre_bounce_extension_atr' => 3.0,
+        ]));
+
+        $this->assertSame(1, $result['criteria'][5]['points']);
+        $this->assertStringContainsString('hoge veer-potentie', $result['criteria'][5]['detail']);
     }
 
     #[DataProvider('trampolineDistanceProvider')]
@@ -222,6 +258,10 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_sma_50' => 98.00,
             'scout_rsi' => null,
             'bounce_volume_above_average' => false,
+            'relative_volume' => null,
+            'sector_etf' => null,
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => null,
         ]);
 
         $this->assertSame($expectedPoints, $result['criteria'][0]['points']);
@@ -242,6 +282,7 @@ class ScoutSetupScorecardTest extends TestCase
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'scout_rsi' => $rsi,
             'bounce_volume_above_average' => false,
+            'relative_volume' => null,
         ]));
 
         $this->assertSame($expectedPoints, $result['criteria'][2]['points']);
@@ -250,31 +291,33 @@ class ScoutSetupScorecardTest extends TestCase
     public static function rsiThresholdProvider(): array
     {
         return [
-            'sweet spot low' => [45.0, 2],
-            'sweet spot mid' => [55.0, 2],
+            'sweet spot low' => [40.0, 2],
+            'sweet spot mid' => [50.0, 2],
             'momentum zone' => [60.0, 1],
             'too hot for points' => [68.0, 0],
             'too weak' => [39.0, 0],
         ];
     }
 
-    public function test_volume_score_green_candle(): void
+    public function test_volume_score_green_candle_with_rvol(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'bounce_volume_above_average' => true,
+            'relative_volume' => 1.45,
             'latest_open_price' => 100.00,
             'latest_close_price' => 102.00,
         ]));
 
         $this->assertSame(1, $result['criteria'][3]['points']);
         $this->assertSame('pass', $result['criteria'][3]['status']);
-        $this->assertStringContainsString('Echte bounce', $result['criteria'][3]['detail']);
+        $this->assertStringContainsString('RVol', $result['criteria'][3]['detail']);
     }
 
     public function test_volume_score_red_candle(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'bounce_volume_above_average' => true,
+            'relative_volume' => 1.45,
             'latest_open_price' => 102.00,
             'latest_close_price' => 100.00,
         ]));
@@ -289,6 +332,7 @@ class ScoutSetupScorecardTest extends TestCase
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'bounce_volume_above_average' => true,
+            'relative_volume' => 1.45,
             'latest_open_price' => null,
             'latest_close_price' => 100.50,
         ]));
@@ -296,7 +340,17 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame(0, $result['criteria'][3]['points']);
         $this->assertSame('fail', $result['criteria'][3]['status']);
         $this->assertStringContainsString('Open/slotkoers ontbreekt', $result['criteria'][3]['detail']);
-        $this->assertSame(6, $result['totalPoints']);
-        $this->assertNotSame('A+', $result['grade']);
+        $this->assertNotSame('A++', $result['grade']);
+    }
+
+    public function test_b_setup_scores_seven(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 1.0,
+        ]));
+
+        $this->assertSame(7, $result['totalPoints']);
+        $this->assertSame('B', $result['grade']);
     }
 }

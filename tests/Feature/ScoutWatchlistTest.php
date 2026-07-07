@@ -448,36 +448,39 @@ class ScoutWatchlistTest extends TestCase
 
         Livewire::test(CreateScout::class)
             ->assertOk()
+            ->assertSee('Setup & Valstrik')
             ->assertSee('Sniper Scorecard')
             ->assertSee('Marktdata & Indicatoren')
+            ->assertSee('Wiskundige Validatie')
+            ->assertSee('Trade Journal & Notities')
             ->assertSeeHtml('scout-scorecard-hud');
     }
 
     public function test_edit_scout_page_shows_scorecard(): void
     {
         $user = $this->authenticateFilament();
-        $scout = Position::factory()->for($user)->scout()->create([
-            'ticker' => 'AAPL',
-            'entry_price' => 100.50,
-            'signal_low' => 100.50,
-            'latest_close_price' => 100.50,
-            'latest_sma_20' => 100.00,
-            'sma_20_five_days_ago' => 99.00,
-            'latest_sma_50' => 98.00,
-            'scout_rsi' => 50.00,
-            'bounce_volume_above_average' => true,
-        ]);
+        $scout = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aPlusSetupAttributes(),
+            [
+                'ticker' => 'AAPL',
+                'entry_price' => 100.50,
+            ],
+        ));
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
+            ->assertSee('Setup & Valstrik')
             ->assertSee('Sniper Scorecard')
             ->assertSee('Marktdata & Indicatoren')
+            ->assertSee('Wiskundige Validatie')
+            ->assertSee('Het Schild')
+            ->assertSee('Trade Journal & Notities')
             ->assertSee('SMA 20 (5 dagen geleden)')
             ->assertSee('SMA 50')
             ->assertSee('Live Rating')
             ->assertSeeHtml('scout-scorecard-hud')
             ->assertSeeHtml('vestix-stat-card')
             ->assertSeeHtml('scout-scorecard-criterion')
-            ->assertSee('A+ SETUP')
+            ->assertSee('A++ SETUP')
             ->assertSee('Trampoline-afstand');
     }
 
@@ -497,22 +500,16 @@ class ScoutWatchlistTest extends TestCase
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
             ->assertSee('RSI oververhit (>70)')
-            ->assertSee('B/C Setup');
+            ->assertSee('NO TRADE');
     }
 
     public function test_activate_button_has_a_plus_class_for_perfect_setup(): void
     {
         $user = $this->authenticateFilament();
-        $scout = Position::factory()->for($user)->scout()->create([
-            'entry_price' => 100.50,
-            'signal_low' => 100.50,
-            'latest_close_price' => 100.50,
-            'latest_sma_20' => 100.00,
-            'sma_20_five_days_ago' => 99.00,
-            'latest_sma_50' => 98.00,
-            'scout_rsi' => 50.00,
-            'bounce_volume_above_average' => true,
-        ]);
+        $scout = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aPlusSetupAttributes(),
+            ['entry_price' => 100.50],
+        ));
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
             ->assertSeeHtml('scout-activate-a-plus');
@@ -728,7 +725,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertSee('Klaar voor Executie')
             ->assertSee('Pre-market scan')
             ->assertSee('Executie')
-            ->assertSee('Top Setups (A+)')
+            ->assertSee('Top Setups (A++)')
             ->assertDontSee('Actieve Scouts')
             ->assertDontSee('Gem. Gepland Risico')
             ->assertDontSee('Reminder Gepland')
@@ -849,7 +846,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'scout_rsi' => 55,
-            'last_setup_score' => 5,
+            'last_setup_score' => 8,
         ]);
 
         $aPlus = Position::factory()->for($user)->scout()->create([
@@ -858,7 +855,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
-            'last_setup_score' => 7,
+            'last_setup_score' => 10,
         ]);
 
         $ordered = Position::scout()
@@ -897,6 +894,10 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
         ];
     }
 
@@ -912,8 +913,12 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
             'latest_sma_50' => 98.00,
-            'scout_rsi' => 68.00,
+            'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.50,
         ];
     }
 

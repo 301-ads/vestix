@@ -250,6 +250,10 @@ class EditPosition extends EditRecord
             'latest_sma_50' => $this->data['latest_sma_50'] ?? $record->latest_sma_50,
             'scout_rsi' => $this->data['scout_rsi'] ?? $record->scout_rsi,
             'bounce_volume_above_average' => (bool) ($this->data['bounce_volume_above_average'] ?? $record->bounce_volume_above_average),
+            'relative_volume' => $this->data['relative_volume'] ?? $record->relative_volume,
+            'sector_etf' => $this->data['sector_etf'] ?? $record->sector_etf,
+            'sector_trend_positive' => (bool) ($this->data['sector_trend_positive'] ?? $record->sector_trend_positive),
+            'pre_bounce_extension_atr' => $this->data['pre_bounce_extension_atr'] ?? $record->pre_bounce_extension_atr,
         ]);
     }
 
@@ -326,7 +330,7 @@ class EditPosition extends EditRecord
 
         $score = $this->resolveSetupScoreFromForm();
 
-        if ($score['hardFailReasons'] === [] && $score['totalPoints'] === 7) {
+        if ($score['hardFailReasons'] === [] && $score['totalPoints'] === ScoutSetupScorecard::maxPoints()) {
             $classes[] = 'scout-activate-a-plus';
         }
 
@@ -342,9 +346,10 @@ class EditPosition extends EditRecord
         }
 
         return match (true) {
-            $score['totalPoints'] === 7 => 'A+ SETUP — mathematisch perfecte trade',
-            $score['totalPoints'] >= 5 => 'A- Setup — overweeg halve positie',
-            default => 'B/C Setup — overweeg niet te activeren',
+            $score['totalPoints'] === ScoutSetupScorecard::maxPoints() => 'A++ SETUP — mathematisch perfecte trade',
+            $score['totalPoints'] >= 8 => 'A SETUP — zeer sterke wiskundige edge',
+            $score['totalPoints'] === 7 => 'B SETUP — standaard trade, wees alert op risico',
+            default => 'NO TRADE — sniper houdt de vinger van de trekker',
         };
     }
 }

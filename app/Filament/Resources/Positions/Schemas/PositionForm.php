@@ -6,7 +6,6 @@ use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
 use App\Enums\TrailingStopMode;
 use App\Models\Position;
-use App\Models\StrategyTag;
 use App\Services\SquadContext;
 use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
@@ -14,7 +13,9 @@ use App\Support\ClosePriceTrend;
 use App\Support\EarningsExitDisplay;
 use App\Support\FreerideDisplay;
 use App\Support\PositionSizing;
+use App\Support\PreBounceExtensionCalculator;
 use App\Support\PremarketGatekeeperDisplay;
+use App\Support\RelativeVolumeCalculator;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SlPriceProximity;
 use App\Support\StopLossProtocol;
@@ -50,63 +51,370 @@ class PositionForm
             ->components([
                 self::cockpitSection(),
                 self::scoutCockpitSection(),
-                Grid::make(['default' => 1, 'lg' => 3])
-                    ->columnSpanFull()
-                    ->extraAttributes(['class' => 'position-form-columns'])
-                    ->schema([
-                        Grid::make(1)
-                            ->columnSpan(['lg' => 2])
-                            ->extraAttributes(['class' => 'position-form-setup-grid'])
-                            ->schema([
-                                self::setupDetailsSection($isScoutForm),
-                                self::schildSection(),
-                                self::schildStatusSection(),
-                                self::earningsOverrideSection(),
-                                self::buyStopSection($isScoutForm),
-                            ]),
-                        Section::make('Trade Journal')
-                            ->columnSpan(['lg' => 1])
-                            ->compact()
-                            ->extraAttributes(['class' => 'position-form-journal-section'])
-                            ->schema([
-                                Select::make('strategy_tag_id')
-                                    ->label('Strategy tag')
-                                    ->options(fn (): array => StrategyTag::query()
-                                        ->where('is_active', true)
-                                        ->orderBy('sort_order')
-                                        ->pluck('name', 'id')
-                                        ->all())
-                                    // ->required(fn (string $operation): bool => $operation === 'create')
-                                    ->native(false)
-                                    ->searchable()
-                                    ->placeholder('Kies je setup-type')
-                                    ->helperText('Optioneel — gebruikt door Strategy Coach voor edge-analyse.')
-                                    ->columnSpanFull(),
-                                Textarea::make('trade_journal')
-                                    ->label('Setup & rationale')
-                                    ->hiddenLabel()
-                                    ->rows(4)
-                                    ->maxLength(2000)
-                                    ->placeholder('Gekocht op bounce van 200 EMA, sterke earnings verwacht, sector is bullish.')
-                                    ->extraFieldWrapperAttributes(['class' => 'position-form-journal-field'])
-                                    ->extraInputAttributes(['class' => 'position-form-journal-textarea'])
-                                    ->columnSpanFull(),
-                                self::chartScreenshotField(
-                                    field: 'entry_chart_screenshot_path',
-                                    label: 'TradingView — entry',
-                                    imageLabel: 'TradingView entry chart',
-                                ),
-                                self::chartScreenshotField(
-                                    field: 'exit_chart_screenshot_path',
-                                    label: 'TradingView — exit',
-                                    imageLabel: 'TradingView exit chart',
-                                    visible: fn (?Position $record): bool => $record?->status === 'closed',
-                                ),
-                            ]),
-                    ]),
-                self::scoutScorecardSection($isScoutForm),
+                self::scoutCockpitGrid($isScoutForm),
+                self::openPositionFormGrid($isScoutForm),
+                self::journalKelderSection($isScoutForm),
                 self::scoutVisibilitySection($isScoutForm),
             ]);
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function scoutCockpitGrid(callable $isScoutForm): Grid
+    {
+        return Grid::make(['default' => 1, 'lg' => 3])
+            ->columnSpanFull()
+            ->extraAttributes(['class' => 'scout-cockpit-grid'])
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
+            ->schema([
+                Grid::make(1)
+                    ->columnSpan(['lg' => 2])
+                    ->extraAttributes(['class' => 'scout-cockpit-motor'])
+                    ->schema([
+                        self::scoutSetupValstrikSection($isScoutForm),
+                        self::scoutMarktdataSection(),
+                        self::scoutSchildInputSection(),
+                    ]),
+                self::scoutTelemetryColumn(),
+            ]);
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function openPositionFormGrid(callable $isScoutForm): Grid
+    {
+        return Grid::make(['default' => 1, 'lg' => 3])
+            ->columnSpanFull()
+            ->extraAttributes(['class' => 'position-cockpit-grid position-form-columns'])
+            ->visible(fn (?Position $record, string $operation): bool => ! $isScoutForm($record, $operation))
+            ->schema([
+                Grid::make(1)
+                    ->columnSpan(['lg' => 2])
+                    ->extraAttributes(['class' => 'position-cockpit-motor position-form-setup-grid'])
+                    ->schema([
+                        self::setupDetailsSection($isScoutForm),
+                        self::schildSection(),
+                        self::earningsOverrideSection(),
+                    ]),
+                self::openPositionTelemetryColumn(),
+            ]);
+    }
+
+    private static function openPositionTelemetryColumn(): Grid
+    {
+        return Grid::make(1)
+            ->columnSpan(['lg' => 1])
+            ->extraAttributes(['class' => 'position-cockpit-telemetry'])
+            ->schema([
+                self::schildStatusSection(),
+                self::openPositionJournalSection(),
+            ]);
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function journalKelderSection(callable $isScoutForm): Section
+    {
+        return self::collapsedTradeJournalSection('position-journal-kelder')
+            ->columnSpanFull()
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation));
+    }
+
+    private static function openPositionJournalSection(): Section
+    {
+        return self::collapsedTradeJournalSection('position-journal-sidebar');
+    }
+
+    private static function collapsedTradeJournalSection(string $extraClass): Section
+    {
+        return Section::make('Trade Journal & Notities')
+            ->collapsed()
+            ->compact()
+            ->extraAttributes(['class' => $extraClass.' position-form-journal-section'])
+            ->schema(self::tradeJournalFields());
+    }
+
+    /**
+     * @return array<int, Textarea|mixed>
+     */
+    private static function tradeJournalFields(): array
+    {
+        return [
+            Textarea::make('trade_journal')
+                ->label('Setup & rationale')
+                ->hiddenLabel()
+                ->rows(4)
+                ->maxLength(2000)
+                ->placeholder('Gekocht op bounce van 200 EMA, sterke earnings verwacht, sector is bullish.')
+                ->extraFieldWrapperAttributes(['class' => 'position-form-journal-field'])
+                ->extraInputAttributes(['class' => 'position-form-journal-textarea'])
+                ->columnSpanFull(),
+            self::chartScreenshotField(
+                field: 'entry_chart_screenshot_path',
+                label: 'TradingView — entry',
+                imageLabel: 'TradingView entry chart',
+            ),
+            self::chartScreenshotField(
+                field: 'exit_chart_screenshot_path',
+                label: 'TradingView — exit',
+                imageLabel: 'TradingView exit chart',
+                visible: fn (?Position $record): bool => $record?->status === 'closed',
+            ),
+        ];
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function scoutSetupValstrikSection(callable $isScoutForm): Section
+    {
+        return Section::make('Setup & Valstrik')
+            ->description('Vul pas in na een Telegram-alert (fase 3). Low/High = dagkaars (1D) van de bounce-dag in TradingView.')
+            ->afterLabel([
+                Icon::make('heroicon-o-information-circle')
+                    ->tooltip(
+                        "Fase 1–2: laat dit blok leeg.\n"
+                        ."Fase 3: na Telegram-alert vul je Low/High in van de bounce-dagkaars (TradingView, 1D).\n"
+                        ."Buy-Stop: High + 10% × ATR 14 (ATR staat in Het Schild).\n"
+                        ."Plaats je buy-stop niet de avond ervoor — zet de reminder aan wanneer je klaar bent; je krijgt de volgende handelsdag een Telegram vlak na market open.\n"
+                        .'Zet de Buy-Stop exact zo in je broker — nooit market buy.'
+                    )
+                    ->color('gray'),
+            ])
+            ->compact()
+            ->divided()
+            ->schema([
+                Grid::make(3)
+                    ->schema([
+                        self::tickerField(),
+                        self::plannedInvestmentField($isScoutForm),
+                        TextInput::make('quantity')
+                            ->label('Gepland aantal')
+                            ->numeric()
+                            ->inputMode('decimal')
+                            ->step('any')
+                            ->minValue(0.000001)
+                            ->readOnly()
+                            ->helperText('Auto-berekend uit totale inleg ÷ entry')
+                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace(',', '.', $state) : null)
+                            ->rules(['nullable', 'numeric', 'min:0.000001'])
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record))
+                            ->afterStateHydrated(function (Set $set, Get $get, ?Position $record): void {
+                                self::syncTotalInvestmentField($set, $get, $record);
+                                self::hydratePlannedInvestmentField($set, $get, $record);
+                            }),
+                    ]),
+                Grid::make(2)
+                    ->schema([
+                        TextInput::make('entry_price')
+                            ->label('Geplande entry')
+                            ->numeric()
+                            ->prefix('$')
+                            ->minValue(0.01)
+                            ->rules(['nullable', 'numeric', 'min:0.01'])
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncPlannedQuantityFromInvestment($set, $get, $record))
+                            ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncPlannedQuantityFromInvestment($set, $get, $record)),
+                        self::marketOpenReminderToggle()
+                            ->visible(fn (?Position $record, string $operation): bool => $operation === 'edit'),
+                    ]),
+                self::bankrollSetupCallout($isScoutForm),
+                self::earningsSmartAlert(),
+                Grid::make(3)
+                    ->schema(self::buyStopFields()),
+            ]);
+    }
+
+    private static function scoutMarktdataSection(): Section
+    {
+        return Section::make('Marktdata & Indicatoren')
+            ->description(fn (string $operation): string => $operation === 'create'
+                ? 'Vul handmatig in — na opslaan kun je rechtsboven "Data ophalen" gebruiken'
+                : 'Klik "Data ophalen" rechtsboven, of vul handmatig in')
+            ->compact()
+            ->schema([
+                Grid::make(2)
+                    ->schema(self::scoutMarktdataFields()),
+            ]);
+    }
+
+    private static function scoutSchildInputSection(): Section
+    {
+        return Section::make('Het Schild')
+            ->compact()
+            ->divided()
+            ->schema([
+                Grid::make(3)
+                    ->schema(self::scoutSchildInputFields()),
+            ]);
+    }
+
+    private static function scoutTelemetryColumn(): Grid
+    {
+        return Grid::make(1)
+            ->columnSpan(['lg' => 1])
+            ->extraAttributes(['class' => 'scout-cockpit-telemetry'])
+            ->schema([
+                self::scoutValidationTelemetrySection(),
+                self::scoutScorecardTelemetrySection(),
+            ]);
+    }
+
+    private static function scoutValidationTelemetrySection(): Section
+    {
+        return Section::make('Wiskundige Validatie')
+            ->compact()
+            ->schema([
+                View::make('filament.positions.trampoline-validation-matrix')
+                    ->viewData(function (Get $get, ?Position $record): array {
+                        return self::validationMatrixData($get, $record);
+                    })
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    private static function scoutScorecardTelemetrySection(): Section
+    {
+        return Section::make('Sniper Scorecard')
+            ->description('Objectieve setup-beoordeling (max '.ScoutSetupScorecard::maxPoints().' punten)')
+            ->icon('heroicon-m-viewfinder-circle')
+            ->compact()
+            ->schema([
+                View::make('filament.positions.scout-scorecard-hud')
+                    ->viewData(function (Get $get, ?Position $record): array {
+                        $score = self::resolveScorecard($get, $record);
+
+                        return [
+                            'score' => $score,
+                            'scoreColor' => self::scorecardGradeColor($score['grade']),
+                            'cardVariant' => self::scorecardCardVariant($score),
+                        ];
+                    }),
+                Callout::make('Setup geblokkeerd')
+                    ->visible(fn (Get $get, ?Position $record): bool => self::resolveScorecard($get, $record)['hardFailReasons'] !== [])
+                    ->description(fn (Get $get, ?Position $record): string => implode("\n", self::resolveScorecard($get, $record)['hardFailReasons']))
+                    ->danger()
+                    ->icon('heroicon-o-exclamation-triangle'),
+                Grid::make(1)
+                    ->extraAttributes(['class' => 'scout-scorecard-criteria'])
+                    ->schema([
+                        self::scorecardCriterionEntry('trampoline'),
+                        self::scorecardCriterionEntry('sma_direction'),
+                        self::scorecardCriterionEntry('rsi'),
+                        self::scorecardCriterionEntry('volume'),
+                        self::scorecardCriterionEntry('sector'),
+                        self::scorecardCriterionEntry('extension'),
+                    ]),
+            ]);
+    }
+
+    /**
+     * @return array<int, TextInput|Toggle>
+     */
+    private static function scoutMarktdataFields(): array
+    {
+        return [
+            TextInput::make('scout_rsi')
+                ->label('RSI 14')
+                ->numeric()
+                ->minValue(0)
+                ->maxValue(100)
+                ->helperText('Auto ingevuld bij Data ophalen — handmatig overschrijfbaar')
+                ->live(debounce: 300),
+            TextInput::make('sma_20_five_days_ago')
+                ->label('SMA 20 (5 dagen geleden)')
+                ->numeric()
+                ->prefix('$')
+                ->live(debounce: 300),
+            TextInput::make('latest_sma_50')
+                ->label('SMA 50')
+                ->numeric()
+                ->prefix('$')
+                ->live(debounce: 300),
+            TextInput::make('latest_sma_20')
+                ->label('SMA 20')
+                ->numeric()
+                ->prefix('$')
+                ->live(onBlur: true)
+                ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncPlannedQuantityFromInvestment($set, $get, $record)),
+            Toggle::make('bounce_volume_above_average')
+                ->label('RVol bevestigd (≥ '.RelativeVolumeCalculator::rvolThreshold().')')
+                ->disabled()
+                ->dehydrated()
+                ->helperText('Automatisch bij Data ophalen op bounce-dag'),
+            TextInput::make('relative_volume')
+                ->label('Relative Volume (RVol)')
+                ->numeric()
+                ->readOnly()
+                ->dehydrated(false)
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('relative_volume') ?? $record?->relative_volume)),
+            TextInput::make('volume_sma_20')
+                ->label('Volume SMA 20')
+                ->numeric()
+                ->readOnly()
+                ->dehydrated(false)
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('volume_sma_20') ?? $record?->volume_sma_20)),
+            TextInput::make('bounce_day_volume')
+                ->label('Volume bounce-dag')
+                ->numeric()
+                ->readOnly()
+                ->dehydrated(false)
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('bounce_day_volume') ?? $record?->bounce_day_volume)),
+            TextInput::make('sector_etf_override')
+                ->label('Sector ETF override')
+                ->placeholder('Auto via Finnhub')
+                ->helperText('Laat leeg voor auto-detectie (bijv. XLF, XLK)')
+                ->maxLength(10)
+                ->live(debounce: 300),
+            TextInput::make('sector_etf')
+                ->label('Sector ETF')
+                ->readOnly()
+                ->dehydrated(false)
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('sector_etf') ?? $record?->sector_etf)),
+            TextInput::make('pre_bounce_extension_atr')
+                ->label('Pre-bounce extensie (ATR)')
+                ->numeric()
+                ->readOnly()
+                ->dehydrated(false)
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr)),
+        ];
+    }
+
+    /**
+     * @return array<int, TextInput>
+     */
+    private static function scoutSchildInputFields(): array
+    {
+        return [
+            TextInput::make('latest_open_price')
+                ->label('Open prijs')
+                ->numeric()
+                ->prefix('$')
+                ->live(),
+            TextInput::make('latest_close_price')
+                ->label('Close prijs')
+                ->numeric()
+                ->prefix('$')
+                ->live(),
+            TextInput::make('latest_atr_14')
+                ->label('ATR 14')
+                ->numeric()
+                ->prefix('$')
+                ->live(onBlur: true)
+                ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
+                    self::syncPlannedQuantityFromInvestment($set, $get, $record);
+
+                    if (blank($get('signal_high')) && blank($record?->signal_high)) {
+                        return;
+                    }
+
+                    self::syncBuyStopFromInputs($set, $get, $record);
+                }),
+        ];
     }
 
     /**
@@ -425,7 +733,7 @@ class PositionForm
             ->extraAttributes(['class' => 'vestix-schild-status-section'])
             ->visible(fn (?Position $record): bool => $record?->status === 'open')
             ->schema([
-                Grid::make(3)
+                Grid::make(1)
                     ->extraAttributes(['class' => 'vestix-schild-status-grid'])
                     ->schema(self::schildStatusFields())
                     ->columnSpanFull(),
@@ -610,35 +918,125 @@ class PositionForm
             ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
             ->compact()
             ->columns(3)
+            ->schema(self::buyStopFields());
+    }
+
+    /**
+     * @return array<int, TextInput>
+     */
+    private static function buyStopFields(): array
+    {
+        return [
+            TextInput::make('signal_low')
+                ->label('Low (Signaalkaars)')
+                ->numeric()
+                ->prefix('$')
+                ->minValue(0.01)
+                ->rules(['nullable', 'numeric', 'min:0.01'])
+                ->helperText('Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D).')
+                ->live(onBlur: true),
+            TextInput::make('signal_high')
+                ->label('High (Signaalkaars)')
+                ->numeric()
+                ->prefix('$')
+                ->minValue(0.01)
+                ->rules(['nullable', 'numeric', 'min:0.01'])
+                ->helperText('Optioneel tot bounce-dag. Hoogste punt van de bounce-dagkaars (TradingView, 1D).')
+                ->live(onBlur: true)
+                ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record))
+                ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record)),
+            TextInput::make('advised_entry')
+                ->label('Geadviseerde Buy-Stop')
+                ->prefix('$')
+                ->readOnly()
+                ->dehydrated(false)
+                ->placeholder(fn (Get $get, ?Position $record): string => blank($get('signal_high') ?? $record?->signal_high)
+                    ? 'Vul High in om Buy-Stop te berekenen'
+                    : '')
+                ->extraInputAttributes(['style' => 'font-weight: bold; color: #10b981;']),
+        ];
+    }
+
+    /**
+     * @param  callable(?Position, string): bool  $isScoutForm
+     */
+    private static function trampolineValidationSection(callable $isScoutForm): Section
+    {
+        return Section::make('Wiskundige Validatie')
+            ->description('Voldoet deze setup aan de keiharde eisen van de Trampoline Bounce strategie?')
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
+            ->compact()
             ->schema([
-                TextInput::make('signal_low')
-                    ->label('Low (Signaalkaars)')
-                    ->numeric()
-                    ->prefix('$')
-                    ->minValue(0.01)
-                    ->rules(['nullable', 'numeric', 'min:0.01'])
-                    ->helperText('Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D).')
-                    ->live(onBlur: true),
-                TextInput::make('signal_high')
-                    ->label('High (Signaalkaars)')
-                    ->numeric()
-                    ->prefix('$')
-                    ->minValue(0.01)
-                    ->rules(['nullable', 'numeric', 'min:0.01'])
-                    ->helperText('Optioneel tot bounce-dag. Hoogste punt van de bounce-dagkaars (TradingView, 1D).')
-                    ->live(onBlur: true)
-                    ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record))
-                    ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record)),
-                TextInput::make('advised_entry')
-                    ->label('Geadviseerde Buy-Stop')
-                    ->prefix('$')
-                    ->readOnly()
-                    ->dehydrated(false)
-                    ->placeholder(fn (Get $get, ?Position $record): string => blank($get('signal_high') ?? $record?->signal_high)
-                        ? 'Vul High in om Buy-Stop te berekenen'
-                        : '')
-                    ->extraInputAttributes(['style' => 'font-weight: bold; color: #10b981;']),
+                View::make('filament.positions.trampoline-validation-matrix')
+                    ->viewData(function (Get $get, ?Position $record): array {
+                        return self::validationMatrixData($get, $record);
+                    })
+                    ->columnSpanFull(),
             ]);
+    }
+
+    /**
+     * @return array{
+     *     volume: array{label: string, tone: string},
+     *     sector: array{label: string, tone: string},
+     *     extension: array{label: string, tone: string},
+     * }
+     */
+    private static function validationMatrixData(Get $get, ?Position $record): array
+    {
+        $rvol = $get('relative_volume') ?? $record?->relative_volume;
+        $rvolThreshold = RelativeVolumeCalculator::rvolThreshold();
+        $rvolFloat = $rvol !== null && $rvol !== '' ? (float) $rvol : null;
+
+        $volumeLabel = $rvolFloat === null
+            ? 'RVol: — (wacht op data)'
+            : sprintf('RVol: %.2f (%s)', $rvolFloat, match (true) {
+                $rvolFloat >= $rvolThreshold => 'Geldstroom actief',
+                $rvolFloat < 1.0 => 'Zwak',
+                default => 'Matig',
+            });
+
+        $volumeTone = match (true) {
+            $rvolFloat === null => 'muted',
+            $rvolFloat >= $rvolThreshold => 'success',
+            $rvolFloat < 1.0 => 'muted',
+            default => 'warning',
+        };
+
+        $etf = strtoupper((string) ($get('sector_etf') ?? $record?->sector_etf ?? ''));
+        $sectorPositive = (bool) ($get('sector_trend_positive') ?? $record?->sector_trend_positive);
+
+        $sectorLabel = $etf === ''
+            ? 'Sector: — (wacht op data)'
+            : ($sectorPositive
+                ? "Sector ({$etf}): Trend Positief"
+                : "Sector ({$etf}): Tegenwind");
+
+        $sectorTone = $etf === '' ? 'muted' : ($sectorPositive ? 'success' : 'danger');
+
+        $extension = $get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr;
+        $extensionThreshold = PreBounceExtensionCalculator::extensionThreshold();
+        $extensionFloat = $extension !== null && $extension !== '' ? (float) $extension : null;
+
+        $extensionLabel = $extensionFloat === null
+            ? 'Pre-bounce extensie: — (wacht op data)'
+            : sprintf(
+                'Pre-bounce extensie: +%.1f ATR (%s)',
+                $extensionFloat,
+                $extensionFloat >= $extensionThreshold ? 'Hoge spanning' : 'Lage spanning',
+            );
+
+        $extensionTone = match (true) {
+            $extensionFloat === null => 'muted',
+            $extensionFloat >= $extensionThreshold => 'success',
+            default => 'danger',
+        };
+
+        return [
+            'volume' => ['label' => $volumeLabel, 'tone' => $volumeTone],
+            'sector' => ['label' => $sectorLabel, 'tone' => $sectorTone],
+            'extension' => ['label' => $extensionLabel, 'tone' => $extensionTone],
+        ];
     }
 
     private static function tickerField(): Select
@@ -858,89 +1256,6 @@ class PositionForm
     }
 
     /**
-     * @param  callable(?Position, string): bool  $isScoutForm
-     */
-    private static function scoutScorecardSection(callable $isScoutForm): Grid
-    {
-        return Grid::make(12)
-            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
-            ->columnSpanFull()
-            ->schema([
-                Section::make('Marktdata & Indicatoren')
-                    ->description(fn (string $operation): string => $operation === 'create'
-                        ? 'Vul handmatig in — na opslaan kun je rechtsboven "Data ophalen" gebruiken'
-                        : 'Klik "Data ophalen" rechtsboven, of vul handmatig in')
-                    ->columnSpan(['default' => 12, 'lg' => 4])
-                    ->schema([
-                        TextInput::make('scout_rsi')
-                            ->label('RSI 14')
-                            ->numeric()
-                            ->minValue(0)
-                            ->maxValue(100)
-                            ->helperText('Auto ingevuld bij Data ophalen — handmatig overschrijfbaar')
-                            ->live(debounce: 300),
-                        TextInput::make('sma_20_five_days_ago')
-                            ->label('SMA 20 (5 dagen geleden)')
-                            ->numeric()
-                            ->prefix('$')
-                            // ->helperText('Nodig voor SMA trend — uit TradingView of handmatig')
-                            ->live(debounce: 300),
-                        TextInput::make('latest_sma_50')
-                            ->label('SMA 50')
-                            ->numeric()
-                            ->prefix('$')
-                            // ->helperText('Nodig voor SMA trend — uit TradingView of handmatig')
-                            ->live(debounce: 300),
-                        Toggle::make('bounce_volume_above_average')
-                            ->label('Volume op bounce-dag hoger dan 30-daags gemiddelde')
-                            ->disabled()
-                            ->dehydrated()
-                            ->helperText('Automatisch bij Data ophalen (op bounce-dag)'),
-                        TextInput::make('bounce_day_volume')
-                            ->label('Volume bounce-dag')
-                            ->numeric()
-                            ->readOnly()
-                            ->dehydrated(false)
-                            ->visible(fn (Get $get, ?Position $record): bool => filled($get('bounce_day_volume') ?? $record?->bounce_day_volume)),
-                        TextInput::make('avg_volume_30d')
-                            ->label('Gem. volume (30D)')
-                            ->numeric()
-                            ->readOnly()
-                            ->dehydrated(false)
-                            ->visible(fn (Get $get, ?Position $record): bool => filled($get('avg_volume_30d') ?? $record?->avg_volume_30d)),
-                    ]),
-                Section::make('Sniper Scorecard')
-                    ->description('Objectieve setup-beoordeling (max 7 punten)')
-                    ->icon('heroicon-m-viewfinder-circle')
-                    ->columnSpan(['default' => 12, 'lg' => 8])
-                    ->schema([
-                        View::make('filament.positions.scout-scorecard-hud')
-                            ->viewData(function (Get $get, ?Position $record): array {
-                                $score = self::resolveScorecard($get, $record);
-
-                                return [
-                                    'score' => $score,
-                                    'scoreColor' => self::scorecardGradeColor($score['grade']),
-                                    'cardVariant' => self::scorecardCardVariant($score),
-                                ];
-                            }),
-                        Callout::make('Setup geblokkeerd')
-                            ->visible(fn (Get $get, ?Position $record): bool => self::resolveScorecard($get, $record)['hardFailReasons'] !== [])
-                            ->description(fn (Get $get, ?Position $record): string => implode("\n", self::resolveScorecard($get, $record)['hardFailReasons']))
-                            ->danger()
-                            ->icon('heroicon-o-exclamation-triangle'),
-                        Grid::make(2)
-                            ->schema([
-                                self::scorecardCriterionEntry('trampoline'),
-                                self::scorecardCriterionEntry('sma_direction'),
-                                self::scorecardCriterionEntry('rsi'),
-                                self::scorecardCriterionEntry('volume'),
-                            ]),
-                    ]),
-            ]);
-    }
-
-    /**
      * @return array{
      *     totalPoints: int,
      *     maxPoints: int,
@@ -965,9 +1280,10 @@ class PositionForm
     private static function scorecardGradeColor(string $grade): string
     {
         return match ($grade) {
-            'A+' => 'success',
-            'A-' => 'warning',
-            default => 'gray',
+            'A++' => 'success',
+            'A' => 'success',
+            'B' => 'warning',
+            default => 'danger',
         };
     }
 
@@ -981,9 +1297,10 @@ class PositionForm
         }
 
         return match ($score['grade']) {
-            'A+' => 'vestix',
-            'A-' => 'amber',
-            default => 'zinc',
+            'A++' => 'vestix',
+            'A' => 'amber',
+            'B' => 'zinc',
+            default => 'rose',
         };
     }
 
@@ -1872,6 +2189,10 @@ class PositionForm
             'latest_sma_50' => $get('latest_sma_50') ?? $record?->latest_sma_50,
             'scout_rsi' => $get('scout_rsi') ?? $record?->scout_rsi,
             'bounce_volume_above_average' => (bool) ($get('bounce_volume_above_average') ?? $record?->bounce_volume_above_average),
+            'relative_volume' => $get('relative_volume') ?? $record?->relative_volume,
+            'sector_etf' => $get('sector_etf') ?? $record?->sector_etf,
+            'sector_trend_positive' => (bool) ($get('sector_trend_positive') ?? $record?->sector_trend_positive),
+            'pre_bounce_extension_atr' => $get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr,
         ];
     }
 }

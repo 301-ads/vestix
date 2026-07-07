@@ -322,7 +322,8 @@ class PositionResourceTest extends TestCase
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertOk()
-            ->assertSee('Trade Journal')
+            ->assertSee('Trade Journal & Notities')
+            ->assertSee('Schild status')
             ->assertSee('TradingView — entry')
             ->assertFormSet([
                 'trade_journal' => 'Gekocht op bounce van 200 EMA.',
@@ -553,7 +554,7 @@ class PositionResourceTest extends TestCase
         ]);
 
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
-            ->assertSee('Executie & Valstrik')
+            ->assertSee('Setup & Valstrik')
             ->assertSee('Geadviseerde Buy-Stop')
             ->fillForm([
                 'signal_low' => 66.50,
@@ -623,8 +624,7 @@ class PositionResourceTest extends TestCase
         $user = $this->authenticateFilament();
 
         Livewire::test(CreateScout::class)
-            ->assertSee('Setup')
-            ->assertSee('Executie & Valstrik')
+            ->assertSee('Setup & Valstrik')
             ->assertSee('High (Signaalkaars)')
             ->assertSee('Low (Signaalkaars)')
             ->assertSee('Optioneel tot bounce-dag')

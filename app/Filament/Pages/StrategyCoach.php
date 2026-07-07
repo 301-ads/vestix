@@ -4,7 +4,6 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\EquityCurveChart;
 use App\Filament\Widgets\StrategyCoachStatsWidget;
-use App\Filament\Widgets\TagPerformanceChart;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
@@ -14,9 +13,9 @@ class StrategyCoach extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAcademicCap;
 
-    protected static ?string $navigationLabel = 'Strategy Coach';
+    protected static ?string $navigationLabel = 'Trampoline Coach';
 
-    protected static ?string $title = 'Strategy Coach';
+    protected static ?string $title = 'Trampoline Coach';
 
     protected static ?string $slug = 'strategy-coach';
 
@@ -35,7 +34,6 @@ class StrategyCoach extends Page
         return [
             StrategyCoachStatsWidget::class,
             EquityCurveChart::class,
-            TagPerformanceChart::class,
         ];
     }
 

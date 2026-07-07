@@ -14,6 +14,7 @@ use App\Support\FilamentNotifier;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
 use App\Support\PositionSizing;
+use App\Support\ScoutSetupScorecard;
 use App\Support\ShareCardDataFactory;
 use App\Support\StopLossProtocol;
 use Filament\Actions\Action;
@@ -293,12 +294,16 @@ class PositionRecordActions
     {
         return Action::make('share_setup')
             ->label('Deel setup')
-            ->tooltip('Genereer een branded share-card voor je A+ setup (7/7)')
+            ->tooltip(sprintf('Genereer een branded share-card voor je A++ setup (%d/%d)', ScoutSetupScorecard::maxPoints(), ScoutSetupScorecard::maxPoints()))
             ->icon('heroicon-o-share')
             ->color('info')
             ->visible(fn (Position $record): bool => self::canShareScout($record))
-            ->modalHeading('Deel je A+ setup')
-            ->modalDescription('Privacy-safe kaart: ticker, setup-score 7/7, Close/SMA/RSI en geplande entry/SL per aandeel.')
+            ->modalHeading('Deel je A++ setup')
+            ->modalDescription(sprintf(
+                'Privacy-safe kaart: ticker, setup-score %d/%d, Close/SMA/RSI en geplande entry/SL per aandeel.',
+                ScoutSetupScorecard::maxPoints(),
+                ScoutSetupScorecard::maxPoints(),
+            ))
             ->modalSubmitAction(false)
             ->modalCancelActionLabel('Sluiten')
             ->modalContent(fn (Position $record): HtmlString => new HtmlString(
@@ -317,7 +322,7 @@ class PositionRecordActions
 
         $score = $record->evaluateSetupScore();
 
-        return $score['grade'] === 'A+' && $score['totalPoints'] === 7;
+        return $score['grade'] === 'A++' && $score['totalPoints'] === ScoutSetupScorecard::maxPoints();
     }
 
     public static function canSharePosition(Position $record): bool
@@ -486,7 +491,7 @@ class PositionRecordActions
         ) {
             $score = $record->evaluateSetupScore();
 
-            if ($score['hardFailReasons'] === [] && $score['grade'] === 'A+') {
+            if ($score['hardFailReasons'] === [] && $score['grade'] === 'A++') {
                 $classes[] = 'scout-activate-a-plus';
             }
         }

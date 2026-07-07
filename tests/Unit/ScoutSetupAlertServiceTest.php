@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Position;
 use App\Models\User;
 use App\Support\ScoutSetupAlertService;
+use App\Support\ScoutSetupScorecard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -20,17 +21,23 @@ class ScoutSetupAlertServiceTest extends TestCase
         config(['vestix.telegram.bot_token' => 'test-token']);
     }
 
-    public function test_sends_a_minus_alert_on_transition_to_six(): void
+    public function test_sends_a_alert_on_transition_to_eight(): void
     {
         $user = User::factory()->create(['telegram_chat_id' => '12345']);
         $position = Position::factory()->for($user)->scout()->create([
             'ticker' => 'APTV',
-            'last_setup_score' => 5,
+            'last_setup_score' => 7,
+            'latest_open_price' => 100.00,
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
             'latest_sma_50' => 95.00,
             'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.50,
         ]);
 
         Http::fake([
@@ -38,9 +45,9 @@ class ScoutSetupAlertServiceTest extends TestCase
         ]);
 
         $scorecard = $position->evaluateSetupScore();
-        $this->assertEquals(6, $scorecard['totalPoints']);
+        $this->assertEquals(8, $scorecard['totalPoints']);
 
-        $sent = app(ScoutSetupAlertService::class)->evaluateAndNotify($position, 5, $scorecard);
+        $sent = app(ScoutSetupAlertService::class)->evaluateAndNotify($position, 7, $scorecard);
 
         $this->assertSame(1, $sent);
         $position->refresh();
@@ -51,23 +58,28 @@ class ScoutSetupAlertServiceTest extends TestCase
             $text = $request->data()['text'] ?? '';
 
             return str_contains($request->url(), 'api.telegram.org')
-                && str_contains($text, 'A- Setup (6/7)')
+                && str_contains($text, 'A SETUP (8/'.ScoutSetupScorecard::maxPoints().')')
                 && ! str_contains($text, 'Buy-Stop: $');
         });
     }
 
-    public function test_sends_a_plus_alert_on_transition_to_seven(): void
+    public function test_sends_a_plus_plus_alert_on_transition_to_ten(): void
     {
         $user = User::factory()->create(['telegram_chat_id' => '12345']);
         $position = Position::factory()->for($user)->scout()->create([
             'ticker' => 'APTV',
-            'last_setup_score' => 6,
+            'last_setup_score' => 9,
+            'latest_open_price' => 100.00,
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
             'latest_sma_50' => 95.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
             'telegram_a_minus_alert_sent_at' => now()->subHour(),
         ]);
 
@@ -76,22 +88,22 @@ class ScoutSetupAlertServiceTest extends TestCase
         ]);
 
         $scorecard = $position->evaluateSetupScore();
-        $this->assertEquals(7, $scorecard['totalPoints']);
+        $this->assertEquals(10, $scorecard['totalPoints']);
 
-        $sent = app(ScoutSetupAlertService::class)->evaluateAndNotify($position, 6, $scorecard);
+        $sent = app(ScoutSetupAlertService::class)->evaluateAndNotify($position, 9, $scorecard);
 
         $this->assertSame(1, $sent);
         $position->refresh();
         $this->assertNotNull($position->telegram_a_plus_alert_sent_at);
     }
 
-    public function test_stays_silent_on_transition_from_four_to_five(): void
+    public function test_stays_silent_on_transition_from_six_to_seven(): void
     {
         $user = User::factory()->create(['telegram_chat_id' => '12345']);
         $position = Position::factory()->for($user)->scout()->create([
             'ticker' => 'APTV',
-            'last_setup_score' => 4,
-            'latest_close_price' => 102.50,
+            'last_setup_score' => 5,
+            'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
             'latest_sma_50' => 95.00,
@@ -101,9 +113,9 @@ class ScoutSetupAlertServiceTest extends TestCase
         Http::fake();
 
         $scorecard = $position->evaluateSetupScore();
-        $this->assertEquals(5, $scorecard['totalPoints']);
+        $this->assertEquals(6, $scorecard['totalPoints']);
 
-        $sent = app(ScoutSetupAlertService::class)->evaluateAndNotify($position, 4, $scorecard);
+        $sent = app(ScoutSetupAlertService::class)->evaluateAndNotify($position, 5, $scorecard);
 
         $this->assertSame(0, $sent);
         Http::assertNothingSent();

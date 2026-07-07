@@ -144,6 +144,25 @@ class FinnhubService
     }
 
     /**
+     * @return array{gsector: string|null, name: string|null}|null
+     */
+    public function fetchCompanyProfile(string $ticker): ?array
+    {
+        $data = $this->request('/stock/profile2', [
+            'symbol' => strtoupper(trim($ticker)),
+        ]);
+
+        if ($data === null) {
+            return null;
+        }
+
+        return [
+            'gsector' => isset($data['gsector']) && is_string($data['gsector']) ? $data['gsector'] : null,
+            'name' => isset($data['name']) && is_string($data['name']) ? $data['name'] : null,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     private function request(string $path, array $params): ?array

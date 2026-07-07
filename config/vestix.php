@@ -47,6 +47,27 @@ return [
         'min_closed_trades' => (int) env('STRATEGY_COACH_MIN_TRADES', 20),
     ],
 
+    // De Vestix Finnhub -> SPDR ETF Mapping
+    'sector_mapping' => [
+        'Technology' => 'XLK',
+        'Financials' => 'XLF',
+        'Healthcare' => 'XLV',
+        'Consumer Discretionary' => 'XLY',
+        'Consumer Staples' => 'XLP',
+        'Energy' => 'XLE',
+        'Industrials' => 'XLI',
+        'Materials' => 'XLB',
+        'Real Estate' => 'XLRE',
+        'Communication Services' => 'XLC',
+        'Utilities' => 'XLU',
+    ],
+
+    'sniper_scorecard' => [
+        'rvol_threshold' => (float) env('SNIPER_RVOL_THRESHOLD', 1.2),
+        'extension_atr_threshold' => (float) env('SNIPER_EXTENSION_ATR_THRESHOLD', 2.0),
+        'max_points' => 10,
+    ],
+
     'premarket' => [
         'gatekeeper_time' => env('PREMARKET_GATEKEEPER_TIME', '14:30'),
         'gatekeeper_window_start' => env('PREMARKET_GATEKEEPER_WINDOW_START', '14:25'),

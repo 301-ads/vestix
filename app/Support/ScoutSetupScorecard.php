@@ -4,6 +4,11 @@ namespace App\Support;
 
 class ScoutSetupScorecard
 {
+    public static function maxPoints(): int
+    {
+        return (int) config('vestix.sniper_scorecard.max_points', 10);
+    }
+
     /**
      * @param  array{
      *     signal_low?: float|null,
@@ -14,6 +19,10 @@ class ScoutSetupScorecard
      *     latest_sma_50?: float|null,
      *     scout_rsi?: float|null,
      *     bounce_volume_above_average?: bool|null,
+     *     relative_volume?: float|null,
+     *     sector_etf?: string|null,
+     *     sector_trend_positive?: bool|null,
+     *     pre_bounce_extension_atr?: float|null,
      * }  $inputs
      * @return array{
      *     totalPoints: int,
@@ -38,6 +47,8 @@ class ScoutSetupScorecard
             self::scoreSmaDirection($inputs),
             self::scoreRsi($inputs),
             self::scoreVolume($inputs),
+            self::scoreSector($inputs),
+            self::scoreExtension($inputs),
         ];
 
         $totalPoints = array_sum(array_column($criteria, 'points'));
@@ -155,7 +166,7 @@ class ScoutSetupScorecard
             return self::criterion('rsi', 'RSI sweet spot', 0, 2, 'fail', sprintf('RSI %.1f — oververhit (>70)', $rsi));
         }
 
-        if ($rsi >= 45 && $rsi <= 55) {
+        if ($rsi >= 40 && $rsi <= 55) {
             return self::criterion('rsi', 'RSI sweet spot', 2, 2, 'pass', sprintf('RSI %.1f — ultieme cooldown zone', $rsi));
         }
 
@@ -172,24 +183,114 @@ class ScoutSetupScorecard
      */
     private static function scoreVolume(array $inputs): array
     {
+        $rvol = self::toFloat($inputs['relative_volume'] ?? null);
         $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
 
-        if (! $confirmed) {
-            return self::criterion('volume', 'Volume bevestiging', 0, 1, 'fail', 'Nog niet bevestigd');
+        if ($rvol === null && ! $confirmed) {
+            return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Nog niet bevestigd');
         }
 
         $open = self::resolveOpenPrice($inputs);
         $close = self::resolveClosePrice($inputs);
 
         if ($open === null || $close === null) {
-            return self::criterion('volume', 'Volume bevestiging', 0, 1, 'fail', 'Open/slotkoers ontbreekt voor volume-check');
+            return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Open/slotkoers ontbreekt voor volume-check');
         }
 
         if ($close < $open) {
-            return self::criterion('volume', 'Volume bevestiging', 0, 1, 'fail', 'Vallend mes: hoog volume maar slotkoers onder openingskoers');
+            return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Vallend mes: hoog volume maar slotkoers onder openingskoers');
         }
 
-        return self::criterion('volume', 'Volume bevestiging', 1, 1, 'pass', 'Echte bounce: hoog volume en koers gesloten in het groen');
+        $threshold = RelativeVolumeCalculator::rvolThreshold();
+        $effectiveRvol = $rvol ?? ($confirmed ? $threshold : 0);
+
+        if ($effectiveRvol < $threshold) {
+            return self::criterion(
+                'volume',
+                'Volume-overtuiging',
+                0,
+                1,
+                'fail',
+                sprintf('RVol %.2f — onder drempel (%.1f)', $effectiveRvol, $threshold),
+            );
+        }
+
+        return self::criterion(
+            'volume',
+            'Volume-overtuiging',
+            1,
+            1,
+            'pass',
+            sprintf('RVol %.2f — institutionele buy-in bevestigd', $effectiveRvol),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
+    private static function scoreSector(array $inputs): array
+    {
+        $etf = $inputs['sector_etf'] ?? null;
+        $trendPositive = (bool) ($inputs['sector_trend_positive'] ?? false);
+
+        if (! is_string($etf) || trim($etf) === '') {
+            return self::criterion('sector', 'Sector-synchronisatie', 0, 2, 'fail', 'Sector ETF ontbreekt — haal marktdata op');
+        }
+
+        if ($trendPositive) {
+            return self::criterion(
+                'sector',
+                'Sector-synchronisatie',
+                2,
+                2,
+                'pass',
+                sprintf('Sector Windkracht: Mee (%s > SMA 50)', strtoupper($etf)),
+            );
+        }
+
+        return self::criterion(
+            'sector',
+            'Sector-synchronisatie',
+            0,
+            2,
+            'fail',
+            sprintf('Tegenwind (%s < SMA 50)', strtoupper($etf)),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
+    private static function scoreExtension(array $inputs): array
+    {
+        $extension = self::toFloat($inputs['pre_bounce_extension_atr'] ?? null);
+        $threshold = PreBounceExtensionCalculator::extensionThreshold();
+
+        if ($extension === null) {
+            return self::criterion('extension', 'Elastiek-extensie', 0, 1, 'fail', 'Data ontbreekt');
+        }
+
+        if ($extension >= $threshold) {
+            return self::criterion(
+                'extension',
+                'Elastiek-extensie',
+                1,
+                1,
+                'pass',
+                sprintf('Rekkracht: +%.1f ATR — hoge veer-potentie', $extension),
+            );
+        }
+
+        return self::criterion(
+            'extension',
+            'Elastiek-extensie',
+            0,
+            1,
+            'fail',
+            sprintf('Rekkracht: +%.1f ATR — onvoldoende spanning (min %.1f)', $extension, $threshold),
+        );
     }
 
     /**
@@ -214,9 +315,11 @@ class ScoutSetupScorecard
             $reasons[] = 'Close onder SMA 20 — trampoline gebroken';
         }
 
+        $rvol = self::toFloat($inputs['relative_volume'] ?? null);
         $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
+        $hasHighVolume = $confirmed || ($rvol !== null && $rvol >= RelativeVolumeCalculator::rvolThreshold());
 
-        if ($confirmed && $open !== null && $close !== null && $close < $open) {
+        if ($hasHighVolume && $open !== null && $close !== null && $close < $open) {
             $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
         }
 
@@ -255,19 +358,22 @@ class ScoutSetupScorecard
 
     /**
      * SQL rank for setup grade sorting:
-     * 1 = A+, 2 = A-, 3 = B/C (zwakke score), 4 = B/C (hard fail), 5 = incomplete data.
+     * 1 = A++, 2 = A, 3 = B, 4 = NO TRADE (hard fail), 5 = incomplete data.
      */
     public static function setupGradeSortRankSql(): string
     {
-        return <<<'SQL'
+        $maxPoints = self::maxPoints();
+
+        return <<<SQL
 CASE
     WHEN (signal_low IS NULL AND latest_close_price IS NULL) OR latest_sma_20 IS NULL OR scout_rsi IS NULL THEN 5
     WHEN scout_rsi > 70 THEN 4
     WHEN latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL AND latest_close_price < latest_sma_20 THEN 4
     WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price THEN 4
-    WHEN last_setup_score = 7 THEN 1
-    WHEN last_setup_score >= 5 THEN 2
-    ELSE 3
+    WHEN last_setup_score = {$maxPoints} THEN 1
+    WHEN last_setup_score >= 8 THEN 2
+    WHEN last_setup_score = 7 THEN 3
+    ELSE 4
 END
 SQL;
     }
@@ -279,18 +385,22 @@ SQL;
     private static function resolveGrade(int $totalPoints, array $hardFailReasons): array
     {
         if ($hardFailReasons !== []) {
-            return ['B/C', 'B/C Setup'];
+            return ['NO TRADE', 'NO TRADE'];
+        }
+
+        if ($totalPoints === self::maxPoints()) {
+            return ['A++', 'A++ SETUP'];
+        }
+
+        if ($totalPoints >= 8) {
+            return ['A', 'A SETUP'];
         }
 
         if ($totalPoints === 7) {
-            return ['A+', 'A+ SETUP'];
+            return ['B', 'B SETUP'];
         }
 
-        if ($totalPoints >= 5) {
-            return ['A-', 'A- Setup'];
-        }
-
-        return ['B/C', 'B/C Setup'];
+        return ['NO TRADE', 'NO TRADE'];
     }
 
     /**

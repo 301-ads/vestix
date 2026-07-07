@@ -47,6 +47,13 @@ trait PollsPositionMarketData
             'bounce_volume_above_average',
             'bounce_day_volume',
             'avg_volume_30d',
+            'relative_volume',
+            'volume_sma_20',
+            'sector_etf',
+            'sector_close',
+            'sector_sma_50',
+            'sector_trend_positive',
+            'pre_bounce_extension_atr',
             'asset_earnings_date_override',
             'asset_earnings_hour_override',
         ]);

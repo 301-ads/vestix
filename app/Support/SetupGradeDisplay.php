@@ -40,8 +40,9 @@ class SetupGradeDisplay
         }
 
         return match ($score['grade']) {
-            'A+' => 'success',
-            'A-' => 'warning',
+            'A++' => 'success',
+            'A' => 'success',
+            'B' => 'warning',
             default => 'gray',
         };
     }

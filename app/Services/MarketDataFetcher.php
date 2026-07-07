@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\DailyBarProvider;
 use App\Models\Position;
+use App\Support\TrampolineDepthMetrics;
 use Illuminate\Support\Facades\Cache;
 
 class MarketDataFetcher
@@ -12,6 +13,7 @@ class MarketDataFetcher
         private AlphaVantageService $alphaVantage,
         private PolygonMarketDataService $polygonMarketData,
         private DailyBarProvider $dailyBars,
+        private TrampolineDepthMetrics $depthMetrics,
     ) {}
 
     /**
@@ -28,14 +30,34 @@ class MarketDataFetcher
      *     bounce_volume_above_average?: bool,
      *     bounce_day_volume?: int|null,
      *     avg_volume_30d?: int|null,
+     *     relative_volume?: float|null,
+     *     volume_sma_20?: int|null,
+     *     sector_etf?: string|null,
+     *     sector_close?: float|null,
+     *     sector_sma_50?: float|null,
+     *     sector_trend_positive?: bool,
+     *     pre_bounce_extension_atr?: float|null,
      * }|null
      */
-    public function fetchForTicker(string $ticker, bool $withDelays = true, ?bool $bounceVolumeAboveAverage = null): ?array
-    {
-        $payload = $this->polygonMarketData->fetchForTicker($ticker, $bounceVolumeAboveAverage);
+    public function fetchForTicker(
+        string $ticker,
+        bool $withDelays = true,
+        ?bool $bounceVolumeAboveAverage = null,
+        ?string $sectorEtfOverride = null,
+    ): ?array {
+        $payload = $this->polygonMarketData->fetchForTicker(
+            $ticker,
+            $bounceVolumeAboveAverage,
+            $sectorEtfOverride,
+        );
 
         if ($payload === null && config('vestix.alpha_vantage.api_key')) {
-            $payload = $this->fetchFromAlphaVantage($ticker, $withDelays, $bounceVolumeAboveAverage);
+            $payload = $this->fetchFromAlphaVantage(
+                $ticker,
+                $withDelays,
+                $bounceVolumeAboveAverage,
+                $sectorEtfOverride,
+            );
         }
 
         if ($payload !== null) {
@@ -51,6 +73,7 @@ class MarketDataFetcher
             $position->ticker,
             $withDelays,
             $position->bounce_volume_above_average,
+            $position->sector_etf_override,
         );
 
         if ($data === null) {
@@ -120,8 +143,12 @@ class MarketDataFetcher
      *     avg_volume_30d?: int|null,
      * }|null
      */
-    private function fetchFromAlphaVantage(string $ticker, bool $withDelays, ?bool $bounceVolumeAboveAverage): ?array
-    {
+    private function fetchFromAlphaVantage(
+        string $ticker,
+        bool $withDelays,
+        ?bool $bounceVolumeAboveAverage,
+        ?string $sectorEtfOverride,
+    ): ?array {
         $delay = config('vestix.alpha_vantage.intra_request_delay', 2);
 
         $globalQuote = $this->alphaVantage->fetchGlobalQuote($ticker);
@@ -181,7 +208,14 @@ class MarketDataFetcher
             'prior_day_low' => $priorDayLow,
         ];
 
-        $volumeData = $this->resolveVolumeData($ticker, $sma, $bounceVolumeAboveAverage);
+        $volumeData = $this->resolveDepthMetrics(
+            $ticker,
+            $bars,
+            (float) $sma,
+            (float) $atr,
+            $bounceVolumeAboveAverage,
+            $sectorEtfOverride,
+        );
 
         if ($volumeData !== null) {
             $payload = array_merge($payload, $volumeData);
@@ -191,39 +225,33 @@ class MarketDataFetcher
     }
 
     /**
-     * @return array{
-     *     bounce_volume_above_average: bool,
-     *     bounce_day_volume: int|null,
-     *     avg_volume_30d: int|null,
-     * }|null
+     * @param  array{
+     *     today: array{open: float, high: float, low: float, close: float, volume: float},
+     *     adv30: float,
+     *     bars: array<int, array{open: float, high: float, low: float, close: float, volume: float, date: string}>,
+     * }|null  $bars
+     * @return array<string, mixed>|null
      */
-    private function resolveVolumeData(string $ticker, float $sma20, ?bool $existingVolumeConfirmed): ?array
-    {
-        $bars = $this->dailyBars->fetchRecentBars($ticker);
-
+    private function resolveDepthMetrics(
+        string $ticker,
+        ?array $bars,
+        float $sma20,
+        float $atr,
+        ?bool $existingVolumeConfirmed,
+        ?string $sectorEtfOverride,
+    ): ?array {
         if ($bars === null) {
             return null;
         }
 
-        $today = $bars['today'];
-        $isBounceDay = PolygonDailyBarService::isBounceDay($today['low'], $today['close'], $sma20);
-
-        $bounceVolumeAboveAverage = $existingVolumeConfirmed ?? false;
-
-        if ($isBounceDay) {
-            $bounceVolumeAboveAverage = $today['volume'] > $bars['adv30'];
-        }
-
-        $payload = [
-            'bounce_volume_above_average' => $bounceVolumeAboveAverage,
-            'avg_volume_30d' => (int) round($bars['adv30']),
-        ];
-
-        if ($isBounceDay) {
-            $payload['bounce_day_volume'] = (int) round($today['volume']);
-        }
-
-        return $payload;
+        return $this->depthMetrics->resolve(
+            $ticker,
+            $bars,
+            $sma20,
+            $atr,
+            $existingVolumeConfirmed,
+            $sectorEtfOverride,
+        );
     }
 
     public function touchApiFetchTimestamp(): void
