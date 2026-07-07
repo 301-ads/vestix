@@ -191,7 +191,8 @@ class PositionForm
                     ->schema([
                         self::tickerField(),
                         self::plannedInvestmentField($isScoutForm),
-                        TextInput::make('quantity')
+                        self::scoutAutoComputedTextInput(
+                            TextInput::make('quantity')
                             ->label('Gepland aantal')
                             ->numeric()
                             ->inputMode('decimal')
@@ -207,6 +208,7 @@ class PositionForm
                                 self::syncTotalInvestmentField($set, $get, $record);
                                 self::hydratePlannedInvestmentField($set, $get, $record);
                             }),
+                        ),
                     ]),
                 Grid::make(2)
                     ->schema([
@@ -345,46 +347,68 @@ class PositionForm
                 ->label('RVol bevestigd (≥ '.RelativeVolumeCalculator::formatThresholdPercent().')')
                 ->disabled()
                 ->dehydrated()
-                ->helperText('Automatisch bij Data ophalen op bounce-dag'),
+                ->helperText('Automatisch bij Data ophalen op bounce-dag')
+                ->extraFieldWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes()),
             Placeholder::make('relative_volume_display')
                 ->label('Relative Volume (RVol)')
                 ->content(fn (Get $get, ?Position $record): string => RelativeVolumeCalculator::formatPercent(
                     $get('relative_volume') ?? $record?->relative_volume,
                 ) ?? '—')
-                ->visible(fn (Get $get, ?Position $record): bool => filled($get('relative_volume') ?? $record?->relative_volume)),
-            TextInput::make('volume_sma_20')
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('relative_volume') ?? $record?->relative_volume))
+                ->extraEntryWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes()),
+            Placeholder::make('volume_sma_20_display')
                 ->label('Volume SMA 20')
-                ->numeric()
-                ->readOnly()
-                ->dehydrated(false)
-                ->visible(fn (Get $get, ?Position $record): bool => filled($get('volume_sma_20') ?? $record?->volume_sma_20)),
-            TextInput::make('bounce_day_volume')
+                ->content(fn (Get $get, ?Position $record): string => number_format(
+                    (int) ($get('volume_sma_20') ?? $record?->volume_sma_20 ?? 0),
+                    0,
+                    ',',
+                    '.',
+                ))
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('volume_sma_20') ?? $record?->volume_sma_20))
+                ->extraEntryWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes()),
+            Placeholder::make('bounce_day_volume_display')
                 ->label('Volume bounce-dag')
-                ->numeric()
-                ->readOnly()
-                ->dehydrated(false)
-                ->visible(fn (Get $get, ?Position $record): bool => filled($get('bounce_day_volume') ?? $record?->bounce_day_volume)),
-        Select::make('sector_etf_override')
-            ->label('Sector ETF')
-            ->options(fn (): array => self::sectorEtfOverrideSelectOptions())
-            ->nullable()
-            ->placeholder('Auto via Finnhub')
-            ->native(false)
-            ->searchable()
-            ->helperText('Laat leeg voor auto-detectie via Finnhub, of kies handmatig een sector-ETF')
-            ->live(debounce: 300),
-            TextInput::make('sector_etf')
+                ->content(fn (Get $get, ?Position $record): string => number_format(
+                    (int) ($get('bounce_day_volume') ?? $record?->bounce_day_volume ?? 0),
+                    0,
+                    ',',
+                    '.',
+                ))
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('bounce_day_volume') ?? $record?->bounce_day_volume))
+                ->extraEntryWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes()),
+            Select::make('sector_etf_override')
                 ->label('Sector ETF')
-                ->readOnly()
-                ->dehydrated(false)
-                ->visible(fn (Get $get, ?Position $record): bool => filled($get('sector_etf') ?? $record?->sector_etf)),
-            TextInput::make('pre_bounce_extension_atr')
+                ->options(fn (): array => self::sectorEtfOverrideSelectOptions())
+                ->nullable()
+                ->placeholder('Auto via Finnhub')
+                ->native(false)
+                ->searchable()
+                ->helperText('Laat leeg voor auto-detectie via Finnhub, of kies handmatig een sector-ETF')
+                ->live(debounce: 300),
+            Placeholder::make('sector_etf_display')
+                ->label('Sector ETF (gedetecteerd)')
+                ->content(fn (Get $get, ?Position $record): string => strtoupper((string) ($get('sector_etf') ?? $record?->sector_etf ?? '')))
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('sector_etf') ?? $record?->sector_etf))
+                ->extraEntryWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes()),
+            Placeholder::make('pre_bounce_extension_display')
                 ->label('Pre-bounce extensie (ATR)')
-                ->numeric()
-                ->readOnly()
-                ->dehydrated(false)
-                ->visible(fn (Get $get, ?Position $record): bool => filled($get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr)),
+                ->content(fn (Get $get, ?Position $record): string => number_format(
+                    (float) ($get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr ?? 0),
+                    2,
+                    ',',
+                    '.',
+                ))
+                ->visible(fn (Get $get, ?Position $record): bool => filled($get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr))
+                ->extraEntryWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes()),
         ];
+    }
+
+    /**
+     * @return array{class: string}
+     */
+    private static function scoutTelemetryReadonlyWrapperAttributes(): array
+    {
+        return ['class' => 'scout-telemetry-readonly'];
     }
 
     /**
@@ -588,6 +612,12 @@ class PositionForm
                             ->step('any')
                             ->minValue(0.000001)
                             ->readOnly(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
+                            ->extraFieldWrapperAttributes(fn (?Position $record, string $operation): array => $isScoutForm($record, $operation)
+                                ? self::scoutTelemetryReadonlyWrapperAttributes()
+                                : [])
+                            ->extraInputAttributes(fn (?Position $record, string $operation): array => $isScoutForm($record, $operation)
+                                ? ['class' => 'scout-readonly-computed-input', 'tabindex' => '-1']
+                                : [])
                             ->helperText(fn (?Position $record, string $operation): ?string => $isScoutForm($record, $operation)
                                 ? 'Auto-berekend uit totale inleg ÷ entry'
                                 : null)
@@ -925,7 +955,7 @@ class PositionForm
     }
 
     /**
-     * @return array<int, TextInput>
+     * @return array<int, TextInput|Placeholder>
      */
     private static function buyStopFields(): array
     {
@@ -948,16 +978,48 @@ class PositionForm
                 ->live(onBlur: true)
                 ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record))
                 ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record)),
-            TextInput::make('advised_entry')
+            Placeholder::make('advised_entry_display')
                 ->label('Geadviseerde Buy-Stop')
-                ->prefix('$')
-                ->readOnly()
-                ->dehydrated(false)
-                ->placeholder(fn (Get $get, ?Position $record): string => blank($get('signal_high') ?? $record?->signal_high)
-                    ? 'Vul High in om Buy-Stop te berekenen'
-                    : '')
-                ->extraInputAttributes(['style' => 'font-weight: bold; color: #10b981;']),
+                ->content(fn (Get $get, ?Position $record): string => self::formatAdvisedBuyStopDisplay($get, $record))
+                ->extraEntryWrapperAttributes(fn (Get $get, ?Position $record): array => [
+                    'class' => 'scout-telemetry-readonly scout-advised-buy-stop'.(blank($get('signal_high') ?? $record?->signal_high)
+                        ? ' scout-advised-buy-stop--pending'
+                        : ''),
+                ]),
         ];
+    }
+
+    private static function formatAdvisedBuyStopDisplay(Get $get, ?Position $record): string
+    {
+        if (blank($get('signal_high') ?? $record?->signal_high)) {
+            return 'Vul High in om Buy-Stop te berekenen';
+        }
+
+        $buyStop = Position::computeBuyStop(
+            $get('signal_high') ?? $record?->signal_high,
+            $get('latest_atr_14') ?? $record?->latest_atr_14,
+        );
+
+        if ($buyStop === null) {
+            return '—';
+        }
+
+        return '$'.number_format($buyStop, 2, ',', '.');
+    }
+
+    private static function scoutAutoComputedTextInput(TextInput $field): TextInput
+    {
+        return $field
+            ->extraFieldWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes())
+            ->extraInputAttributes([
+                'class' => 'scout-readonly-computed-input',
+                'tabindex' => '-1',
+            ]);
+    }
+
+    private static function scoutAutoComputedPlaceholder(Placeholder $field): Placeholder
+    {
+        return $field->extraEntryWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes());
     }
 
     /**
@@ -1102,6 +1164,11 @@ class PositionForm
             ->dehydrated(false)
             ->placeholder('—')
             ->visible(fn (?Position $record, string $operation): bool => ! $isScoutForm($record, $operation))
+            ->extraFieldWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes())
+            ->extraInputAttributes([
+                'class' => 'scout-readonly-computed-input',
+                'tabindex' => '-1',
+            ])
             ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record));
     }
 
@@ -1253,7 +1320,6 @@ class PositionForm
             return;
         }
 
-        $set('advised_entry', $buyStop);
         $set('entry_price', $buyStop);
         self::syncPlannedQuantityFromInvestment($set, $get, $record);
     }

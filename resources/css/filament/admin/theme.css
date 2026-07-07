@@ -2128,6 +2128,111 @@
     margin-top: 0;
 }
 
+/* Scout marktdata — read-only telemetry (auto-ingevuld, niet bewerkbaar) */
+.scout-telemetry-readonly .fi-fo-placeholder-content,
+.scout-telemetry-readonly .fi-in-text-entry-content,
+.scout-telemetry-readonly .fi-in-entry-content {
+    min-height: 2.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px dashed rgb(212 212 216);
+    background-color: rgb(250 250 250);
+    color: rgb(63 63 70);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.5;
+    cursor: default;
+    user-select: text;
+}
+
+.dark .scout-telemetry-readonly .fi-fo-placeholder-content,
+.dark .scout-telemetry-readonly .fi-in-text-entry-content,
+.dark .scout-telemetry-readonly .fi-in-entry-content {
+    border-color: rgb(63 63 70);
+    background-color: rgb(24 24 27 / 0.65);
+    color: rgb(212 212 216);
+}
+
+.scout-telemetry-readonly .fi-fo-field-wrp-label,
+.scout-telemetry-readonly .fi-in-entry-label {
+    color: rgb(113 113 122);
+}
+
+.dark .scout-telemetry-readonly .fi-fo-field-wrp-label,
+.dark .scout-telemetry-readonly .fi-in-entry-label {
+    color: rgb(161 161 170);
+}
+
+.scout-telemetry-readonly .fi-fo-field-wrp-label::after,
+.scout-telemetry-readonly .fi-in-entry-label::after {
+    content: ' · auto';
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(161 161 170);
+}
+
+.dark .scout-telemetry-readonly .fi-fo-field-wrp-label::after,
+.dark .scout-telemetry-readonly .fi-in-entry-label::after {
+    color: rgb(113 113 122);
+}
+
+.scout-telemetry-readonly .fi-fo-toggle {
+    opacity: 0.72;
+    pointer-events: none;
+}
+
+.scout-telemetry-readonly .fi-input-wrp {
+    border: 1px dashed rgb(212 212 216);
+    background-color: rgb(250 250 250);
+    box-shadow: none;
+}
+
+.scout-telemetry-readonly .fi-input-wrp input[readonly],
+.scout-telemetry-readonly input.scout-readonly-computed-input {
+    background-color: transparent !important;
+    cursor: default;
+    color: rgb(63 63 70);
+    font-weight: 600;
+}
+
+.dark .scout-telemetry-readonly .fi-input-wrp {
+    border-color: rgb(63 63 70);
+    background-color: rgb(24 24 27 / 0.65);
+}
+
+.dark .scout-telemetry-readonly .fi-input-wrp input[readonly],
+.dark .scout-telemetry-readonly input.scout-readonly-computed-input {
+    color: rgb(212 212 216);
+}
+
+.scout-advised-buy-stop .fi-fo-placeholder-content,
+.scout-advised-buy-stop .fi-in-text-entry-content,
+.scout-advised-buy-stop .fi-in-entry-content {
+    color: #10b981;
+    font-weight: 700;
+}
+
+.dark .scout-advised-buy-stop .fi-fo-placeholder-content,
+.dark .scout-advised-buy-stop .fi-in-text-entry-content,
+.dark .scout-advised-buy-stop .fi-in-entry-content {
+    color: #34d399;
+}
+
+.scout-advised-buy-stop--pending .fi-fo-placeholder-content,
+.scout-advised-buy-stop--pending .fi-in-text-entry-content,
+.scout-advised-buy-stop--pending .fi-in-entry-content {
+    color: rgb(161 161 170);
+    font-weight: 500;
+}
+
+.dark .scout-advised-buy-stop--pending .fi-fo-placeholder-content,
+.dark .scout-advised-buy-stop--pending .fi-in-text-entry-content,
+.dark .scout-advised-buy-stop--pending .fi-in-entry-content {
+    color: rgb(113 113 122);
+}
+
 .fi-header-heading .position-edit-heading {
     display: inline-flex;
     align-items: center;
