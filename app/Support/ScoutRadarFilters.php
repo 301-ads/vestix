@@ -137,7 +137,23 @@ class ScoutRadarFilters
 
         $distance = abs((float) $scout->latest_close_price - (float) $scout->entry_price) / (float) $scout->entry_price;
 
-        return $distance <= 0.01;
+        if ($distance > 0.01) {
+            return false;
+        }
+
+        return self::isMinimumTradeableGrade($scout);
+    }
+
+    private static function isMinimumTradeableGrade(Position $scout): bool
+    {
+        if (! self::hasCompleteSetupData($scout)) {
+            return false;
+        }
+
+        $score = $scout->evaluateSetupScore();
+
+        return $score['hardFailReasons'] === []
+            && in_array($score['grade'], ['A++', 'A', 'B'], true);
     }
 
     private static function isAPlusSetup(Position $scout): bool

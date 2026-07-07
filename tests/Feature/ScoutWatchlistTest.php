@@ -619,6 +619,27 @@ class ScoutWatchlistTest extends TestCase
             'ticker' => 'READY',
             'entry_price' => 100.00,
             'latest_close_price' => 100.50,
+            'signal_low' => 100.50,
+            'latest_open_price' => 100.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.50,
+        ]);
+
+        $nearButWeak = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'WEAK',
+            'entry_price' => 100.00,
+            'latest_close_price' => 100.50,
+            'signal_low' => 100.50,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'bounce_volume_above_average' => false,
         ]);
 
         $waiting = Position::factory()->for($user)->scout()->create([
@@ -630,7 +651,7 @@ class ScoutWatchlistTest extends TestCase
         Livewire::test(ListScouts::class)
             ->filterTable('radar_focus', 'ready')
             ->assertCanSeeTableRecords([$ready])
-            ->assertCanNotSeeTableRecords([$waiting]);
+            ->assertCanNotSeeTableRecords([$waiting, $nearButWeak]);
     }
 
     public function test_toggle_radar_focus_clears_when_clicked_twice(): void

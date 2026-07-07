@@ -14,14 +14,48 @@ class ScoutRadarFiltersTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_matches_ready_when_within_one_percent_of_entry(): void
+    public function test_matches_ready_when_within_one_percent_of_entry_and_tradeable_grade(): void
     {
         $scout = Position::factory()->scout()->create([
             'entry_price' => 100.00,
             'latest_close_price' => 100.50,
+            'signal_low' => 100.50,
+            'latest_open_price' => 100.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.50,
         ]);
 
         $this->assertTrue(ScoutRadarFilters::matches($scout, 'ready'));
+    }
+
+    public function test_does_not_match_ready_when_near_entry_but_grade_is_not_tradeable(): void
+    {
+        $cSetup = Position::factory()->scout()->create([
+            'entry_price' => 100.00,
+            'latest_close_price' => 100.50,
+            'signal_low' => 100.50,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'bounce_volume_above_average' => false,
+        ]);
+
+        $hardFail = Position::factory()->scout()->create([
+            'entry_price' => 100.00,
+            'latest_close_price' => 100.50,
+            'signal_low' => 99.90,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+        ]);
+
+        $this->assertFalse(ScoutRadarFilters::matches($cSetup, 'ready'));
+        $this->assertFalse(ScoutRadarFilters::matches($hardFail, 'ready'));
     }
 
     public function test_does_not_match_ready_when_far_from_entry(): void

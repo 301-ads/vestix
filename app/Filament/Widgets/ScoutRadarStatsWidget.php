@@ -84,7 +84,7 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
 
         return [
             Stat::make('Klaar voor Executie', (string) $readyCount)
-                ->description('Binnen 1% van entry')
+                ->description('Binnen 1% van entry · min. B setup')
                 ->descriptionIcon('heroicon-m-bolt')
                 ->descriptionColor('gray')
                 ->extraAttributes($this->filterableStatAttributes('ready', 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--zinc')),
