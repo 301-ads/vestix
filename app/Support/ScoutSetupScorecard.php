@@ -183,7 +183,7 @@ class ScoutSetupScorecard
      */
     private static function scoreVolume(array $inputs): array
     {
-        $rvol = self::toFloat($inputs['relative_volume'] ?? null);
+        $rvol = self::toFloat(RelativeVolumeCalculator::normalizeRatio($inputs['relative_volume'] ?? null));
         $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
 
         if ($rvol === null && ! $confirmed) {
@@ -322,7 +322,7 @@ class ScoutSetupScorecard
             $reasons[] = 'Close onder SMA 20 — trampoline gebroken';
         }
 
-        $rvol = self::toFloat($inputs['relative_volume'] ?? null);
+        $rvol = self::toFloat(RelativeVolumeCalculator::normalizeRatio($inputs['relative_volume'] ?? null));
         $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
         $hasHighVolume = $confirmed || ($rvol !== null && $rvol >= RelativeVolumeCalculator::rvolThreshold());
 

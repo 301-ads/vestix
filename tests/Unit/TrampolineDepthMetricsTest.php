@@ -34,6 +34,10 @@ class TrampolineDepthMetricsTest extends TestCase
     public function test_formats_rvol_as_percentage(): void
     {
         $this->assertSame('88%', RelativeVolumeCalculator::formatPercent(0.88));
+        $this->assertSame('88%', RelativeVolumeCalculator::formatPercent('88%'));
+        $this->assertSame('88%', RelativeVolumeCalculator::formatPercent(88));
+        $this->assertEquals(0.88, RelativeVolumeCalculator::normalizeRatio('88%'));
+        $this->assertEquals(0.88, RelativeVolumeCalculator::normalizeRatio(88));
         $this->assertSame('120%', RelativeVolumeCalculator::formatThresholdPercent());
         $this->assertSame('145%', RelativeVolumeCalculator::formatPercent(1.45));
     }

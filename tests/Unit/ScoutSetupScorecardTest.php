@@ -313,6 +313,20 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertStringContainsString('RVol 145%', $result['criteria'][3]['detail']);
     }
 
+    public function test_volume_score_treats_percent_polluted_form_state_as_ratio(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'bounce_volume_above_average' => false,
+            'relative_volume' => '88%',
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 102.00,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][3]['points']);
+        $this->assertStringContainsString('RVol 88%', $result['criteria'][3]['detail']);
+        $this->assertStringContainsString('onder drempel (120%)', $result['criteria'][3]['detail']);
+    }
+
     public function test_volume_score_red_candle(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([

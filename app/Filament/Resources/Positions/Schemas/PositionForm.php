@@ -346,11 +346,11 @@ class PositionForm
                 ->disabled()
                 ->dehydrated()
                 ->helperText('Automatisch bij Data ophalen op bounce-dag'),
-            TextInput::make('relative_volume')
+            Placeholder::make('relative_volume_display')
                 ->label('Relative Volume (RVol)')
-                ->readOnly()
-                ->dehydrated(false)
-                ->formatStateUsing(fn (mixed $state): ?string => RelativeVolumeCalculator::formatPercent($state))
+                ->content(fn (Get $get, ?Position $record): string => RelativeVolumeCalculator::formatPercent(
+                    $get('relative_volume') ?? $record?->relative_volume,
+                ) ?? '—')
                 ->visible(fn (Get $get, ?Position $record): bool => filled($get('relative_volume') ?? $record?->relative_volume)),
             TextInput::make('volume_sma_20')
                 ->label('Volume SMA 20')
@@ -989,7 +989,7 @@ class PositionForm
     {
         $rvol = $get('relative_volume') ?? $record?->relative_volume;
         $rvolThreshold = RelativeVolumeCalculator::rvolThreshold();
-        $rvolFloat = $rvol !== null && $rvol !== '' ? (float) $rvol : null;
+        $rvolFloat = RelativeVolumeCalculator::normalizeRatio($rvol);
 
         $volumeLabel = $rvolFloat === null
             ? 'RVol: — (wacht op data)'

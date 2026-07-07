@@ -16,13 +16,46 @@ class RelativeVolumeCalculator
         return self::formatPercent(self::rvolThreshold()) ?? '120%';
     }
 
-    public static function formatPercent(float|int|string|null $rvol): ?string
+    public static function normalizeRatio(float|int|string|null $value): ?float
     {
-        if ($rvol === null || $rvol === '') {
+        if ($value === null || $value === '') {
             return null;
         }
 
-        return (int) round((float) $rvol * 100).'%';
+        $hadPercentSuffix = is_string($value) && str_contains($value, '%');
+
+        if (is_string($value)) {
+            $value = trim(str_replace('%', '', $value));
+            $value = str_replace(',', '.', $value);
+
+            if ($value === '') {
+                return null;
+            }
+        }
+
+        $float = (float) $value;
+
+        if ($hadPercentSuffix) {
+            return round($float / 100, 4);
+        }
+
+        // Form state pollution: display value 88 instead of ratio 0.88.
+        if ($float > self::rvolThreshold() * 10 && $float <= 1000) {
+            return round($float / 100, 4);
+        }
+
+        return $float;
+    }
+
+    public static function formatPercent(float|int|string|null $rvol): ?string
+    {
+        $ratio = self::normalizeRatio($rvol);
+
+        if ($ratio === null) {
+            return null;
+        }
+
+        return (int) round($ratio * 100).'%';
     }
 
     /**
