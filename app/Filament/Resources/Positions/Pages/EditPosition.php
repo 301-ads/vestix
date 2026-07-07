@@ -349,7 +349,8 @@ class EditPosition extends EditRecord
             $score['totalPoints'] === ScoutSetupScorecard::maxPoints() => 'A++ SETUP — mathematisch perfecte trade',
             $score['totalPoints'] >= 8 => 'A SETUP — zeer sterke wiskundige edge',
             $score['totalPoints'] === 7 => 'B SETUP — standaard trade, wees alert op risico',
-            default => 'NO TRADE — sniper houdt de vinger van de trekker',
+            $score['totalPoints'] >= 5 => 'C SETUP — wiskundig zwak, alleen monitoren',
+            default => 'NO TRADE — objectieve afwijzing',
         };
     }
 }

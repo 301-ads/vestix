@@ -358,7 +358,7 @@ class ScoutSetupScorecard
 
     /**
      * SQL rank for setup grade sorting:
-     * 1 = A++, 2 = A, 3 = B, 4 = NO TRADE (hard fail), 5 = incomplete data.
+     * 1 = A++, 2 = A, 3 = B, 4 = C, 5 = NO TRADE, 6 = incomplete data.
      */
     public static function setupGradeSortRankSql(): string
     {
@@ -366,14 +366,15 @@ class ScoutSetupScorecard
 
         return <<<SQL
 CASE
-    WHEN (signal_low IS NULL AND latest_close_price IS NULL) OR latest_sma_20 IS NULL OR scout_rsi IS NULL THEN 5
-    WHEN scout_rsi > 70 THEN 4
-    WHEN latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL AND latest_close_price < latest_sma_20 THEN 4
-    WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price THEN 4
+    WHEN (signal_low IS NULL AND latest_close_price IS NULL) OR latest_sma_20 IS NULL OR scout_rsi IS NULL THEN 6
+    WHEN scout_rsi > 70 THEN 5
+    WHEN latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL AND latest_close_price < latest_sma_20 THEN 5
+    WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price THEN 5
     WHEN last_setup_score = {$maxPoints} THEN 1
     WHEN last_setup_score >= 8 THEN 2
     WHEN last_setup_score = 7 THEN 3
-    ELSE 4
+    WHEN last_setup_score >= 5 THEN 4
+    ELSE 5
 END
 SQL;
     }
@@ -398,6 +399,10 @@ SQL;
 
         if ($totalPoints === 7) {
             return ['B', 'B SETUP'];
+        }
+
+        if ($totalPoints >= 5) {
+            return ['C', 'C SETUP'];
         }
 
         return ['NO TRADE', 'NO TRADE'];

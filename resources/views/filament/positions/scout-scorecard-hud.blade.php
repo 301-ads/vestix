@@ -14,6 +14,7 @@
         $score['totalPoints'] >= ($score['maxPoints'] ?? 10) => 'bg-success-500',
         $score['totalPoints'] >= 8 => 'bg-success-400',
         $score['totalPoints'] >= 7 => 'bg-warning-500',
+        $score['totalPoints'] >= 5 => 'bg-gray-400 dark:bg-gray-500',
         default => 'bg-danger-500',
     };
 @endphp

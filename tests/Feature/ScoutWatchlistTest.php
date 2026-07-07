@@ -822,8 +822,26 @@ class ScoutWatchlistTest extends TestCase
     {
         $user = $this->authenticateFilament();
 
+        $cSetup = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'CSET',
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'last_setup_score' => 6,
+        ]);
+
         $bSetup = Position::factory()->for($user)->scout()->create([
-            'ticker' => 'BCSC',
+            'ticker' => 'BSET',
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'last_setup_score' => 7,
+        ]);
+
+        $weakSetup = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'WEAK',
             'signal_low' => 100.50,
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
@@ -864,11 +882,11 @@ class ScoutWatchlistTest extends TestCase
             ->pluck('ticker')
             ->all();
 
-        $this->assertSame(['APLS', 'AMNS', 'BCSC', 'FAIL'], $ordered);
+        $this->assertSame(['APLS', 'AMNS', 'BSET', 'CSET', 'FAIL', 'WEAK'], $ordered);
 
         Livewire::test(ListScouts::class)
             ->assertOk()
-            ->assertSeeInOrder(['APLS', 'AMNS', 'BCSC', 'FAIL']);
+            ->assertSeeInOrder(['APLS', 'AMNS', 'BSET', 'CSET', 'FAIL', 'WEAK']);
     }
 
     public function test_scouts_list_polls_every_ten_seconds(): void

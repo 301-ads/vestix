@@ -168,6 +168,7 @@ class ShareCardDataFactory
             'A++' => 'a-plus',
             'A' => 'a-minus',
             'B' => 'bc',
+            'C' => 'bc',
             default => 'bc',
         };
     }

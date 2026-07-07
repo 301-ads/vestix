@@ -364,12 +364,15 @@ class PositionForm
                 ->readOnly()
                 ->dehydrated(false)
                 ->visible(fn (Get $get, ?Position $record): bool => filled($get('bounce_day_volume') ?? $record?->bounce_day_volume)),
-            TextInput::make('sector_etf_override')
-                ->label('Sector ETF override')
-                ->placeholder('Auto via Finnhub')
-                ->helperText('Laat leeg voor auto-detectie (bijv. XLF, XLK)')
-                ->maxLength(10)
-                ->live(debounce: 300),
+        Select::make('sector_etf_override')
+            ->label('Sector ETF')
+            ->options(fn (): array => self::sectorEtfOverrideSelectOptions())
+            ->nullable()
+            ->placeholder('Auto via Finnhub')
+            ->native(false)
+            ->searchable()
+            ->helperText('Laat leeg voor auto-detectie via Finnhub, of kies handmatig een sector-ETF')
+            ->live(debounce: 300),
             TextInput::make('sector_etf')
                 ->label('Sector ETF')
                 ->readOnly()
@@ -1283,6 +1286,7 @@ class PositionForm
             'A++' => 'success',
             'A' => 'success',
             'B' => 'warning',
+            'C' => 'gray',
             default => 'danger',
         };
     }
@@ -1300,6 +1304,7 @@ class PositionForm
             'A++' => 'vestix',
             'A' => 'amber',
             'B' => 'zinc',
+            'C' => 'zinc',
             default => 'rose',
         };
     }
@@ -2176,6 +2181,21 @@ class PositionForm
                     ->extraFieldWrapperAttributes(['class' => 'position-form-chart-upload'])
                     ->columnSpanFull(),
             ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function sectorEtfOverrideSelectOptions(): array
+    {
+        $options = [];
+
+        foreach (config('vestix.sector_mapping', []) as $sector => $etf) {
+            $etf = strtoupper((string) $etf);
+            $options[$etf] = "{$sector} ({$etf})";
+        }
+
+        return $options;
     }
 
     private static function scorecardInputs(Get $get, ?Position $record): array

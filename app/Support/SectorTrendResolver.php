@@ -68,26 +68,58 @@ class SectorTrendResolver
         }
 
         $profile = $this->finnhub->fetchCompanyProfile($ticker);
-        $gsector = $profile['gsector'] ?? null;
 
-        if (! is_string($gsector) || trim($gsector) === '') {
-            Log::warning('Sector ETF resolve failed: missing Finnhub gsector.', [
+        if ($profile === null) {
+            Log::warning('Sector ETF resolve failed: Finnhub profile unavailable.', [
                 'ticker' => $ticker,
             ]);
 
             return null;
         }
 
-        $mapping = config('vestix.sector_mapping', []);
-        $normalized = self::SECTOR_ALIASES[$gsector] ?? $gsector;
-        $etf = $mapping[$normalized] ?? $mapping[$gsector] ?? null;
+        $gsector = $profile['gsector'] ?? null;
 
-        if ($etf === null) {
-            Log::warning('Sector ETF resolve failed: unknown gsector mapping.', [
-                'ticker' => $ticker,
-                'gsector' => $gsector,
-            ]);
+        if (is_string($gsector) && trim($gsector) !== '') {
+            $etf = $this->mapSectorNameToEtf($gsector);
+
+            if ($etf !== null) {
+                return $etf;
+            }
         }
+
+        $industry = $profile['finnhubIndustry'] ?? null;
+
+        if (is_string($industry) && trim($industry) !== '') {
+            $etf = $this->mapSectorNameToEtf($industry)
+                ?? $this->mapIndustryNameToEtf($industry);
+
+            if ($etf !== null) {
+                return $etf;
+            }
+        }
+
+        Log::warning('Sector ETF resolve failed: no gsector or mappable finnhubIndustry.', [
+            'ticker' => $ticker,
+            'gsector' => $gsector,
+            'finnhubIndustry' => $industry,
+        ]);
+
+        return null;
+    }
+
+    private function mapSectorNameToEtf(string $sectorName): ?string
+    {
+        $mapping = config('vestix.sector_mapping', []);
+        $normalized = self::SECTOR_ALIASES[$sectorName] ?? $sectorName;
+        $etf = $mapping[$normalized] ?? $mapping[$sectorName] ?? null;
+
+        return is_string($etf) ? strtoupper($etf) : null;
+    }
+
+    private function mapIndustryNameToEtf(string $industryName): ?string
+    {
+        $mapping = config('vestix.industry_mapping', []);
+        $etf = $mapping[$industryName] ?? null;
 
         return is_string($etf) ? strtoupper($etf) : null;
     }

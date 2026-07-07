@@ -352,5 +352,43 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame(7, $result['totalPoints']);
         $this->assertSame('B', $result['grade']);
+        $this->assertSame('B SETUP', $result['gradeLabel']);
+    }
+
+    public function test_c_setup_scores_five_to_six(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 1.0,
+            'bounce_volume_above_average' => false,
+            'relative_volume' => null,
+        ]));
+
+        $this->assertSame(6, $result['totalPoints']);
+        $this->assertSame('C', $result['grade']);
+        $this->assertSame('C SETUP', $result['gradeLabel']);
+        $this->assertSame([], $result['hardFailReasons']);
+    }
+
+    public function test_score_below_five_without_hard_fail_is_no_trade(): void
+    {
+        $result = ScoutSetupScorecard::evaluate([
+            'signal_low' => 103.10,
+            'latest_open_price' => 103.10,
+            'latest_close_price' => 103.10,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => false,
+            'relative_volume' => null,
+            'sector_etf' => null,
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => null,
+        ]);
+
+        $this->assertSame(4, $result['totalPoints']);
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertSame([], $result['hardFailReasons']);
     }
 }

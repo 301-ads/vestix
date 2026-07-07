@@ -1029,7 +1029,20 @@
     font-weight: 600;
 }
 
+.fi-badge.vestix-grade-c {
+    border: 1px solid var(--vestix-border);
+    background-color: var(--gray-100);
+    color: var(--gray-600);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
 .dark .fi-badge.vestix-grade-bc {
+    background-color: var(--gray-800);
+    color: var(--gray-300);
+}
+
+.dark .fi-badge.vestix-grade-c {
     background-color: var(--gray-800);
     color: var(--gray-300);
 }

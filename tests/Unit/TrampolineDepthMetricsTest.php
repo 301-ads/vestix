@@ -56,12 +56,40 @@ class TrampolineDepthMetricsTest extends TestCase
             $mock->shouldReceive('fetchCompanyProfile')
                 ->once()
                 ->with('JNJ')
-                ->andReturn(['gsector' => 'Health Care', 'name' => 'Johnson & Johnson']);
+                ->andReturn(['gsector' => 'Health Care', 'finnhubIndustry' => 'Pharmaceuticals', 'name' => 'Johnson & Johnson']);
         });
 
         $resolver = app(SectorTrendResolver::class);
 
         $this->assertSame('XLV', $resolver->resolveEtfTicker('JNJ', null));
+    }
+
+    public function test_maps_finnhub_industry_when_gsector_missing(): void
+    {
+        config([
+            'vestix.sector_mapping' => [
+                'Technology' => 'XLK',
+            ],
+            'vestix.industry_mapping' => [
+                'Semiconductors' => 'XLK',
+            ],
+        ]);
+
+        $this->mock(FinnhubService::class, function ($mock): void {
+            $mock->shouldReceive('fetchCompanyProfile')
+                ->once()
+                ->with('AAPL')
+                ->andReturn(['gsector' => null, 'finnhubIndustry' => 'Technology', 'name' => 'Apple Inc']);
+            $mock->shouldReceive('fetchCompanyProfile')
+                ->once()
+                ->with('ASML')
+                ->andReturn(['gsector' => null, 'finnhubIndustry' => 'Semiconductors', 'name' => 'ASML Holding NV']);
+        });
+
+        $resolver = app(SectorTrendResolver::class);
+
+        $this->assertSame('XLK', $resolver->resolveEtfTicker('AAPL', null));
+        $this->assertSame('XLK', $resolver->resolveEtfTicker('ASML', null));
     }
 
     public function test_override_skips_profile_lookup(): void

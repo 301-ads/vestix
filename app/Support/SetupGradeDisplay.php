@@ -43,7 +43,8 @@ class SetupGradeDisplay
             'A++' => 'success',
             'A' => 'success',
             'B' => 'warning',
-            default => 'gray',
+            'C' => 'gray',
+            default => 'danger',
         };
     }
 }
