@@ -290,7 +290,7 @@ class PositionForm
 
                         return [
                             'score' => $score,
-                            'scoreColor' => self::scorecardGradeColor($score['grade']),
+                            'hudTone' => self::scorecardHudTone($score),
                             'cardVariant' => self::scorecardCardVariant($score),
                         ];
                     }),
@@ -1301,11 +1301,29 @@ class PositionForm
         }
 
         return match ($score['grade']) {
-            'A++' => 'vestix',
-            'A' => 'amber',
+            'A++' => 'a-plus',
+            'A' => 'a',
             'B' => 'zinc',
             'C' => 'zinc',
             default => 'rose',
+        };
+    }
+
+    /**
+     * @param  array{grade: string, hardFailReasons: array<int, string>}  $score
+     */
+    private static function scorecardHudTone(array $score): string
+    {
+        if ($score['hardFailReasons'] !== []) {
+            return 'no-trade';
+        }
+
+        return match ($score['grade']) {
+            'A++' => 'a-plus',
+            'A' => 'a',
+            'B' => 'b',
+            'C' => 'c',
+            default => 'no-trade',
         };
     }
 
@@ -1385,7 +1403,7 @@ class PositionForm
         return match ($status) {
             'pass' => 'success',
             'warn' => 'warning',
-            default => 'gray',
+            default => 'danger',
         };
     }
 

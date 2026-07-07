@@ -288,6 +288,26 @@
     background: linear-gradient(to bottom right, rgb(34 197 94 / 0.05), transparent);
 }
 
+.fi-wi-stats-overview-stat.vestix-stat-card--a::before,
+.vestix-stat-card--a::before {
+    background: linear-gradient(to bottom right, rgb(0 122 82 / 0.14), rgb(0 170 117 / 0.04));
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--a::before,
+.dark .vestix-stat-card--a::before {
+    background: linear-gradient(to bottom right, rgb(0 170 117 / 0.12), rgb(0 170 117 / 0.03));
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--a-plus::before,
+.vestix-stat-card--a-plus::before {
+    background: linear-gradient(to bottom right, rgb(0 212 146 / 0.22), rgb(0 212 146 / 0.06));
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--a-plus::before,
+.dark .vestix-stat-card--a-plus::before {
+    background: linear-gradient(to bottom right, rgb(0 212 146 / 0.18), rgb(0 212 146 / 0.05));
+}
+
 .fi-wi-stats-overview-stat.vestix-stat-card--vestix,
 .vestix-stat-card--vestix {
     --vestix-stat-accent: var(--vestix-primary);
@@ -311,6 +331,21 @@
 .fi-wi-stats-overview-stat.vestix-stat-card--green,
 .vestix-stat-card--green {
     --vestix-stat-accent: rgb(34 197 94);
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--a,
+.vestix-stat-card--a {
+    --vestix-stat-accent: #007a52;
+}
+
+.dark .fi-wi-stats-overview-stat.vestix-stat-card--a,
+.dark .vestix-stat-card--a {
+    --vestix-stat-accent: #00aa75;
+}
+
+.fi-wi-stats-overview-stat.vestix-stat-card--a-plus,
+.vestix-stat-card--a-plus {
+    --vestix-stat-accent: #00d492;
 }
 
 .fi-wi-stats-overview-stat.vestix-stat-card--rose,
@@ -1862,6 +1897,139 @@
 .scout-scorecard-hud-grade {
     flex-shrink: 0;
     text-align: right;
+}
+
+.scout-scorecard-hud--a.vestix-stat-card {
+    border-color: color-mix(in srgb, #007a52 28%, var(--vestix-border));
+    background-color: color-mix(in srgb, #007a52 10%, var(--vestix-panel));
+}
+
+.dark .scout-scorecard-hud--a.vestix-stat-card {
+    border-color: color-mix(in srgb, #00aa75 30%, var(--vestix-border));
+    background-color: color-mix(in srgb, #00aa75 12%, var(--vestix-panel));
+}
+
+.scout-scorecard-hud--a-plus.vestix-stat-card {
+    border-color: color-mix(in srgb, #00d492 45%, var(--vestix-border));
+    background-color: color-mix(in srgb, #00d492 16%, var(--vestix-panel));
+    box-shadow:
+        0 0 0 1px rgb(0 212 146 / 0.12),
+        0 0 20px rgb(0 212 146 / 0.12);
+}
+
+.dark .scout-scorecard-hud--a-plus.vestix-stat-card {
+    border-color: color-mix(in srgb, #00d492 50%, var(--vestix-border));
+    background-color: color-mix(in srgb, #00d492 14%, var(--vestix-panel));
+    box-shadow:
+        0 0 0 1px rgb(0 212 146 / 0.2),
+        0 0 24px rgb(0 212 146 / 0.18);
+}
+
+.scout-scorecard-hud--a .scout-scorecard-hud-score {
+    color: #007a52;
+}
+
+.dark .scout-scorecard-hud--a .scout-scorecard-hud-score {
+    color: #00aa75;
+}
+
+.scout-scorecard-hud--a-plus .scout-scorecard-hud-score {
+    color: #00d492;
+}
+
+.scout-scorecard-hud-progress {
+    background-color: rgb(228 228 231);
+}
+
+.dark .scout-scorecard-hud-progress {
+    background-color: rgb(63 63 70);
+}
+
+.scout-scorecard-hud-progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 300ms ease;
+}
+
+.scout-scorecard-hud-progress-fill--a {
+    background-color: #007a52;
+}
+
+.dark .scout-scorecard-hud-progress-fill--a {
+    background-color: #00aa75;
+}
+
+.scout-scorecard-hud-progress-fill--a-plus {
+    background-color: #00d492;
+    box-shadow: 0 0 10px rgb(0 212 146 / 0.45);
+}
+
+.scout-scorecard-hud-progress-fill--b {
+    background-color: rgb(245 158 11);
+}
+
+.scout-scorecard-hud-progress-fill--c {
+    background-color: rgb(161 161 170);
+}
+
+.scout-scorecard-hud-progress-fill--no-trade {
+    background-color: rgb(244 63 94);
+}
+
+.scout-scorecard-hud-grade-badge {
+    border: 1px solid transparent;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.scout-scorecard-hud-grade-badge--a {
+    border-color: color-mix(in srgb, #007a52 25%, transparent);
+    background-color: color-mix(in srgb, #007a52 12%, transparent);
+    color: #007a52;
+}
+
+.dark .scout-scorecard-hud-grade-badge--a {
+    border-color: color-mix(in srgb, #00aa75 30%, transparent);
+    background-color: color-mix(in srgb, #00aa75 14%, transparent);
+    color: #00aa75;
+}
+
+.scout-scorecard-hud-grade-badge--a-plus {
+    border-color: rgb(0 212 146 / 0.45);
+    background-color: rgb(0 212 146 / 0.16);
+    color: #00d492;
+    box-shadow: 0 0 14px rgb(0 212 146 / 0.2);
+}
+
+.scout-scorecard-hud-grade-badge--b {
+    border-color: rgb(245 158 11 / 0.25);
+    background-color: rgb(245 158 11 / 0.12);
+    color: rgb(180 83 9);
+}
+
+.dark .scout-scorecard-hud-grade-badge--b {
+    color: rgb(251 191 36);
+}
+
+.scout-scorecard-hud-grade-badge--c {
+    border-color: var(--vestix-border);
+    background-color: rgb(244 244 245);
+    color: rgb(82 82 91);
+}
+
+.dark .scout-scorecard-hud-grade-badge--c {
+    background-color: rgb(39 39 42);
+    color: rgb(212 212 216);
+}
+
+.scout-scorecard-hud-grade-badge--no-trade {
+    border-color: rgb(244 63 94 / 0.25);
+    background-color: rgb(244 63 94 / 0.12);
+    color: rgb(225 29 72);
+}
+
+.dark .scout-scorecard-hud-grade-badge--no-trade {
+    color: rgb(251 113 133);
 }
 
 .scout-scorecard-criteria.fi-grid {
