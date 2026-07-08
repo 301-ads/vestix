@@ -1595,6 +1595,7 @@ class PositionForm
                         'valueColor' => $risk['valueColor'] ?? null,
                         'description' => $risk['text'] ?? null,
                         'descriptionColor' => $risk['color'] ?? 'gray',
+                        'secondaryDescription' => $risk['secondaryDescription'] ?? null,
                         'cardVariant' => $risk['cardVariant'] ?? 'amber',
                     ];
                 }),
@@ -2076,7 +2077,7 @@ class PositionForm
     }
 
     /**
-     * @return array{value: string, valueColor: ?string, text: ?string, color: string, cardVariant: string}|null
+     * @return array{value: string, valueColor: ?string, text: ?string, color: string, cardVariant: string, secondaryDescription?: array{text: string, color?: string}}|null
      */
     private static function formatPlannedRiskDescription(Get $get, ?Position $record): ?array
     {
@@ -2090,6 +2091,10 @@ class PositionForm
 
         $perShare = round((float) $entry - $newSl, 2);
         $percentage = ($perShare / (float) $entry) * 100;
+        $tradeRiskLabel = rtrim(rtrim(number_format($percentage, 2), '0'), '.');
+        $tradeRiskSecondary = [
+            'text' => "Trade risico (Stop-loss): {$tradeRiskLabel}% daling",
+        ];
         $guard = self::resolveRiskGuardState($get, $record);
 
         if ($guard['plannedRisk'] !== null && $guard['bankroll'] !== null && $guard['riskPercentOfBankroll'] !== null) {
@@ -2101,8 +2106,9 @@ class PositionForm
                 return [
                     'value' => self::formatUsd($guard['plannedRisk']),
                     'valueColor' => 'danger',
-                    'text' => "{$riskPctLabel}% van bankroll · {$overLabel}% boven limiet",
+                    'text' => "Account impact: {$riskPctLabel}% van bankroll · {$overLabel}% boven limiet",
                     'color' => 'danger',
+                    'secondaryDescription' => array_merge($tradeRiskSecondary, ['color' => 'danger']),
                     'cardVariant' => 'rose',
                 ];
             }
@@ -2110,8 +2116,9 @@ class PositionForm
             return [
                 'value' => self::formatUsd($guard['plannedRisk']),
                 'valueColor' => 'success',
-                'text' => "{$riskPctLabel}% van bankroll",
+                'text' => "Account impact: {$riskPctLabel}% van bankroll",
                 'color' => 'success',
+                'secondaryDescription' => array_merge($tradeRiskSecondary, ['color' => 'success']),
                 'cardVariant' => 'green',
             ];
         }
