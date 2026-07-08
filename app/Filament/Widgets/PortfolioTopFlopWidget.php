@@ -19,6 +19,8 @@ class PortfolioTopFlopWidget extends TableWidget
 
     protected int|string|array $columnSpan = 1;
 
+    protected string $view = 'filament.widgets.scrollable-table-widget';
+
     public function table(Table $table): Table
     {
         return $table

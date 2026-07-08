@@ -322,4 +322,27 @@ class DashboardTest extends TestCase
             ->callAction('mark_limit_placed', arguments: ['record' => $targetHit->getKey()])
             ->assertDontSee('GS');
     }
+
+    public function test_action_widget_hides_limit_sell_for_auto_runner_bypass_position(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'BAC',
+            'entry_price' => 51.50,
+            'initial_sl' => 48.00,
+            'current_sl' => 58.14,
+            'latest_close_price' => 59.86,
+            'latest_sma_20' => 57.00,
+            'latest_atr_14' => 1.50,
+            'quantity' => 22,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertDontSee('BAC')
+            ->assertDontSee('Stel Limit Sell in op');
+    }
 }

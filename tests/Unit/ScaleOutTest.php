@@ -8,6 +8,7 @@ use App\Jobs\SendAlertJob;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\StrategyAnalyticsService;
+use App\Support\ScaleOutDisplay;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -222,5 +223,184 @@ class ScaleOutTest extends TestCase
         $this->assertSame(1, $runner['scaled_out_trades']);
         $this->assertSame(100.0, $runner['runner_beat_target_rate']);
         $this->assertSame(1.5, $runner['avg_runner_uplift_r']);
+    }
+
+    public function test_is_auto_runner_bypass_when_stop_at_or_above_entry_without_scale_out(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 51.50,
+            'current_sl' => 58.14,
+            'quantity' => 22,
+        ]);
+
+        $this->assertTrue($position->isAutoRunnerBypass());
+    }
+
+    public function test_is_auto_runner_bypass_true_at_exact_breakeven(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 51.50,
+            'current_sl' => 51.50,
+            'quantity' => 22,
+        ]);
+
+        $this->assertTrue($position->isAutoRunnerBypass());
+    }
+
+    public function test_is_auto_runner_bypass_false_when_stop_below_entry(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 51.50,
+            'current_sl' => 49.00,
+            'quantity' => 22,
+        ]);
+
+        $this->assertFalse($position->isAutoRunnerBypass());
+    }
+
+    public function test_is_auto_runner_bypass_false_after_scale_out(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 51.50,
+            'current_sl' => 58.14,
+            'scaled_out_price' => 59.00,
+            'scaled_out_quantity' => 11,
+            'scaled_out_at' => now(),
+            'quantity' => 22,
+        ]);
+
+        $this->assertFalse($position->isAutoRunnerBypass());
+    }
+
+    public function test_order_plan_shows_skipped_target_1_for_auto_runner_bypass(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 51.50,
+            'initial_sl' => 48.00,
+            'current_sl' => 58.14,
+            'latest_close_price' => 59.86,
+            'quantity' => 22,
+        ]);
+
+        $html = ScaleOutDisplay::orderPlanHtml($position)->toHtml();
+
+        $this->assertStringContainsString('Target 1 overgeslagen (Breakeven bereikt)', $html);
+        $this->assertStringContainsString('100% Runner', $html);
+        $this->assertStringContainsString('vestix-order-plan__step--bypass', $html);
+        $this->assertStringContainsString('border-gray-300', $html);
+        $this->assertStringContainsString('bg-primary-500', $html);
+        $this->assertStringNotContainsString('Limit sell', $html);
+        $this->assertStringNotContainsString('>1<', $html);
+    }
+
+    public function test_order_plan_hunt_phase_shows_active_step_one_number(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 10.00,
+            'initial_sl' => 9.00,
+            'current_sl' => 9.00,
+            'latest_close_price' => 10.50,
+            'quantity' => 100,
+        ]);
+
+        $html = ScaleOutDisplay::orderPlanHtml($position)->toHtml();
+
+        $this->assertStringContainsString('vestix-order-plan__step--active', $html);
+        $this->assertStringContainsString('vestix-order-plan__step--pending', $html);
+        $this->assertStringContainsString('bg-primary-500', $html);
+        $this->assertStringContainsString('Target 1 &middot; Verkoop 50%', $html);
+        $this->assertStringContainsString('Limit sell', $html);
+    }
+
+    public function test_order_plan_shows_green_checkmark_after_scale_out(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 10.00,
+            'initial_sl' => 9.00,
+            'current_sl' => 10.00,
+            'quantity' => 100,
+            'scaled_out_price' => 12.00,
+            'scaled_out_quantity' => 50,
+            'scaled_out_at' => now(),
+            'realized_pnl' => 100.00,
+        ]);
+
+        $html = ScaleOutDisplay::orderPlanHtml($position)->toHtml();
+
+        $this->assertStringContainsString('vestix-order-plan__step--completed', $html);
+        $this->assertStringContainsString('bg-success-500', $html);
+        $this->assertStringContainsString('50 stuks verkocht op $12.00', $html);
+        $this->assertStringContainsString('+$100.00 winst veiliggesteld', $html);
+        $this->assertStringContainsString('Target 1 &middot; Verkoop 50%', $html);
+    }
+
+    public function test_primary_action_type_excludes_target_1_for_auto_runner_bypass(): void
+    {
+        $user = User::factory()->create();
+
+        $position = Position::factory()->for($user)->create([
+            'entry_price' => 51.50,
+            'initial_sl' => 48.00,
+            'current_sl' => 58.14,
+            'latest_close_price' => 59.86,
+            'latest_sma_20' => 57.00,
+            'latest_atr_14' => 1.50,
+            'quantity' => 22,
+            'status' => 'open',
+        ]);
+
+        $this->assertTrue($position->isTarget1Hit());
+        $this->assertTrue($position->isAutoRunnerBypass());
+        $this->assertNotSame(Position::PRIMARY_ACTION_TARGET_1, $position->primaryActionType());
+    }
+
+    public function test_requiring_action_excludes_auto_runner_bypass_target_1_position(): void
+    {
+        $user = User::factory()->create();
+
+        $bypassPosition = Position::factory()->for($user)->create([
+            'entry_price' => 51.50,
+            'initial_sl' => 48.00,
+            'current_sl' => 58.14,
+            'latest_close_price' => 59.86,
+            'latest_sma_20' => 57.00,
+            'latest_atr_14' => 1.50,
+            'quantity' => 22,
+            'status' => 'open',
+        ]);
+
+        $ids = Position::requiringActionForUser($user->id)->pluck('id');
+
+        $this->assertFalse($ids->contains($bypassPosition->id));
+    }
+
+    public function test_target_1_hit_alert_not_queued_for_auto_runner_bypass(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+
+        $position = Position::factory()->for($user)->create([
+            'entry_price' => 51.50,
+            'initial_sl' => 48.00,
+            'current_sl' => 58.14,
+            'latest_close_price' => 59.86,
+            'quantity' => 22,
+            'status' => 'open',
+        ]);
+
+        (new CheckPositionAlertTriggersJob($position->id))->handle(app(\App\Alerts\AlertDispatcher::class));
+
+        Queue::assertNotPushed(SendAlertJob::class, function (SendAlertJob $job) use ($position): bool {
+            return $job->positionId === $position->id
+                && $job->event === AlertEventType::Target1Hit;
+        });
     }
 }

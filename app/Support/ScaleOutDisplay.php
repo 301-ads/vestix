@@ -72,21 +72,71 @@ class ScaleOutDisplay
             .'</div>';
     }
 
-    private static function stepOne(Position $position): string
+    private static function orderPlanPhase(Position $position): string
     {
         if ($position->hasScaledOut()) {
-            $date = $position->scaled_out_at?->locale('nl')->isoFormat('D MMM Y') ?? '—';
-            $body = '<p class="font-semibold text-success-600 dark:text-success-400">Target 1 uitgevoerd</p>'
-                .'<p class="text-gray-600 dark:text-gray-300">Uitgevoerd op '.$date.' voor $'
-                .number_format((float) $position->scaled_out_price, 2).'. <span class="font-medium text-success-600 dark:text-success-400">+$'
-                .number_format((float) $position->realized_pnl, 2).' veiliggesteld.</span></p>'
-                .'<p class="text-gray-500 dark:text-gray-400">Stop verplaatst naar breakeven.</p>';
-
-            return self::stepRow(self::checkMarker('success'), $body, hasLine: true);
+            return 'completed';
         }
 
+        if ($position->isAutoRunnerBypass()) {
+            return 'bypass';
+        }
+
+        return 'hunt';
+    }
+
+    private static function stepOne(Position $position): string
+    {
+        $phase = self::orderPlanPhase($position);
         $fractionPct = (int) round($position->effective_first_tranche_fraction * 100);
-        $body = '<p class="font-semibold text-gray-950 dark:text-white">Target 1 &middot; Verkoop '.$fractionPct.'%</p>';
+        $title = 'Target 1 &middot; Verkoop '.$fractionPct.'%';
+
+        return match ($phase) {
+            'completed' => self::stepOneCompleted($position, $title),
+            'bypass' => self::stepOneBypass(),
+            default => self::stepOneHunt($position, $title),
+        };
+    }
+
+    private static function stepOneCompleted(Position $position, string $title): string
+    {
+        $body = '<p class="font-semibold text-gray-950 dark:text-white">'.$title.'</p>'
+            .'<p class="text-gray-600 dark:text-gray-300">'
+            .self::formatQty((float) $position->scaled_out_quantity).' stuks verkocht op $'
+            .number_format((float) $position->scaled_out_price, 2)
+            .' (<span class="font-medium text-success-600 dark:text-success-400">+$'
+            .number_format((float) $position->realized_pnl, 2).' winst veiliggesteld</span>).</p>';
+
+        $date = $position->scaled_out_at?->locale('nl')->isoFormat('D MMM Y');
+
+        if ($date !== null) {
+            $body .= '<p class="text-gray-500 dark:text-gray-400">'.$date.'</p>';
+        }
+
+        return self::stepRow(
+            self::checkMarker('success'),
+            $body,
+            state: 'completed',
+            hasLine: true,
+        );
+    }
+
+    private static function stepOneBypass(): string
+    {
+        $body = '<p class="font-semibold text-gray-600 dark:text-gray-300">Target 1 overgeslagen (Breakeven bereikt)</p>'
+            .'<p class="text-gray-500 dark:text-gray-400">Stop-Loss ligt boven de instapprijs. Deze positie is omgezet naar een 100% Runner.</p>';
+
+        return self::stepRow(
+            self::checkMarker('muted'),
+            $body,
+            state: 'bypass',
+            hasLine: true,
+        );
+    }
+
+    private static function stepOneHunt(Position $position, string $title): string
+    {
+        $body = '<p class="font-semibold text-gray-950 dark:text-white">'.$title.'</p>';
 
         $details = [];
 
@@ -110,37 +160,49 @@ class ScaleOutDisplay
         }
 
         $canLogScaleOut = $position->status === 'open'
-            && ! $position->hasScaledOut()
             && ($position->isTarget1Hit() || $position->hasTarget1LimitPlaced());
 
         if ($canLogScaleOut) {
             $body .= '<div class="vestix-order-plan__step-one-action"></div>';
         }
 
-        return self::stepRow(self::numberMarker('1', 'primary'), $body, hasLine: true);
+        return self::stepRow(
+            self::numberMarker('1', 'primary'),
+            $body,
+            state: 'active',
+            hasLine: true,
+        );
     }
 
     private static function stepTwo(Position $position): string
     {
-        $variant = $position->hasScaledOut() ? 'primary' : 'muted';
+        $phase = self::orderPlanPhase($position);
+        $isActive = in_array($phase, ['completed', 'bypass'], true);
+        $variant = $isActive ? 'primary' : 'muted';
+        $state = $isActive ? 'active' : 'pending';
 
         $body = '<p class="font-semibold text-gray-950 dark:text-white">Target 2 &middot; De Runner</p>'
             .'<p class="text-gray-600 dark:text-gray-300">Trailing stop onder de dagelijkse SMA 20.</p>';
 
-        return self::stepRow(self::numberMarker('2', $variant), $body, hasLine: false);
+        return self::stepRow(
+            self::numberMarker('2', $variant),
+            $body,
+            state: $state,
+            hasLine: false,
+        );
     }
 
-    private static function stepRow(string $marker, string $body, bool $hasLine): string
+    private static function stepRow(string $marker, string $body, string $state, bool $hasLine): string
     {
         $line = $hasLine
-            ? '<span class="mt-1 w-px flex-1 bg-gray-200 dark:bg-gray-700"></span>'
+            ? '<span class="vestix-order-plan__step-line mt-1 w-px flex-1 bg-gray-200 dark:bg-gray-700"></span>'
             : '';
 
         $bodyPadding = $hasLine ? ' pb-4' : '';
 
-        return '<li class="flex gap-3">'
+        return '<li class="vestix-order-plan__step vestix-order-plan__step--'.$state.' flex gap-3">'
             .'<div class="flex flex-col items-center">'.$marker.$line.'</div>'
-            .'<div class="flex-1 space-y-0.5'.$bodyPadding.'">'.$body.'</div>'
+            .'<div class="vestix-order-plan__step-body flex-1 space-y-0.5'.$bodyPadding.'">'.$body.'</div>'
             .'</li>';
     }
 
@@ -157,7 +219,11 @@ class ScaleOutDisplay
 
     private static function checkMarker(string $variant): string
     {
-        $classes = $variant === 'success' ? 'bg-success-500 text-white' : 'bg-primary-500 text-white';
+        $classes = match ($variant) {
+            'success' => 'bg-success-500 text-white',
+            'muted' => 'border border-gray-300 bg-gray-100 text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400',
+            default => 'bg-primary-500 text-white',
+        };
 
         $icon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">'
             .'<path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" />'

@@ -433,6 +433,7 @@ class PositionRecordActions
             ->color('success')
             ->visible(fn (Position $record): bool => $record->status === 'open'
                 && ! $record->hasScaledOut()
+                && ! $record->isAutoRunnerBypass()
                 && ($record->isTarget1Hit() || $record->hasTarget1LimitPlaced()))
             ->modalHeading('Target 1 — gedeeltelijke verkoop')
             ->modalDescription('Log de werkelijke fill bij je broker. Je stop-loss wordt automatisch naar breakeven (entry) verplaatst.')

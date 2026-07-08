@@ -26,6 +26,8 @@ class SetupRadarWidget extends TableWidget
 
     protected int|string|array $columnSpan = 1;
 
+    protected string $view = 'filament.widgets.scrollable-table-widget';
+
     /**
      * @var array<string, mixed>|null
      */
@@ -117,7 +119,6 @@ class SetupRadarWidget extends TableWidget
             ])
             ->emptyStateHeading('Geen sterke setups in je watchlist')
             ->emptyStateDescription('Voeg A+/A- setups toe via Mijn Radar, of pas het filter aan.')
-            ->paginated([10, 25, 50])
-            ->defaultPaginationPageOption(10);
+            ->paginated(false);
     }
 }

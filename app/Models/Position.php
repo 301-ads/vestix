@@ -395,6 +395,15 @@ class Position extends Model
             && (float) $this->scaled_out_quantity > 0;
     }
 
+    public function isAutoRunnerBypass(): bool
+    {
+        return $this->status === 'open'
+            && ! $this->hasScaledOut()
+            && $this->entry_price !== null
+            && $this->current_sl !== null
+            && (float) $this->current_sl >= (float) $this->entry_price;
+    }
+
     public function isTarget1Hit(): bool
     {
         if ($this->status !== 'open' || $this->hasScaledOut()) {
@@ -735,7 +744,9 @@ class Position extends Model
             return null;
         }
 
-        if ($this->isTarget1Hit() && ! $this->hasTarget1LimitPlaced()) {
+        if ($this->isTarget1Hit()
+            && ! $this->hasTarget1LimitPlaced()
+            && ! $this->isAutoRunnerBypass()) {
             return self::PRIMARY_ACTION_TARGET_1;
         }
 

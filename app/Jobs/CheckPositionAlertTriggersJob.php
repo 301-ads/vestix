@@ -50,7 +50,7 @@ class CheckPositionAlertTriggersJob implements ShouldQueue
                 $dispatcher->queue($position, AlertEventType::StoppedOut);
             }
 
-            if ($position->isTarget1Hit()) {
+            if ($position->isTarget1Hit() && ! $position->isAutoRunnerBypass()) {
                 $dispatcher->queue($position, AlertEventType::Target1Hit, [
                     'target_1_price' => $position->target_1_price,
                 ]);

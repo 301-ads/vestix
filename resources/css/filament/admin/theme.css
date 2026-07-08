@@ -723,6 +723,27 @@
     color: var(--info-500);
 }
 
+.vestix-dashboard .vestix-scrollable-table-widget .fi-ta-content-ctn {
+    max-height: calc(2.5rem * 10 + 2.25rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.vestix-dashboard .vestix-scrollable-table-widget .fi-ta-content-ctn thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--vestix-panel);
+}
+
+.dark .vestix-dashboard .vestix-scrollable-table-widget .fi-ta-content-ctn thead {
+    background-color: var(--vestix-panel);
+}
+
+.vestix-dashboard .vestix-scrollable-table-widget .fi-pagination {
+    display: none;
+}
+
 .vestix-dashboard .vestix-actions-widget .vestix-action-todos {
     display: flex;
     flex-direction: column;
@@ -832,6 +853,23 @@
 .vestix-order-plan-section .vestix-order-plan__step-one-action-host:empty,
 .vestix-order-plan-section .vestix-order-plan__step-one-action-host .fi-ac:empty {
     display: none;
+}
+
+.vestix-order-plan-section .vestix-order-plan__step--pending .vestix-order-plan__step-body {
+    opacity: 0.72;
+}
+
+.vestix-order-plan-section .vestix-order-plan__step--pending .vestix-order-plan__step-body > p:first-child {
+    color: var(--gray-500);
+}
+
+.dark .vestix-order-plan-section .vestix-order-plan__step--pending .vestix-order-plan__step-body > p:first-child {
+    color: var(--gray-400);
+}
+
+.vestix-order-plan-section .vestix-order-plan__step--completed .vestix-order-plan__step-line,
+.vestix-order-plan-section .vestix-order-plan__step--bypass .vestix-order-plan__step-line {
+    opacity: 0.55;
 }
 
 .vestix-broker-order-modal .fi-modal-description {
