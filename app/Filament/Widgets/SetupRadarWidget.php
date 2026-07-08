@@ -74,7 +74,7 @@ class SetupRadarWidget extends TableWidget
                     ->money('usd')
                     ->placeholder('—'),
                 TextColumn::make('entry_price')
-                    ->label('Geplande entry')
+                    ->label('Entry')
                     ->money('usd')
                     ->placeholder('—'),
                 TextColumn::make('planned_risk_percentage')
