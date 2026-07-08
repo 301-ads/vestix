@@ -22,9 +22,9 @@ class SetupRadarWidget extends TableWidget
 {
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 3;
 
-    protected int|string|array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 1;
 
     /**
      * @var array<string, mixed>|null

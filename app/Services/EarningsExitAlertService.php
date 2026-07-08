@@ -39,12 +39,14 @@ class EarningsExitAlertService
                 'earnings_date' => $earningsDate->toDateString(),
             ];
 
-            if (in_array($phase, ['warning', 'auto'], true) && EarningsExitSchedule::isWarningDay($earningsDate, $today)) {
+            $hour = $position->asset?->effectiveEarningsHour();
+
+            if (in_array($phase, ['warning', 'auto'], true) && EarningsExitSchedule::isWarningDay($earningsDate, $today, $hour)) {
                 $this->alertDispatcher->queue($position, AlertEventType::EarningsWarning, $context);
                 $summary['warning']++;
             }
 
-            if (in_array($phase, ['action', 'auto'], true) && EarningsExitSchedule::isActionDay($earningsDate, $today)) {
+            if (in_array($phase, ['action', 'auto'], true) && EarningsExitSchedule::isActionDay($earningsDate, $today, $hour)) {
                 $this->alertDispatcher->queue($position, AlertEventType::EarningsActionRequired, $context);
                 $summary['action']++;
             }

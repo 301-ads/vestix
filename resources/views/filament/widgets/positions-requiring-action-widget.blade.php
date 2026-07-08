@@ -1,7 +1,49 @@
-<x-filament-widgets::widget class="fi-wi-table vestix-actions-widget">
-    {{ \Filament\Support\Facades\FilamentView::renderHook(\Filament\Widgets\View\WidgetsRenderHook::TABLE_WIDGET_START, scopes: static::class) }}
+<x-filament-widgets::widget class="vestix-actions-widget">
+    <x-filament::section
+        :heading="$heading"
+        :compact="true"
+    >
+        @if ($this->actionablePositions->isEmpty())
+            <div class="vestix-action-todos-empty">
+                <p class="font-medium text-gray-950 dark:text-white">Geen acties vereist</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Alle stop-losses zijn up-to-date en geen posities onder hun stop-loss.
+                </p>
+            </div>
+        @else
+            <ul class="vestix-action-todos" wire:poll.{{ $this->getPollingInterval() }}>
+                @foreach ($this->actionablePositions as $position)
+                    @php
+                        $accent = $this->formatActionAccent($position);
+                        $action = $this->actionForPosition($position);
+                    @endphp
 
-    {{ $this->table ?? null }}
+                    <li @class([
+                        'vestix-action-todo',
+                        'vestix-action-todo--' . $accent,
+                    ])>
+                        <div class="vestix-action-todo__identity">
+                            @include('components.filament.positions.ticker-with-icon', [
+                                'ticker' => $position->ticker,
+                                'iconUrl' => $position->asset?->icon_url,
+                            ])
+                        </div>
 
-    {{ \Filament\Support\Facades\FilamentView::renderHook(\Filament\Widgets\View\WidgetsRenderHook::TABLE_WIDGET_END, scopes: static::class) }}
+                        <div class="vestix-action-todo__content">
+                            <p class="vestix-action-todo__ticker">{{ $position->ticker }}</p>
+                            <p class="vestix-action-todo__instruction">{!! $this->formatInstructionHtml($position) !!}</p>
+                        </div>
+
+                        @if ($action)
+                            <div class="vestix-action-todo__action">
+                                {{ $action }}
+                            </div>
+                        @endif
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </x-filament::section>
+
+    <x-filament-actions::modals />
 </x-filament-widgets::widget>

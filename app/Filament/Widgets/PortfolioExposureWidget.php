@@ -34,7 +34,8 @@ class PortfolioExposureWidget extends StatsOverviewWidget
 
         $totalInvested = $openPositions->sum(fn (Position $position) => $position->investment);
         $totalValue = $openPositions->sum(fn (Position $position) => $position->current_value);
-        $totalPnl = $totalValue - $totalInvested;
+        $totalRealized = $openPositions->sum(fn (Position $position) => $position->stored_realized_pnl);
+        $totalPnl = $openPositions->sum(fn (Position $position) => $position->unrealized_pnl);
         $totalPnlPct = $totalInvested > 0 ? ($totalPnl / $totalInvested) * 100 : 0;
         $totalLockedInProfit = $openPositions->sum(fn (Position $position) => $position->locked_in_profit_dollars);
         $totalCapitalRisk = $openPositions->sum(fn (Position $position) => $position->capital_risk_dollars);
@@ -50,7 +51,8 @@ class PortfolioExposureWidget extends StatsOverviewWidget
                 ->descriptionColor('success')
                 ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard']),
             Stat::make('Huidige Waarde', '$'.number_format($totalValue, 2))
-                ->description('Locked: +$'.number_format($totalLockedInProfit, 2))
+                ->description('Locked: +$'.number_format($totalLockedInProfit, 2)
+                    .($totalRealized > 0 ? ' (incl. $'.number_format($totalRealized, 2).' gerealiseerd)' : ''))
                 ->descriptionIcon('heroicon-m-shield-check')
                 ->descriptionColor('info')
                 ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard vestix-stat-card--blue']),

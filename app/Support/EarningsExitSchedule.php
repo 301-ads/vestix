@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\EarningsExitUrgency;
+use App\Enums\EarningsReleaseHour;
 use Illuminate\Support\Carbon;
 
 class EarningsExitSchedule
@@ -19,36 +20,42 @@ class EarningsExitSchedule
         return (int) $today->diffInDays($earnings);
     }
 
-    public static function exitDeadline(Carbon $earningsDate): Carbon
+    public static function exitDeadline(Carbon $earningsDate, ?EarningsReleaseHour $hour = null): Carbon
     {
-        return UsMarketSession::previousTradingDay($earningsDate->copy()->startOfDay());
+        $date = $earningsDate->copy()->startOfDay();
+
+        if ($hour === EarningsReleaseHour::Amc) {
+            return $date->isWeekday() ? $date : UsMarketSession::previousTradingDay($date);
+        }
+
+        return UsMarketSession::previousTradingDay($date);
     }
 
-    public static function warningDate(Carbon $earningsDate): Carbon
+    public static function warningDate(Carbon $earningsDate, ?EarningsReleaseHour $hour = null): Carbon
     {
-        return UsMarketSession::subtractTradingDays(self::exitDeadline($earningsDate), 1);
+        return UsMarketSession::subtractTradingDays(self::exitDeadline($earningsDate, $hour), 1);
     }
 
-    public static function actionDate(Carbon $earningsDate): Carbon
+    public static function actionDate(Carbon $earningsDate, ?EarningsReleaseHour $hour = null): Carbon
     {
-        return self::exitDeadline($earningsDate);
+        return self::exitDeadline($earningsDate, $hour);
     }
 
-    public static function isWarningDay(Carbon $earningsDate, ?Carbon $today = null): bool
+    public static function isWarningDay(Carbon $earningsDate, ?Carbon $today = null, ?EarningsReleaseHour $hour = null): bool
     {
         $today = ($today ?? Carbon::today('Europe/Amsterdam'))->copy()->startOfDay();
 
-        return $today->equalTo(self::warningDate($earningsDate));
+        return $today->equalTo(self::warningDate($earningsDate, $hour));
     }
 
-    public static function isActionDay(Carbon $earningsDate, ?Carbon $today = null): bool
+    public static function isActionDay(Carbon $earningsDate, ?Carbon $today = null, ?EarningsReleaseHour $hour = null): bool
     {
         $today = ($today ?? Carbon::today('Europe/Amsterdam'))->copy()->startOfDay();
 
-        return $today->equalTo(self::actionDate($earningsDate));
+        return $today->equalTo(self::actionDate($earningsDate, $hour));
     }
 
-    public static function urgency(Carbon $earningsDate, ?Carbon $today = null): ?EarningsExitUrgency
+    public static function urgency(Carbon $earningsDate, ?Carbon $today = null, ?EarningsReleaseHour $hour = null): ?EarningsExitUrgency
     {
         $today = ($today ?? Carbon::today('Europe/Amsterdam'))->copy()->startOfDay();
         $earnings = $earningsDate->copy()->startOfDay();
@@ -57,8 +64,8 @@ class EarningsExitSchedule
             return null;
         }
 
-        $warning = self::warningDate($earningsDate);
-        $action = self::actionDate($earningsDate);
+        $warning = self::warningDate($earningsDate, $hour);
+        $action = self::actionDate($earningsDate, $hour);
 
         if ($today->greaterThan($action)) {
             return EarningsExitUrgency::Overdue;

@@ -296,4 +296,66 @@ class StrategyAnalyticsService
             ->map(fn (StrategyTag $tag): array => ['id' => $tag->id, 'name' => $tag->name])
             ->all();
     }
+
+    /**
+     * @return array{
+     *     scaled_out_trades: int,
+     *     runner_beat_target_rate: float,
+     *     avg_runner_uplift_r: float,
+     *     avg_flat_target_r: float,
+     * }
+     */
+    public function runnerPerformance(int $userId): array
+    {
+        $scaledOut = $this->closedTradesForUser($userId)->filter(
+            fn (Position $p): bool => $p->hasScaledOut(),
+        );
+
+        $count = $scaledOut->count();
+
+        if ($count === 0) {
+            return [
+                'scaled_out_trades' => 0,
+                'runner_beat_target_rate' => 0.0,
+                'avg_runner_uplift_r' => 0.0,
+                'avg_flat_target_r' => 0.0,
+            ];
+        }
+
+        $beats = 0;
+        $uplifts = [];
+        $flatRs = [];
+
+        foreach ($scaledOut as $position) {
+            $blendedR = $position->rMultiple();
+            $flatR = $position->effective_target_1_rr;
+
+            if ($blendedR === null) {
+                continue;
+            }
+
+            $flatRs[] = $flatR;
+
+            if ($blendedR > $flatR) {
+                $beats++;
+            }
+
+            $uplifts[] = $blendedR - $flatR;
+        }
+
+        $upliftCount = count($uplifts);
+
+        return [
+            'scaled_out_trades' => $count,
+            'runner_beat_target_rate' => $upliftCount > 0
+                ? round(($beats / $upliftCount) * 100, 1)
+                : 0.0,
+            'avg_runner_uplift_r' => $upliftCount > 0
+                ? round(array_sum($uplifts) / $upliftCount, 2)
+                : 0.0,
+            'avg_flat_target_r' => count($flatRs) > 0
+                ? round(array_sum($flatRs) / count($flatRs), 2)
+                : 0.0,
+        ];
+    }
 }

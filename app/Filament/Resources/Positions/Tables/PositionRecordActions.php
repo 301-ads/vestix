@@ -9,6 +9,7 @@ use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Services\SquadContext;
+use App\Support\BrokerOrderTicket;
 use App\Support\ChartScreenshotUpload;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFetchDispatcher;
@@ -16,6 +17,7 @@ use App\Support\MarketDataFreshness;
 use App\Support\PositionSizing;
 use App\Support\ScoutSetupScorecard;
 use App\Support\ShareCardDataFactory;
+use App\Support\ScaleOutDisplay;
 use App\Support\StopLossProtocol;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
@@ -100,6 +102,20 @@ class PositionRecordActions
                     ->default(fn (Position $record): ?float => $record->quantity !== null
                         ? (float) $record->quantity
                         : null),
+                TextInput::make('target_1_rr')
+                    ->label('Target 1 R/R')
+                    ->numeric()
+                    ->minValue(0.1)
+                    ->step(0.1)
+                    ->default(fn (): float => Position::defaultTarget1Rr()),
+                TextInput::make('first_tranche_fraction')
+                    ->label('Eerste tranche (fractie)')
+                    ->numeric()
+                    ->minValue(0.01)
+                    ->maxValue(1)
+                    ->step(0.01)
+                    ->default(fn (): float => Position::defaultFirstTrancheFraction())
+                    ->helperText('0.5 = 50% van de positie op Target 1'),
                 Placeholder::make('sl_preview')
                     ->label('Broker stop-loss')
                     ->content(fn (Position $record): HtmlString => new HtmlString(
@@ -138,11 +154,17 @@ class PositionRecordActions
 
                         return new HtmlString(implode('', $lines));
                     }),
+                Placeholder::make('order_plan_preview')
+                    ->label('Order Plan')
+                    ->visible(fn (Position $record): bool => $record->target_1_price !== null)
+                    ->content(fn (Position $record): HtmlString => ScaleOutDisplay::orderPlanHtml($record)),
             ])
             ->action(function (Position $record, array $data): void {
                 $record->activateAsPosition(
                     (float) $data['entry_price'],
                     (float) $data['quantity'],
+                    isset($data['target_1_rr']) ? (float) $data['target_1_rr'] : null,
+                    isset($data['first_tranche_fraction']) ? (float) $data['first_tranche_fraction'] : null,
                 );
 
                 FilamentNotifier::send(
@@ -352,12 +374,107 @@ class PositionRecordActions
             ->color('success')
             ->visible(fn (Position $record): bool => $record->status === 'open' && $record->action_command === 'UPDATE')
             ->requiresConfirmation()
-            ->modalHeading('Stop-Loss bijwerken')
-            ->modalDescription('Huidige SL vervangen door de berekende nieuwe SL?')
+            ->modalHeading(fn (Position $record): string => BrokerOrderTicket::forStopLossUpdate($record)['title'])
+            ->modalIcon(fn (Position $record): HtmlString => BrokerOrderTicket::modalIcon($record))
+            ->modalIconColor('gray')
+            ->extraModalWindowAttributes(['class' => 'vestix-broker-order-modal'])
+            ->modalContent(fn (Position $record): HtmlString => new HtmlString(
+                view('filament.positions.broker-order-ticket', [
+                    'ticket' => BrokerOrderTicket::forStopLossUpdate($record),
+                ])->render()
+            ))
+            ->modalSubmitActionLabel('Stop-Loss Updated')
+            ->modalCancelActionLabel('Annuleren')
             ->action(function (Position $record): void {
                 $record->update(['current_sl' => $record->new_sl]);
 
                 FilamentNotifier::send(title: 'Stop-Loss geüpdatet!');
+            });
+    }
+
+    public static function markTarget1LimitPlaced(): Action
+    {
+        return Action::make('mark_limit_placed')
+            ->label('Update')
+            ->tooltip('Bevestig dat de limit sell bij je broker staat')
+            ->icon('heroicon-o-check')
+            ->color('success')
+            ->visible(fn (Position $record): bool => $record->status === 'open'
+                && $record->isTarget1Hit()
+                && ! $record->hasTarget1LimitPlaced())
+            ->requiresConfirmation()
+            ->modalHeading(fn (Position $record): string => BrokerOrderTicket::forLimitSell($record)['title'])
+            ->modalIcon(fn (Position $record): HtmlString => BrokerOrderTicket::modalIcon($record))
+            ->modalIconColor('gray')
+            ->extraModalWindowAttributes(['class' => 'vestix-broker-order-modal'])
+            ->modalContent(fn (Position $record): HtmlString => new HtmlString(
+                view('filament.positions.broker-order-ticket', [
+                    'ticket' => BrokerOrderTicket::forLimitSell($record),
+                ])->render()
+            ))
+            ->modalSubmitActionLabel('Confirm Limit Sell')
+            ->modalCancelActionLabel('Annuleren')
+            ->action(function (Position $record): void {
+                $record->markTarget1LimitPlaced();
+
+                FilamentNotifier::send(
+                    title: 'Limit sell gemarkeerd',
+                    body: "{$record->ticker}: de broker-to-do is afgevinkt.",
+                );
+            });
+    }
+
+    public static function scaleOut(): Action
+    {
+        return Action::make('scale_out')
+            ->label('Scale-out uitgevoerd')
+            ->tooltip('Log gedeeltelijke verkoop op Target 1 — stop gaat naar breakeven')
+            ->icon('heroicon-o-banknotes')
+            ->color('success')
+            ->visible(fn (Position $record): bool => $record->status === 'open'
+                && ! $record->hasScaledOut()
+                && ($record->isTarget1Hit() || $record->hasTarget1LimitPlaced()))
+            ->modalHeading('Target 1 — gedeeltelijke verkoop')
+            ->modalDescription('Log de werkelijke fill bij je broker. Je stop-loss wordt automatisch naar breakeven (entry) verplaatst.')
+            ->schema([
+                TextInput::make('fill_price')
+                    ->label('Werkelijke verkoopprijs')
+                    ->numeric()
+                    ->required()
+                    ->prefix('$')
+                    ->minValue(0.01)
+                    ->default(fn (Position $record): ?float => $record->target_1_price),
+                TextInput::make('quantity')
+                    ->label('Aantal verkocht')
+                    ->numeric()
+                    ->required()
+                    ->inputMode('decimal')
+                    ->step('any')
+                    ->minValue(0.000001)
+                    ->default(fn (Position $record): ?float => $record->target_1_quantity),
+                Placeholder::make('breakeven_note')
+                    ->label('Na verkoop')
+                    ->content('Stop-loss → entry (breakeven). Runner blijft trailen onder SMA 20.'),
+            ])
+            ->action(function (Position $record, array $data): void {
+                $record->scaleOut(
+                    (float) $data['fill_price'],
+                    (float) $data['quantity'],
+                );
+
+                FilamentNotifier::send(
+                    title: 'Target 1 gelogd',
+                    body: sprintf(
+                        '%s: +$%s gerealiseerd. Runner op breakeven.',
+                        $record->ticker,
+                        number_format((float) $record->fresh()->realized_pnl, 2),
+                    ),
+                );
+            })
+            ->after(function ($livewire): void {
+                if (is_object($livewire) && method_exists($livewire, 'refreshFormData')) {
+                    $livewire->refreshFormData();
+                }
             });
     }
 

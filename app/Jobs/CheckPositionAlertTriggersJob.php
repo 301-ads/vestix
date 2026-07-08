@@ -49,6 +49,17 @@ class CheckPositionAlertTriggersJob implements ShouldQueue
             if ($command === 'STOPPED OUT') {
                 $dispatcher->queue($position, AlertEventType::StoppedOut);
             }
+
+            if ($position->isTarget1Hit()) {
+                $dispatcher->queue($position, AlertEventType::Target1Hit, [
+                    'target_1_price' => $position->target_1_price,
+                ]);
+            } else {
+                PositionAlert::query()
+                    ->where('position_id', $position->id)
+                    ->where('event_type', AlertEventType::Target1Hit)
+                    ->delete();
+            }
         }
     }
 }

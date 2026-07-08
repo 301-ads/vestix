@@ -35,6 +35,7 @@ class StrategyCoachStatsWidget extends StatsOverviewWidget
 
         $stats = $analytics->overallStats($userId);
         $insight = $analytics->coachInsight($userId);
+        $runner = $analytics->runnerPerformance($userId);
 
         $coachText = 'Analyseer je tags om je edge te vinden.';
 
@@ -57,6 +58,18 @@ class StrategyCoachStatsWidget extends StatsOverviewWidget
             Stat::make('Expectancy', number_format($stats['expectancy'], 2).'%')
                 ->description('(WinRate × AvgWin) − (LossRate × AvgLoss)')
                 ->color($stats['expectancy'] >= 0 ? 'success' : 'danger'),
+            Stat::make('Runner rendement', $runner['scaled_out_trades'] > 0
+                ? number_format($runner['runner_beat_target_rate'], 0).'% beat Target 1'
+                : '—')
+                ->description($runner['scaled_out_trades'] > 0
+                    ? sprintf(
+                        'Gem. +%sR boven flat %.1fR (%d scale-outs)',
+                        number_format($runner['avg_runner_uplift_r'], 2),
+                        $runner['avg_flat_target_r'],
+                        $runner['scaled_out_trades'],
+                    )
+                    : 'Nog geen scale-out trades')
+                ->color($runner['avg_runner_uplift_r'] > 0 ? 'success' : 'gray'),
             Stat::make('Max drawdown', number_format($stats['max_drawdown'], 2).'%')
                 ->description($coachText)
                 ->color('warning'),

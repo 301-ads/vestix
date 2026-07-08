@@ -26,6 +26,21 @@ use Illuminate\Support\HtmlString;
 
 class PositionsTable
 {
+    private static function blendedClosedPnlSql(): string
+    {
+        return 'COALESCE(realized_pnl, 0) + (exit_price - entry_price) * (quantity - COALESCE(scaled_out_quantity, 0))';
+    }
+
+    private static function blendedClosedPnlPctSql(): string
+    {
+        return '('.self::blendedClosedPnlSql().') / NULLIF(entry_price * quantity, 0) * 100';
+    }
+
+    private static function blendedOpenPnlSql(): string
+    {
+        return 'COALESCE(realized_pnl, 0) + (latest_close_price - entry_price) * (quantity - COALESCE(scaled_out_quantity, 0))';
+    }
+
     public static function configure(Table $table): Table
     {
         return $table
@@ -97,7 +112,7 @@ class PositionsTable
                     ->suffix('%')
                     ->color(fn ($state) => ($state ?? 0) >= 0 ? 'success' : 'danger')
                     ->sortable(query: function ($query, string $direction): void {
-                        $query->orderByRaw("CASE WHEN status = 'closed' THEN ((exit_price - entry_price) / NULLIF(entry_price, 0)) * 100 ELSE ((latest_close_price - entry_price) / NULLIF(entry_price, 0)) * 100 END {$direction}");
+                        $query->orderByRaw("CASE WHEN status = 'closed' THEN ".self::blendedClosedPnlPctSql()." ELSE ((latest_close_price - entry_price) / NULLIF(entry_price, 0)) * 100 END {$direction}");
                     })
                     ->tooltip(fn (Position $record): ?string => $record->status === 'closed'
                         ? null
@@ -115,7 +130,7 @@ class PositionsTable
                             ->suffix('%')
                             ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire))
                             ->query(fn ($query) => $query)
-                            ->using(fn ($query) => $query->avg(DB::raw('((exit_price - entry_price) / NULLIF(entry_price, 0)) * 100'))),
+                            ->using(fn ($query) => $query->avg(DB::raw(self::blendedClosedPnlPctSql()))),
                     ),
                 ColumnGroup::make(static::schildGroupLabel())
                     ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
@@ -180,7 +195,7 @@ class PositionsTable
                     ->money('usd')
                     ->color(fn ($state) => ($state ?? 0) >= 0 ? 'success' : 'danger')
                     ->sortable(query: function ($query, string $direction): void {
-                        $query->orderByRaw("CASE WHEN status = 'closed' THEN (exit_price - entry_price) * quantity ELSE (latest_close_price - entry_price) * quantity END {$direction}");
+                        $query->orderByRaw("CASE WHEN status = 'closed' THEN ".self::blendedClosedPnlSql()." ELSE ".self::blendedOpenPnlSql()." END {$direction}");
                     })
                     ->toggleable()
                     ->width('5.5rem')
@@ -191,7 +206,7 @@ class PositionsTable
                             ->money('usd')
                             ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire))
                             ->query(fn ($query) => $query)
-                            ->using(fn ($query) => $query->sum(DB::raw('(exit_price - entry_price) * quantity'))),
+                            ->using(fn ($query) => $query->sum(DB::raw(self::blendedClosedPnlSql()))),
                     ),
                 TextColumn::make('closed_at')
                     ->label('Datum Gesloten')
@@ -207,8 +222,9 @@ class PositionsTable
                     ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire)),
             ])
             ->recordActions([
-                PositionRecordActions::markAsUpdated(),
                 ActionGroup::make([
+                    PositionRecordActions::scaleOut(),
+                    PositionRecordActions::markAsUpdated(),
                     PositionRecordActions::shareSuccess(),
                     PositionRecordActions::fetchMarketData(),
                     PositionRecordActions::archive(),

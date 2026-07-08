@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Positions\Schemas;
 use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
 use App\Enums\TrailingStopMode;
+use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Models\Position;
 use App\Services\SquadContext;
 use App\Services\TradingViewSymbolService;
@@ -16,6 +17,7 @@ use App\Support\PositionSizing;
 use App\Support\PreBounceExtensionCalculator;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\RelativeVolumeCalculator;
+use App\Support\ScaleOutDisplay;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SlPriceProximity;
 use App\Support\StopLossProtocol;
@@ -27,6 +29,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Callout;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Icon;
@@ -108,8 +111,25 @@ class PositionForm
             ->columnSpan(['lg' => 1])
             ->extraAttributes(['class' => 'position-cockpit-telemetry'])
             ->schema([
+                self::orderPlanSection(),
                 self::schildStatusSection(),
                 self::openPositionJournalSection(),
+            ]);
+    }
+
+    private static function orderPlanSection(): Section
+    {
+        return Section::make('Order Plan')
+            ->compact()
+            ->extraAttributes(['class' => 'vestix-order-plan-section'])
+            ->visible(fn (?Position $record): bool => $record?->status === 'open')
+            ->schema([
+                Placeholder::make('order_plan')
+                    ->hiddenLabel()
+                    ->content(fn (?Position $record): HtmlString => ScaleOutDisplay::orderPlanHtml($record ?? new Position)),
+                Actions::make([
+                    PositionRecordActions::scaleOut()->label('Log Scale-out'),
+                ])->extraAttributes(['class' => 'vestix-order-plan__step-one-action-host']),
             ]);
     }
 
@@ -1648,6 +1668,27 @@ class PositionForm
      */
     private static function resolvePerformanceMetrics(Get $get, ?Position $record): ?array
     {
+        if ($record !== null && in_array($record->status, ['open', 'closed'], true)) {
+            if ($record->status === 'open' && ($get('latest_close_price') ?? $record->latest_close_price) !== null) {
+                $preview = clone $record;
+                $preview->latest_close_price = $get('latest_close_price') ?? $record->latest_close_price;
+                $preview->entry_price = $get('entry_price') ?? $record->entry_price;
+                $preview->quantity = $get('quantity') ?? $record->quantity;
+
+                return [
+                    'pnl' => $preview->unrealized_pnl,
+                    'pnl_percentage' => $preview->unrealized_pnl_percentage,
+                ];
+            }
+
+            if ($record->status === 'closed' || $record->valuation_price !== null) {
+                return [
+                    'pnl' => $record->unrealized_pnl,
+                    'pnl_percentage' => $record->unrealized_pnl_percentage,
+                ];
+            }
+        }
+
         $price = $record?->status === 'closed'
             ? $record->exit_price
             : ($get('latest_close_price') ?? $record?->latest_close_price);

@@ -36,9 +36,9 @@ class Dashboard extends BaseDashboard
     {
         return [
             PortfolioExposureWidget::class,
-            PositionsRequiringActionWidget::class,
             PortfolioTopFlopWidget::class,
             SetupRadarWidget::class,
+            PositionsRequiringActionWidget::class,
         ];
     }
 

@@ -14,6 +14,7 @@ enum AlertEventType: string
     case PremarketLanding = 'premarket_landing';
     case EarningsWarning = 'earnings_warning';
     case EarningsActionRequired = 'earnings_action_required';
+    case Target1Hit = 'target_1_hit';
     case Overbought = 'overbought';
     case MarketOpenBuyStopReminder = 'market_open_buy_stop_reminder';
 
@@ -32,6 +33,7 @@ enum AlertEventType: string
             self::PremarketLanding->value,
             self::EarningsWarning->value,
             self::EarningsActionRequired->value,
+            self::Target1Hit->value,
             self::Overbought->value,
             self::MarketOpenBuyStopReminder->value,
         ];

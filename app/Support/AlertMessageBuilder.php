@@ -82,6 +82,13 @@ class AlertMessageBuilder
                 e(StopLossProtocol::overboughtFormulaLabel()),
                 PositionResource::getUrl('edit', ['record' => $position]),
             ),
+            AlertEventType::Target1Hit => sprintf(
+                '<b>TARGET 1 BEREIKT:</b> %s close ≥ $%s — verkoop %s%% en zet stop op breakeven. <a href="%s">Log verkoop</a>',
+                e($position->ticker),
+                number_format((float) ($context['target_1_price'] ?? $position->target_1_price ?? 0), 2),
+                number_format($position->effective_first_tranche_fraction * 100, 0),
+                PositionResource::getUrl('edit', ['record' => $position]),
+            ),
             AlertEventType::MarketOpenBuyStopReminder => self::marketOpenBuyStopReminder($position, $context),
         };
     }

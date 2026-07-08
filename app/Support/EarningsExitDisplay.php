@@ -119,7 +119,7 @@ class EarningsExitDisplay
         };
 
         $exitDeadline = $earningsDate !== null
-            ? EarningsExitSchedule::exitDeadline($earningsDate)->locale('nl')->isoFormat('ddd D MMM')
+            ? EarningsExitSchedule::exitDeadline($earningsDate, $hour)->locale('nl')->isoFormat('ddd D MMM')
             : null;
 
         $subtitle = $exitDeadline !== null
@@ -217,7 +217,7 @@ class EarningsExitDisplay
         $daysUntil = $position->daysUntilEarnings();
         $hour = $position->asset?->effectiveEarningsHour();
         $urgency = $position->earningsExitUrgency();
-        $exitDeadline = EarningsExitSchedule::exitDeadline($earningsDate);
+        $exitDeadline = EarningsExitSchedule::exitDeadline($earningsDate, $hour);
 
         $value = match (true) {
             $daysUntil === 0 => 'Vandaag',

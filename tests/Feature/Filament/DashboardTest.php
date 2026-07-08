@@ -3,8 +3,10 @@
 namespace Tests\Feature\Filament;
 
 use App\Filament\Pages\Dashboard;
+use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
+use App\Filament\Widgets\SetupRadarWidget;
 use App\Models\Position;
 use App\Models\User;
 use App\Support\MarketDataFreshness;
@@ -110,6 +112,8 @@ class DashboardTest extends TestCase
 
         $updatePosition = Position::factory()->for($user)->create([
             'ticker' => 'WDC',
+            'entry_price' => 78.00,
+            'initial_sl' => 74.50,
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
@@ -119,6 +123,8 @@ class DashboardTest extends TestCase
 
         $holdPosition = Position::factory()->for($user)->create([
             'ticker' => 'HOLD',
+            'entry_price' => 78.00,
+            'initial_sl' => 74.50,
             'latest_close_price' => 78.20,
             'latest_sma_20' => 75.00,
             'latest_atr_14' => 2.80,
@@ -129,10 +135,24 @@ class DashboardTest extends TestCase
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(PositionsRequiringActionWidget::class)
-            ->assertCanSeeTableRecords([$updatePosition])
-            ->assertCanNotSeeTableRecords([$holdPosition])
+            ->assertSee('WDC')
+            ->assertDontSee('HOLD')
+            ->assertSee('Verhoog Stop-Loss van')
             ->assertSee('$76.10')
-            ->assertSee('fi-copyable');
+            ->assertDontSee('Doelprijs')
+            ->assertDontSee('Status');
+    }
+
+    public function test_dashboard_widget_order_shows_portfolio_before_actions(): void
+    {
+        $widgets = (new Dashboard)->getWidgets();
+
+        $this->assertSame([
+            PortfolioExposureWidget::class,
+            PortfolioTopFlopWidget::class,
+            SetupRadarWidget::class,
+            PositionsRequiringActionWidget::class,
+        ], $widgets);
     }
 
     public function test_action_widget_lists_stopped_out_positions_with_liquidation_type(): void
@@ -149,9 +169,8 @@ class DashboardTest extends TestCase
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(PositionsRequiringActionWidget::class)
-            ->assertCanSeeTableRecords([$stoppedOut])
-            ->assertSee('Liquidatie')
-            ->assertSee('STOP');
+            ->assertSee('STOP')
+            ->assertSee('liquidatie');
     }
 
     public function test_action_widget_excludes_hold_positions_when_sl_is_up_to_date(): void
@@ -160,6 +179,9 @@ class DashboardTest extends TestCase
 
         $holdPosition = Position::factory()->for($user)->create([
             'ticker' => 'CDNS',
+            'entry_price' => 350.00,
+            'initial_sl' => 51.15,
+            'quantity' => 10,
             'latest_close_price' => 400.00,
             'latest_sma_20' => 51.71,
             'latest_atr_14' => 1.13,
@@ -172,7 +194,6 @@ class DashboardTest extends TestCase
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(PositionsRequiringActionWidget::class)
-            ->assertCanNotSeeTableRecords([$holdPosition])
             ->assertDontSee('CDNS');
     }
 
@@ -181,6 +202,8 @@ class DashboardTest extends TestCase
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
         $position = Position::factory()->for($user)->create([
+            'entry_price' => 78.00,
+            'initial_sl' => 74.50,
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
@@ -191,9 +214,9 @@ class DashboardTest extends TestCase
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(PositionsRequiringActionWidget::class)
-            ->assertCanSeeTableRecords([$position])
-            ->callTableAction('mark_as_updated', $position)
-            ->assertCanNotSeeTableRecords([$position->fresh()]);
+            ->assertSee($position->ticker)
+            ->callAction('mark_as_updated', arguments: ['record' => $position->getKey()])
+            ->assertDontSee($position->ticker);
 
         $this->assertEquals(76.10, (float) $position->fresh()->current_sl);
     }
@@ -245,6 +268,7 @@ class DashboardTest extends TestCase
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
         $stoppedOut = Position::factory()->for($user)->create([
+            'ticker' => 'STOP',
             'latest_close_price' => 74.50,
             'current_sl' => 74.50,
             'status' => 'open',
@@ -262,11 +286,40 @@ class DashboardTest extends TestCase
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(PositionsRequiringActionWidget::class)
-            ->assertCanSeeTableRecords([$stoppedOut, $updatePosition])
+            ->assertSee('UPD')
+            ->assertSee('STOP')
             ->assertSee('Update')
             ->assertDontSee('Archiveer')
             ->assertDontSee('Close')
-            ->assertTableActionVisible('mark_as_updated', $updatePosition)
-            ->assertTableActionHidden('mark_as_updated', $stoppedOut);
+            ->assertActionVisible('mark_as_updated', arguments: ['record' => $updatePosition->getKey()])
+            ->assertActionHidden('mark_as_updated', arguments: ['record' => $stoppedOut->getKey()]);
+    }
+
+    public function test_action_widget_shows_limit_sell_instruction_and_update_action(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $targetHit = Position::factory()->for($user)->create([
+            'ticker' => 'GS',
+            'entry_price' => 10.00,
+            'initial_sl' => 9.00,
+            'current_sl' => 9.00,
+            'latest_close_price' => 12.00,
+            'latest_sma_20' => 9.00,
+            'latest_atr_14' => 1.00,
+            'quantity' => 100,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertSee('GS')
+            ->assertSee('Stel Limit Sell in op')
+            ->assertSee('$12.00')
+            ->assertSee('voor 50% van je positie.')
+            ->assertActionVisible('mark_limit_placed', arguments: ['record' => $targetHit->getKey()])
+            ->callAction('mark_limit_placed', arguments: ['record' => $targetHit->getKey()])
+            ->assertDontSee('GS');
     }
 }

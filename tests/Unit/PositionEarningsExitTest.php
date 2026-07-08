@@ -23,7 +23,7 @@ class PositionEarningsExitTest extends TestCase
 
     public function test_requiring_action_includes_earnings_exit_positions(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-03-05', 'Europe/Amsterdam'));
+        Carbon::setTestNow(Carbon::parse('2026-03-06', 'Europe/Amsterdam'));
 
         $user = User::factory()->create();
         $asset = Asset::factory()->withoutIcon()->create([

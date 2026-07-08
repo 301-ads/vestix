@@ -66,6 +66,7 @@ class EditUserProfile extends EditProfile
                                 AlertEventType::SlCanRaise->value => 'Stop-loss kan verhoogd worden',
                                 AlertEventType::FreerideSecured->value => 'Freeride secured (winst veiliggesteld)',
                                 AlertEventType::StoppedOut->value => 'Stopped out',
+                                AlertEventType::Target1Hit->value => 'Target 1 bereikt — verkoop 50%',
                                 AlertEventType::DailyDigest->value => 'Dagelijkse digest (21:45)',
                                 AlertEventType::PremarketGapRisk->value => 'Pre-market gap-up waarschuwing (14:30)',
                                 AlertEventType::PremarketReclamation->value => 'Pre-market reclamation — herovert SMA 20 (14:30)',

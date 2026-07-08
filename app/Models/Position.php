@@ -67,6 +67,13 @@ class Position extends Model
             'premarket_checked_at' => 'datetime',
             'closed_at' => 'datetime',
             'freeride_secured_at' => 'datetime',
+            'scaled_out_price' => 'decimal:2',
+            'scaled_out_quantity' => 'decimal:6',
+            'scaled_out_at' => 'datetime',
+            'realized_pnl' => 'decimal:2',
+            'target_1_rr' => 'decimal:4',
+            'first_tranche_fraction' => 'decimal:4',
+            'target_1_limit_placed_at' => 'datetime',
             'initial_sl' => 'decimal:2',
             'risk_reward_ratio' => 'decimal:4',
             'visibility' => PositionVisibility::class,
@@ -128,6 +135,13 @@ class Position extends Model
                 'status',
                 'exit_price',
                 'closed_at',
+                'scaled_out_price',
+                'scaled_out_quantity',
+                'scaled_out_at',
+                'realized_pnl',
+                'target_1_rr',
+                'first_tranche_fraction',
+                'target_1_limit_placed_at',
             ];
 
             foreach ($frozenFields as $field) {
@@ -294,11 +308,7 @@ class Position extends Model
             'exit_price' => $exitPrice,
             'status' => 'closed',
             'closed_at' => now(),
-            'risk_reward_ratio' => self::computeRiskRewardRatio(
-                $exitPrice,
-                $this->entry_price,
-                $this->initial_sl ?? $this->current_sl,
-            ),
+            'risk_reward_ratio' => self::computeBlendedRiskRewardRatio($this, $exitPrice),
         ];
 
         if ($exitChartPath !== null) {
@@ -349,7 +359,12 @@ class Position extends Model
         return Storage::disk('public')->url($path);
     }
 
-    public function activateAsPosition(float $entryPrice, float $quantity): void
+    public function activateAsPosition(
+        float $entryPrice,
+        float $quantity,
+        ?float $target1Rr = null,
+        ?float $firstTrancheFraction = null,
+    ): void
     {
         $sl = self::computeNewSl($this->latest_sma_20, $this->latest_atr_14);
 
@@ -363,12 +378,174 @@ class Position extends Model
             'quantity' => $quantity,
             'current_sl' => $sl,
             'initial_sl' => $sl,
+            'target_1_rr' => $target1Rr ?? self::defaultTarget1Rr(),
+            'first_tranche_fraction' => $firstTrancheFraction ?? self::defaultFirstTrancheFraction(),
             'premarket_price' => null,
             'premarket_scan_type' => null,
             'premarket_reference_price' => null,
             'premarket_distance_pct' => null,
             'premarket_checked_at' => null,
         ]);
+    }
+
+    public function hasScaledOut(): bool
+    {
+        return $this->scaled_out_at !== null
+            && $this->scaled_out_quantity !== null
+            && (float) $this->scaled_out_quantity > 0;
+    }
+
+    public function isTarget1Hit(): bool
+    {
+        if ($this->status !== 'open' || $this->hasScaledOut()) {
+            return false;
+        }
+
+        $target = $this->target_1_price;
+        $close = $this->latest_close_price;
+
+        if ($target === null || $close === null) {
+            return false;
+        }
+
+        return (float) $close >= (float) $target;
+    }
+
+    public function hasTarget1LimitPlaced(): bool
+    {
+        return $this->target_1_limit_placed_at !== null;
+    }
+
+    public function markTarget1LimitPlaced(): void
+    {
+        $this->update(['target_1_limit_placed_at' => now()]);
+    }
+
+    public function scaleOut(float $fillPrice, float $quantityToSell): void
+    {
+        if ($this->status !== 'open') {
+            throw new InvalidArgumentException('Alleen open posities kunnen gedeeltelijk worden verkocht.');
+        }
+
+        if ($this->hasScaledOut()) {
+            throw new InvalidArgumentException('Deze positie is al gedeeltelijk verkocht.');
+        }
+
+        if ($this->entry_price === null || $this->quantity === null) {
+            throw new InvalidArgumentException('Entry of quantity ontbreekt.');
+        }
+
+        $maxQty = (float) $this->quantity;
+
+        if ($quantityToSell <= 0 || $quantityToSell > $maxQty) {
+            throw new InvalidArgumentException('Ongeldige verkoophoeveelheid.');
+        }
+
+        $realizedPnl = round($quantityToSell * ($fillPrice - (float) $this->entry_price), 2);
+
+        $data = [
+            'scaled_out_price' => $fillPrice,
+            'scaled_out_quantity' => $quantityToSell,
+            'scaled_out_at' => now(),
+            'realized_pnl' => $realizedPnl,
+        ];
+
+        if (config('vestix.scale_out.move_stop_to_breakeven', true)) {
+            $data['current_sl'] = max((float) ($this->current_sl ?? 0), (float) $this->entry_price);
+            $data['freeride_secured_at'] = now();
+        }
+
+        $this->update($data);
+    }
+
+    public static function defaultTarget1Rr(): float
+    {
+        return (float) config('vestix.scale_out.target_1_rr', 2.0);
+    }
+
+    public static function defaultFirstTrancheFraction(): float
+    {
+        return (float) config('vestix.scale_out.first_tranche_fraction', 0.5);
+    }
+
+    public function getEffectiveTarget1RrAttribute(): float
+    {
+        return $this->target_1_rr !== null
+            ? (float) $this->target_1_rr
+            : self::defaultTarget1Rr();
+    }
+
+    public function getEffectiveFirstTrancheFractionAttribute(): float
+    {
+        return $this->first_tranche_fraction !== null
+            ? (float) $this->first_tranche_fraction
+            : self::defaultFirstTrancheFraction();
+    }
+
+    public function getTarget1PriceAttribute(): ?float
+    {
+        if ($this->entry_price === null) {
+            return null;
+        }
+
+        $initialSl = $this->initial_sl ?? $this->current_sl;
+
+        if ($initialSl === null) {
+            return null;
+        }
+
+        $riskPerShare = (float) $this->entry_price - (float) $initialSl;
+
+        if ($riskPerShare <= 0) {
+            return null;
+        }
+
+        return round((float) $this->entry_price + ($this->effective_target_1_rr * $riskPerShare), 2);
+    }
+
+    public function getTarget1QuantityAttribute(): ?float
+    {
+        if ($this->quantity === null) {
+            return null;
+        }
+
+        $fraction = $this->effective_first_tranche_fraction;
+
+        return round((float) $this->quantity * $fraction, 6);
+    }
+
+    public function getTarget1ProfitDollarsAttribute(): ?float
+    {
+        $target = $this->target_1_price;
+        $qty = $this->target_1_quantity;
+
+        if ($target === null || $qty === null || $this->entry_price === null) {
+            return null;
+        }
+
+        return round($qty * ($target - (float) $this->entry_price), 2);
+    }
+
+    public function getRemainingQuantityAttribute(): ?float
+    {
+        if ($this->quantity === null) {
+            return null;
+        }
+
+        if (! $this->hasScaledOut()) {
+            return (float) $this->quantity;
+        }
+
+        return max(0, (float) $this->quantity - (float) $this->scaled_out_quantity);
+    }
+
+    public function getStoredRealizedPnlAttribute(): float
+    {
+        if ($this->realized_pnl !== null) {
+            return (float) $this->realized_pnl;
+        }
+
+        return 0.0;
     }
 
     public function isFreerideSecured(): bool
@@ -413,11 +590,34 @@ class Position extends Model
             return (float) $this->risk_reward_ratio;
         }
 
-        return self::computeRiskRewardRatio(
-            $this->exit_price,
-            $this->entry_price,
-            $this->initial_sl ?? $this->current_sl,
-        );
+        return self::computeBlendedRiskRewardRatio($this, $this->exit_price);
+    }
+
+    public static function computeBlendedRiskRewardRatio(Position $position, mixed $exitPrice): ?float
+    {
+        if ($exitPrice === null || $position->entry_price === null) {
+            return null;
+        }
+
+        $initialSl = $position->initial_sl ?? $position->current_sl;
+
+        if ($initialSl === null || $position->quantity === null) {
+            return null;
+        }
+
+        $riskPerShare = abs((float) $position->entry_price - (float) $initialSl);
+
+        if ($riskPerShare <= 0) {
+            return null;
+        }
+
+        $totalRisk = $riskPerShare * (float) $position->quantity;
+        $remainingQty = $position->remaining_quantity ?? (float) $position->quantity;
+        $realized = $position->stored_realized_pnl;
+        $runnerPnl = $remainingQty * ((float) $exitPrice - (float) $position->entry_price);
+        $totalPnl = $realized + $runnerPnl;
+
+        return round($totalPnl / $totalRisk, 4);
     }
 
     public static function computeRiskRewardRatio(mixed $exit, mixed $entry, mixed $initialSl): ?float
@@ -512,6 +712,48 @@ class Position extends Model
             ->whereRaw('ROUND(latest_sma_20 - (latest_atr_14 / 2), 2) > current_sl');
     }
 
+    public const PRIMARY_ACTION_TARGET_1 = 'TARGET_1';
+
+    public const PRIMARY_ACTION_LIQUIDATION = 'LIQUIDATION';
+
+    public const PRIMARY_ACTION_EARNINGS = 'EARNINGS';
+
+    public const PRIMARY_ACTION_UPDATE_SL = 'UPDATE_SL';
+
+    /**
+     * Resolve the single most important action for a position.
+     *
+     * Hierarchy (only one action is ever surfaced per position):
+     * 1. Target 1 hit  -> sell tranche (this also moves the SL to breakeven, so SL updates are irrelevant)
+     * 2. Stopped out   -> liquidate (mutually exclusive with Target 1)
+     * 3. Earnings      -> exit before earnings
+     * 4. SL can raise  -> update stop-loss
+     */
+    public function primaryActionType(?Carbon $today = null): ?string
+    {
+        if ($this->status !== 'open') {
+            return null;
+        }
+
+        if ($this->isTarget1Hit() && ! $this->hasTarget1LimitPlaced()) {
+            return self::PRIMARY_ACTION_TARGET_1;
+        }
+
+        if ($this->action_command === 'STOPPED OUT') {
+            return self::PRIMARY_ACTION_LIQUIDATION;
+        }
+
+        if ($this->requiresEarningsExit($today)) {
+            return self::PRIMARY_ACTION_EARNINGS;
+        }
+
+        if ($this->action_command === 'UPDATE') {
+            return self::PRIMARY_ACTION_UPDATE_SL;
+        }
+
+        return null;
+    }
+
     /**
      * @return Collection<int, self>
      */
@@ -522,8 +764,7 @@ class Position extends Model
             ->open()
             ->with('asset')
             ->get()
-            ->filter(fn (self $position): bool => in_array($position->action_command, ['UPDATE', 'STOPPED OUT'], true)
-                || $position->requiresEarningsExit())
+            ->filter(fn (self $position): bool => $position->primaryActionType() !== null)
             ->values();
     }
 
@@ -560,7 +801,11 @@ class Position extends Model
             return null;
         }
 
-        return EarningsExitSchedule::urgency($earningsDate, $today);
+        return EarningsExitSchedule::urgency(
+            $earningsDate,
+            $today,
+            $this->asset?->effectiveEarningsHour(),
+        );
     }
 
     public function scopeRequiresAction(Builder $query): Builder
@@ -711,7 +956,7 @@ class Position extends Model
             return 0;
         }
 
-        if ($this->entry_price === null || $this->current_sl === null || $this->quantity === null) {
+        if ($this->entry_price === null || $this->current_sl === null || $this->remaining_quantity === null) {
             return 0;
         }
 
@@ -719,7 +964,7 @@ class Position extends Model
             return 0;
         }
 
-        return ((float) $this->entry_price - (float) $this->current_sl) * (float) $this->quantity;
+        return ((float) $this->entry_price - (float) $this->current_sl) * (float) $this->remaining_quantity;
     }
 
     public function getLockedInProfitDollarsAttribute(): float
@@ -728,15 +973,15 @@ class Position extends Model
             return 0;
         }
 
-        if ($this->entry_price === null || $this->current_sl === null || $this->quantity === null) {
-            return 0;
+        $lockedFromStop = 0.0;
+
+        if ($this->entry_price !== null && $this->current_sl !== null && $this->remaining_quantity !== null) {
+            if ((float) $this->current_sl > (float) $this->entry_price) {
+                $lockedFromStop = ((float) $this->current_sl - (float) $this->entry_price) * (float) $this->remaining_quantity;
+            }
         }
 
-        if ((float) $this->current_sl <= (float) $this->entry_price) {
-            return 0;
-        }
-
-        return ((float) $this->current_sl - (float) $this->entry_price) * (float) $this->quantity;
+        return $lockedFromStop + $this->stored_realized_pnl;
     }
 
     public function getRiskDollarsAttribute(): float
@@ -780,12 +1025,13 @@ class Position extends Model
     public function getCurrentValueAttribute(): float
     {
         $price = $this->valuation_price;
+        $qty = $this->remaining_quantity;
 
-        if ($price === null || $this->quantity === null) {
+        if ($price === null || $qty === null) {
             return 0;
         }
 
-        return $price * (float) $this->quantity;
+        return $price * $qty;
     }
 
     public function getUnrealizedPnlAttribute(): float
@@ -794,18 +1040,22 @@ class Position extends Model
             return 0;
         }
 
-        return $this->current_value - $this->investment;
+        if ($this->valuation_price === null || $this->entry_price === null || $this->remaining_quantity === null) {
+            return 0;
+        }
+
+        return $this->current_value
+            - ((float) $this->remaining_quantity * (float) $this->entry_price)
+            + $this->stored_realized_pnl;
     }
 
     public function getUnrealizedPnlPercentageAttribute(): float
     {
-        $price = $this->valuation_price;
-
-        if ($price === null || $this->entry_price === null || (float) $this->entry_price == 0) {
+        if ($this->valuation_price === null || $this->entry_price === null || $this->investment <= 0) {
             return 0;
         }
 
-        return (($price - (float) $this->entry_price) / (float) $this->entry_price) * 100;
+        return ($this->unrealized_pnl / $this->investment) * 100;
     }
 
     /**

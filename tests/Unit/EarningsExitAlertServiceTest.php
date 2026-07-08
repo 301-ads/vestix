@@ -38,7 +38,7 @@ class EarningsExitAlertServiceTest extends TestCase
         $asset = Asset::factory()->withoutIcon()->create([
             'ticker' => 'NVDA',
             'next_earnings_date' => '2026-03-09',
-            'next_earnings_hour' => EarningsReleaseHour::Amc,
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
         ]);
 
         Position::factory()->create([
@@ -68,7 +68,7 @@ class EarningsExitAlertServiceTest extends TestCase
         $asset = Asset::factory()->withoutIcon()->create([
             'ticker' => 'NVDA',
             'next_earnings_date' => '2026-03-09',
-            'next_earnings_hour' => EarningsReleaseHour::Amc,
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
         ]);
 
         Position::factory()->create([
@@ -112,5 +112,35 @@ class EarningsExitAlertServiceTest extends TestCase
         $service->run('warning');
 
         $this->assertEquals(1, PositionAlert::query()->where('event_type', AlertEventType::EarningsWarning)->count());
+    }
+
+    public function test_sends_action_on_earnings_day_for_amc_monday_earnings(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-09 15:00:00', 'Europe/Amsterdam'));
+
+        config(['vestix.telegram.bot_token' => 'test-token']);
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $user = User::factory()->create(['telegram_chat_id' => '12345']);
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'NVDA',
+            'next_earnings_date' => '2026-03-09',
+            'next_earnings_hour' => EarningsReleaseHour::Amc,
+        ]);
+
+        Position::factory()->create([
+            'user_id' => $user->id,
+            'ticker' => 'NVDA',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+        ]);
+
+        $summary = app(EarningsExitAlertService::class)->run('action');
+
+        $this->assertSame(0, $summary['warning']);
+        $this->assertSame(1, $summary['action']);
+        $this->assertEquals(1, PositionAlert::query()->where('event_type', AlertEventType::EarningsActionRequired)->count());
     }
 }
