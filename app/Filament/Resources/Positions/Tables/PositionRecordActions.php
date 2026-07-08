@@ -119,12 +119,12 @@ class PositionRecordActions
 
                         if ($guard['riskPercentOfBankroll'] !== null) {
                             $riskPctLabel = rtrim(rtrim(number_format($guard['riskPercentOfBankroll'], 1), '0'), '.');
-                            $lines[] = '<span class="block text-sm text-gray-600 dark:text-gray-400 mt-1">Account impact: '.$riskPctLabel.'% van bankroll</span>';
+                            $lines[] = '<span class="block text-sm text-gray-600 dark:text-gray-400 mt-1">'.$riskPctLabel.'% van bankroll</span>';
                         }
 
                         if ($record->planned_risk_percentage !== null) {
                             $tradeRiskLabel = rtrim(rtrim(number_format((float) $record->planned_risk_percentage, 2), '0'), '.');
-                            $lines[] = '<span class="block text-sm text-gray-600 dark:text-gray-400 mt-1">Trade risico (Stop-loss): '.$tradeRiskLabel.'% daling</span>';
+                            $lines[] = '<span class="block text-sm text-gray-600 dark:text-gray-400 mt-1">'.$tradeRiskLabel.'% daling tot SL</span>';
                         }
 
                         if ($guard['exceeds'] && $guard['overByPercentPoints'] !== null) {

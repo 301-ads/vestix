@@ -2093,7 +2093,7 @@ class PositionForm
         $percentage = ($perShare / (float) $entry) * 100;
         $tradeRiskLabel = rtrim(rtrim(number_format($percentage, 2), '0'), '.');
         $tradeRiskSecondary = [
-            'text' => "Trade risico (Stop-loss): {$tradeRiskLabel}% daling",
+            'text' => "{$tradeRiskLabel}% daling tot SL",
         ];
         $guard = self::resolveRiskGuardState($get, $record);
 
@@ -2106,7 +2106,7 @@ class PositionForm
                 return [
                     'value' => self::formatUsd($guard['plannedRisk']),
                     'valueColor' => 'danger',
-                    'text' => "Account impact: {$riskPctLabel}% van bankroll · {$overLabel}% boven limiet",
+                    'text' => "{$riskPctLabel}% van bankroll · {$overLabel}% boven limiet",
                     'color' => 'danger',
                     'secondaryDescription' => array_merge($tradeRiskSecondary, ['color' => 'danger']),
                     'cardVariant' => 'rose',
@@ -2116,7 +2116,7 @@ class PositionForm
             return [
                 'value' => self::formatUsd($guard['plannedRisk']),
                 'valueColor' => 'success',
-                'text' => "Account impact: {$riskPctLabel}% van bankroll",
+                'text' => "{$riskPctLabel}% van bankroll",
                 'color' => 'success',
                 'secondaryDescription' => array_merge($tradeRiskSecondary, ['color' => 'success']),
                 'cardVariant' => 'green',
