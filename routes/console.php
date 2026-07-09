@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\RebuildSquadLeaderboardJob;
+use App\Support\UsMarketSession;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -16,14 +17,14 @@ Schedule::command('vestix:fetch-data')
     ->dailyAt('23:00')
     ->timezone('Europe/Amsterdam');
 
+// Intraday live koersen: elk uur op :05 ET (niet op :00 — voorkomt race met schedule:run).
+// Venster-check via when() i.p.v. between(); between() + hourly() sloeg op productie soms runs over.
 Schedule::command('vestix:watch-target-prices')
-    ->hourly()
+    ->hourlyAt(5)
     ->weekdays()
     ->timezone('America/New_York')
-    ->between(
-        config('vestix.intraday_target_watch.window_start', '04:00'),
-        config('vestix.intraday_target_watch.window_end', '16:15'),
-    );
+    ->when(fn (): bool => config('vestix.intraday_target_watch.enabled', true)
+        && UsMarketSession::isIntradayTargetWatchWindow());
 
 Schedule::job(new RebuildSquadLeaderboardJob)->hourly();
 

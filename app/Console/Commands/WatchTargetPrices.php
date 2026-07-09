@@ -3,9 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Contracts\QuoteProvider;
-use App\Enums\Broker;
+use App\Jobs\CheckPositionAlertTriggersJob;
 use App\Jobs\CheckTarget1AlertsJob;
 use App\Models\Position;
+use App\Support\MarketDataFreshness;
 use App\Support\UsMarketSession;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
@@ -16,81 +17,90 @@ class WatchTargetPrices extends Command
     protected $signature = 'vestix:watch-target-prices
                             {--force : Draai ook buiten het intraday-venster}';
 
-    protected $description = 'Haalt live koersen op voor Revolut Target 1-monitoring (geen SMA/ATR-sync).';
+    protected $description = 'Haalt live koersen op voor alle open posities (geen SMA/ATR-sync).';
 
     public function handle(QuoteProvider $quoteProvider): int
     {
         if (! config('vestix.intraday_target_watch.enabled', true)) {
-            $this->info('Intraday Target 1-watch is uitgeschakeld.');
+            $this->info('Intraday koerswatch is uitgeschakeld.');
+            Log::info('vestix:watch-target-prices overgeslagen: uitgeschakeld via config.');
 
             return self::SUCCESS;
         }
 
         if (! $this->option('force') && ! UsMarketSession::isIntradayTargetWatchWindow()) {
-            $this->info('Buiten intraday Target 1-venster — overgeslagen.');
+            $this->info('Buiten intraday-venster — overgeslagen.');
+            Log::info('vestix:watch-target-prices overgeslagen: buiten intraday-venster.');
 
             return self::SUCCESS;
         }
 
-        $positions = $this->positionsToWatch();
+        $tickers = $this->tickersToWatch();
 
-        if ($positions->isEmpty()) {
-            $this->info('Geen open Revolut-posities om te monitoren.');
+        if ($tickers->isEmpty()) {
+            $this->info('Geen open posities om te monitoren.');
+            Log::info('vestix:watch-target-prices overgeslagen: geen open posities.');
 
             return self::SUCCESS;
         }
 
         $delaySeconds = max(0, (int) config('vestix.finnhub.rate_limit_delay', 1));
-        $updated = 0;
-        $failed = 0;
+        $updatedPositions = 0;
+        $failedTickers = 0;
 
-        foreach ($positions as $position) {
-            $price = $quoteProvider->fetchLivePrice($position->ticker);
+        Log::info('vestix:watch-target-prices gestart.', [
+            'ticker_count' => $tickers->count(),
+            'forced' => (bool) $this->option('force'),
+        ]);
+
+        foreach ($tickers as $ticker) {
+            $price = $quoteProvider->fetchLivePrice($ticker);
 
             if ($price === null) {
-                Log::warning('Intraday Target 1 quote failed.', [
-                    'position_id' => $position->id,
-                    'ticker' => $position->ticker,
-                ]);
-                $failed++;
+                Log::warning('Intraday quote failed.', ['ticker' => $ticker]);
+                $failedTickers++;
             } else {
-                $position->update(['latest_close_price' => round($price, 2)]);
-                $updated++;
-                $this->line("{$position->ticker}: $".number_format($price, 2));
+                $rounded = round($price, 2);
+                $updatedPositions += Position::query()
+                    ->open()
+                    ->where('ticker', $ticker)
+                    ->update(['latest_close_price' => $rounded]);
+
+                $this->line("{$ticker}: $".number_format($rounded, 2));
             }
 
-            if ($delaySeconds > 0 && $positions->last()->isNot($position)) {
+            if ($delaySeconds > 0 && $tickers->last() !== $ticker) {
                 sleep($delaySeconds);
             }
         }
 
-        CheckTarget1AlertsJob::dispatch();
+        if ($updatedPositions > 0) {
+            MarketDataFreshness::markIntradayQuoteFetch();
+            CheckTarget1AlertsJob::dispatch();
+            CheckPositionAlertTriggersJob::dispatch();
+        }
 
-        $this->info("Target 1-watch voltooid: {$updated} bijgewerkt, {$failed} mislukt.");
+        $this->info("Intraday koerswatch voltooid: {$updatedPositions} posities bijgewerkt, {$failedTickers} ticker(s) mislukt.");
+
+        Log::info('vestix:watch-target-prices voltooid.', [
+            'updated_positions' => $updatedPositions,
+            'failed_tickers' => $failedTickers,
+        ]);
 
         return self::SUCCESS;
     }
 
     /**
-     * @return Collection<int, Position>
+     * @return Collection<int, string>
      */
-    private function positionsToWatch(): Collection
+    private function tickersToWatch(): Collection
     {
         return Position::query()
             ->open()
             ->whereNotNull('entry_price')
-            ->whereNotNull('current_sl')
-            ->whereNull('scaled_out_at')
-            ->whereHas('user', fn ($query) => $query->where('primary_broker', Broker::Revolut->value))
-            ->with('user')
-            ->get()
-            ->filter(function (Position $position): bool {
-                if ($position->isAutoRunnerBypass()) {
-                    return false;
-                }
-
-                return $position->target_1_price !== null;
-            })
+            ->pluck('ticker')
+            ->map(fn (string $ticker): string => strtoupper(trim($ticker)))
+            ->unique()
             ->values();
     }
 }

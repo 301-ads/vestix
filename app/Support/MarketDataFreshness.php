@@ -155,10 +155,34 @@ class MarketDataFreshness
         return 'vestix:ticker_fetch:'.$userId.':'.strtoupper(trim($ticker));
     }
 
+    public static function lastIntradayQuoteAt(): ?Carbon
+    {
+        return self::resolveTimestamp(Cache::get('vestix:last_intraday_quote_fetch'));
+    }
+
+    public static function markIntradayQuoteFetch(): void
+    {
+        Cache::put('vestix:last_intraday_quote_fetch', now()->toIso8601String(), now()->addDays(2));
+    }
+
+    public static function lastEodFetchAt(): ?Carbon
+    {
+        return self::resolveTimestamp(Cache::get('vestix:last_api_fetch'));
+    }
+
     public static function lastFetchAt(): ?Carbon
     {
-        return self::resolveTimestamp(Cache::get('vestix:last_api_fetch'))
-            ?? self::lastPositionMarketDataUpdate();
+        $timestamps = array_filter([
+            self::lastEodFetchAt(),
+            self::lastIntradayQuoteAt(),
+            self::lastPositionMarketDataUpdate(),
+        ]);
+
+        if ($timestamps === []) {
+            return null;
+        }
+
+        return collect($timestamps)->max();
     }
 
     public static function subheading(): string
@@ -188,28 +212,43 @@ class MarketDataFreshness
             return 'API-sync is bezig. Dit kan enkele minuten duren.';
         }
 
-        $lastFetch = self::lastFetchAt();
+        $eodFetch = self::lastEodFetchAt();
+        $intradayFetch = self::lastIntradayQuoteAt();
 
-        if (! $lastFetch) {
+        if ($eodFetch === null && $intradayFetch === null) {
             return 'Nog geen marktdata. Klik om vestix:fetch-data te starten.';
         }
 
-        return 'Laatste fetch: '.$lastFetch->format('d-m-Y H:i');
+        $parts = [];
+
+        if ($intradayFetch !== null) {
+            $parts[] = 'Laatste koersupdate: '.$intradayFetch->format('d-m-Y H:i');
+        }
+
+        if ($eodFetch !== null) {
+            $parts[] = 'Laatste volledige sync: '.$eodFetch->format('d-m-Y H:i');
+        }
+
+        return implode(' | ', $parts);
     }
 
     public static function statusColor(): string
     {
-        $lastFetch = self::lastFetchAt();
+        $reference = self::lastIntradayQuoteAt() ?? self::lastEodFetchAt() ?? self::lastPositionMarketDataUpdate();
 
-        if (! $lastFetch) {
+        if ($reference === null) {
             return 'danger';
         }
 
-        if ($lastFetch->isToday()) {
+        if ($reference->greaterThan(now()->subHours(2))) {
             return 'success';
         }
 
-        if ($lastFetch->greaterThan(now()->subDay())) {
+        if ($reference->isToday()) {
+            return 'warning';
+        }
+
+        if ($reference->greaterThan(now()->subDay())) {
             return 'warning';
         }
 

@@ -53,6 +53,7 @@ return [
         'move_stop_to_breakeven' => (bool) env('SCALE_OUT_MOVE_STOP_TO_BREAKEVEN', true),
     ],
 
+    // Uurlijkse live koersen voor alle open posities (vestix:watch-target-prices).
     'intraday_target_watch' => [
         'enabled' => (bool) env('INTRADAY_TARGET_WATCH_ENABLED', true),
         'window_start' => env('INTRADAY_TARGET_WATCH_WINDOW_START', '04:00'),
