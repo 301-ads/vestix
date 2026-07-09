@@ -13,6 +13,28 @@ class BrokerOrderTicketTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_initial_stop_loss_ticket_formats_overview_and_confirmation(): void
+    {
+        $position = Position::factory()->make([
+            'ticker' => 'NVDA',
+            'entry_price' => 79.50,
+            'quantity' => 12,
+            'current_sl' => 76.10,
+        ]);
+
+        $ticket = BrokerOrderTicket::forInitialStopLoss($position);
+
+        $this->assertSame('NVDA — Stop-Loss plaatsen', $ticket['title']);
+        $this->assertSame('12 stuks', $ticket['rows'][0]['value']);
+        $this->assertSame('$79.50', $ticket['rows'][1]['value']);
+        $this->assertSame('$76.10', $ticket['rows'][2]['value']);
+        $this->assertTrue($ticket['rows'][2]['accent']);
+        $this->assertNull($ticket['difference_label']);
+        $this->assertStringContainsString('$76.10', $ticket['confirmation']);
+        $this->assertStringContainsString('Lynx/IBKR', $ticket['confirmation']);
+        $this->assertSame('Stop-Loss geplaatst', $ticket['submit_label']);
+    }
+
     public function test_stop_loss_ticket_formats_overview_and_confirmation(): void
     {
         $position = Position::factory()->make([

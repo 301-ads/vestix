@@ -117,6 +117,8 @@ class ScoutWatchlistTest extends TestCase
         $this->assertEquals(79.50, (float) $scout->entry_price);
         $this->assertEquals(12, (float) $scout->quantity);
         $this->assertEquals(76.10, (float) $scout->current_sl);
+        $this->assertNull($scout->initial_sl_placed_at);
+        $this->assertSame(Position::PRIMARY_ACTION_PLACE_INITIAL_SL, $scout->primaryActionType());
     }
 
     public function test_activate_scout_fails_without_market_data(): void

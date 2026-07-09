@@ -34,7 +34,15 @@ class PositionFactory extends Factory
             'bounce_volume_above_average' => false,
             'visibility' => PositionVisibility::Private,
             'status' => 'open',
+            'initial_sl_placed_at' => now(),
         ];
+    }
+
+    public function awaitingInitialSlPlacement(): static
+    {
+        return $this->state(fn (): array => [
+            'initial_sl_placed_at' => null,
+        ]);
     }
 
     public function closed(): static
@@ -58,6 +66,7 @@ class PositionFactory extends Factory
             'entry_price' => null,
             'quantity' => null,
             'current_sl' => null,
+            'initial_sl_placed_at' => null,
             'signal_high' => null,
             'signal_low' => null,
         ]);

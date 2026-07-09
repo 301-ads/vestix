@@ -34,6 +34,7 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
     public function boot(): void
     {
         $this->cacheAction($this->markLimitPlacedAction());
+        $this->cacheAction($this->markInitialSlPlacedAction());
         $this->cacheAction($this->markAsUpdatedAction());
         $this->cacheAction($this->archiveAction());
     }
@@ -108,6 +109,10 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
                 number_format((float) ($record->new_sl ?? 0), 2),
                 number_format(((float) ($record->new_sl ?? 0)) - (float) $record->current_sl, 2),
             ),
+            Position::PRIMARY_ACTION_PLACE_INITIAL_SL => sprintf(
+                'Stel Stop-Loss in op $%s bij je broker.',
+                number_format((float) ($record->current_sl ?? 0), 2),
+            ),
             default => '—',
         };
     }
@@ -120,6 +125,10 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
                 number_format((float) $record->current_sl, 2),
                 number_format((float) ($record->new_sl ?? 0), 2),
                 number_format(((float) ($record->new_sl ?? 0)) - (float) $record->current_sl, 2),
+            )),
+            Position::PRIMARY_ACTION_PLACE_INITIAL_SL => new HtmlString(sprintf(
+                'Stel Stop-Loss in op <span class="vestix-action-todo__new-sl">$%s</span> bij je broker.',
+                number_format((float) ($record->current_sl ?? 0), 2),
             )),
             Position::PRIMARY_ACTION_TARGET_1 => new HtmlString($record->userUsesRevolutWorkflow()
                 ? sprintf(
@@ -147,6 +156,7 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
                 default => 'gray',
             },
             Position::PRIMARY_ACTION_UPDATE_SL => 'info',
+            Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'warning',
             default => 'gray',
         };
     }
@@ -155,6 +165,7 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
     {
         $method = match ($position->primaryActionType()) {
             Position::PRIMARY_ACTION_TARGET_1 => 'markLimitPlacedAction',
+            Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'markInitialSlPlacedAction',
             Position::PRIMARY_ACTION_UPDATE_SL => 'markAsUpdatedAction',
             Position::PRIMARY_ACTION_EARNINGS => 'archiveAction',
             default => null,
@@ -172,6 +183,11 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
     public function markLimitPlacedAction(): Action
     {
         return $this->configureRecordAction(PositionRecordActions::markTarget1LimitPlaced());
+    }
+
+    public function markInitialSlPlacedAction(): Action
+    {
+        return $this->configureRecordAction(PositionRecordActions::markInitialSlPlaced());
     }
 
     public function markAsUpdatedAction(): Action

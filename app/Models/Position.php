@@ -75,6 +75,7 @@ class Position extends Model
             'first_tranche_fraction' => 'decimal:4',
             'target_1_limit_placed_at' => 'datetime',
             'initial_sl' => 'decimal:2',
+            'initial_sl_placed_at' => 'datetime',
             'risk_reward_ratio' => 'decimal:4',
             'visibility' => PositionVisibility::class,
             'broker_order_status' => BrokerOrderStatus::class,
@@ -142,6 +143,7 @@ class Position extends Model
                 'target_1_rr',
                 'first_tranche_fraction',
                 'target_1_limit_placed_at',
+                'initial_sl_placed_at',
             ];
 
             foreach ($frozenFields as $field) {
@@ -435,6 +437,16 @@ class Position extends Model
     public function markTarget1LimitPlaced(): void
     {
         $this->update(['target_1_limit_placed_at' => now()]);
+    }
+
+    public function hasInitialSlPlaced(): bool
+    {
+        return $this->initial_sl_placed_at !== null;
+    }
+
+    public function markInitialSlPlaced(): void
+    {
+        $this->update(['initial_sl_placed_at' => now()]);
     }
 
     public function scaleOut(float $fillPrice, float $quantityToSell): void
@@ -736,6 +748,8 @@ class Position extends Model
 
     public const PRIMARY_ACTION_UPDATE_SL = 'UPDATE_SL';
 
+    public const PRIMARY_ACTION_PLACE_INITIAL_SL = 'PLACE_INITIAL_SL';
+
     /**
      * Resolve the single most important action for a position.
      *
@@ -743,7 +757,8 @@ class Position extends Model
      * 1. Target 1 hit  -> sell tranche (this also moves the SL to breakeven, so SL updates are irrelevant)
      * 2. Stopped out   -> liquidate (mutually exclusive with Target 1)
      * 3. Earnings      -> exit before earnings
-     * 4. SL can raise  -> update stop-loss
+     * 4. Initial SL    -> place stop-loss at broker after activation
+     * 5. SL can raise  -> update stop-loss
      */
     public function primaryActionType(?Carbon $today = null): ?string
     {
@@ -763,6 +778,10 @@ class Position extends Model
 
         if ($this->requiresEarningsExit($today)) {
             return self::PRIMARY_ACTION_EARNINGS;
+        }
+
+        if (! $this->hasInitialSlPlaced()) {
+            return self::PRIMARY_ACTION_PLACE_INITIAL_SL;
         }
 
         if ($this->action_command === 'UPDATE') {

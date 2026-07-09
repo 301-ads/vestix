@@ -224,6 +224,7 @@ class PositionsTable
             ->recordActions([
                 ActionGroup::make([
                     PositionRecordActions::scaleOut(),
+                    PositionRecordActions::markInitialSlPlaced(),
                     PositionRecordActions::markAsUpdated(),
                     PositionRecordActions::shareSuccess(),
                     PositionRecordActions::fetchMarketData(),

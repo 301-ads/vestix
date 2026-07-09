@@ -323,6 +323,35 @@ class DashboardTest extends TestCase
             ->assertDontSee('GS');
     }
 
+    public function test_action_widget_shows_initial_stop_loss_after_activation(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $position = Position::factory()->for($user)->awaitingInitialSlPlacement()->create([
+            'ticker' => 'NVDA',
+            'entry_price' => 79.50,
+            'initial_sl' => 76.10,
+            'quantity' => 12,
+            'latest_close_price' => 78.20,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'current_sl' => 76.10,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertSee('NVDA')
+            ->assertSee('Stel Stop-Loss in op')
+            ->assertSee('$76.10')
+            ->assertActionVisible('mark_initial_sl_placed', arguments: ['record' => $position->getKey()])
+            ->callAction('mark_initial_sl_placed', arguments: ['record' => $position->getKey()])
+            ->assertDontSee('NVDA');
+
+        $this->assertNotNull($position->fresh()->initial_sl_placed_at);
+    }
+
     public function test_action_widget_shows_limit_sell_instruction_for_non_revolut_broker(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();

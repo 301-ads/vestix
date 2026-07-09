@@ -16,6 +16,36 @@ class BrokerOrderTicket
      *     submit_label: string,
      * }
      */
+    public static function forInitialStopLoss(Position $position): array
+    {
+        $sl = (float) ($position->current_sl ?? 0);
+
+        return [
+            'title' => "{$position->ticker} — Stop-Loss plaatsen",
+            'rows' => [
+                [
+                    'label' => 'Positie',
+                    'value' => self::formatQuantity((float) ($position->quantity ?? 0)),
+                ],
+                [
+                    'label' => 'Entry prijs',
+                    'value' => self::formatMoney((float) ($position->entry_price ?? 0)),
+                ],
+                [
+                    'label' => 'Stop-Loss',
+                    'value' => self::formatMoney($sl),
+                    'accent' => true,
+                ],
+            ],
+            'difference_label' => null,
+            'confirmation' => sprintf(
+                'Heb je de Stop-Loss order in je broker (bijv. Lynx/IBKR) geplaatst op %s?',
+                self::formatMoney($sl),
+            ),
+            'submit_label' => 'Stop-Loss geplaatst',
+        ];
+    }
+
     public static function forStopLossUpdate(Position $position): array
     {
         $currentSl = (float) $position->current_sl;

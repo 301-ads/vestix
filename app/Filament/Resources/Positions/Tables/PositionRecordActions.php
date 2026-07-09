@@ -78,7 +78,7 @@ class PositionRecordActions
                 : 'Scout activeren als positie')
             ->modalDescription(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
                 ? self::scoutRiskOverrideDescription($record)
-                : 'Vul je werkelijke fill en aantal in. De broker stop-loss wordt automatisch gezet op de berekende SL.')
+                : 'Vul je werkelijke fill en aantal in. Na activatie verschijnt een actie om de stop-loss bij je broker in te stellen.')
             ->modalSubmitActionLabel(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
                 ? 'Toch doordrukken'
                 : 'Activeren')
@@ -365,6 +365,37 @@ class PositionRecordActions
         return false;
     }
 
+    public static function markInitialSlPlaced(): Action
+    {
+        return Action::make('mark_initial_sl_placed')
+            ->label('Update')
+            ->tooltip('Bevestig dat de stop-loss bij je broker staat')
+            ->icon('heroicon-o-check')
+            ->color('success')
+            ->visible(fn (Position $record): bool => $record->status === 'open'
+                && ! $record->hasInitialSlPlaced())
+            ->requiresConfirmation()
+            ->modalHeading(fn (Position $record): string => BrokerOrderTicket::forInitialStopLoss($record)['title'])
+            ->modalIcon(fn (Position $record): HtmlString => BrokerOrderTicket::modalIcon($record))
+            ->modalIconColor('gray')
+            ->extraModalWindowAttributes(['class' => 'vestix-broker-order-modal'])
+            ->modalContent(fn (Position $record): HtmlString => new HtmlString(
+                view('filament.positions.broker-order-ticket', [
+                    'ticket' => BrokerOrderTicket::forInitialStopLoss($record),
+                ])->render()
+            ))
+            ->modalSubmitActionLabel('Stop-Loss geplaatst')
+            ->modalCancelActionLabel('Annuleren')
+            ->action(function (Position $record): void {
+                $record->markInitialSlPlaced();
+
+                FilamentNotifier::send(
+                    title: 'Stop-Loss gemarkeerd',
+                    body: "{$record->ticker}: de broker-to-do is afgevinkt.",
+                );
+            });
+    }
+
     public static function markAsUpdated(): Action
     {
         return Action::make('mark_as_updated')
@@ -372,7 +403,9 @@ class PositionRecordActions
             ->tooltip('Stop-Loss bijwerken naar berekende SL')
             ->icon('heroicon-o-check')
             ->color('success')
-            ->visible(fn (Position $record): bool => $record->status === 'open' && $record->action_command === 'UPDATE')
+            ->visible(fn (Position $record): bool => $record->status === 'open'
+                && $record->hasInitialSlPlaced()
+                && $record->action_command === 'UPDATE')
             ->requiresConfirmation()
             ->modalHeading(fn (Position $record): string => BrokerOrderTicket::forStopLossUpdate($record)['title'])
             ->modalIcon(fn (Position $record): HtmlString => BrokerOrderTicket::modalIcon($record))
