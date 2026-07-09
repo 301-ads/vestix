@@ -719,9 +719,13 @@ class PositionForm
     private static function earningsSmartAlert(): View
     {
         return View::make('filament.positions.earnings-smart-alert')
-            ->visible(fn (?Position $record, string $operation): bool => EarningsExitDisplay::isSmartAlertVisible($record, $operation))
+            ->visible(fn (?Position $record, string $operation): bool => EarningsExitDisplay::isSmartAlertVisible($record, $operation)
+                || EarningsExitDisplay::isScoutEntryAlertVisible($record, $operation))
             ->viewData(fn (?Position $record): array => $record instanceof Position
-                ? EarningsExitDisplay::smartAlertViewData($record)
+                ? match (true) {
+                    $record->status === 'scout' => EarningsExitDisplay::scoutEntryAlertViewData($record),
+                    default => EarningsExitDisplay::smartAlertViewData($record),
+                }
                 : [])
             ->columnSpanFull();
     }
@@ -2345,6 +2349,7 @@ class PositionForm
             'sector_etf' => $get('sector_etf') ?? $record?->sector_etf,
             'sector_trend_positive' => (bool) ($get('sector_trend_positive') ?? $record?->sector_trend_positive),
             'pre_bounce_extension_atr' => $get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr,
+            'days_until_earnings' => $record?->daysUntilEarnings(),
         ];
     }
 }

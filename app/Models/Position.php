@@ -1121,6 +1121,7 @@ class Position extends Model
             'sector_etf' => $overrides['sector_etf'] ?? $this->sector_etf,
             'sector_trend_positive' => $overrides['sector_trend_positive'] ?? $this->sector_trend_positive,
             'pre_bounce_extension_atr' => $overrides['pre_bounce_extension_atr'] ?? $this->pre_bounce_extension_atr,
+            'days_until_earnings' => $overrides['days_until_earnings'] ?? $this->daysUntilEarnings(),
         ];
 
         return ScoutSetupScorecard::evaluate($inputs);

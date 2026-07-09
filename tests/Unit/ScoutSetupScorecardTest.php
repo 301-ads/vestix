@@ -405,4 +405,44 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame('NO TRADE', $result['grade']);
         $this->assertSame([], $result['hardFailReasons']);
     }
+
+    public function test_earnings_within_window_is_hard_fail_despite_perfect_score(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'days_until_earnings' => 8,
+        ]));
+
+        $this->assertSame(10, $result['totalPoints']);
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertSame('NO TRADE', $result['gradeLabel']);
+        $this->assertContains('Earnings over 8 dagen — te weinig runway voor entry', $result['hardFailReasons']);
+    }
+
+    public function test_earnings_beyond_window_is_not_hard_fail(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'days_until_earnings' => 15,
+        ]));
+
+        $this->assertSame(10, $result['totalPoints']);
+        $this->assertSame('A++', $result['grade']);
+        $this->assertSame([], $result['hardFailReasons']);
+    }
+
+    public function test_missing_earnings_data_is_not_hard_fail(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'days_until_earnings' => null,
+        ]));
+
+        $this->assertSame(10, $result['totalPoints']);
+        $this->assertSame('A++', $result['grade']);
+        $this->assertSame([], $result['hardFailReasons']);
+    }
 }

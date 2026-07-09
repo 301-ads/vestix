@@ -23,6 +23,7 @@ class ScoutSetupScorecard
      *     sector_etf?: string|null,
      *     sector_trend_positive?: bool|null,
      *     pre_bounce_extension_atr?: float|null,
+     *     days_until_earnings?: int|null,
      * }  $inputs
      * @return array{
      *     totalPoints: int,
@@ -328,6 +329,18 @@ class ScoutSetupScorecard
 
         if ($hasHighVolume && $open !== null && $close !== null && $close < $open) {
             $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
+        }
+
+        $daysUntil = array_key_exists('days_until_earnings', $inputs)
+            ? $inputs['days_until_earnings']
+            : null;
+
+        if ($daysUntil !== null) {
+            $windowDays = (int) config('vestix.pre_earnings_trailing.window_days', EarningsExitDisplay::ALERT_WINDOW_DAYS);
+
+            if ($daysUntil >= 0 && $daysUntil <= $windowDays) {
+                $reasons[] = "Earnings over {$daysUntil} dagen — te weinig runway voor entry";
+            }
         }
 
         return $reasons;

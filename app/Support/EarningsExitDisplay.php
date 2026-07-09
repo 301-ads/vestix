@@ -15,8 +15,14 @@ class EarningsExitDisplay
 
     public const DANGER_THRESHOLD_DAYS = 3;
 
-    public static function isWithinAlertWindow(Position $position, int $windowDays = self::ALERT_WINDOW_DAYS): bool
+    public static function windowDays(): int
     {
+        return (int) config('vestix.pre_earnings_trailing.window_days', self::ALERT_WINDOW_DAYS);
+    }
+
+    public static function isWithinAlertWindow(Position $position, ?int $windowDays = null): bool
+    {
+        $windowDays ??= self::windowDays();
         $daysUntil = $position->daysUntilEarnings();
 
         return $daysUntil !== null && $daysUntil >= 0 && $daysUntil <= $windowDays;
@@ -79,11 +85,42 @@ class EarningsExitDisplay
             return 'danger';
         }
 
-        if ($daysUntil <= self::ALERT_WINDOW_DAYS) {
+        if ($daysUntil <= self::windowDays()) {
             return 'warning';
         }
 
         return 'gray';
+    }
+
+    public static function isScoutEntryAlertVisible(?Position $position, string $operation): bool
+    {
+        if ($operation !== 'edit' || $position === null || $position->status !== 'scout') {
+            return false;
+        }
+
+        return $position->effectiveEarningsDate() !== null
+            && self::isWithinAlertWindow($position);
+    }
+
+    /**
+     * @return array{daysLabel: string, subtitle: string, trailingNote: null, isDanger: bool}
+     */
+    public static function scoutEntryAlertViewData(Position $position): array
+    {
+        $daysUntil = (int) $position->daysUntilEarnings();
+
+        $daysLabel = match (true) {
+            $daysUntil === 0 => 'vandaag',
+            $daysUntil === 1 => '1 dag',
+            default => $daysUntil.' dagen',
+        };
+
+        return [
+            'daysLabel' => $daysLabel,
+            'subtitle' => 'Te weinig runway voor een nieuwe entry — setup wordt NO TRADE.',
+            'trailingNote' => null,
+            'isDanger' => $daysUntil <= self::DANGER_THRESHOLD_DAYS,
+        ];
     }
 
     public static function isSmartAlertVisible(?Position $position, string $operation): bool

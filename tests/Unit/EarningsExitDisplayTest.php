@@ -153,4 +153,89 @@ class EarningsExitDisplayTest extends TestCase
         $this->assertSame('Over 51 dagen', EarningsExitDisplay::sectionDaysBadgeLabel($position));
         $this->assertSame('gray', EarningsExitDisplay::sectionDaysBadgeColor($position));
     }
+
+    public function test_scout_entry_alert_visible_within_fourteen_days(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-05', 'Europe/Amsterdam'));
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'AAPL',
+            'next_earnings_date' => '2026-03-09',
+            'next_earnings_hour' => EarningsReleaseHour::Amc,
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'AAPL',
+            'asset_id' => $asset->id,
+            'status' => 'scout',
+        ]);
+
+        $this->assertTrue(EarningsExitDisplay::isScoutEntryAlertVisible($position, 'edit'));
+        $this->assertFalse(EarningsExitDisplay::isSmartAlertVisible($position, 'edit'));
+
+        $data = EarningsExitDisplay::scoutEntryAlertViewData($position);
+
+        $this->assertSame('4 dagen', $data['daysLabel']);
+        $this->assertSame('Te weinig runway voor een nieuwe entry — setup wordt NO TRADE.', $data['subtitle']);
+        $this->assertNull($data['trailingNote']);
+        $this->assertFalse($data['isDanger']);
+    }
+
+    public function test_scout_entry_alert_hidden_for_open_position(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-05', 'Europe/Amsterdam'));
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'AAPL',
+            'next_earnings_date' => '2026-03-09',
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'AAPL',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+        ]);
+
+        $this->assertFalse(EarningsExitDisplay::isScoutEntryAlertVisible($position, 'edit'));
+        $this->assertTrue(EarningsExitDisplay::isSmartAlertVisible($position, 'edit'));
+    }
+
+    public function test_scout_entry_alert_hidden_beyond_alert_window(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'AAPL',
+            'next_earnings_date' => '2026-03-20',
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'AAPL',
+            'asset_id' => $asset->id,
+            'status' => 'scout',
+        ]);
+
+        $this->assertFalse(EarningsExitDisplay::isScoutEntryAlertVisible($position, 'edit'));
+    }
+
+    public function test_scout_entry_alert_uses_danger_styling_within_three_days(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-08', 'Europe/Amsterdam'));
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'AAPL',
+            'next_earnings_date' => '2026-03-09',
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'AAPL',
+            'asset_id' => $asset->id,
+            'status' => 'scout',
+        ]);
+
+        $data = EarningsExitDisplay::scoutEntryAlertViewData($position);
+
+        $this->assertTrue($data['isDanger']);
+        $this->assertSame('1 dag', $data['daysLabel']);
+    }
 }
