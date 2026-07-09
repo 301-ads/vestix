@@ -82,15 +82,44 @@ class AlertMessageBuilder
                 e(StopLossProtocol::overboughtFormulaLabel()),
                 PositionResource::getUrl('edit', ['record' => $position]),
             ),
-            AlertEventType::Target1Hit => sprintf(
-                '<b>TARGET 1 BEREIKT:</b> %s close ≥ $%s — verkoop %s%% en zet stop op breakeven. <a href="%s">Log verkoop</a>',
-                e($position->ticker),
-                number_format((float) ($context['target_1_price'] ?? $position->target_1_price ?? 0), 2),
-                number_format($position->effective_first_tranche_fraction * 100, 0),
-                PositionResource::getUrl('edit', ['record' => $position]),
-            ),
+            AlertEventType::Target1Hit => self::target1HitMessage($position, $context),
             AlertEventType::MarketOpenBuyStopReminder => self::marketOpenBuyStopReminder($position, $context),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private static function target1HitMessage(Position $position, array $context): string
+    {
+        $position->loadMissing('user');
+
+        $targetPrice = (float) ($context['target_1_price'] ?? $position->target_1_price ?? 0);
+        $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
+        $loginUrl = PositionResource::getUrl('edit', ['record' => $position]);
+
+        if ($position->userUsesRevolutWorkflow()) {
+            return sprintf(
+                '<b>TARGET 1 BEREIKT:</b> %s ≥ $%s — verkoop %d%% handmatig bij Revolut.<br>'
+                .'1. Pas/annuleer je 100%% stop-loss tijdelijk<br>'
+                .'2. Verkoop %d%% op de markt<br>'
+                .'3. Zet nieuwe stop-loss op breakeven voor de runner<br>'
+                .'4. <a href="%s">Log verkoop in Vestix</a>',
+                e($position->ticker),
+                number_format($targetPrice, 2),
+                $fractionPercent,
+                $fractionPercent,
+                $loginUrl,
+            );
+        }
+
+        return sprintf(
+            '<b>TARGET 1 BEREIKT:</b> %s close ≥ $%s — verkoop %s%% en zet stop op breakeven. <a href="%s">Log verkoop</a>',
+            e($position->ticker),
+            number_format($targetPrice, 2),
+            number_format($fractionPercent, 0),
+            $loginUrl,
+        );
     }
 
     /**

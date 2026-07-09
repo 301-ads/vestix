@@ -315,12 +315,37 @@ class DashboardTest extends TestCase
 
         Livewire::test(PositionsRequiringActionWidget::class)
             ->assertSee('GS')
-            ->assertSee('Stel Limit Sell in op')
+            ->assertSee('Target 1 bereikt op')
             ->assertSee('$12.00')
-            ->assertSee('voor 50% van je positie.')
+            ->assertSee('Pas SL aan, verkoop 50%')
             ->assertActionVisible('mark_limit_placed', arguments: ['record' => $targetHit->getKey()])
             ->callAction('mark_limit_placed', arguments: ['record' => $targetHit->getKey()])
             ->assertDontSee('GS');
+    }
+
+    public function test_action_widget_shows_limit_sell_instruction_for_non_revolut_broker(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $user->update(['primary_broker' => \App\Enums\Broker::None]);
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'IBM',
+            'entry_price' => 10.00,
+            'initial_sl' => 9.00,
+            'current_sl' => 9.00,
+            'latest_close_price' => 12.00,
+            'latest_sma_20' => 9.00,
+            'latest_atr_14' => 1.00,
+            'quantity' => 100,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertSee('IBM')
+            ->assertSee('Stel Limit Sell in op')
+            ->assertSee('voor 50% van je positie.');
     }
 
     public function test_action_widget_hides_limit_sell_for_auto_runner_bypass_position(): void

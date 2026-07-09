@@ -169,4 +169,35 @@ class UsMarketSession
 
         return $candidate;
     }
+
+    public static function isIntradayTargetWatchWindow(?Carbon $now = null): bool
+    {
+        $now ??= Carbon::now('America/New_York');
+
+        if (! self::isUsTradingDay($now)) {
+            return false;
+        }
+
+        [$startHour, $startMinute] = self::parseClockTime(
+            (string) config('vestix.intraday_target_watch.window_start', '04:00'),
+        );
+        [$endHour, $endMinute] = self::parseClockTime(
+            (string) config('vestix.intraday_target_watch.window_end', '16:15'),
+        );
+
+        $start = $now->copy()->startOfDay()->setTime($startHour, $startMinute);
+        $end = $now->copy()->startOfDay()->setTime($endHour, $endMinute);
+
+        return $now->betweenIncluded($start, $end);
+    }
+
+    /**
+     * @return array{0: int, 1: int}
+     */
+    private static function parseClockTime(string $time): array
+    {
+        [$hour, $minute] = array_pad(explode(':', $time), 2, '0');
+
+        return [(int) $hour, (int) $minute];
+    }
 }

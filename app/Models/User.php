@@ -97,6 +97,11 @@ class User extends Authenticatable implements FilamentUser
         return filled($this->telegram_chat_id);
     }
 
+    public function usesRevolutWorkflow(): bool
+    {
+        return $this->primary_broker === Broker::Revolut;
+    }
+
     protected function casts(): array
     {
         return [

@@ -404,6 +404,13 @@ class Position extends Model
             && (float) $this->current_sl >= (float) $this->entry_price;
     }
 
+    public function userUsesRevolutWorkflow(): bool
+    {
+        $this->loadMissing('user');
+
+        return $this->user?->usesRevolutWorkflow() ?? false;
+    }
+
     public function isTarget1Hit(): bool
     {
         if ($this->status !== 'open' || $this->hasScaledOut()) {

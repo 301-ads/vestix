@@ -188,7 +188,7 @@ class VestixSmokeTest extends Command
             ->filter()
             ->values();
 
-        $required = ['vestix:fetch-data'];
+        $required = ['vestix:fetch-data', 'vestix:watch-target-prices'];
         $missing = collect($required)->filter(
             fn (string $command): bool => ! $commands->contains(
                 fn (?string $scheduled): bool => is_string($scheduled) && str_contains($scheduled, $command),
@@ -201,7 +201,7 @@ class VestixSmokeTest extends Command
             return true;
         }
 
-        $this->line('✓ Scheduler-taken geregistreerd (fetch-data)');
+        $this->line('✓ Scheduler-taken geregistreerd (fetch-data, watch-target-prices)');
 
         return false;
     }

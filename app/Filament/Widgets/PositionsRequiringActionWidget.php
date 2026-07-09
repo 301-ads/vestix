@@ -85,11 +85,17 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
     public function formatInstruction(Position $record): string
     {
         return match ($record->primaryActionType()) {
-            Position::PRIMARY_ACTION_TARGET_1 => sprintf(
-                'Stel Limit Sell in op $%s voor %d%% van je positie.',
-                number_format((float) ($record->target_1_price ?? 0), 2),
-                (int) round($record->effective_first_tranche_fraction * 100),
-            ),
+            Position::PRIMARY_ACTION_TARGET_1 => $record->userUsesRevolutWorkflow()
+                ? sprintf(
+                    'Target 1 bereikt op $%s. Pas SL aan, verkoop %d%%, zet runner-SL op breakeven.',
+                    number_format((float) ($record->target_1_price ?? 0), 2),
+                    (int) round($record->effective_first_tranche_fraction * 100),
+                )
+                : sprintf(
+                    'Stel Limit Sell in op $%s voor %d%% van je positie.',
+                    number_format((float) ($record->target_1_price ?? 0), 2),
+                    (int) round($record->effective_first_tranche_fraction * 100),
+                ),
             Position::PRIMARY_ACTION_LIQUIDATION => sprintf(
                 'Koers ($%s) raakte je stop-loss ($%s). Sluit de positie (liquidatie).',
                 number_format((float) ($record->latest_close_price ?? 0), 2),
@@ -115,11 +121,17 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
                 number_format((float) ($record->new_sl ?? 0), 2),
                 number_format(((float) ($record->new_sl ?? 0)) - (float) $record->current_sl, 2),
             )),
-            Position::PRIMARY_ACTION_TARGET_1 => new HtmlString(sprintf(
-                'Stel Limit Sell in op <span class="vestix-action-todo__new-sl">$%s</span> voor %d%% van je positie.',
-                number_format((float) ($record->target_1_price ?? 0), 2),
-                (int) round($record->effective_first_tranche_fraction * 100),
-            )),
+            Position::PRIMARY_ACTION_TARGET_1 => new HtmlString($record->userUsesRevolutWorkflow()
+                ? sprintf(
+                    'Target 1 bereikt op <span class="vestix-action-todo__new-sl">$%s</span>. Pas SL aan, verkoop %d%%, zet runner-SL op breakeven.',
+                    number_format((float) ($record->target_1_price ?? 0), 2),
+                    (int) round($record->effective_first_tranche_fraction * 100),
+                )
+                : sprintf(
+                    'Stel Limit Sell in op <span class="vestix-action-todo__new-sl">$%s</span> voor %d%% van je positie.',
+                    number_format((float) ($record->target_1_price ?? 0), 2),
+                    (int) round($record->effective_first_tranche_fraction * 100),
+                )),
             default => new HtmlString(e($this->formatInstruction($record))),
         };
     }

@@ -300,7 +300,9 @@ class ScaleOutTest extends TestCase
 
     public function test_order_plan_hunt_phase_shows_active_step_one_number(): void
     {
-        $position = Position::factory()->make([
+        $user = User::factory()->create(['primary_broker' => \App\Enums\Broker::None]);
+
+        $position = Position::factory()->for($user)->make([
             'status' => 'open',
             'entry_price' => 10.00,
             'initial_sl' => 9.00,
@@ -316,6 +318,26 @@ class ScaleOutTest extends TestCase
         $this->assertStringContainsString('bg-primary-500', $html);
         $this->assertStringContainsString('Target 1 &middot; Verkoop 50%', $html);
         $this->assertStringContainsString('Limit sell', $html);
+    }
+
+    public function test_order_plan_hunt_phase_shows_revolut_monitoring_copy(): void
+    {
+        $user = User::factory()->create(['primary_broker' => \App\Enums\Broker::Revolut]);
+
+        $position = Position::factory()->for($user)->make([
+            'status' => 'open',
+            'entry_price' => 10.00,
+            'initial_sl' => 9.00,
+            'current_sl' => 9.00,
+            'latest_close_price' => 10.50,
+            'quantity' => 100,
+        ]);
+
+        $html = ScaleOutDisplay::orderPlanHtml($position)->toHtml();
+
+        $this->assertStringContainsString('Vestix monitort Target 1', $html);
+        $this->assertStringContainsString('100% stop-loss actief bij Revolut', $html);
+        $this->assertStringNotContainsString('Limit sell', $html);
     }
 
     public function test_order_plan_shows_green_checkmark_after_scale_out(): void

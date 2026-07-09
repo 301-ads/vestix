@@ -396,7 +396,9 @@ class PositionRecordActions
     {
         return Action::make('mark_limit_placed')
             ->label('Update')
-            ->tooltip('Bevestig dat de limit sell bij je broker staat')
+            ->tooltip(fn (Position $record): string => $record->userUsesRevolutWorkflow()
+                ? 'Bevestig dat Target 1 is bereikt (Telegram of Revolut-notificatie)'
+                : 'Bevestig dat de limit sell bij je broker staat')
             ->icon('heroicon-o-check')
             ->color('success')
             ->visible(fn (Position $record): bool => $record->status === 'open'
@@ -412,13 +414,15 @@ class PositionRecordActions
                     'ticket' => BrokerOrderTicket::forLimitSell($record),
                 ])->render()
             ))
-            ->modalSubmitActionLabel('Confirm Limit Sell')
+            ->modalSubmitActionLabel(fn (Position $record): string => BrokerOrderTicket::forLimitSell($record)['submit_label'])
             ->modalCancelActionLabel('Annuleren')
             ->action(function (Position $record): void {
                 $record->markTarget1LimitPlaced();
 
                 FilamentNotifier::send(
-                    title: 'Limit sell gemarkeerd',
+                    title: $record->userUsesRevolutWorkflow()
+                        ? 'Target 1 bevestigd'
+                        : 'Limit sell gemarkeerd',
                     body: "{$record->ticker}: de broker-to-do is afgevinkt.",
                 );
             });

@@ -16,6 +16,15 @@ Schedule::command('vestix:fetch-data')
     ->dailyAt('23:00')
     ->timezone('Europe/Amsterdam');
 
+Schedule::command('vestix:watch-target-prices')
+    ->hourly()
+    ->weekdays()
+    ->timezone('America/New_York')
+    ->between(
+        config('vestix.intraday_target_watch.window_start', '04:00'),
+        config('vestix.intraday_target_watch.window_end', '16:15'),
+    );
+
 Schedule::job(new RebuildSquadLeaderboardJob)->hourly();
 
 Schedule::command('vestix:send-daily-digests')
