@@ -3367,3 +3367,57 @@
 .dark .fi-body .ptr--refresh .ptr--icon {
     color: var(--vestix-primary);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Profile page                                                               */
+/* -------------------------------------------------------------------------- */
+
+.vestix-profile-page .vestix-profile-digest-row {
+    max-width: 28rem;
+}
+
+.vestix-profile-page .vestix-profile-telegram-section .fi-section-content-ctn {
+    padding-block: 0.75rem;
+}
+
+.vestix-profile-page .vestix-profile-telegram-row {
+    align-items: center;
+    gap: 0.75rem 1rem;
+}
+
+.vestix-profile-page .vestix-profile-telegram-row .fi-fo-placeholder {
+    margin: 0;
+}
+
+.vestix-profile-page .vestix-profile-telegram-row .fi-fo-placeholder-content,
+.vestix-profile-page .vestix-profile-telegram-row .fi-in-entry-content {
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.vestix-profile-page .vestix-profile-telegram-row .fi-sc-actions {
+    margin: 0;
+}
+
+@media (min-width: 768px) {
+    .vestix-profile-page .vestix-profile-telegram-row .fi-sc-actions {
+        justify-content: flex-end;
+    }
+}
+
+.vestix-profile-page .vestix-profile-alert-category .fi-section-content {
+    padding-top: 0.25rem;
+}
+
+.vestix-profile-page .vestix-profile-alert-category .fi-fo-field {
+    margin-bottom: 0;
+}
+
+.vestix-profile-page .vestix-profile-alert-category .fi-fo-checkbox-list,
+.vestix-profile-page .vestix-profile-alert-category .fi-fo-checkbox-list-options {
+    width: 100%;
+}
+
+.vestix-profile-page .vestix-profile-alert-category .fi-fo-checkbox-list-options {
+    justify-items: start;
+}

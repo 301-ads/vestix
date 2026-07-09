@@ -24,6 +24,8 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
+use Filament\Support\Enums\Alignment;
+use Filament\Support\Enums\VerticalAlignment;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\HtmlString;
 
@@ -39,6 +41,7 @@ class EditUserProfile extends EditProfile
             ->components([
                 Tabs::make()
                     ->persistTabInQueryString('tab')
+                    ->extraAttributes(['class' => 'vestix-profile-page'])
                     ->tabs([
                         Tab::make('Algemeen & Beveiliging')
                             ->icon(Heroicon::OutlinedUser)
@@ -95,42 +98,53 @@ class EditUserProfile extends EditProfile
                             ->schema([
                                 Section::make('Telegram alerts')
                                     ->compact()
+                                    ->extraAttributes(['class' => 'vestix-profile-telegram-section'])
                                     ->schema([
-                                        Placeholder::make('telegram_status')
-                                            ->hiddenLabel()
-                                            ->content(function (): HtmlString {
-                                                $user = $this->getUser();
+                                        Grid::make(['default' => 1, 'md' => 2])
+                                            ->extraAttributes(['class' => 'vestix-profile-telegram-row'])
+                                            ->schema([
+                                                Placeholder::make('telegram_status')
+                                                    ->hiddenLabel()
+                                                    ->inlineLabel(false)
+                                                    ->content(function (): HtmlString {
+                                                        $user = $this->getUser();
 
-                                                if ($user->hasTelegramConnection()) {
-                                                    return new HtmlString(
-                                                        '<span class="text-success-600 dark:text-success-400">Gekoppeld</span> — alerts gaan naar je privé Telegram-chat.'
-                                                    );
-                                                }
+                                                        if ($user->hasTelegramConnection()) {
+                                                            return new HtmlString(
+                                                                '<span class="text-success-600 dark:text-success-400">Gekoppeld</span> — alerts gaan naar je privé Telegram-chat.'
+                                                            );
+                                                        }
 
-                                                return new HtmlString(
-                                                    'Nog niet gekoppeld. Klik op <strong>Koppel Telegram</strong> en druk daarna op <strong>Start</strong> in Telegram.'
-                                                );
-                                            }),
-                                        Actions::make([
-                                            $this->connectTelegramAction(),
-                                            $this->disconnectTelegramAction(),
-                                            $this->testTelegramAction(),
-                                        ]),
+                                                        return new HtmlString(
+                                                            'Nog niet gekoppeld. Klik op <strong>Koppel Telegram</strong> en druk daarna op <strong>Start</strong> in Telegram.'
+                                                        );
+                                                    }),
+                                                Actions::make([
+                                                    $this->connectTelegramAction(),
+                                                    $this->disconnectTelegramAction(),
+                                                    $this->testTelegramAction(),
+                                                ])
+                                                    ->alignment(Alignment::Start)
+                                                    ->verticalAlignment(VerticalAlignment::Center),
+                                            ]),
                                     ]),
                                 Section::make('Alert voorkeuren')
                                     ->compact()
                                     ->description('Kies welke Set & Forget meldingen je ontvangt.')
                                     ->schema([
                                         Grid::make(2)
+                                            ->extraAttributes(['class' => 'vestix-profile-digest-row'])
                                             ->schema([
                                                 Toggle::make('alert_events_digest')
                                                     ->label(AlertEventType::DailyDigest->label())
+                                                    ->inlineLabel(false)
                                                     ->default(true)
                                                     ->afterStateHydrated(function (Toggle $component): void {
                                                         $component->state($this->hasAlertEvent(AlertEventType::DailyDigest));
                                                     }),
                                                 TimePicker::make('daily_digest_time')
                                                     ->label('Digest tijd')
+                                                    ->inlineLabel(false)
                                                     ->seconds(false)
                                                     ->default('21:45')
                                                     ->afterStateHydrated(function (TimePicker $component): void {
@@ -145,23 +159,27 @@ class EditUserProfile extends EditProfile
                                             ->schema([
                                                 Section::make('Order & Winst Executie')
                                                     ->compact()
+                                                    ->extraAttributes(['class' => 'vestix-profile-alert-category'])
                                                     ->schema([
                                                         $this->alertEventCheckboxList('alert_events_order', $alertGroups['order']),
                                                     ]),
                                                 Section::make('Pre-Market & Kansen')
                                                     ->compact()
+                                                    ->extraAttributes(['class' => 'vestix-profile-alert-category'])
                                                     ->schema([
                                                         $this->alertEventCheckboxList('alert_events_premarket', $alertGroups['premarket']),
                                                     ]),
                                                 Section::make('Risico & Earnings Waarschuwingen')
                                                     ->compact()
                                                     ->columnSpanFull()
+                                                    ->extraAttributes(['class' => 'vestix-profile-alert-category'])
                                                     ->schema([
                                                         $this->alertEventCheckboxList('alert_events_risk', $alertGroups['risk']),
                                                     ]),
                                             ]),
                                         Section::make('Squad')
                                             ->compact()
+                                            ->extraAttributes(['class' => 'vestix-profile-alert-category'])
                                             ->schema([
                                                 $this->alertEventCheckboxList('alert_events_squad', $alertGroups['squad']),
                                             ]),
@@ -180,6 +198,7 @@ class EditUserProfile extends EditProfile
 
         return CheckboxList::make($name)
             ->hiddenLabel()
+            ->inlineLabel(false)
             ->options($options)
             ->columns(1)
             ->afterStateHydrated(function (CheckboxList $component) use ($categoryKeys): void {
