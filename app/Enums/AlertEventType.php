@@ -49,4 +49,66 @@ enum AlertEventType: string
             self::cases(),
         );
     }
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::SlCanRaise => 'Stop-loss kan verhoogd worden',
+            self::FreerideSecured => 'Freeride secured (winst veiliggesteld)',
+            self::StoppedOut => 'Stopped out',
+            self::Target1Hit => 'Target 1 bereikt — verkoop 50%',
+            self::DailyDigest => 'Dagelijkse digest',
+            self::PremarketGapRisk => 'Pre-market gap-up waarschuwing (14:30)',
+            self::PremarketReclamation => 'Pre-market reclamation — herovert SMA 20 (14:30)',
+            self::PremarketLanding => 'Pre-market landing — nadert SMA 20 (14:30)',
+            self::EarningsWarning => 'Earnings waarschuwing — 2 dagen voor exit (08:00)',
+            self::EarningsActionRequired => 'Earnings actie — sluit vóór earnings (15:00)',
+            self::Overbought => 'Overbought alert — RSI ≥ 70 (23:00)',
+            self::MarketOpenBuyStopReminder => 'Buy-stop reminder bij market open (15:35)',
+            self::SquadCopyAlert => 'Squad copy-alerts (Ghost Mode)',
+        };
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    public static function labeledGroups(): array
+    {
+        return [
+            'order' => self::optionsFor(
+                self::StoppedOut,
+                self::Target1Hit,
+                self::FreerideSecured,
+                self::SlCanRaise,
+            ),
+            'premarket' => self::optionsFor(
+                self::PremarketGapRisk,
+                self::PremarketReclamation,
+                self::PremarketLanding,
+                self::MarketOpenBuyStopReminder,
+            ),
+            'risk' => self::optionsFor(
+                self::EarningsWarning,
+                self::EarningsActionRequired,
+                self::Overbought,
+            ),
+            'squad' => self::optionsFor(
+                self::SquadCopyAlert,
+            ),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function optionsFor(self ...$cases): array
+    {
+        $options = [];
+
+        foreach ($cases as $case) {
+            $options[$case->value] = $case->label();
+        }
+
+        return $options;
+    }
 }

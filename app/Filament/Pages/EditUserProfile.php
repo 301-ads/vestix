@@ -14,12 +14,17 @@ use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\HtmlString;
 
 class EditUserProfile extends EditProfile
@@ -28,129 +33,227 @@ class EditUserProfile extends EditProfile
 
     public function form(Schema $schema): Schema
     {
+        $alertGroups = AlertEventType::labeledGroups();
+
         return $schema
             ->components([
-                $this->getNameFormComponent(),
-                $this->getEmailFormComponent(),
-                Section::make('Telegram alerts')
-                    ->compact()
-                    ->schema([
-                        Placeholder::make('telegram_status')
-                            ->hiddenLabel()
-                            ->content(function (): HtmlString {
-                                $user = $this->getUser();
+                Tabs::make()
+                    ->persistTabInQueryString('tab')
+                    ->tabs([
+                        Tab::make('Algemeen & Beveiliging')
+                            ->icon(Heroicon::OutlinedUser)
+                            ->schema([
+                                Section::make('Account')
+                                    ->compact()
+                                    ->schema([
+                                        $this->getNameFormComponent(),
+                                        $this->getEmailFormComponent(),
+                                    ]),
+                                Section::make('Beveiliging')
+                                    ->compact()
+                                    ->schema([
+                                        $this->getPasswordFormComponent(),
+                                        $this->getPasswordConfirmationFormComponent(),
+                                        $this->getCurrentPasswordFormComponent(),
+                                    ]),
+                            ]),
+                        Tab::make('Trading Voorkeuren')
+                            ->icon(Heroicon::OutlinedCog6Tooth)
+                            ->schema([
+                                Section::make('Position sizing')
+                                    ->compact()
+                                    ->description('Bankroll en standaard risico-limiet voor de waakhond op scouts.')
+                                    ->schema([
+                                        TextInput::make('trading_bankroll')
+                                            ->label('Mijn Totale Trading Kapitaal (Bankroll)')
+                                            ->numeric()
+                                            ->prefix('$')
+                                            ->minValue(0.01)
+                                            ->helperText('Kopieer het totaal uit je broker (Revolut: Beleggingsrekening). Update wekelijks of maandelijks.'),
+                                        ToggleButtons::make('default_risk_percent')
+                                            ->label('Standaard risico-niveau')
+                                            ->options(PositionSizing::riskPercentOptions())
+                                            ->default('1')
+                                            ->inline()
+                                            ->required(),
+                                    ]),
+                                Section::make('Mijn broker')
+                                    ->compact()
+                                    ->description('Bepaalt hoe Vestix je begeleidt bij het uitvoeren van orders.')
+                                    ->schema([
+                                        ToggleButtons::make('primary_broker')
+                                            ->label('Broker')
+                                            ->options(Broker::options())
+                                            ->default(Broker::Revolut->value)
+                                            ->inline()
+                                            ->required()
+                                            ->helperText('Revolut toont bevestigingsflows in de app. Geen/handmatig toont Limit Sell-instructies op het dashboard.'),
+                                    ]),
+                            ]),
+                        Tab::make('Telegram & Alerts')
+                            ->icon(Heroicon::OutlinedBell)
+                            ->schema([
+                                Section::make('Telegram alerts')
+                                    ->compact()
+                                    ->schema([
+                                        Placeholder::make('telegram_status')
+                                            ->hiddenLabel()
+                                            ->content(function (): HtmlString {
+                                                $user = $this->getUser();
 
-                                if ($user->hasTelegramConnection()) {
-                                    return new HtmlString(
-                                        '<span class="text-success-600 dark:text-success-400">Gekoppeld</span> — alerts gaan naar je privé Telegram-chat.'
-                                    );
-                                }
+                                                if ($user->hasTelegramConnection()) {
+                                                    return new HtmlString(
+                                                        '<span class="text-success-600 dark:text-success-400">Gekoppeld</span> — alerts gaan naar je privé Telegram-chat.'
+                                                    );
+                                                }
 
-                                return new HtmlString(
-                                    'Nog niet gekoppeld. Klik op <strong>Koppel Telegram</strong> en druk daarna op <strong>Start</strong> in Telegram.'
-                                );
-                            }),
-                        Actions::make([
-                            $this->connectTelegramAction(),
-                            $this->disconnectTelegramAction(),
-                            $this->testTelegramAction(),
-                        ]),
+                                                return new HtmlString(
+                                                    'Nog niet gekoppeld. Klik op <strong>Koppel Telegram</strong> en druk daarna op <strong>Start</strong> in Telegram.'
+                                                );
+                                            }),
+                                        Actions::make([
+                                            $this->connectTelegramAction(),
+                                            $this->disconnectTelegramAction(),
+                                            $this->testTelegramAction(),
+                                        ]),
+                                    ]),
+                                Section::make('Alert voorkeuren')
+                                    ->compact()
+                                    ->description('Kies welke Set & Forget meldingen je ontvangt.')
+                                    ->schema([
+                                        Grid::make(2)
+                                            ->schema([
+                                                Toggle::make('alert_events_digest')
+                                                    ->label(AlertEventType::DailyDigest->label())
+                                                    ->default(true)
+                                                    ->afterStateHydrated(function (Toggle $component): void {
+                                                        $component->state($this->hasAlertEvent(AlertEventType::DailyDigest));
+                                                    }),
+                                                TimePicker::make('daily_digest_time')
+                                                    ->label('Digest tijd')
+                                                    ->seconds(false)
+                                                    ->default('21:45')
+                                                    ->afterStateHydrated(function (TimePicker $component): void {
+                                                        $preference = $this->getTelegramAlertPreference();
+
+                                                        if ($preference?->daily_digest_time) {
+                                                            $component->state($preference->daily_digest_time);
+                                                        }
+                                                    }),
+                                            ]),
+                                        Grid::make(['default' => 1, 'lg' => 2])
+                                            ->schema([
+                                                Section::make('Order & Winst Executie')
+                                                    ->compact()
+                                                    ->schema([
+                                                        $this->alertEventCheckboxList('alert_events_order', $alertGroups['order']),
+                                                    ]),
+                                                Section::make('Pre-Market & Kansen')
+                                                    ->compact()
+                                                    ->schema([
+                                                        $this->alertEventCheckboxList('alert_events_premarket', $alertGroups['premarket']),
+                                                    ]),
+                                                Section::make('Risico & Earnings Waarschuwingen')
+                                                    ->compact()
+                                                    ->columnSpanFull()
+                                                    ->schema([
+                                                        $this->alertEventCheckboxList('alert_events_risk', $alertGroups['risk']),
+                                                    ]),
+                                            ]),
+                                        Section::make('Squad')
+                                            ->compact()
+                                            ->schema([
+                                                $this->alertEventCheckboxList('alert_events_squad', $alertGroups['squad']),
+                                            ]),
+                                    ]),
+                            ]),
                     ]),
-                Section::make('Alert voorkeuren')
-                    ->compact()
-                    ->description('Kies welke Set & Forget meldingen je ontvangt.')
-                    ->schema([
-                        CheckboxList::make('alert_events')
-                            ->label('Meldingen')
-                            ->options([
-                                AlertEventType::SlCanRaise->value => 'Stop-loss kan verhoogd worden',
-                                AlertEventType::FreerideSecured->value => 'Freeride secured (winst veiliggesteld)',
-                                AlertEventType::StoppedOut->value => 'Stopped out',
-                                AlertEventType::Target1Hit->value => 'Target 1 bereikt — verkoop 50%',
-                                AlertEventType::DailyDigest->value => 'Dagelijkse digest (21:45)',
-                                AlertEventType::PremarketGapRisk->value => 'Pre-market gap-up waarschuwing (14:30)',
-                                AlertEventType::PremarketReclamation->value => 'Pre-market reclamation — herovert SMA 20 (14:30)',
-                                AlertEventType::PremarketLanding->value => 'Pre-market landing — nadert SMA 20 (14:30)',
-                                AlertEventType::EarningsWarning->value => 'Earnings waarschuwing — 2 dagen voor exit (08:00)',
-                                AlertEventType::EarningsActionRequired->value => 'Earnings actie — sluit vóór earnings (15:00)',
-                                AlertEventType::Overbought->value => 'Overbought alert — RSI ≥ 70 (23:00)',
-                                AlertEventType::MarketOpenBuyStopReminder->value => 'Buy-stop reminder bij market open (15:35)',
-                                AlertEventType::SquadCopyAlert->value => 'Squad copy-alerts (Ghost Mode)',
-                            ])
-                            ->default(AlertEventType::defaults())
-                            ->columns(1)
-                            ->afterStateHydrated(function (CheckboxList $component): void {
-                                UserAlertPreference::ensureDefaultsForUser($this->getUser());
-                                $preference = $this->getUser()
-                                    ->alertPreferences()
-                                    ->where('channel_type', 'telegram')
-                                    ->first();
-
-                                $component->state($preference?->active_events ?? AlertEventType::defaults());
-                            }),
-                        TimePicker::make('daily_digest_time')
-                            ->label('Digest tijd')
-                            ->seconds(false)
-                            ->default('21:45')
-                            ->afterStateHydrated(function (TimePicker $component): void {
-                                $preference = $this->getUser()
-                                    ->alertPreferences()
-                                    ->where('channel_type', 'telegram')
-                                    ->first();
-
-                                if ($preference?->daily_digest_time) {
-                                    $component->state($preference->daily_digest_time);
-                                }
-                            }),
-                    ]),
-                Section::make('Position sizing')
-                    ->compact()
-                    ->description('Bankroll en standaard risico-limiet voor de waakhond op scouts.')
-                    ->schema([
-                        TextInput::make('trading_bankroll')
-                            ->label('Mijn Totale Trading Kapitaal (Bankroll)')
-                            ->numeric()
-                            ->prefix('$')
-                            ->minValue(0.01)
-                            ->helperText('Kopieer het totaal uit je broker (Revolut: Beleggingsrekening). Update wekelijks of maandelijks.'),
-                        ToggleButtons::make('default_risk_percent')
-                            ->label('Standaard risico-niveau')
-                            ->options(PositionSizing::riskPercentOptions())
-                            ->default('1')
-                            ->inline()
-                            ->required(),
-                        ToggleButtons::make('primary_broker')
-                            ->label('Mijn broker')
-                            ->options(Broker::options())
-                            ->default(Broker::Revolut->value)
-                            ->inline()
-                            ->required()
-                            ->helperText('Voor deeplinks in buy-stop reminders (opent het aandeel in je broker-app).'),
-                    ]),
-                $this->getPasswordFormComponent(),
-                $this->getPasswordConfirmationFormComponent(),
-                $this->getCurrentPasswordFormComponent(),
             ]);
+    }
+
+    /**
+     * @param  array<string, string>  $options
+     */
+    private function alertEventCheckboxList(string $name, array $options): CheckboxList
+    {
+        $categoryKeys = array_keys($options);
+
+        return CheckboxList::make($name)
+            ->hiddenLabel()
+            ->options($options)
+            ->columns(1)
+            ->afterStateHydrated(function (CheckboxList $component) use ($categoryKeys): void {
+                UserAlertPreference::ensureDefaultsForUser($this->getUser());
+                $activeEvents = $this->getTelegramAlertPreference()?->active_events ?? AlertEventType::defaults();
+                $component->state(array_values(array_intersect($activeEvents, $categoryKeys)));
+            });
+    }
+
+    private function hasAlertEvent(AlertEventType $event): bool
+    {
+        UserAlertPreference::ensureDefaultsForUser($this->getUser());
+        $activeEvents = $this->getTelegramAlertPreference()?->active_events ?? AlertEventType::defaults();
+
+        return in_array($event->value, $activeEvents, true);
+    }
+
+    private function getTelegramAlertPreference(): ?UserAlertPreference
+    {
+        return $this->getUser()
+            ->alertPreferences()
+            ->where('channel_type', 'telegram')
+            ->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return list<string>
+     */
+    private function mergeAlertEvents(array $data): array
+    {
+        $merged = array_merge(
+            $data['alert_events_order'] ?? [],
+            $data['alert_events_premarket'] ?? [],
+            $data['alert_events_risk'] ?? [],
+            $data['alert_events_squad'] ?? [],
+        );
+
+        if ($data['alert_events_digest'] ?? false) {
+            $merged[] = AlertEventType::DailyDigest->value;
+        }
+
+        return array_values(array_unique($merged));
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        if (isset($data['alert_events']) || isset($data['daily_digest_time'])) {
+        $hasAlertData = isset($data['alert_events_order'])
+            || isset($data['alert_events_premarket'])
+            || isset($data['alert_events_risk'])
+            || isset($data['alert_events_squad'])
+            || array_key_exists('alert_events_digest', $data)
+            || isset($data['daily_digest_time']);
+
+        if ($hasAlertData) {
             UserAlertPreference::ensureDefaultsForUser($this->getUser());
 
-            $preference = $this->getUser()
-                ->alertPreferences()
-                ->where('channel_type', 'telegram')
-                ->first();
+            $preference = $this->getTelegramAlertPreference();
 
             if ($preference) {
                 $preference->update([
-                    'active_events' => $data['alert_events'] ?? AlertEventType::defaults(),
+                    'active_events' => $this->mergeAlertEvents($data),
                     'daily_digest_time' => $data['daily_digest_time'] ?? '21:45:00',
                 ]);
             }
 
-            unset($data['alert_events'], $data['daily_digest_time']);
+            unset(
+                $data['alert_events_order'],
+                $data['alert_events_premarket'],
+                $data['alert_events_risk'],
+                $data['alert_events_squad'],
+                $data['alert_events_digest'],
+                $data['daily_digest_time'],
+            );
         }
 
         return $data;
