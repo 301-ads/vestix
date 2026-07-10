@@ -1811,7 +1811,7 @@ class PositionForm
     private static function schildCardViewData(Get $get, ?Position $record): array
     {
         $action = self::resolveFormActionCommand($get, $record);
-        $newSl = self::resolveComputedNewSl($get, $record);
+        $displaySl = self::resolveSchildCardSl($get, $record);
         $actionDescription = self::formatSchildSubtext($get, $record);
         $position = self::resolvePositionForProtocol($get, $record);
 
@@ -1819,8 +1819,8 @@ class PositionForm
             'action' => $action,
             'label' => 'Berekende SL',
             'showOverboughtBadge' => $position !== null && StopLossProtocol::isRsiOverbought($position),
-            'value' => self::formatUsd($newSl),
-            'copyValue' => self::formatNewSlCopyValue($newSl),
+            'value' => self::formatUsd($displaySl),
+            'copyValue' => self::formatNewSlCopyValue($displaySl),
             'valuePulse' => $action === 'UPDATE',
             'description' => $actionDescription['text'] ?? null,
             'descriptionColor' => $actionDescription['color'] ?? 'gray',
@@ -1965,22 +1965,57 @@ class PositionForm
         }
 
         $close = $get('latest_close_price') ?? $record?->latest_close_price;
-        $newSl = self::resolveComputedNewSl($get, $record);
+        $protocolSl = self::resolveComputedNewSl($get, $record);
+        $displaySl = self::resolveSchildCardSl($get, $record);
 
-        if ($close === null || $close === '' || $newSl === null) {
+        if ($close === null || $close === '' || $displaySl === null) {
             return null;
         }
 
         $close = (float) $close;
         $atr = $get('latest_atr_14') ?? $record?->latest_atr_14;
         $atr = $atr !== null && $atr !== '' ? (float) $atr : null;
-        $percentage = (((float) $newSl) - $close) / $close * 100;
+        $percentage = ($displaySl - $close) / $close * 100;
         $percentagePrefix = $percentage >= 0 ? '+' : '−';
+        $distanceText = $percentagePrefix.number_format(abs($percentage), 2).'% t.o.v. koers';
+
+        if (self::isCurrentSlAboveTrailing($get, $record) && $protocolSl !== null) {
+            return [
+                'text' => $distanceText.' · trailing '.self::formatUsd($protocolSl),
+                'color' => SlPriceProximity::color($close, $displaySl, $atr),
+            ];
+        }
 
         return [
-            'text' => $percentagePrefix.number_format(abs($percentage), 2).'% t.o.v. koers',
-            'color' => SlPriceProximity::color($close, (float) $newSl, $atr),
+            'text' => $distanceText,
+            'color' => SlPriceProximity::color($close, $displaySl, $atr),
         ];
+    }
+
+    private static function resolveSchildCardSl(Get $get, ?Position $record): ?float
+    {
+        $protocolSl = self::resolveComputedNewSl($get, $record);
+
+        if (self::isCurrentSlAboveTrailing($get, $record)) {
+            return (float) ($get('current_sl') ?? $record?->current_sl);
+        }
+
+        return $protocolSl;
+    }
+
+    private static function isCurrentSlAboveTrailing(Get $get, ?Position $record): bool
+    {
+        if (self::resolveFormActionCommand($get, $record) !== 'HOLD') {
+            return false;
+        }
+
+        $protocolSl = self::resolveComputedNewSl($get, $record);
+        $currentSl = $get('current_sl') ?? $record?->current_sl;
+
+        return $protocolSl !== null
+            && $currentSl !== null
+            && $currentSl !== ''
+            && (float) $currentSl > $protocolSl;
     }
 
     /**

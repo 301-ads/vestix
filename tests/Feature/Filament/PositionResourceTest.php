@@ -76,19 +76,37 @@ class PositionResourceTest extends TestCase
             ->assertSee('$78.20')
             ->assertSee('2.89%')
             ->assertTableColumnVisible('ticker')
-            ->assertTableColumnVisible('new_sl')
+            ->assertTableColumnVisible('current_sl')
             ->assertTableColumnVisible('actuele_koers')
             ->assertTableColumnVisible('unrealized_pnl_percentage')
             ->assertCanNotRenderTableColumn('action_command')
-            ->assertCanNotRenderTableColumn('current_sl')
             ->assertCanNotRenderTableColumn('unrealized_pnl')
-            ->assertTableColumnExists('action_command', fn ($column) => $column->isToggledHiddenByDefault())
-            ->assertTableColumnExists('current_sl', fn ($column) => $column->isToggledHiddenByDefault());
+            ->assertTableColumnExists('action_command', fn ($column) => $column->isToggledHiddenByDefault());
 
         $pnlColumn = $livewire->instance()->getTable()->getColumn('unrealized_pnl_percentage');
         $pnlColumn->record($livewire->instance()->getTableRecords()->first());
 
         $this->assertSame('+$22.00', $pnlColumn->getTooltip());
+    }
+
+    public function test_list_page_stop_loss_column_shows_current_sl_not_trailing(): void
+    {
+        $user = $this->authenticateFilament();
+        Position::factory()->for($user)->create([
+            'ticker' => 'BAC',
+            'entry_price' => 51.50,
+            'quantity' => 22,
+            'latest_close_price' => 59.25,
+            'latest_sma_20' => 57.50,
+            'latest_atr_14' => 1.22,
+            'current_sl' => 58.14,
+            'status' => 'open',
+        ]);
+
+        Livewire::test(ListPositions::class)
+            ->assertOk()
+            ->assertSee('$58.14')
+            ->assertDontSee('$56.89');
     }
 
     public function test_edit_page_shows_calculator_section(): void
@@ -176,6 +194,28 @@ class PositionResourceTest extends TestCase
             ->callAction('applyCalculatedSl');
 
         $this->assertEquals(76.10, (float) $position->fresh()->current_sl);
+    }
+
+    public function test_edit_page_schild_card_shows_active_sl_when_trailing_is_lower(): void
+    {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
+            'entry_price' => 51.50,
+            'quantity' => 22,
+            'latest_close_price' => 59.25,
+            'latest_sma_20' => 57.50,
+            'latest_atr_14' => 1.22,
+            'current_sl' => 58.14,
+            'status' => 'open',
+        ]);
+
+        $this->assertEquals('HOLD', $position->action_command);
+        $this->assertEquals(56.89, $position->new_sl);
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertOk()
+            ->assertSee('trailing $56.89')
+            ->assertDontSee('vestix-stat-card__corner-badge');
     }
 
     public function test_edit_page_archive_header_action_closes_hold_position(): void

@@ -2,12 +2,10 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
-use App\Enums\TrailingStopMode;
 use App\Filament\Resources\Positions\Pages\ListPositions;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\FilamentPolling;
-use App\Support\StopLossProtocol;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -81,16 +79,12 @@ class PositionsTable
                     ->sortable()
                     ->toggleable()
                     ->width('5.5rem'),
-                TextColumn::make('new_sl')
+                TextColumn::make('current_sl')
                     ->label('Stop-Loss')
                     ->money('usd')
                     ->placeholder('—')
                     ->sortable()
-                    ->tooltip(fn (Position $record): string => match (StopLossProtocol::activeMode($record)) {
-                        TrailingStopMode::AggressivePreEarnings => 'Pre-earnings escalatie: '.StopLossProtocol::aggressiveFormulaLabel(),
-                        TrailingStopMode::AggressiveOverbought => 'Oververhit: '.StopLossProtocol::overboughtFormulaLabel(),
-                        default => 'Berekende stop-loss (SMA20 − 0,5 × ATR14).',
-                    })
+                    ->tooltip('Stop-loss zoals die nu bij je broker staat.')
                     ->toggleable()
                     ->width('5.5rem')
                     ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire)),
@@ -175,14 +169,6 @@ class PositionsTable
                     ->extraCellAttributes(fn (Position $record): array => $record->action_command === 'UPDATE'
                         ? ['class' => 'animate-pulse']
                         : [])
-                    ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire)),
-                TextColumn::make('current_sl')
-                    ->label('Huidige SL')
-                    ->money('usd')
-                    ->sortable()
-                    ->tooltip('Stop-loss zoals die nu bij je broker staat.')
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->width('5.5rem')
                     ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire)),
                 TextColumn::make('exit_price')
                     ->label('Exit Prijs')
