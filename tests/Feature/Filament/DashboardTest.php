@@ -3,6 +3,7 @@
 namespace Tests\Feature\Filament;
 
 use App\Filament\Pages\Dashboard;
+use App\Filament\Widgets\BuyStopReviewWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
@@ -106,6 +107,21 @@ class DashboardTest extends TestCase
             ->assertSee('WDC');
     }
 
+    public function test_dashboard_shows_buy_stop_review_widget_when_reviews_pending(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        Position::factory()->for($user)->scout()->requiringBuyStopReview()->create([
+            'ticker' => 'APTV',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(Dashboard::class)
+            ->assertSee('Buy-stop review')
+            ->assertSee('APTV');
+    }
+
     public function test_action_widget_lists_only_positions_requiring_update(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
@@ -151,6 +167,7 @@ class DashboardTest extends TestCase
             PortfolioExposureWidget::class,
             PortfolioTopFlopWidget::class,
             SetupRadarWidget::class,
+            BuyStopReviewWidget::class,
             PositionsRequiringActionWidget::class,
         ], $widgets);
     }

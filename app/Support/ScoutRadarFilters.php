@@ -24,6 +24,7 @@ class ScoutRadarFilters
             'market_open_pending' => 'Status: Pending (market open)',
             'active_only' => 'Status: Active (order live)',
             'pending_only' => 'Status: Active (order live)',
+            'review_required' => 'Status: Review vereist',
             'premarket_signals' => 'Pre-market signalen',
             'execution_pipeline' => 'Executie (live + reminder)',
             'track_a' => 'Track A — Landing',
@@ -64,6 +65,7 @@ class ScoutRadarFilters
             'scout_only' => self::pipelineStatus($scout) === ScoutPipelineStatus::Scout,
             'market_open_pending' => self::pipelineStatus($scout) === ScoutPipelineStatus::Pending,
             'active_only', 'pending_only' => self::pipelineStatus($scout) === ScoutPipelineStatus::Active,
+            'review_required' => self::pipelineStatus($scout) === ScoutPipelineStatus::ReviewRequired,
             'premarket_signals' => self::hasPremarketSignal($scout),
             'execution_pipeline' => self::isInExecutionPipeline($scout),
             'track_a' => $scout->hasPremarketLanding(),
@@ -200,6 +202,7 @@ class ScoutRadarFilters
         return in_array(self::pipelineStatus($scout), [
             ScoutPipelineStatus::Pending,
             ScoutPipelineStatus::Active,
+            ScoutPipelineStatus::ReviewRequired,
         ], true);
     }
 }

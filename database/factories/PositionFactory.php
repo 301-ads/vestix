@@ -79,6 +79,15 @@ class PositionFactory extends Factory
         ]);
     }
 
+    public function requiringBuyStopReview(): static
+    {
+        return $this->state(fn (): array => [
+            'buy_stop_review_required_on' => now()->toDateString(),
+            'buy_stop_review_setup_score' => 8,
+            'buy_stop_review_setup_grade' => 'A',
+        ]);
+    }
+
     public function squadShared(): static
     {
         return $this->state(fn (): array => [

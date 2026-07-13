@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Console;
 
+use App\Enums\BrokerOrderStatus;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\MarketDataFetcher;
@@ -435,5 +436,73 @@ class FetchVestixDataTest extends TestCase
 
         $this->assertFalse($position->bounce_volume_above_average);
         $this->assertEquals(1_000_000, $position->avg_volume_30d);
+    }
+
+    public function test_command_flags_stale_buy_stop_after_bulk_sync(): void
+    {
+        config(['vestix.polygon.api_key' => null]);
+
+        $user = User::factory()->create();
+        $scout = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
+            'ticker' => 'APTV',
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00,
+            'latest_sma_50' => 95.00,
+            'scout_rsi' => 50.00,
+        ]);
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
+            'www.alphavantage.co/*' => Http::sequence()
+                ->push(['Note' => 'Daily series unavailable in test.'])
+                ->push(['Global Quote' => ['05. price' => '100.50']])
+                ->push(['Technical Analysis: SMA' => $this->smaSeries()])
+                ->push(['Technical Analysis: SMA' => ['2024-01-06' => ['SMA' => '95.00']]])
+                ->push(['Technical Analysis: ATR' => ['2024-01-06' => ['ATR' => '2.00']]])
+                ->push(['Technical Analysis: RSI' => ['2024-01-06' => ['RSI' => '50.00']]]),
+        ]);
+
+        $this->artisan('vestix:fetch-data')
+            ->expectsOutputToContain('stale buy-stop(s) gemarkeerd voor ochtend-review')
+            ->assertSuccessful();
+
+        $scout->refresh();
+
+        $this->assertSame(BrokerOrderStatus::Scout, $scout->broker_order_status);
+        $this->assertNotNull($scout->buy_stop_review_required_on);
+        $this->assertNotNull($scout->buy_stop_review_setup_score);
+        $this->assertNotNull($scout->buy_stop_review_setup_grade);
+    }
+
+    public function test_command_does_not_flag_scout_only_pipeline(): void
+    {
+        config(['vestix.polygon.api_key' => null]);
+
+        $scout = Position::factory()->scout()->create([
+            'ticker' => 'APTV',
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00,
+            'latest_sma_50' => 95.00,
+            'scout_rsi' => 50.00,
+        ]);
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
+            'www.alphavantage.co/*' => Http::sequence()
+                ->push(['Note' => 'Daily series unavailable in test.'])
+                ->push(['Global Quote' => ['05. price' => '100.50']])
+                ->push(['Technical Analysis: SMA' => $this->smaSeries()])
+                ->push(['Technical Analysis: SMA' => ['2024-01-06' => ['SMA' => '95.00']]])
+                ->push(['Technical Analysis: ATR' => ['2024-01-06' => ['ATR' => '2.00']]])
+                ->push(['Technical Analysis: RSI' => ['2024-01-06' => ['RSI' => '50.00']]]),
+        ]);
+
+        $this->artisan('vestix:fetch-data')->assertSuccessful();
+
+        $scout->refresh();
+
+        $this->assertNull($scout->buy_stop_review_required_on);
     }
 }

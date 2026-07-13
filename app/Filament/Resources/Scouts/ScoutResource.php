@@ -79,13 +79,60 @@ class ScoutResource extends Resource
     {
         $userId = auth()->id();
 
-        return $userId
-            ? (string) Position::query()->scout()->forUser($userId)->count()
-            : null;
+        if ($userId === null) {
+            return null;
+        }
+
+        $reviewCount = Position::query()
+            ->scout()
+            ->forUser($userId)
+            ->requiringBuyStopReview()
+            ->count();
+
+        if ($reviewCount > 0) {
+            return (string) $reviewCount;
+        }
+
+        return (string) Position::query()->scout()->forUser($userId)->count();
     }
 
     public static function getNavigationBadgeTooltip(): ?string
     {
+        $userId = auth()->id();
+
+        if ($userId === null) {
+            return 'Scouts in watchlist';
+        }
+
+        $reviewCount = Position::query()
+            ->scout()
+            ->forUser($userId)
+            ->requiringBuyStopReview()
+            ->count();
+
+        if ($reviewCount > 0) {
+            return $reviewCount === 1
+                ? '1 buy-stop wacht op review'
+                : "{$reviewCount} buy-stops wachten op review";
+        }
+
         return 'Scouts in watchlist';
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        $userId = auth()->id();
+
+        if ($userId === null) {
+            return null;
+        }
+
+        $reviewCount = Position::query()
+            ->scout()
+            ->forUser($userId)
+            ->requiringBuyStopReview()
+            ->count();
+
+        return $reviewCount > 0 ? 'warning' : null;
     }
 }

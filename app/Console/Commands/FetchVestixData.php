@@ -7,6 +7,7 @@ use App\Models\Position;
 use App\Models\User;
 use App\Services\EarningsCalendarSyncService;
 use App\Services\MarketDataFetcher;
+use App\Services\StaleBuyStopReviewService;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupAlertService;
@@ -265,6 +266,12 @@ class FetchVestixData extends Command
 
         if ($alertsSent > 0) {
             $this->info("{$alertsSent} Sniper Telegram-alert(s) verstuurd.");
+        }
+
+        $reviewFlagged = app(StaleBuyStopReviewService::class)->flagStaleBuyStops();
+
+        if ($reviewFlagged > 0) {
+            $this->info("{$reviewFlagged} stale buy-stop(s) gemarkeerd voor ochtend-review.");
         }
 
         $marketDataFetcher->touchApiFetchTimestamp();

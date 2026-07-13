@@ -9,9 +9,14 @@ enum ScoutPipelineStatus: string
     case Scout = 'scout';
     case Pending = 'pending';
     case Active = 'active';
+    case ReviewRequired = 'review_required';
 
     public static function fromPosition(Position $position): self
     {
+        if ($position->buy_stop_review_required_on !== null) {
+            return self::ReviewRequired;
+        }
+
         if ($position->broker_order_status === BrokerOrderStatus::Pending) {
             return self::Active;
         }
@@ -29,6 +34,7 @@ enum ScoutPipelineStatus: string
             self::Scout => 'Scout',
             self::Pending => 'Pending',
             self::Active => 'Active',
+            self::ReviewRequired => 'Review',
         };
     }
 
@@ -38,6 +44,7 @@ enum ScoutPipelineStatus: string
             self::Scout => 'gray',
             self::Pending => 'info',
             self::Active => 'warning',
+            self::ReviewRequired => 'warning',
         };
     }
 
@@ -47,6 +54,7 @@ enum ScoutPipelineStatus: string
             self::Scout => null,
             self::Pending => 'heroicon-m-bell-alert',
             self::Active => 'heroicon-m-clock',
+            self::ReviewRequired => 'heroicon-m-exclamation-triangle',
         };
     }
 
@@ -58,6 +66,9 @@ enum ScoutPipelineStatus: string
                 ? 'Wacht op market open — reminder op '.$position->market_open_reminder_on->format('d-m-Y').'.'
                 : 'Wacht op market open.',
             self::Active => 'Buy-stop staat live bij je broker.',
+            self::ReviewRequired => $position->buy_stop_review_required_on !== null
+                ? 'Buy-stop review vereist sinds '.$position->buy_stop_review_required_on->format('d-m-Y').'.'
+                : 'Buy-stop review vereist.',
         };
     }
 }

@@ -61,6 +61,7 @@ class ScoutsTable
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw(
                             "CASE
+                                WHEN buy_stop_review_required_on IS NOT NULL THEN 3
                                 WHEN broker_order_status = 'pending' THEN 2
                                 WHEN market_open_reminder_on IS NOT NULL THEN 1
                                 ELSE 0
@@ -138,6 +139,9 @@ class ScoutsTable
                 PositionRecordActions::toggleMarketOpenReminder(),
                 PositionRecordActions::clearBuyStop(),
                 PositionRecordActions::activateScout(),
+                PositionRecordActions::rolloverBuyStop(),
+                PositionRecordActions::editBuyStopEntry($resourceClass),
+                PositionRecordActions::cancelBuyStopSetup(),
                 PositionRecordActions::cloneTarget($resourceClass),
                 ActionGroup::make([
                     PositionRecordActions::shareSetup(),

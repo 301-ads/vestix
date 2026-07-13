@@ -80,6 +80,8 @@ class Position extends Model
             'visibility' => PositionVisibility::class,
             'broker_order_status' => BrokerOrderStatus::class,
             'market_open_reminder_on' => 'date',
+            'buy_stop_review_required_on' => 'date',
+            'buy_stop_review_setup_score' => 'integer',
         ];
     }
 
@@ -277,6 +279,94 @@ class Position extends Model
     public function clearMarketOpenReminder(): void
     {
         $this->update(['market_open_reminder_on' => null]);
+    }
+
+    public function scopeRequiringBuyStopReview(Builder $query): Builder
+    {
+        return $query->scout()->whereNotNull('buy_stop_review_required_on');
+    }
+
+    /**
+     * @return Collection<int, self>
+     */
+    public static function requiringBuyStopReviewForUser(int $userId): Collection
+    {
+        return static::query()
+            ->forUser($userId)
+            ->requiringBuyStopReview()
+            ->with('asset')
+            ->orderBy('buy_stop_review_required_on')
+            ->orderBy('ticker')
+            ->get();
+    }
+
+    public function clearBuyStopReview(): void
+    {
+        $this->update([
+            'buy_stop_review_required_on' => null,
+            'buy_stop_review_setup_score' => null,
+            'buy_stop_review_setup_grade' => null,
+        ]);
+    }
+
+    public function rolloverBuyStop(): void
+    {
+        $this->update([
+            'broker_order_status' => BrokerOrderStatus::Pending,
+            'market_open_reminder_on' => null,
+            'buy_stop_review_required_on' => null,
+            'buy_stop_review_setup_score' => null,
+            'buy_stop_review_setup_grade' => null,
+        ]);
+    }
+
+    public function cancelScoutSetup(): void
+    {
+        $this->delete();
+    }
+
+    public function buyStopReviewValidationHint(): ?string
+    {
+        $scorecard = $this->evaluateSetupScore();
+
+        if ($scorecard['hardFailReasons'] !== []) {
+            return 'Let op: setup is nu te zwak (NO TRADE).';
+        }
+
+        $snapshotGrade = $this->buy_stop_review_setup_grade;
+        $currentGrade = $scorecard['grade'];
+
+        if ($snapshotGrade !== null && $currentGrade !== $snapshotGrade) {
+            $gradeOrder = ['A++' => 5, 'A' => 4, 'B' => 3, 'C' => 2, 'NO TRADE' => 0];
+            $snapshotRank = $gradeOrder[$snapshotGrade] ?? 0;
+            $currentRank = $gradeOrder[$currentGrade] ?? 0;
+
+            if ($currentRank < $snapshotRank) {
+                return sprintf(
+                    'Let op: setup is verslechterd (%s → %s, %d/%d punten).',
+                    $snapshotGrade,
+                    $currentGrade,
+                    $scorecard['totalPoints'],
+                    ScoutSetupScorecard::maxPoints(),
+                );
+            }
+        }
+
+        if ($this->buy_stop_review_setup_score !== null) {
+            $delta = $scorecard['totalPoints'] - $this->buy_stop_review_setup_score;
+
+            if ($delta <= -2) {
+                return sprintf(
+                    'Let op: score gedaald met %d punten (%d → %d/%d).',
+                    abs($delta),
+                    $this->buy_stop_review_setup_score,
+                    $scorecard['totalPoints'],
+                    ScoutSetupScorecard::maxPoints(),
+                );
+            }
+        }
+
+        return null;
     }
 
     public function cloneForUser(User $user): self

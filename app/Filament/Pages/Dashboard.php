@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\BuyStopReviewWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
@@ -38,6 +39,7 @@ class Dashboard extends BaseDashboard
             PortfolioExposureWidget::class,
             PortfolioTopFlopWidget::class,
             SetupRadarWidget::class,
+            BuyStopReviewWidget::class,
             PositionsRequiringActionWidget::class,
         ];
     }

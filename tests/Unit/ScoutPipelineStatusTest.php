@@ -42,4 +42,11 @@ class ScoutPipelineStatusTest extends TestCase
 
         $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
     }
+
+    public function test_review_required_takes_priority_over_active(): void
+    {
+        $scout = Position::factory()->scout()->pendingBrokerOrder()->requiringBuyStopReview()->create();
+
+        $this->assertSame(ScoutPipelineStatus::ReviewRequired, $scout->scoutPipelineStatus());
+    }
 }

@@ -11,6 +11,7 @@ use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListScouts;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
+use App\Filament\Widgets\BuyStopReviewWidget;
 use App\Filament\Widgets\SetupRadarWidget;
 use App\Models\Position;
 use App\Services\MarketDataFetcher;
@@ -919,6 +920,60 @@ class ScoutWatchlistTest extends TestCase
         Livewire::test(ListScouts::class)
             ->assertOk()
             ->assertSeeHtml('wire:poll.10s');
+    }
+
+    public function test_rollover_buy_stop_clears_review_and_sets_active(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $this->actingAsFilamentUser($user, $squad);
+
+        $scout = Position::factory()->for($user)->scout()->requiringBuyStopReview()->create([
+            'ticker' => 'APTV',
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->callTableAction('rollover_buy_stop', $scout);
+
+        $scout->refresh();
+
+        $this->assertSame(BrokerOrderStatus::Pending, $scout->broker_order_status);
+        $this->assertNull($scout->buy_stop_review_required_on);
+        $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
+    }
+
+    public function test_cancel_buy_stop_setup_deletes_scout(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $this->actingAsFilamentUser($user, $squad);
+
+        $scout = Position::factory()->for($user)->scout()->requiringBuyStopReview()->create([
+            'ticker' => 'APTV',
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->callTableAction('cancel_buy_stop_setup', $scout);
+
+        $this->assertDatabaseMissing('positions', ['id' => $scout->id]);
+    }
+
+    public function test_buy_stop_review_widget_lists_scouts_requiring_review(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $this->actingAsFilamentUser($user, $squad);
+
+        Position::factory()->for($user)->scout()->requiringBuyStopReview()->create([
+            'ticker' => 'APTV',
+        ]);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'HOLD',
+        ]);
+
+        Livewire::test(BuyStopReviewWidget::class)
+            ->assertSee('Buy-stop review')
+            ->assertSee('APTV')
+            ->assertSee('Beoordeel open buy-stop')
+            ->assertDontSee('HOLD — Beoordeel open buy-stop');
     }
 
     /**

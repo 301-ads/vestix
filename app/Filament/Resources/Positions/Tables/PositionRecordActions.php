@@ -273,6 +273,69 @@ class PositionRecordActions
             });
     }
 
+    public static function rolloverBuyStop(): Action
+    {
+        return Action::make('rollover_buy_stop')
+            ->label('Laat staan (Rollover)')
+            ->tooltip('Order opnieuw bij broker gezet voor vandaag')
+            ->icon('heroicon-o-arrow-path')
+            ->color('success')
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->buy_stop_review_required_on !== null
+                && $record->isOwnedBy(auth()->user()))
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->requiresConfirmation()
+            ->modalHeading('Buy-stop rollover')
+            ->modalDescription('Bevestig dat je de buy-stop opnieuw bij je broker hebt gezet voor vandaag.')
+            ->action(function (Position $record): void {
+                $record->rolloverBuyStop();
+
+                FilamentNotifier::send(
+                    title: 'Buy-stop rollover',
+                    body: "{$record->ticker} staat weer op Active in je radar.",
+                );
+            });
+    }
+
+    public static function editBuyStopEntry(string $scoutResourceClass): Action
+    {
+        return Action::make('edit_buy_stop_entry')
+            ->label('Wijzig entry')
+            ->tooltip('Pas entry en signal-cijfers aan')
+            ->icon('heroicon-o-pencil-square')
+            ->color('warning')
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->buy_stop_review_required_on !== null
+                && $record->isOwnedBy(auth()->user()))
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->url(fn (Position $record): string => $scoutResourceClass::getUrl('edit', ['record' => $record]));
+    }
+
+    public static function cancelBuyStopSetup(): Action
+    {
+        return Action::make('cancel_buy_stop_setup')
+            ->label('Annuleer setup')
+            ->tooltip('Setup is niet meer geldig — verwijder van radar')
+            ->icon('heroicon-o-trash')
+            ->color('danger')
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->buy_stop_review_required_on !== null
+                && $record->isOwnedBy(auth()->user()))
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('delete', $record) ?? false)
+            ->requiresConfirmation()
+            ->modalHeading('Setup annuleren')
+            ->modalDescription('De scout wordt van je radar verwijderd. Zorg dat je de order ook bij je broker hebt geannuleerd.')
+            ->action(function (Position $record): void {
+                $ticker = $record->ticker;
+                $record->cancelScoutSetup();
+
+                FilamentNotifier::send(
+                    title: 'Setup geannuleerd',
+                    body: "{$ticker} is van je radar verwijderd.",
+                );
+            });
+    }
+
     /**
      * @param  class-string<resource>  $scoutResourceClass
      */
