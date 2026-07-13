@@ -47,6 +47,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(UserAlertPreference::class);
     }
 
+    public function bankrollSnapshots(): HasMany
+    {
+        return $this->hasMany(BankrollSnapshot::class);
+    }
+
     public function positionAlerts(): HasMany
     {
         return $this->hasMany(PositionAlert::class);

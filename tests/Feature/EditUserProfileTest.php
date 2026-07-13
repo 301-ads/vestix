@@ -7,6 +7,7 @@ use App\Enums\Broker;
 use App\Filament\Pages\EditUserProfile;
 use App\Models\User;
 use App\Models\UserAlertPreference;
+use App\Services\BenchmarkCloseResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -43,6 +44,36 @@ class EditUserProfileTest extends TestCase
             ->assertSchemaStateSet([
                 'default_risk_percent' => '1',
             ]);
+    }
+
+    public function test_profile_save_creates_bankroll_snapshot(): void
+    {
+        $this->mock(BenchmarkCloseResolver::class, function ($mock): void {
+            $mock->shouldReceive('benchmarkTicker')->andReturn('SPY');
+            $mock->shouldReceive('resolveTradingDayClose')->andReturn(550.25);
+        });
+
+        $user = User::factory()->create([
+            'primary_broker' => Broker::Revolut,
+            'trading_bankroll' => 10000,
+            'default_risk_percent' => 1,
+        ]);
+        $this->actingAs($user);
+
+        Livewire::test(EditUserProfile::class)
+            ->fillForm([
+                'trading_bankroll' => 10634.60,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertDatabaseHas('bankroll_snapshots', [
+            'user_id' => $user->id,
+            'amount' => 10634.60,
+            'benchmark_ticker' => 'SPY',
+        ]);
+
+        $this->assertEquals(10634.60, (float) $user->fresh()->trading_bankroll);
     }
 
     public function test_profile_saves_merged_alert_preferences(): void

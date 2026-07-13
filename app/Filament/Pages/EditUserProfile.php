@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Enums\AlertEventType;
 use App\Enums\Broker;
 use App\Models\UserAlertPreference;
+use App\Services\BankrollSnapshotService;
 use App\Services\TelegramLinkService;
 use App\Support\PositionSizing;
 use App\Support\TelegramNotifier;
@@ -32,6 +33,8 @@ use Illuminate\Support\HtmlString;
 class EditUserProfile extends EditProfile
 {
     private const TELEGRAM_BRAND = '#26A5E4';
+
+    private bool $shouldRecordBankrollSnapshot = false;
 
     public function form(Schema $schema): Schema
     {
@@ -277,7 +280,27 @@ class EditUserProfile extends EditProfile
             );
         }
 
+        if (array_key_exists('trading_bankroll', $data) && filled($data['trading_bankroll'])) {
+            $this->shouldRecordBankrollSnapshot = true;
+        }
+
         return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        if (! $this->shouldRecordBankrollSnapshot) {
+            return;
+        }
+
+        $user = $this->getUser()->fresh();
+        $bankroll = $user?->trading_bankroll;
+
+        if ($bankroll === null || (float) $bankroll <= 0) {
+            return;
+        }
+
+        app(BankrollSnapshotService::class)->recordSnapshot($user, (float) $bankroll);
     }
 
     protected function connectTelegramAction(): Action

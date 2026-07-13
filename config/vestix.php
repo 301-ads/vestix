@@ -123,6 +123,12 @@ return [
         'time' => env('MARKET_OPEN_REMINDER_TIME', '15:35'),
     ],
 
+    'bankroll_tracker' => [
+        'benchmark_ticker' => env('BANKROLL_BENCHMARK_TICKER', 'SPY'),
+        'update_day' => env('BANKROLL_UPDATE_DAY', 'saturday'),
+        'timezone' => 'Europe/Amsterdam',
+    ],
+
     'brokers' => [
         'revolut' => [
             'stock_url' => env('REVOLUT_STOCK_URL_TEMPLATE', 'https://www.revolut.com/app-invest/stocks/{ticker}'),

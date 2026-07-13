@@ -3,15 +3,20 @@
 namespace Tests\Feature\Filament;
 
 use App\Filament\Pages\Dashboard;
+use App\Filament\Widgets\AlphaTrackerChart;
+use App\Filament\Widgets\AlphaTrackerStatsWidget;
+use App\Filament\Widgets\BankrollUpdateWidget;
 use App\Filament\Widgets\BuyStopReviewWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
 use App\Filament\Widgets\SetupRadarWidget;
+use App\Models\BankrollSnapshot;
 use App\Models\Position;
 use App\Models\User;
 use App\Support\MarketDataFreshness;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Process;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -165,11 +170,57 @@ class DashboardTest extends TestCase
 
         $this->assertSame([
             PortfolioExposureWidget::class,
+            AlphaTrackerStatsWidget::class,
+            AlphaTrackerChart::class,
+            BankrollUpdateWidget::class,
             PortfolioTopFlopWidget::class,
             SetupRadarWidget::class,
             BuyStopReviewWidget::class,
             PositionsRequiringActionWidget::class,
         ], $widgets);
+    }
+
+    public function test_dashboard_shows_bankroll_update_widget_when_weekly_update_due(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-11 10:00:00', 'Europe/Amsterdam'));
+
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $user->update(['trading_bankroll' => 10634.60]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(Dashboard::class)
+            ->assertSee('Wekelijkse Bankroll Update');
+    }
+
+    public function test_dashboard_shows_alpha_tracker_when_two_snapshots_exist(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        BankrollSnapshot::query()->create([
+            'user_id' => $user->id,
+            'amount' => 10000,
+            'benchmark_ticker' => 'SPY',
+            'benchmark_close' => 500,
+            'recorded_on' => '2026-01-04',
+            'recorded_at' => now(),
+        ]);
+
+        BankrollSnapshot::query()->create([
+            'user_id' => $user->id,
+            'amount' => 10635,
+            'benchmark_ticker' => 'SPY',
+            'benchmark_close' => 520,
+            'recorded_on' => '2026-01-11',
+            'recorded_at' => now(),
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(Dashboard::class)
+            ->assertSee('Alpha Tracker')
+            ->assertSee('Jouw Rendement (YTD)')
+            ->assertSee('Jouw Alpha');
     }
 
     public function test_action_widget_lists_stopped_out_positions_with_liquidation_type(): void
