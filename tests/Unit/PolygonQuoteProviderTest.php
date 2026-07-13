@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\PolygonQuoteProvider;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -17,6 +18,13 @@ class PolygonQuoteProviderTest extends TestCase
             'vestix.polygon.base_url' => 'https://api.polygon.io',
             'vestix.polygon.rate_limit_delay' => 0,
         ]);
+
+        \App\Support\PremarketQuoteCapability::forgetCachedAssessment();
+        Cache::put('vestix.premarket_quote_capability', [
+            'polygon_realtime' => true,
+            'finnhub_intraday' => false,
+            'message' => 'Polygon realtime beschikbaar voor pre-market quotes.',
+        ], 3600);
     }
 
     public function test_fetch_live_price_returns_price_from_snapshot_last_trade(): void

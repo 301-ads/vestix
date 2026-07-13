@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\QuoteProvider;
+use App\Support\PremarketQuoteCapability;
 use App\Support\UsMarketSession;
 use Illuminate\Support\Facades\Log;
 
@@ -23,6 +24,22 @@ class FallbackQuoteProvider implements QuoteProvider
 
     public function fetchPremarketPrice(string $ticker, ?float $referenceClose = null): ?float
     {
+        if (! PremarketQuoteCapability::hasLivePremarketSource()) {
+            Log::info('Pre-market quote skipped — no entitled live data source on current API plan.', [
+                'ticker' => $ticker,
+            ]);
+
+            return null;
+        }
+
+        if (PremarketQuoteCapability::assess($ticker)['finnhub_intraday']) {
+            $intradayPrice = $this->finnhub->fetchIntradayClose($ticker);
+
+            if ($intradayPrice !== null && ! $this->isStalePremarketQuote($intradayPrice, [], $referenceClose)) {
+                return $intradayPrice;
+            }
+        }
+
         foreach ($this->premarketProviders() as $entry) {
             $quote = $entry['provider']->fetchSessionQuote($ticker);
 
@@ -119,20 +136,38 @@ class FallbackQuoteProvider implements QuoteProvider
      */
     private function premarketProviders(): array
     {
-        return [
-            ['name' => 'polygon', 'provider' => $this->polygon],
-            ['name' => 'finnhub', 'provider' => $this->finnhub],
-            ['name' => 'alpha_vantage', 'provider' => $this->alphaVantage],
-        ];
+        $providers = [];
+
+        if (PremarketQuoteCapability::assess()['polygon_realtime']) {
+            $providers[] = ['name' => 'polygon', 'provider' => $this->polygon];
+        }
+
+        $providers[] = ['name' => 'finnhub', 'provider' => $this->finnhub];
+        $providers[] = ['name' => 'alpha_vantage', 'provider' => $this->alphaVantage];
+
+        return $providers;
     }
 
     /**
-     * @param  array{open?: float|null, close: float, high?: float|null, low?: float|null, previous_close?: float|null}  $quote
+     * @param  array{open?: float|null, close: float, high?: float|null, low?: float|null, previous_close?: float|null, quoted_at?: ?\Illuminate\Support\Carbon}  $quote
      */
     private function isStalePremarketQuote(float $price, array $quote, ?float $referenceClose): bool
     {
         if (! UsMarketSession::isPremarketWindow()) {
             return false;
+        }
+
+        $quotedAt = $quote['quoted_at'] ?? null;
+
+        if ($quotedAt instanceof \Illuminate\Support\Carbon) {
+            $premarketStart = now('America/New_York')->startOfDay()->setTime(
+                UsMarketSession::PREMARKET_START_HOUR,
+                UsMarketSession::PREMARKET_START_MINUTE,
+            );
+
+            if ($quotedAt->lessThan($premarketStart)) {
+                return true;
+            }
         }
 
         if ($referenceClose !== null && abs($price - $referenceClose) < 0.01) {

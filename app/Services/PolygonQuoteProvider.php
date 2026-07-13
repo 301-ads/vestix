@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\QuoteProvider;
 use App\Support\PolygonRateLimiter;
+use App\Support\PremarketQuoteCapability;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -55,6 +56,10 @@ class PolygonQuoteProvider implements QuoteProvider
      */
     private function fetchSnapshot(string $ticker): ?array
     {
+        if (! PremarketQuoteCapability::assess($ticker)['polygon_realtime']) {
+            return null;
+        }
+
         $apiKey = config('vestix.polygon.api_key');
 
         if (! $apiKey) {
@@ -114,6 +119,10 @@ class PolygonQuoteProvider implements QuoteProvider
 
     private function fetchLastTradePrice(string $ticker): ?float
     {
+        if (! PremarketQuoteCapability::assess($ticker)['polygon_realtime']) {
+            return null;
+        }
+
         $apiKey = config('vestix.polygon.api_key');
 
         if (! $apiKey) {

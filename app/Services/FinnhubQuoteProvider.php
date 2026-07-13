@@ -18,6 +18,11 @@ class FinnhubQuoteProvider implements QuoteProvider
         return $this->fetchLivePrice($ticker);
     }
 
+    public function fetchIntradayClose(string $ticker): ?float
+    {
+        return $this->finnhub->fetchLatestIntradayClose($ticker);
+    }
+
     /**
      * @return array{open: float|null, close: float, high: float|null, low: float|null, previous_close: float|null}|null
      */

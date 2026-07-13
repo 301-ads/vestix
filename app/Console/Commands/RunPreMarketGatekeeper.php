@@ -47,9 +47,17 @@ class RunPreMarketGatekeeper extends Command
         $expectedCalls = $gatekeeper->estimateApiCalls();
         $rateLimitDelay = (int) config('vestix.polygon.rate_limit_delay', 13);
         $estimatedSeconds = $expectedCalls * $rateLimitDelay;
+        $capability = \App\Support\PremarketQuoteCapability::assess();
 
         $this->line("Verwachte API-calls: {$expectedCalls}");
         $this->line("Geschatte duur: ~{$estimatedSeconds}s");
+
+        if (! \App\Support\PremarketQuoteCapability::hasLivePremarketSource()) {
+            $this->newLine();
+            $this->warn($capability['message']);
+            $this->line('Scouts worden wel gescand, maar geven waarschijnlijk status unavailable (geen valse gap-up alerts).');
+            $this->line('Voor live pre-market: upgrade Polygon naar een plan met Stocks Snapshot / Last Trade.');
+        }
 
         $startedAt = microtime(true);
         $summary = $gatekeeper->run($tradingDay);
@@ -61,6 +69,12 @@ class RunPreMarketGatekeeper extends Command
             ['Metric', 'Aantal'],
             collect($summary)->map(fn (int $count, string $key): array => [$key, $count])->values()->all(),
         );
+
+        if ($summary['checked'] > 0 && $summary['unavailable'] === $summary['checked']) {
+            $this->newLine();
+            $this->warn('Alle scans unavailable — er is geen betrouwbare live pre-market quote op het huidige API-plan.');
+            $this->line(\App\Support\PremarketQuoteCapability::assess()['message']);
+        }
 
         Log::info('Pre-market gatekeeper completed.', [
             ...$summary,

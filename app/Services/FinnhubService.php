@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 class FinnhubService
 {
     /**
-     * @return array{open: float|null, close: float, high: float|null, low: float|null, previous_close: float|null}|null
+     * @return array{open: float|null, close: float, high: float|null, low: float|null, previous_close: float|null, quoted_at: ?Carbon}|null
      */
     public function fetchQuote(string $ticker): ?array
     {
@@ -28,7 +28,35 @@ class FinnhubService
             'high' => isset($data['h']) && (float) $data['h'] > 0 ? (float) $data['h'] : null,
             'low' => isset($data['l']) && (float) $data['l'] > 0 ? (float) $data['l'] : null,
             'previous_close' => isset($data['pc']) && (float) $data['pc'] > 0 ? (float) $data['pc'] : null,
+            'quoted_at' => isset($data['t']) ? Carbon::createFromTimestamp((int) $data['t'], 'America/New_York') : null,
         ];
+    }
+
+    public function fetchLatestIntradayClose(string $ticker): ?float
+    {
+        $apiKey = config('vestix.finnhub.api_key');
+
+        if (! $apiKey) {
+            return null;
+        }
+
+        $now = now('America/New_York');
+        $from = $now->copy()->startOfDay()->timestamp;
+
+        $data = $this->request('/stock/candle', [
+            'symbol' => $ticker,
+            'resolution' => '1',
+            'from' => $from,
+            'to' => $now->timestamp,
+        ]);
+
+        if ($data === null || ($data['s'] ?? null) !== 'ok' || ! isset($data['c']) || ! is_array($data['c']) || $data['c'] === []) {
+            return null;
+        }
+
+        $latestClose = (float) $data['c'][array_key_last($data['c'])];
+
+        return $latestClose > 0 ? round($latestClose, 2) : null;
     }
 
     /**
