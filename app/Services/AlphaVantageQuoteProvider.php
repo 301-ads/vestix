@@ -13,6 +13,11 @@ class AlphaVantageQuoteProvider implements QuoteProvider
         return $this->alphaVantage->fetchQuote($ticker);
     }
 
+    public function fetchPremarketPrice(string $ticker, ?float $referenceClose = null): ?float
+    {
+        return $this->fetchLivePrice($ticker);
+    }
+
     /**
      * @return array{open: float|null, close: float, high: float|null, low: float|null}|null
      */

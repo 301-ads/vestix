@@ -13,8 +13,13 @@ class FinnhubQuoteProvider implements QuoteProvider
         return $this->finnhub->fetchQuote($ticker)['close'] ?? null;
     }
 
+    public function fetchPremarketPrice(string $ticker, ?float $referenceClose = null): ?float
+    {
+        return $this->fetchLivePrice($ticker);
+    }
+
     /**
-     * @return array{open: float|null, close: float, high: float|null, low: float|null}|null
+     * @return array{open: float|null, close: float, high: float|null, low: float|null, previous_close: float|null}|null
      */
     public function fetchSessionQuote(string $ticker): ?array
     {

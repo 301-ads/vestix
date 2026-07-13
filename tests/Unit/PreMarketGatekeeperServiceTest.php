@@ -43,9 +43,9 @@ class PreMarketGatekeeperServiceTest extends TestCase
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
-            ->with('KDP')
+            ->with('KDP', Mockery::any())
             ->andReturn(50.00);
 
         $this->app->instance(QuoteProvider::class, $quoteProvider);
@@ -72,9 +72,9 @@ class PreMarketGatekeeperServiceTest extends TestCase
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
-            ->with($position->ticker)
+            ->with($position->ticker, Mockery::any())
             ->andReturn(49.40);
 
         $this->app->instance(QuoteProvider::class, $quoteProvider);
@@ -85,6 +85,32 @@ class PreMarketGatekeeperServiceTest extends TestCase
         $this->assertEquals(0, PositionAlert::query()->count());
     }
 
+    public function test_marks_ok_when_premarket_below_bounce_high_after_stale_close_rejection(): void
+    {
+        $position = Position::factory()->scout()->create([
+            'ticker' => 'AMD',
+            'signal_high' => 547.65,
+            'entry_price' => 551.27,
+            'latest_close_price' => 557.89,
+            'latest_atr_14' => 10.00,
+        ]);
+
+        $quoteProvider = Mockery::mock(QuoteProvider::class);
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
+            ->once()
+            ->with('AMD', 557.89)
+            ->andReturn(543.50);
+
+        $this->app->instance(QuoteProvider::class, $quoteProvider);
+
+        $status = app(PreMarketGatekeeperService::class)->checkPosition($position->fresh());
+
+        $this->assertSame(PremarketScanResult::Ok, $status);
+        $position->refresh();
+        $this->assertSame('543.50', $position->premarket_price);
+        $this->assertEquals(0, PositionAlert::query()->count());
+    }
+
     public function test_marks_unavailable_when_quote_missing(): void
     {
         $position = Position::factory()->scout()->create([
@@ -92,7 +118,7 @@ class PreMarketGatekeeperServiceTest extends TestCase
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
             ->andReturn(null);
 
@@ -122,9 +148,9 @@ class PreMarketGatekeeperServiceTest extends TestCase
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
-            ->with('SJM')
+            ->with('SJM', Mockery::any())
             ->andReturn(101.00);
 
         $this->app->instance(QuoteProvider::class, $quoteProvider);
@@ -155,9 +181,9 @@ class PreMarketGatekeeperServiceTest extends TestCase
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
-            ->with('LYV')
+            ->with('LYV', Mockery::any())
             ->andReturn(99.00);
 
         $this->app->instance(QuoteProvider::class, $quoteProvider);
@@ -177,7 +203,7 @@ class PreMarketGatekeeperServiceTest extends TestCase
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
-        $quoteProvider->shouldNotReceive('fetchLivePrice');
+        $quoteProvider->shouldNotReceive('fetchPremarketPrice');
 
         $this->app->instance(QuoteProvider::class, $quoteProvider);
 
@@ -202,15 +228,15 @@ class PreMarketGatekeeperServiceTest extends TestCase
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
             ->ordered()
-            ->with('ZZZ')
+            ->with('ZZZ', Mockery::any())
             ->andReturn(48.00);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
             ->ordered()
-            ->with('AAA')
+            ->with('AAA', Mockery::any())
             ->andReturn(99.00);
 
         $this->app->instance(QuoteProvider::class, $quoteProvider);
@@ -289,13 +315,13 @@ class PreMarketGatekeeperServiceTest extends TestCase
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
-            ->with($withBounce->ticker)
+            ->with($withBounce->ticker, Mockery::any())
             ->andReturn(48.00);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
-            ->with($withoutBounce->ticker)
+            ->with($withoutBounce->ticker, Mockery::any())
             ->andReturn(99.00);
 
         $this->app->instance(QuoteProvider::class, $quoteProvider);

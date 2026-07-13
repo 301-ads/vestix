@@ -205,21 +205,11 @@ class PreMarketGatekeeperService
 
     private function fetchPremarketPrice(Position $position): ?float
     {
-        $premarketPrice = $this->quoteProvider->fetchLivePrice($position->ticker);
+        $referenceClose = $position->latest_close_price !== null
+            ? (float) $position->latest_close_price
+            : null;
 
-        if (
-            $premarketPrice !== null
-            && $position->latest_close_price !== null
-            && abs($premarketPrice - (float) $position->latest_close_price) < 0.001
-        ) {
-            Log::warning('Pre-market price equals latest close — quote may be stale.', [
-                'position_id' => $position->id,
-                'ticker' => $position->ticker,
-                'price' => $premarketPrice,
-            ]);
-        }
-
-        return $premarketPrice;
+        return $this->quoteProvider->fetchPremarketPrice($position->ticker, $referenceClose);
     }
 
     private function persistResult(

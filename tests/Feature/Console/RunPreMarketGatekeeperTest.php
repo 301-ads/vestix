@@ -49,9 +49,9 @@ class RunPreMarketGatekeeperTest extends TestCase
         ]);
 
         $quoteProvider = Mockery::mock(QuoteProvider::class);
-        $quoteProvider->shouldReceive('fetchLivePrice')
+        $quoteProvider->shouldReceive('fetchPremarketPrice')
             ->once()
-            ->with($position->ticker)
+            ->with($position->ticker, Mockery::any())
             ->andReturn(50.00);
 
         $this->app->instance(QuoteProvider::class, $quoteProvider);

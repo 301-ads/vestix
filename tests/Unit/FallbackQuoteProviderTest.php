@@ -6,6 +6,7 @@ use App\Services\AlphaVantageQuoteProvider;
 use App\Services\FallbackQuoteProvider;
 use App\Services\FinnhubQuoteProvider;
 use App\Services\PolygonQuoteProvider;
+use Illuminate\Support\Carbon;
 use Mockery;
 use Tests\TestCase;
 
@@ -73,5 +74,78 @@ class FallbackQuoteProviderTest extends TestCase
         $this->assertNotNull($quote);
         $this->assertSame(263.22, $quote['close']);
         $this->assertSame('polygon', $quote['provider']);
+    }
+
+    public function test_premarket_price_skips_stale_close_and_uses_polygon(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:30:00', 'America/New_York'));
+
+        $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
+        $finnhub->shouldNotReceive('fetchSessionQuote');
+
+        $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
+        $alphaVantage->shouldNotReceive('fetchSessionQuote');
+
+        $polygon = Mockery::mock(PolygonQuoteProvider::class);
+        $polygon->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
+            'close' => 543.50,
+            'previous_close' => 557.89,
+        ]);
+
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+
+        $this->assertSame(543.50, $provider->fetchPremarketPrice('AMD', 557.89));
+    }
+
+    public function test_premarket_price_rejects_finnhub_when_it_matches_previous_close(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:30:00', 'America/New_York'));
+
+        $polygon = Mockery::mock(PolygonQuoteProvider::class);
+        $polygon->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
+            'close' => 557.89,
+            'previous_close' => 557.89,
+        ]);
+
+        $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
+        $finnhub->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
+            'close' => 557.89,
+            'previous_close' => 557.89,
+        ]);
+
+        $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
+        $alphaVantage->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
+            'close' => 543.50,
+        ]);
+
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+
+        $this->assertSame(543.50, $provider->fetchPremarketPrice('AMD', 557.89));
+    }
+
+    public function test_premarket_price_returns_null_when_all_providers_are_stale(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:30:00', 'America/New_York'));
+
+        $polygon = Mockery::mock(PolygonQuoteProvider::class);
+        $polygon->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
+            'close' => 557.89,
+            'previous_close' => 557.89,
+        ]);
+
+        $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
+        $finnhub->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
+            'close' => 557.89,
+            'previous_close' => 557.89,
+        ]);
+
+        $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
+        $alphaVantage->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
+            'close' => 557.89,
+        ]);
+
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+
+        $this->assertNull($provider->fetchPremarketPrice('AMD', 557.89));
     }
 }
