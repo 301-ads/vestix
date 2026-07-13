@@ -14,6 +14,7 @@ enum AlertEventType: string
     case PremarketLanding = 'premarket_landing';
     case EarningsWarning = 'earnings_warning';
     case EarningsActionRequired = 'earnings_action_required';
+    case EarningsFinalReminder = 'earnings_final_reminder';
     case Target1Hit = 'target_1_hit';
     case Overbought = 'overbought';
     case MarketOpenBuyStopReminder = 'market_open_buy_stop_reminder';
@@ -33,6 +34,7 @@ enum AlertEventType: string
             self::PremarketLanding->value,
             self::EarningsWarning->value,
             self::EarningsActionRequired->value,
+            self::EarningsFinalReminder->value,
             self::Target1Hit->value,
             self::Overbought->value,
             self::MarketOpenBuyStopReminder->value,
@@ -61,8 +63,9 @@ enum AlertEventType: string
             self::PremarketGapRisk => 'Pre-market gap-up waarschuwing (14:30)',
             self::PremarketReclamation => 'Pre-market reclamation — herovert SMA 20 (14:30)',
             self::PremarketLanding => 'Pre-market landing — nadert SMA 20 (14:30)',
-            self::EarningsWarning => 'Earnings waarschuwing — 2 dagen voor exit (08:00)',
-            self::EarningsActionRequired => 'Earnings actie — sluit vóór earnings (15:00)',
+            self::EarningsWarning => 'Earnings waarschuwing — bereid exit voor (08:00)',
+            self::EarningsActionRequired => 'Earnings actie — sluit vóór slotbel (08:00)',
+            self::EarningsFinalReminder => 'Earnings laatste kans — BMO exit (21:30)',
             self::Overbought => 'Overbought alert — RSI ≥ 70 (23:00)',
             self::MarketOpenBuyStopReminder => 'Buy-stop reminder bij market open (15:35)',
             self::SquadCopyAlert => 'Squad copy-alerts (Ghost Mode)',
@@ -90,6 +93,7 @@ enum AlertEventType: string
             'risk' => self::optionsFor(
                 self::EarningsWarning,
                 self::EarningsActionRequired,
+                self::EarningsFinalReminder,
                 self::Overbought,
             ),
             'squad' => self::optionsFor(

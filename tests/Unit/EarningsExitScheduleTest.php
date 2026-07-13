@@ -123,4 +123,44 @@ class EarningsExitScheduleTest extends TestCase
             EarningsReleaseHour::Amc,
         ));
     }
+
+    public function test_bmo_tuesday_earnings_has_monday_action_and_friday_warning(): void
+    {
+        $earnings = Carbon::parse('2026-07-14', 'Europe/Amsterdam'); // Tuesday
+
+        $this->assertSame(
+            '2026-07-13',
+            EarningsExitSchedule::actionDate($earnings, EarningsReleaseHour::Bmo)->toDateString(),
+        );
+        $this->assertSame(
+            '2026-07-10',
+            EarningsExitSchedule::warningDate($earnings, EarningsReleaseHour::Bmo)->toDateString(),
+        );
+        $this->assertSame(
+            EarningsExitUrgency::Prepare,
+            EarningsExitSchedule::urgency(
+                $earnings,
+                Carbon::parse('2026-07-12', 'Europe/Amsterdam'),
+                EarningsReleaseHour::Bmo,
+            ),
+        );
+        $this->assertSame(
+            EarningsExitUrgency::ExitToday,
+            EarningsExitSchedule::urgency(
+                $earnings,
+                Carbon::parse('2026-07-13', 'Europe/Amsterdam'),
+                EarningsReleaseHour::Bmo,
+            ),
+        );
+        $this->assertSame(1, EarningsExitSchedule::daysUntilAction(
+            $earnings,
+            Carbon::parse('2026-07-12', 'Europe/Amsterdam'),
+            EarningsReleaseHour::Bmo,
+        ));
+        $this->assertTrue(EarningsExitSchedule::isWeekendReminderDay(
+            $earnings,
+            Carbon::parse('2026-07-12', 'Europe/Amsterdam'),
+            EarningsReleaseHour::Bmo,
+        ));
+    }
 }

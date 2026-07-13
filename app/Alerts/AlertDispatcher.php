@@ -69,7 +69,13 @@ class AlertDispatcher
             }
 
             if ($channel->send($user, $message)) {
-                if (in_array($event, [AlertEventType::PremarketGapRisk, AlertEventType::MarketOpenBuyStopReminder], true)) {
+                if (in_array($event, [
+                    AlertEventType::PremarketGapRisk,
+                    AlertEventType::MarketOpenBuyStopReminder,
+                    AlertEventType::EarningsWarning,
+                    AlertEventType::EarningsActionRequired,
+                    AlertEventType::EarningsFinalReminder,
+                ], true)) {
                     PositionAlert::query()->updateOrCreate(
                         [
                             'position_id' => $position->id,
@@ -156,16 +162,35 @@ class AlertDispatcher
                 ->exists();
         }
 
-        if (in_array($event, [AlertEventType::EarningsWarning, AlertEventType::EarningsActionRequired], true)) {
+        if (in_array($event, [
+            AlertEventType::EarningsWarning,
+            AlertEventType::EarningsActionRequired,
+            AlertEventType::EarningsFinalReminder,
+        ], true)) {
             $earningsDate = $context['earnings_date'] ?? null;
 
             if ($earningsDate === null) {
                 return $query->exists();
             }
 
-            return $query
-                ->where('payload->earnings_date', $earningsDate)
-                ->exists();
+            $query->where('payload->earnings_date', $earningsDate);
+
+            if ($event === AlertEventType::EarningsActionRequired) {
+                $reminder = $context['reminder'] ?? 'today';
+
+                return $query
+                    ->where('payload->reminder', $reminder)
+                    ->whereDate('sent_at', now()->toDateString())
+                    ->exists();
+            }
+
+            if ($event === AlertEventType::EarningsFinalReminder) {
+                return $query
+                    ->whereDate('sent_at', now()->toDateString())
+                    ->exists();
+            }
+
+            return $query->exists();
         }
 
         return $query->exists();

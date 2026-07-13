@@ -244,6 +244,58 @@ class EarningsExitDisplay
      *     cardVariant: string,
      * }|null
      */
+    public static function dashboardInstruction(Position $position): string
+    {
+        $earningsDate = $position->effectiveEarningsDate();
+        $dateLabel = $earningsDate?->locale('nl')->isoFormat('D MMMM') ?? 'binnenkort';
+        $hour = $position->asset?->effectiveEarningsHour() ?? EarningsReleaseHour::Unknown;
+        $timingSuffix = match ($hour) {
+            EarningsReleaseHour::Bmo => ' (voorbeurs)',
+            EarningsReleaseHour::Amc => ' (nabeurs)',
+            default => '',
+        };
+
+        $exitDeadline = $earningsDate !== null
+            ? EarningsExitSchedule::exitDeadline($earningsDate, $hour)->locale('nl')->isoFormat('ddd D MMM')
+            : null;
+
+        $daysUntilAction = $earningsDate !== null
+            ? EarningsExitSchedule::daysUntilAction($earningsDate, null, $hour)
+            : null;
+
+        return match ($position->earningsExitUrgency()) {
+            EarningsExitUrgency::Prepare => match (true) {
+                $daysUntilAction === 1 => sprintf(
+                    'Earnings %s%s. Sluit morgen (%s) vóór de slotbel (22:00) — vandaag nog niet verkopen.',
+                    $dateLabel,
+                    $timingSuffix,
+                    $exitDeadline ?? 'deadline',
+                ),
+                $exitDeadline !== null => sprintf(
+                    'Earnings op %s%s. Sluit uiterlijk %s vóór slotbel — tot die dag nog niets doen.',
+                    $dateLabel,
+                    $timingSuffix,
+                    $exitDeadline,
+                ),
+                default => sprintf(
+                    'Earnings op %s%s. Laat de positie nog lopen — nog niets doen.',
+                    $dateLabel,
+                    $timingSuffix,
+                ),
+            },
+            EarningsExitUrgency::ExitToday => sprintf(
+                'Earnings %s%s. Sluit de positie vandaag handmatig vóór de slotbel (22:00) en archiveer.',
+                $dateLabel,
+                $timingSuffix,
+            ),
+            EarningsExitUrgency::Overdue => sprintf(
+                'Earnings-exit (%s) is te laat. Sluit de positie direct en archiveer.',
+                $dateLabel,
+            ),
+            default => 'Sluit de positie vóór de earnings.',
+        };
+    }
+
     public static function cockpitCardData(Position $position): ?array
     {
         if (! self::isRelevant($position)) {

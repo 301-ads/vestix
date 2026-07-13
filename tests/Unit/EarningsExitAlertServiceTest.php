@@ -57,7 +57,7 @@ class EarningsExitAlertServiceTest extends TestCase
 
     public function test_sends_action_on_friday_for_monday_earnings(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-03-06 15:00:00', 'Europe/Amsterdam'));
+        Carbon::setTestNow(Carbon::parse('2026-03-06 08:00:00', 'Europe/Amsterdam'));
 
         config(['vestix.telegram.bot_token' => 'test-token']);
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
@@ -116,7 +116,7 @@ class EarningsExitAlertServiceTest extends TestCase
 
     public function test_sends_action_on_earnings_day_for_amc_monday_earnings(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-03-09 15:00:00', 'Europe/Amsterdam'));
+        Carbon::setTestNow(Carbon::parse('2026-03-09 08:00:00', 'Europe/Amsterdam'));
 
         config(['vestix.telegram.bot_token' => 'test-token']);
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
@@ -142,5 +142,160 @@ class EarningsExitAlertServiceTest extends TestCase
         $this->assertSame(0, $summary['warning']);
         $this->assertSame(1, $summary['action']);
         $this->assertEquals(1, PositionAlert::query()->where('event_type', AlertEventType::EarningsActionRequired)->count());
+    }
+
+    public function test_sends_weekend_reminder_before_bmo_exit_deadline(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-12 09:00:00', 'Europe/Amsterdam'));
+
+        config(['vestix.telegram.bot_token' => 'test-token']);
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $user = User::factory()->create(['telegram_chat_id' => '12345']);
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'BAC',
+            'next_earnings_date' => '2026-07-14',
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
+        ]);
+
+        Position::factory()->create([
+            'user_id' => $user->id,
+            'ticker' => 'BAC',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+        ]);
+
+        $summary = app(EarningsExitAlertService::class)->run('weekend');
+
+        $this->assertSame(0, $summary['warning']);
+        $this->assertSame(0, $summary['action']);
+        $this->assertSame(1, $summary['weekend']);
+        $this->assertEquals(1, PositionAlert::query()->where('event_type', AlertEventType::EarningsActionRequired)->count());
+    }
+
+    public function test_sends_action_on_monday_for_bmo_tuesday_earnings(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:00:00', 'Europe/Amsterdam'));
+
+        config(['vestix.telegram.bot_token' => 'test-token']);
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $user = User::factory()->create(['telegram_chat_id' => '12345']);
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'BAC',
+            'next_earnings_date' => '2026-07-14',
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
+        ]);
+
+        Position::factory()->create([
+            'user_id' => $user->id,
+            'ticker' => 'BAC',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+        ]);
+
+        $summary = app(EarningsExitAlertService::class)->run('action');
+
+        $this->assertSame(0, $summary['warning']);
+        $this->assertSame(1, $summary['action']);
+        $this->assertEquals(1, PositionAlert::query()->where('event_type', AlertEventType::EarningsActionRequired)->count());
+    }
+
+    public function test_sends_final_reminder_at_2130_for_bmo_action_day(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 21:30:00', 'Europe/Amsterdam'));
+
+        config(['vestix.telegram.bot_token' => 'test-token']);
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $user = User::factory()->create(['telegram_chat_id' => '12345']);
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'BAC',
+            'next_earnings_date' => '2026-07-14',
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
+        ]);
+
+        Position::factory()->create([
+            'user_id' => $user->id,
+            'ticker' => 'BAC',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+        ]);
+
+        $summary = app(EarningsExitAlertService::class)->run('final');
+
+        $this->assertSame(1, $summary['final']);
+        $this->assertEquals(1, PositionAlert::query()
+            ->where('event_type', AlertEventType::EarningsFinalReminder)
+            ->count());
+    }
+
+    public function test_does_not_send_final_reminder_for_amc_on_action_day(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-09 21:30:00', 'Europe/Amsterdam'));
+
+        config(['vestix.telegram.bot_token' => 'test-token']);
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $user = User::factory()->create(['telegram_chat_id' => '12345']);
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'NVDA',
+            'next_earnings_date' => '2026-03-09',
+            'next_earnings_hour' => EarningsReleaseHour::Amc,
+        ]);
+
+        Position::factory()->create([
+            'user_id' => $user->id,
+            'ticker' => 'NVDA',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+        ]);
+
+        $summary = app(EarningsExitAlertService::class)->run('final');
+
+        $this->assertSame(0, $summary['final']);
+    }
+
+    public function test_sends_morning_and_final_alerts_on_bmo_action_day(): void
+    {
+        config(['vestix.telegram.bot_token' => 'test-token']);
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $user = User::factory()->create(['telegram_chat_id' => '12345']);
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'BAC',
+            'next_earnings_date' => '2026-07-14',
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
+        ]);
+
+        Position::factory()->create([
+            'user_id' => $user->id,
+            'ticker' => 'BAC',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+        ]);
+
+        $service = app(EarningsExitAlertService::class);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:00:00', 'Europe/Amsterdam'));
+        $service->run('action');
+
+        Carbon::setTestNow(Carbon::parse('2026-07-13 21:30:00', 'Europe/Amsterdam'));
+        $service->run('final');
+
+        $this->assertEquals(2, PositionAlert::query()->whereIn('event_type', [
+            AlertEventType::EarningsActionRequired,
+            AlertEventType::EarningsFinalReminder,
+        ])->count());
     }
 }

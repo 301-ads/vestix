@@ -238,4 +238,48 @@ class EarningsExitDisplayTest extends TestCase
         $this->assertTrue($data['isDanger']);
         $this->assertSame('1 dag', $data['daysLabel']);
     }
+
+    public function test_dashboard_instruction_warns_before_bmo_exit_deadline(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-12', 'Europe/Amsterdam'));
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'BAC',
+            'next_earnings_date' => '2026-07-14',
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'BAC',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+        ]);
+
+        $instruction = EarningsExitDisplay::dashboardInstruction($position);
+
+        $this->assertStringContainsString('Sluit morgen', $instruction);
+        $this->assertStringContainsString('voorbeurs', $instruction);
+        $this->assertStringContainsString('vandaag nog niet verkopen', $instruction);
+    }
+
+    public function test_dashboard_instruction_requires_exit_on_action_day(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13', 'Europe/Amsterdam'));
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'BAC',
+            'next_earnings_date' => '2026-07-14',
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'BAC',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+        ]);
+
+        $instruction = EarningsExitDisplay::dashboardInstruction($position);
+
+        $this->assertStringContainsString('Sluit de positie vandaag', $instruction);
+    }
 }

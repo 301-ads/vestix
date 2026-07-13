@@ -10,6 +10,8 @@ use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Models\User;
+use App\Support\EarningsExitSchedule;
+use Illuminate\Support\Carbon;
 
 class AlertMessageBuilder
 {
@@ -66,12 +68,17 @@ class AlertMessageBuilder
                 ScoutResource::getUrl('edit', ['record' => $position]),
             ),
             AlertEventType::EarningsWarning => sprintf(
-                '⚠️ <b>EARNINGS WARNING:</b> %s publiceert over 2 dagen cijfers. Controleer je huidige winst/verlies en bereid de exit voor morgen voor. <a href="%s">Open positie</a>',
+                '⚠️ <b>EARNINGS WARNING:</b> %s publiceert binnenkort cijfers (%s). Sluit uiterlijk %s vóór slotbel. <a href="%s">Open positie</a>',
                 e($position->ticker),
+                e($context['earnings_date'] ?? '—'),
+                e(isset($context['exit_deadline'])
+                    ? Carbon::parse($context['exit_deadline'])->locale('nl')->isoFormat('ddd D MMM')
+                    : 'de exit-deadline'),
                 PositionResource::getUrl('edit', ['record' => $position]),
             ),
-            AlertEventType::EarningsActionRequired => sprintf(
-                '🚨 <b>EARNINGS ACTION REQUIRED:</b> %s publiceert morgen cijfers. Sluit vandaag alle posities en annuleer openstaande orders vóór de slotbel (22:00 uur). <a href="%s">Open positie</a>',
+            AlertEventType::EarningsActionRequired => self::earningsActionRequiredMessage($position, $context),
+            AlertEventType::EarningsFinalReminder => sprintf(
+                '⏰ <b>EARNINGS — LAATSTE KANS:</b> %s (BMO) moet vóór 22:00 gesloten worden. Nog 30 minuten — verkoop nu en archiveer. <a href="%s">Open positie</a>',
                 e($position->ticker),
                 PositionResource::getUrl('edit', ['record' => $position]),
             ),
@@ -84,6 +91,33 @@ class AlertMessageBuilder
             ),
             AlertEventType::Target1Hit => self::target1HitMessage($position, $context),
             AlertEventType::MarketOpenBuyStopReminder => self::marketOpenBuyStopReminder($position, $context),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private static function earningsActionRequiredMessage(Position $position, array $context): string
+    {
+        $loginUrl = PositionResource::getUrl('edit', ['record' => $position]);
+        $deadlineLabel = isset($context['exit_deadline'])
+            ? Carbon::parse($context['exit_deadline'])->locale('nl')->isoFormat('ddd D MMM')
+            : 'deadline';
+
+        return match ($context['reminder'] ?? 'today') {
+            'tomorrow' => sprintf(
+                '🚨 <b>EARNINGS EXIT:</b> %s publiceert %s cijfers. Sluit morgen (%s) vóór slotbel (22:00) alle posities. <a href="%s">Open positie</a>',
+                e($position->ticker),
+                e($context['earnings_date'] ?? 'binnenkort'),
+                e($deadlineLabel),
+                $loginUrl,
+            ),
+            default => sprintf(
+                '🚨 <b>EARNINGS ACTION REQUIRED:</b> %s — sluit vandaag (%s) vóór slotbel (22:00) en archiveer de positie. <a href="%s">Open positie</a>',
+                e($position->ticker),
+                e($deadlineLabel),
+                $loginUrl,
+            ),
         };
     }
 
@@ -188,8 +222,13 @@ class AlertMessageBuilder
     public static function formatActionLabel(Position $position): string
     {
         if ($position->requiresEarningsExit()) {
+            $earningsDate = $position->effectiveEarningsDate();
+            $hour = $position->asset?->effectiveEarningsHour();
+
             return match ($position->earningsExitUrgency()) {
-                EarningsExitUrgency::Prepare => 'EARNINGS — bereid exit voor',
+                EarningsExitUrgency::Prepare => EarningsExitSchedule::daysUntilAction($earningsDate, null, $hour) === 1
+                    ? 'EARNINGS — sluit morgen'
+                    : 'EARNINGS — bereid exit voor',
                 EarningsExitUrgency::ExitToday => 'EARNINGS — sluit vandaag',
                 EarningsExitUrgency::Overdue => 'EARNINGS — te laat!',
                 default => $position->action_command,

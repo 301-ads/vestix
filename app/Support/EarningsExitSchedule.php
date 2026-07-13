@@ -55,6 +55,29 @@ class EarningsExitSchedule
         return $today->equalTo(self::actionDate($earningsDate, $hour));
     }
 
+    public static function daysUntilAction(Carbon $earningsDate, ?Carbon $today = null, ?EarningsReleaseHour $hour = null): int
+    {
+        $today = ($today ?? Carbon::today('Europe/Amsterdam'))->copy()->startOfDay();
+        $action = self::actionDate($earningsDate, $hour);
+
+        if ($today->greaterThanOrEqualTo($action)) {
+            return 0;
+        }
+
+        return (int) $today->diffInDays($action);
+    }
+
+    public static function isWeekendReminderDay(Carbon $earningsDate, ?Carbon $today = null, ?EarningsReleaseHour $hour = null): bool
+    {
+        $today = ($today ?? Carbon::today('Europe/Amsterdam'))->copy()->startOfDay();
+
+        if (! $today->isWeekend()) {
+            return false;
+        }
+
+        return self::actionDate($earningsDate, $hour)->equalTo(UsMarketSession::nextTradingDay($today));
+    }
+
     public static function urgency(Carbon $earningsDate, ?Carbon $today = null, ?EarningsReleaseHour $hour = null): ?EarningsExitUrgency
     {
         $today = ($today ?? Carbon::today('Europe/Amsterdam'))->copy()->startOfDay();

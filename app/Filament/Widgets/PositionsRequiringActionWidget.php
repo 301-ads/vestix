@@ -3,9 +3,10 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\EarningsExitUrgency;
-use App\Enums\EarningsReleaseHour;
 use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Models\Position;
+use App\Support\EarningsExitDisplay;
+use App\Support\EarningsExitSchedule;
 use App\Support\FilamentPolling;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
@@ -102,7 +103,7 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
                 number_format((float) ($record->latest_close_price ?? 0), 2),
                 number_format((float) ($record->current_sl ?? 0), 2),
             ),
-            Position::PRIMARY_ACTION_EARNINGS => $this->formatEarningsInstruction($record),
+            Position::PRIMARY_ACTION_EARNINGS => EarningsExitDisplay::dashboardInstruction($record),
             Position::PRIMARY_ACTION_UPDATE_SL => sprintf(
                 'Verhoog Stop-Loss van $%s naar $%s (+$%s).',
                 number_format((float) $record->current_sl, 2),
@@ -151,7 +152,11 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
             Position::PRIMARY_ACTION_TARGET_1 => 'success',
             Position::PRIMARY_ACTION_LIQUIDATION => 'danger',
             Position::PRIMARY_ACTION_EARNINGS => match ($record->earningsExitUrgency()) {
-                EarningsExitUrgency::Prepare => 'warning',
+                EarningsExitUrgency::Prepare => EarningsExitSchedule::daysUntilAction(
+                    $record->effectiveEarningsDate(),
+                    null,
+                    $record->asset?->effectiveEarningsHour(),
+                ) === 1 ? 'danger' : 'warning',
                 EarningsExitUrgency::ExitToday, EarningsExitUrgency::Overdue => 'danger',
                 default => 'gray',
             },
@@ -246,37 +251,6 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
                 $this->statusColorCounts,
             ),
         ];
-    }
-
-    private function formatEarningsInstruction(Position $record): string
-    {
-        $earningsDate = $record->effectiveEarningsDate();
-        $dateLabel = $earningsDate?->locale('nl')->isoFormat('D MMMM') ?? 'binnenkort';
-
-        $hour = $record->asset?->effectiveEarningsHour() ?? EarningsReleaseHour::Unknown;
-        $timingSuffix = match ($hour) {
-            EarningsReleaseHour::Bmo => ' (voorbeurs)',
-            EarningsReleaseHour::Amc => ' (nabeurs)',
-            default => '',
-        };
-
-        return match ($record->earningsExitUrgency()) {
-            EarningsExitUrgency::Prepare => sprintf(
-                'Earnings op %s%s. Laat de positie nog lopen — nog niets doen.',
-                $dateLabel,
-                $timingSuffix,
-            ),
-            EarningsExitUrgency::ExitToday => sprintf(
-                'Earnings %s%s. Sluit de positie vandaag handmatig vóór de slotbel (22:00) en archiveer.',
-                $dateLabel,
-                $timingSuffix,
-            ),
-            EarningsExitUrgency::Overdue => sprintf(
-                'Earnings-exit (%s) is te laat. Sluit de positie direct en archiveer.',
-                $dateLabel,
-            ),
-            default => 'Sluit de positie vóór de earnings.',
-        };
     }
 
     /**

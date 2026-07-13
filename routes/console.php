@@ -46,7 +46,17 @@ Schedule::command('vestix:earnings-exit-alerts --phase=warning')
 
 Schedule::command('vestix:earnings-exit-alerts --phase=action')
     ->weekdays()
-    ->dailyAt('15:00')
+    ->dailyAt('08:00')
+    ->timezone('Europe/Amsterdam');
+
+Schedule::command('vestix:earnings-exit-alerts --phase=weekend')
+    ->weekends()
+    ->dailyAt('09:00')
+    ->timezone('Europe/Amsterdam');
+
+Schedule::command('vestix:earnings-exit-alerts --phase=final')
+    ->weekdays()
+    ->dailyAt('21:30')
     ->timezone('Europe/Amsterdam');
 
 // Buy-stop reminder: 5 min na US open (9:30 ET = 15:30 NL, reminder om 15:35 NL).

@@ -8,16 +8,16 @@ use Illuminate\Support\Facades\Log;
 
 class RunEarningsExitAlerts extends Command
 {
-    protected $signature = 'vestix:earnings-exit-alerts {--phase=auto : warning, action, or auto}';
+    protected $signature = 'vestix:earnings-exit-alerts {--phase=auto : warning, action, weekend, final, or auto}';
 
-    protected $description = 'Stuurt earnings exit waarschuwingen (T-2) en actie-triggers (T-1) via Telegram.';
+    protected $description = 'Stuurt earnings exit waarschuwingen en actie-triggers via Telegram.';
 
     public function handle(EarningsExitAlertService $alertService): int
     {
         $phase = (string) $this->option('phase');
 
-        if (! in_array($phase, ['warning', 'action', 'auto'], true)) {
-            $this->error('Ongeldige fase. Gebruik warning, action, of auto.');
+        if (! in_array($phase, ['warning', 'action', 'weekend', 'final', 'auto'], true)) {
+            $this->error('Ongeldige fase. Gebruik warning, action, weekend, final, of auto.');
 
             return self::FAILURE;
         }
@@ -30,7 +30,9 @@ class RunEarningsExitAlerts extends Command
             ['Fase', 'Verstuurd'],
             [
                 ['warning (08:00)', $summary['warning']],
-                ['action (15:00)', $summary['action']],
+                ['action (08:00)', $summary['action']],
+                ['weekend (09:00)', $summary['weekend']],
+                ['final BMO (21:30)', $summary['final']],
             ],
         );
 
