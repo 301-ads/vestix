@@ -65,6 +65,14 @@ class PositionSizingTest extends TestCase
         ], PositionSizing::riskPercentOptions());
     }
 
+    public function test_normalize_risk_percent_option_key(): void
+    {
+        $this->assertSame('1', PositionSizing::normalizeRiskPercentOptionKey('1.00'));
+        $this->assertSame('1.5', PositionSizing::normalizeRiskPercentOptionKey(1.5));
+        $this->assertSame('2', PositionSizing::normalizeRiskPercentOptionKey(2));
+        $this->assertNull(PositionSizing::normalizeRiskPercentOptionKey(null));
+    }
+
     public function test_resolve_risk_limit_from_profile(): void
     {
         $this->assertEqualsWithDelta(109.42, PositionSizing::resolveRiskLimitFromProfile(10942.0, 1.0), 0.001);

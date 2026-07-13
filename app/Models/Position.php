@@ -46,6 +46,7 @@ class Position extends Model
             'latest_sma_20' => 'decimal:2',
             'latest_sma_50' => 'decimal:2',
             'sma_20_five_days_ago' => 'decimal:2',
+            'sma_20_ten_days_ago' => 'decimal:2',
             'latest_atr_14' => 'decimal:2',
             'prior_day_low' => 'decimal:2',
             'signal_high' => 'decimal:2',
@@ -60,6 +61,8 @@ class Position extends Model
             'last_setup_score' => 'integer',
             'telegram_a_minus_alert_sent_at' => 'datetime',
             'telegram_a_plus_alert_sent_at' => 'datetime',
+            'trader_promoted_a_plus' => 'boolean',
+            'trader_promoted_a_plus_at' => 'datetime',
             'premarket_price' => 'decimal:2',
             'premarket_scan_type' => PremarketScanResult::class,
             'premarket_reference_price' => 'decimal:2',
@@ -120,6 +123,7 @@ class Position extends Model
                 'latest_sma_20',
                 'latest_sma_50',
                 'sma_20_five_days_ago',
+                'sma_20_ten_days_ago',
                 'latest_atr_14',
                 'scout_rsi',
                 'bounce_volume_above_average',
@@ -375,6 +379,8 @@ class Position extends Model
             'quantity',
             'telegram_a_minus_alert_sent_at',
             'telegram_a_plus_alert_sent_at',
+            'trader_promoted_a_plus',
+            'trader_promoted_a_plus_at',
             'last_setup_score',
             'exit_price',
             'closed_at',
@@ -1196,6 +1202,27 @@ class Position extends Model
      *     criteria: array<int, array<string, mixed>>,
      * }
      */
+    public function promoteToAPlus(): void
+    {
+        $this->update([
+            'trader_promoted_a_plus' => true,
+            'trader_promoted_a_plus_at' => now(),
+        ]);
+    }
+
+    public function clearAPlusPromotion(): void
+    {
+        if (! $this->trader_promoted_a_plus) {
+            return;
+        }
+
+        $this->update([
+            'trader_promoted_a_plus' => false,
+            'trader_promoted_a_plus_at' => null,
+            'telegram_a_plus_alert_sent_at' => null,
+        ]);
+    }
+
     public function evaluateSetupScore(?array $overrides = null): array
     {
         $inputs = [
@@ -1204,16 +1231,30 @@ class Position extends Model
             'latest_close_price' => $overrides['latest_close_price'] ?? $this->latest_close_price,
             'latest_sma_20' => $overrides['latest_sma_20'] ?? $this->latest_sma_20,
             'sma_20_five_days_ago' => $overrides['sma_20_five_days_ago'] ?? $this->sma_20_five_days_ago,
+            'sma_20_ten_days_ago' => $overrides['sma_20_ten_days_ago'] ?? $this->sma_20_ten_days_ago,
             'latest_sma_50' => $overrides['latest_sma_50'] ?? $this->latest_sma_50,
             'scout_rsi' => $overrides['scout_rsi'] ?? $this->scout_rsi,
             'bounce_volume_above_average' => $overrides['bounce_volume_above_average'] ?? $this->bounce_volume_above_average,
             'relative_volume' => $overrides['relative_volume'] ?? $this->relative_volume,
+            'bounce_day_volume' => $overrides['bounce_day_volume'] ?? $this->bounce_day_volume,
+            'volume_sma_20' => $overrides['volume_sma_20'] ?? $this->volume_sma_20,
             'sector_etf' => $overrides['sector_etf'] ?? $this->sector_etf,
             'sector_trend_positive' => $overrides['sector_trend_positive'] ?? $this->sector_trend_positive,
             'pre_bounce_extension_atr' => $overrides['pre_bounce_extension_atr'] ?? $this->pre_bounce_extension_atr,
             'days_until_earnings' => $overrides['days_until_earnings'] ?? $this->daysUntilEarnings(),
         ];
 
-        return ScoutSetupScorecard::evaluate($inputs);
+        $result = ScoutSetupScorecard::evaluate($inputs);
+
+        if (
+            ($overrides['trader_promoted_a_plus'] ?? $this->trader_promoted_a_plus)
+            && $result['hardFailReasons'] === []
+            && $result['totalPoints'] === ScoutSetupScorecard::maxPoints()
+        ) {
+            $result['grade'] = 'A++';
+            $result['gradeLabel'] = 'A++ SETUP';
+        }
+
+        return $result;
     }
 }

@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Contracts\DailyBarProvider;
 use App\Models\Position;
+use App\Support\ScoutSetupScorecard;
+use App\Support\TechnicalIndicators;
 use App\Support\TrampolineDepthMetrics;
 use Illuminate\Support\Facades\Cache;
 
@@ -23,6 +25,7 @@ class MarketDataFetcher
      *     recent_close_prices: array<int, float>,
      *     latest_sma_20: float,
      *     sma_20_five_days_ago: float|null,
+     *     sma_20_ten_days_ago: float|null,
      *     latest_sma_50: float,
      *     latest_atr_14: float,
      *     scout_rsi: float,
@@ -134,6 +137,7 @@ class MarketDataFetcher
      *     recent_close_prices: array<int, float>,
      *     latest_sma_20: float,
      *     sma_20_five_days_ago: float|null,
+     *     sma_20_ten_days_ago: float|null,
      *     latest_sma_50: float,
      *     latest_atr_14: float,
      *     scout_rsi: float,
@@ -202,6 +206,13 @@ class MarketDataFetcher
             'recent_close_prices' => $recentClosePrices,
             'latest_sma_20' => $sma,
             'sma_20_five_days_ago' => $smaPair['five_days_ago'],
+            'sma_20_ten_days_ago' => $bars !== null
+                ? TechnicalIndicators::smaAtOffset(
+                    array_column($bars['bars'], 'close'),
+                    20,
+                    ScoutSetupScorecard::smaSlopeLookbackDays(),
+                )
+                : null,
             'latest_sma_50' => $sma50,
             'latest_atr_14' => $atr,
             'scout_rsi' => $rsi,

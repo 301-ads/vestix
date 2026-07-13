@@ -2,12 +2,16 @@
 
 namespace Tests\Unit;
 
+use App\Models\Position;
+use App\Models\User;
 use App\Support\ScoutSetupScorecard;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ScoutSetupScorecardTest extends TestCase
 {
+    use RefreshDatabase;
     /**
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>
@@ -20,10 +24,13 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
             'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
             'sector_etf' => 'XLF',
             'sector_trend_positive' => true,
             'pre_bounce_extension_atr' => 2.50,
@@ -39,8 +46,8 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame(10, $result['totalPoints']);
         $this->assertSame(10, $result['maxPoints']);
-        $this->assertSame('A++', $result['grade']);
-        $this->assertSame('A++ SETUP', $result['gradeLabel']);
+        $this->assertSame('A', $result['grade']);
+        $this->assertSame('A SETUP', $result['gradeLabel']);
         $this->assertSame([], $result['hardFailReasons']);
     }
 
@@ -145,29 +152,30 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertStringContainsString('Wacht op slotkoers', $result['criteria'][0]['detail']);
     }
 
-    public function test_flat_sma_over_five_days_scores_two_points(): void
+    public function test_positive_sma_slope_over_ten_days_scores_two_points(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
-            'sma_20_five_days_ago' => 100.00,
+            'sma_20_ten_days_ago' => 97.00,
             'bounce_volume_above_average' => false,
             'relative_volume' => null,
         ]));
 
         $this->assertSame(2, $result['criteria'][1]['points']);
-        $this->assertStringContainsString('Flat over 5 dagen', $result['criteria'][1]['detail']);
+        $this->assertStringContainsString('Stijgende trend', $result['criteria'][1]['detail']);
+        $this->assertStringContainsString('over 10d', $result['criteria'][1]['detail']);
     }
 
-    public function test_declining_sma_over_five_days_scores_zero(): void
+    public function test_declining_sma_over_ten_days_scores_zero(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'latest_sma_20' => 99.00,
-            'sma_20_five_days_ago' => 100.00,
+            'sma_20_ten_days_ago' => 100.00,
             'bounce_volume_above_average' => false,
             'relative_volume' => null,
         ]));
 
         $this->assertSame(0, $result['criteria'][1]['points']);
-        $this->assertStringContainsString('Dalende SMA over 5 dagen', $result['criteria'][1]['detail']);
+        $this->assertStringContainsString('Dalende SMA over 10 dagen', $result['criteria'][1]['detail']);
     }
 
     public function test_eog_scenario_fails_when_sma20_below_sma50(): void
@@ -175,6 +183,7 @@ class ScoutSetupScorecardTest extends TestCase
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'latest_sma_20' => 102.00,
             'sma_20_five_days_ago' => 100.00,
+            'sma_20_ten_days_ago' => 101.00,
             'latest_sma_50' => 105.00,
             'bounce_volume_above_average' => false,
             'relative_volume' => null,
@@ -184,17 +193,17 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertStringContainsString('SMA 20 onder SMA 50', $result['criteria'][1]['detail']);
     }
 
-    public function test_fake_trend_fails_when_rising_vs_yesterday_but_declining_vs_five_days(): void
+    public function test_fake_trend_fails_when_rising_vs_yesterday_but_declining_vs_ten_days(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'latest_sma_20' => 100.50,
-            'sma_20_five_days_ago' => 101.00,
+            'sma_20_ten_days_ago' => 101.00,
             'bounce_volume_above_average' => false,
             'relative_volume' => null,
         ]));
 
         $this->assertSame(0, $result['criteria'][1]['points']);
-        $this->assertStringContainsString('Dalende SMA over 5 dagen', $result['criteria'][1]['detail']);
+        $this->assertStringContainsString('Dalende SMA over 10 dagen', $result['criteria'][1]['detail']);
     }
 
     public function test_rsi_above_seventy_forces_no_trade_despite_high_score(): void
@@ -255,6 +264,7 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_close_price' => $landing,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => null,
             'bounce_volume_above_average' => false,
@@ -310,10 +320,28 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame(1, $result['criteria'][3]['points']);
         $this->assertSame('pass', $result['criteria'][3]['status']);
-        $this->assertStringContainsString('RVol 145%', $result['criteria'][3]['detail']);
+        $this->assertStringContainsString('geen institutionele dump', $result['criteria'][3]['detail']);
     }
 
-    public function test_volume_score_treats_percent_polluted_form_state_as_ratio(): void
+    public function test_volume_score_green_candle_with_low_rvol_passes(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'bounce_volume_above_average' => false,
+            'relative_volume' => '88%',
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 102.00,
+            'bounce_day_volume' => 6_180_000,
+            'volume_sma_20' => 11_331_347,
+        ]));
+
+        $this->assertSame(1, $result['criteria'][3]['points']);
+        $this->assertSame('pass', $result['criteria'][3]['status']);
+        $this->assertStringContainsString('RVol 88%', $result['criteria'][3]['detail']);
+        $this->assertStringContainsString('geen institutionele dump', $result['criteria'][3]['detail']);
+        $this->assertSame([], $result['hardFailReasons']);
+    }
+
+    public function test_volume_score_treats_percent_polluted_form_state_as_ratio_on_green_candle(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'bounce_volume_above_average' => false,
@@ -322,18 +350,20 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_close_price' => 102.00,
         ]));
 
-        $this->assertSame(0, $result['criteria'][3]['points']);
+        $this->assertSame(1, $result['criteria'][3]['points']);
         $this->assertStringContainsString('RVol 88%', $result['criteria'][3]['detail']);
-        $this->assertStringContainsString('onder drempel (120%)', $result['criteria'][3]['detail']);
+        $this->assertStringContainsString('geen institutionele dump', $result['criteria'][3]['detail']);
     }
 
-    public function test_volume_score_red_candle(): void
+    public function test_volume_score_red_candle_with_high_volume(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'bounce_volume_above_average' => true,
             'relative_volume' => 1.45,
             'latest_open_price' => 102.00,
             'latest_close_price' => 100.00,
+            'bounce_day_volume' => 15_000_000,
+            'volume_sma_20' => 10_000_000,
         ]));
 
         $this->assertSame(0, $result['criteria'][3]['points']);
@@ -374,8 +404,12 @@ class ScoutSetupScorecardTest extends TestCase
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'sector_trend_positive' => false,
             'pre_bounce_extension_atr' => 1.0,
+            'latest_open_price' => 102.00,
+            'latest_close_price' => 100.50,
             'bounce_volume_above_average' => false,
-            'relative_volume' => null,
+            'relative_volume' => 0.82,
+            'bounce_day_volume' => 6_000_000,
+            'volume_sma_20' => 10_000_000,
         ]));
 
         $this->assertSame(6, $result['totalPoints']);
@@ -392,6 +426,7 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_close_price' => 103.10,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => false,
@@ -401,8 +436,8 @@ class ScoutSetupScorecardTest extends TestCase
             'pre_bounce_extension_atr' => null,
         ]);
 
-        $this->assertSame(4, $result['totalPoints']);
-        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertSame(5, $result['totalPoints']);
+        $this->assertSame('C', $result['grade']);
         $this->assertSame([], $result['hardFailReasons']);
     }
 
@@ -429,7 +464,7 @@ class ScoutSetupScorecardTest extends TestCase
         ]));
 
         $this->assertSame(10, $result['totalPoints']);
-        $this->assertSame('A++', $result['grade']);
+        $this->assertSame('A', $result['grade']);
         $this->assertSame([], $result['hardFailReasons']);
     }
 
@@ -442,7 +477,35 @@ class ScoutSetupScorecardTest extends TestCase
         ]));
 
         $this->assertSame(10, $result['totalPoints']);
-        $this->assertSame('A++', $result['grade']);
+        $this->assertSame('A', $result['grade']);
         $this->assertSame([], $result['hardFailReasons']);
+    }
+
+    public function test_position_display_grade_promotes_to_a_plus_plus_when_confirmed(): void
+    {
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->scout()->create([
+            'signal_low' => 101.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_ten_days_ago' => 98.00,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
+            'trader_promoted_a_plus' => true,
+        ]);
+
+        $result = $position->evaluateSetupScore();
+
+        $this->assertSame(10, $result['totalPoints']);
+        $this->assertSame('A++', $result['grade']);
+        $this->assertSame('A++ SETUP', $result['gradeLabel']);
     }
 }

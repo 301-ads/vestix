@@ -23,6 +23,7 @@ class ScoutRadarFiltersTest extends TestCase
             'latest_open_price' => 100.00,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
@@ -162,6 +163,7 @@ class ScoutRadarFiltersTest extends TestCase
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
@@ -177,6 +179,7 @@ class ScoutRadarFiltersTest extends TestCase
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
@@ -207,6 +210,7 @@ class ScoutRadarFiltersTest extends TestCase
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
@@ -214,6 +218,7 @@ class ScoutRadarFiltersTest extends TestCase
             'sector_etf' => 'XLK',
             'sector_trend_positive' => true,
             'pre_bounce_extension_atr' => 2.50,
+            'trader_promoted_a_plus' => true,
         ]);
 
         $aGrade = Position::factory()->scout()->create([
@@ -222,6 +227,7 @@ class ScoutRadarFiltersTest extends TestCase
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
@@ -231,7 +237,24 @@ class ScoutRadarFiltersTest extends TestCase
             'pre_bounce_extension_atr' => 2.50,
         ]);
 
+        $perfectUnpromoted = Position::factory()->scout()->create([
+            'signal_low' => 101.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
+        ]);
+
         $this->assertFalse(ScoutRadarFilters::matches($aPlusPlus, 'a_plus'));
         $this->assertTrue(ScoutRadarFilters::matches($aGrade, 'a_plus'));
+        $this->assertTrue(ScoutRadarFilters::matches($perfectUnpromoted, 'a_plus'));
     }
 }

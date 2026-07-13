@@ -18,6 +18,18 @@ class PositionSizing
         ];
     }
 
+    /**
+     * Map a stored risk percent (e.g. "1.00") to a ToggleButtons option key (e.g. "1").
+     */
+    public static function normalizeRiskPercentOptionKey(float|int|string|null $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
+    }
+
     public static function riskBudgetFromPercent(float $bankroll, float $percent): float
     {
         return $bankroll * ($percent / 100);

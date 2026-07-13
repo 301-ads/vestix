@@ -23,6 +23,10 @@ class ScoutSetupAlertService
         }
 
         if ($newScorecard['hardFailReasons'] !== []) {
+            if ($position->trader_promoted_a_plus) {
+                $position->clearAPlusPromotion();
+            }
+
             return 0;
         }
 
@@ -61,7 +65,7 @@ class ScoutSetupAlertService
             && $position->telegram_a_plus_alert_sent_at === null
         ) {
             $message = sprintf(
-                '🔥 UPGRADE: %s is geëvolueerd naar een A++ SETUP (%d/%d). Maximale wiskundige edge bevestigd op de bounce!',
+                '✨ Perfecte score: %s haalt %d/%d punten. Beoordeel visueel op de radar en promoveer naar A++ als de setup klopt.',
                 $position->ticker,
                 $newScore,
                 $maxPoints,
@@ -73,6 +77,38 @@ class ScoutSetupAlertService
             }
         }
 
+        if ($newScore < $maxPoints && $position->trader_promoted_a_plus) {
+            $position->clearAPlusPromotion();
+        }
+
         return $alertsSent;
+    }
+
+    public function notifyManualAPlusPromotion(Position $position): bool
+    {
+        if ($position->status !== 'scout') {
+            return false;
+        }
+
+        $owner = $position->user;
+
+        if ($owner === null) {
+            return false;
+        }
+
+        $scorecard = $position->evaluateSetupScore();
+
+        if ($scorecard['grade'] !== 'A++') {
+            return false;
+        }
+
+        $message = sprintf(
+            '🔥 UPGRADE: %s is handmatig gepromoveerd naar een A++ SETUP (%d/%d). Maximale edge bevestigd door jouw visuele check!',
+            $position->ticker,
+            $scorecard['totalPoints'],
+            $scorecard['maxPoints'],
+        );
+
+        return TelegramNotifier::sendToUser($owner, $message);
     }
 }

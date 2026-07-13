@@ -756,6 +756,20 @@ class ScoutWatchlistTest extends TestCase
             ->assertSeeHtml('vestix-stat-card');
     }
 
+    public function test_reminder_button_visible_without_entry_price(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'NENT',
+            'entry_price' => null,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->assertTableActionExists('toggle_market_open_reminder')
+            ->assertTableActionDisabled('toggle_market_open_reminder', $scout);
+    }
+
     public function test_toggle_market_open_reminder_from_table_sets_pending_status(): void
     {
         $user = $this->authenticateFilament();
@@ -898,6 +912,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
             'last_setup_score' => 10,
+            'trader_promoted_a_plus' => true,
         ]);
 
         $ordered = Position::scout()
@@ -987,13 +1002,17 @@ class ScoutWatchlistTest extends TestCase
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
             'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
             'sector_etf' => 'XLK',
             'sector_trend_positive' => true,
             'pre_bounce_extension_atr' => 2.50,
+            'trader_promoted_a_plus' => true,
         ];
     }
 
@@ -1008,6 +1027,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,

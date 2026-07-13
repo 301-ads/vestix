@@ -32,6 +32,19 @@ class EditUserProfileTest extends TestCase
             ->assertSee('Risico & Earnings Waarschuwingen');
     }
 
+    public function test_profile_hydrates_risk_percent_toggle_for_decimal_cast_value(): void
+    {
+        $user = User::factory()->create([
+            'default_risk_percent' => 1,
+        ]);
+        $this->actingAs($user);
+
+        Livewire::test(EditUserProfile::class)
+            ->assertSchemaStateSet([
+                'default_risk_percent' => '1',
+            ]);
+    }
+
     public function test_profile_saves_merged_alert_preferences(): void
     {
         $user = User::factory()->create([

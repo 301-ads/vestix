@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\DailyBarProvider;
 use App\Contracts\QuoteProvider;
+use App\Support\ScoutSetupScorecard;
 use App\Support\TechnicalIndicators;
 use App\Support\TrampolineDepthMetrics;
 use App\Support\UsMarketSession;
@@ -27,6 +28,7 @@ class PolygonMarketDataService
      *     recent_close_prices: array<int, float>,
      *     latest_sma_20: float,
      *     sma_20_five_days_ago: float|null,
+     *     sma_20_ten_days_ago: float|null,
      *     latest_sma_50: float,
      *     latest_atr_14: float,
      *     scout_rsi: float,
@@ -84,6 +86,7 @@ class PolygonMarketDataService
         $close = $bars['today']['close'];
         $sma20 = TechnicalIndicators::smaAtOffset($closes, 20, 0);
         $sma20FiveDaysAgo = TechnicalIndicators::smaAtOffset($closes, 20, 5);
+        $sma20TenDaysAgo = TechnicalIndicators::smaAtOffset($closes, 20, ScoutSetupScorecard::smaSlopeLookbackDays());
         $sma50 = TechnicalIndicators::smaAtOffset($closes, 50, 0);
         $atr = TechnicalIndicators::wilderAtr($ohlcBars, 14);
         $rsi = TechnicalIndicators::wilderRsi($closes, 14);
@@ -98,6 +101,7 @@ class PolygonMarketDataService
             'recent_close_prices' => self::extractRecentClosePrices($bars['bars']),
             'latest_sma_20' => $sma20,
             'sma_20_five_days_ago' => $sma20FiveDaysAgo,
+            'sma_20_ten_days_ago' => $sma20TenDaysAgo,
             'latest_sma_50' => $sma50,
             'latest_atr_14' => $atr,
             'scout_rsi' => $rsi,

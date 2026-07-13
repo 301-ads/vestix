@@ -29,6 +29,7 @@ class PositionFactory extends Factory
             'latest_sma_20' => fake()->randomFloat(2, 50, 200),
             'latest_sma_50' => fake()->randomFloat(2, 40, 190),
             'sma_20_five_days_ago' => fake()->randomFloat(2, 50, 200),
+            'sma_20_ten_days_ago' => fake()->randomFloat(2, 50, 200),
             'latest_atr_14' => fake()->randomFloat(2, 1, 10),
             'scout_rsi' => fake()->randomFloat(2, 40, 65),
             'bounce_volume_above_average' => false,

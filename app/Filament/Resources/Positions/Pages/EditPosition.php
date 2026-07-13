@@ -241,16 +241,19 @@ class EditPosition extends EditRecord
         /** @var Position $record */
         $record = $this->getRecord();
 
-        return ScoutSetupScorecard::evaluate([
+        return $record->evaluateSetupScore([
             'signal_low' => $this->data['signal_low'] ?? $record->signal_low,
             'latest_open_price' => $this->data['latest_open_price'] ?? $record->latest_open_price,
             'latest_close_price' => $this->data['latest_close_price'] ?? $record->latest_close_price,
             'latest_sma_20' => $this->data['latest_sma_20'] ?? $record->latest_sma_20,
             'sma_20_five_days_ago' => $this->data['sma_20_five_days_ago'] ?? $record->sma_20_five_days_ago,
+            'sma_20_ten_days_ago' => $this->data['sma_20_ten_days_ago'] ?? $record->sma_20_ten_days_ago,
             'latest_sma_50' => $this->data['latest_sma_50'] ?? $record->latest_sma_50,
             'scout_rsi' => $this->data['scout_rsi'] ?? $record->scout_rsi,
             'bounce_volume_above_average' => (bool) ($this->data['bounce_volume_above_average'] ?? $record->bounce_volume_above_average),
             'relative_volume' => $this->data['relative_volume'] ?? $record->relative_volume,
+            'bounce_day_volume' => $this->data['bounce_day_volume'] ?? $record->bounce_day_volume,
+            'volume_sma_20' => $this->data['volume_sma_20'] ?? $record->volume_sma_20,
             'sector_etf' => $this->data['sector_etf'] ?? $record->sector_etf,
             'sector_trend_positive' => (bool) ($this->data['sector_trend_positive'] ?? $record->sector_trend_positive),
             'pre_bounce_extension_atr' => $this->data['pre_bounce_extension_atr'] ?? $record->pre_bounce_extension_atr,
@@ -330,7 +333,7 @@ class EditPosition extends EditRecord
 
         $score = $this->resolveSetupScoreFromForm();
 
-        if ($score['hardFailReasons'] === [] && $score['totalPoints'] === ScoutSetupScorecard::maxPoints()) {
+        if ($score['hardFailReasons'] === [] && $score['grade'] === 'A++') {
             $classes[] = 'scout-activate-a-plus';
         }
 
@@ -346,7 +349,8 @@ class EditPosition extends EditRecord
         }
 
         return match (true) {
-            $score['totalPoints'] === ScoutSetupScorecard::maxPoints() => 'A++ SETUP — mathematisch perfecte trade',
+            $score['grade'] === 'A++' => 'A++ SETUP — visueel bevestigde perfecte trade',
+            $score['totalPoints'] === ScoutSetupScorecard::maxPoints() => 'Perfecte score — promoveer naar A++ na visuele check',
             $score['totalPoints'] >= 8 => 'A SETUP — zeer sterke wiskundige edge',
             $score['totalPoints'] === 7 => 'B SETUP — standaard trade, wees alert op risico',
             $score['totalPoints'] >= 5 => 'C SETUP — wiskundig zwak, alleen monitoren',

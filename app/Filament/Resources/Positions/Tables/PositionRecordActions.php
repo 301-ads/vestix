@@ -15,6 +15,7 @@ use App\Support\FilamentNotifier;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
 use App\Support\PositionSizing;
+use App\Support\ScoutSetupAlertService;
 use App\Support\ScoutSetupScorecard;
 use App\Support\ShareCardDataFactory;
 use App\Support\ScaleOutDisplay;
@@ -187,9 +188,11 @@ class PositionRecordActions
             ->label(fn (Position $record): string => $record->market_open_reminder_on !== null
                 ? 'Reminder uit'
                 : 'Herinner bij market open')
-            ->tooltip(fn (Position $record): string => $record->market_open_reminder_on !== null
-                ? 'Annuleer market open reminder'
-                : 'Plan Telegram-reminder voor volgende handelsdag (15:35)')
+            ->tooltip(fn (Position $record): string => $record->entry_price === null
+                ? 'Vul eerst je buy-stop entry in'
+                : ($record->market_open_reminder_on !== null
+                    ? 'Annuleer market open reminder'
+                    : 'Plan Telegram-reminder voor volgende handelsdag (15:35)'))
             ->icon(fn (Position $record): string => $record->market_open_reminder_on !== null
                 ? 'heroicon-s-bell-alert'
                 : 'heroicon-o-bell-alert')
@@ -197,10 +200,20 @@ class PositionRecordActions
             ->iconButton()
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
-                && $record->scoutPipelineStatus() !== ScoutPipelineStatus::Active
-                && $record->entry_price !== null)
+                && $record->scoutPipelineStatus() !== ScoutPipelineStatus::Active)
+            ->disabled(fn (Position $record): bool => $record->entry_price === null)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
             ->action(function (Position $record): void {
+                if ($record->entry_price === null) {
+                    FilamentNotifier::send(
+                        title: 'Entry ontbreekt',
+                        body: 'Vul eerst je buy-stop entry in via Bewerken.',
+                        status: 'warning',
+                    );
+
+                    return;
+                }
+
                 if ($record->market_open_reminder_on !== null) {
                     $record->clearMarketOpenReminder();
 
@@ -378,6 +391,67 @@ class PositionRecordActions
                     'card' => ShareCardDataFactory::fromPosition($record->loadMissing('asset')),
                 ])->render()
             ));
+    }
+
+    public static function promoteToAPlus(): Action
+    {
+        return Action::make('promote_to_a_plus')
+            ->label('Promoveer naar A++')
+            ->tooltip('Visuele bevestiging — jij bepaalt of dit een perfecte sniper-setup is')
+            ->icon('heroicon-o-star')
+            ->color('success')
+            ->iconButton()
+            ->visible(fn (Position $record): bool => self::canPromoteToAPlus($record))
+            ->requiresConfirmation()
+            ->modalHeading('Promoveer naar A++')
+            ->modalDescription('Je bevestigt visueel dat deze setup de maximale sniper-kwaliteit heeft. Dit ontgrendelt share-card en A++-styling.')
+            ->modalSubmitActionLabel('Bevestig A++')
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->action(function (Position $record): void {
+                $record->promoteToAPlus();
+                app(ScoutSetupAlertService::class)->notifyManualAPlusPromotion($record->fresh());
+
+                FilamentNotifier::send(
+                    title: 'A++ SETUP bevestigd',
+                    body: "{$record->ticker} is handmatig gepromoveerd naar A++.",
+                );
+            });
+    }
+
+    public static function canPromoteToAPlus(Position $record): bool
+    {
+        if ($record->status !== 'scout' || $record->trader_promoted_a_plus) {
+            return false;
+        }
+
+        $score = ScoutSetupScorecard::evaluate(self::algorithmicScorecardInputs($record));
+
+        return $score['hardFailReasons'] === []
+            && $score['totalPoints'] === ScoutSetupScorecard::maxPoints();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function algorithmicScorecardInputs(Position $record): array
+    {
+        return [
+            'signal_low' => $record->signal_low,
+            'latest_open_price' => $record->latest_open_price,
+            'latest_close_price' => $record->latest_close_price,
+            'latest_sma_20' => $record->latest_sma_20,
+            'sma_20_ten_days_ago' => $record->sma_20_ten_days_ago,
+            'latest_sma_50' => $record->latest_sma_50,
+            'scout_rsi' => $record->scout_rsi,
+            'bounce_volume_above_average' => $record->bounce_volume_above_average,
+            'relative_volume' => $record->relative_volume,
+            'bounce_day_volume' => $record->bounce_day_volume,
+            'volume_sma_20' => $record->volume_sma_20,
+            'sector_etf' => $record->sector_etf,
+            'sector_trend_positive' => $record->sector_trend_positive,
+            'pre_bounce_extension_atr' => $record->pre_bounce_extension_atr,
+            'days_until_earnings' => $record->daysUntilEarnings(),
+        ];
     }
 
     public static function shareSetup(): Action

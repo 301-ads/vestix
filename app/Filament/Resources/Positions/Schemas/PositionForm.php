@@ -352,6 +352,12 @@ class PositionForm
                 ->numeric()
                 ->prefix('$')
                 ->live(debounce: 300),
+            TextInput::make('sma_20_ten_days_ago')
+                ->label(sprintf('SMA 20 (%d dagen geleden)', ScoutSetupScorecard::smaSlopeLookbackDays()))
+                ->numeric()
+                ->prefix('$')
+                ->helperText('Gebruikt voor SMA-helling in scorecard')
+                ->live(debounce: 300),
             TextInput::make('latest_sma_50')
                 ->label('SMA 50')
                 ->numeric()
@@ -1367,7 +1373,13 @@ class PositionForm
      */
     private static function resolveScorecard(Get $get, ?Position $record): array
     {
-        return ScoutSetupScorecard::evaluate(self::scorecardInputs($get, $record));
+        $inputs = self::scorecardInputs($get, $record);
+
+        if ($record !== null) {
+            return $record->evaluateSetupScore($inputs);
+        }
+
+        return ScoutSetupScorecard::evaluate($inputs);
     }
 
     private static function scorecardGradeColor(string $grade): string
@@ -2377,10 +2389,13 @@ class PositionForm
             'latest_close_price' => $get('latest_close_price') ?? $record?->latest_close_price,
             'latest_sma_20' => $get('latest_sma_20') ?? $record?->latest_sma_20,
             'sma_20_five_days_ago' => $get('sma_20_five_days_ago') ?? $record?->sma_20_five_days_ago,
+            'sma_20_ten_days_ago' => $get('sma_20_ten_days_ago') ?? $record?->sma_20_ten_days_ago,
             'latest_sma_50' => $get('latest_sma_50') ?? $record?->latest_sma_50,
             'scout_rsi' => $get('scout_rsi') ?? $record?->scout_rsi,
             'bounce_volume_above_average' => (bool) ($get('bounce_volume_above_average') ?? $record?->bounce_volume_above_average),
             'relative_volume' => $get('relative_volume') ?? $record?->relative_volume,
+            'bounce_day_volume' => $get('bounce_day_volume') ?? $record?->bounce_day_volume,
+            'volume_sma_20' => $get('volume_sma_20') ?? $record?->volume_sma_20,
             'sector_etf' => $get('sector_etf') ?? $record?->sector_etf,
             'sector_trend_positive' => (bool) ($get('sector_trend_positive') ?? $record?->sector_trend_positive),
             'pre_bounce_extension_atr' => $get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr,

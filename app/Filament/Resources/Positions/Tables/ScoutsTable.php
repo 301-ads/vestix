@@ -137,6 +137,7 @@ class ScoutsTable
             ->recordActions([
                 PositionRecordActions::markBuyStopPlaced(),
                 PositionRecordActions::toggleMarketOpenReminder(),
+                PositionRecordActions::promoteToAPlus(),
                 PositionRecordActions::clearBuyStop(),
                 PositionRecordActions::activateScout(),
                 PositionRecordActions::rolloverBuyStop(),

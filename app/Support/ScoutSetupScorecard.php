@@ -16,10 +16,13 @@ class ScoutSetupScorecard
      *     latest_close_price?: float|null,
      *     latest_sma_20?: float|null,
      *     sma_20_five_days_ago?: float|null,
+     *     sma_20_ten_days_ago?: float|null,
      *     latest_sma_50?: float|null,
      *     scout_rsi?: float|null,
      *     bounce_volume_above_average?: bool|null,
      *     relative_volume?: float|null,
+     *     bounce_day_volume?: int|null,
+     *     volume_sma_20?: int|null,
      *     sector_etf?: string|null,
      *     sector_trend_positive?: bool|null,
      *     pre_bounce_extension_atr?: float|null,
@@ -123,12 +126,14 @@ class ScoutSetupScorecard
     private static function scoreSmaDirection(array $inputs): array
     {
         $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
-        $fiveDaysAgo = self::toFloat($inputs['sma_20_five_days_ago'] ?? null);
+        $lookbackDays = self::smaSlopeLookbackDays();
+        $tenDaysAgo = self::toFloat($inputs['sma_20_ten_days_ago'] ?? null);
         $sma50 = self::toFloat($inputs['latest_sma_50'] ?? null);
+        $minSlopePct = self::smaSlopeMinPct();
 
-        if ($latest === null || $fiveDaysAgo === null || $sma50 === null) {
+        if ($latest === null || $tenDaysAgo === null || $sma50 === null) {
             $detail = match (true) {
-                $latest !== null && $fiveDaysAgo === null => 'Haal marktdata op voor 5-daagse SMA',
+                $latest !== null && $tenDaysAgo === null => sprintf('Haal marktdata op voor %d-daagse SMA-helling', $lookbackDays),
                 $latest !== null && $sma50 === null => 'Haal marktdata op voor SMA 50',
                 default => 'Data ontbreekt',
             };
@@ -136,19 +141,35 @@ class ScoutSetupScorecard
             return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', $detail);
         }
 
-        if ($latest < $fiveDaysAgo) {
-            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', 'Dalende SMA over 5 dagen — geen opwaartse trend');
-        }
-
         if ($latest <= $sma50) {
             return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', 'SMA 20 onder SMA 50 — korte trend doorboort lange trend');
         }
 
-        if ($latest === $fiveDaysAgo) {
-            return self::criterion('sma_direction', 'SMA trend (20/50)', 2, 2, 'pass', 'Flat over 5 dagen + boven SMA 50');
+        if ($tenDaysAgo <= 0) {
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', 'Data ontbreekt');
         }
 
-        return self::criterion('sma_direction', 'SMA trend (20/50)', 2, 2, 'pass', 'Stijgende trend + SMA 20 > SMA 50');
+        $deltaPct = (($latest - $tenDaysAgo) / $tenDaysAgo) * 100;
+
+        if ($deltaPct < $minSlopePct) {
+            return self::criterion(
+                'sma_direction',
+                'SMA trend (20/50)',
+                0,
+                2,
+                'fail',
+                sprintf('Dalende SMA over %d dagen — Δ %.2f%%', $lookbackDays, $deltaPct),
+            );
+        }
+
+        return self::criterion(
+            'sma_direction',
+            'SMA trend (20/50)',
+            2,
+            2,
+            'pass',
+            sprintf('Stijgende trend +%.2f%% over %dd + SMA 20 > SMA 50', $deltaPct, $lookbackDays),
+        );
     }
 
     /**
@@ -185,12 +206,6 @@ class ScoutSetupScorecard
     private static function scoreVolume(array $inputs): array
     {
         $rvol = self::toFloat(RelativeVolumeCalculator::normalizeRatio($inputs['relative_volume'] ?? null));
-        $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
-
-        if ($rvol === null && ! $confirmed) {
-            return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Nog niet bevestigd');
-        }
-
         $open = self::resolveOpenPrice($inputs);
         $close = self::resolveClosePrice($inputs);
 
@@ -198,39 +213,26 @@ class ScoutSetupScorecard
             return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Open/slotkoers ontbreekt voor volume-check');
         }
 
-        if ($close < $open) {
+        if (self::isFallingKnife($inputs, $open, $close)) {
             return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Vallend mes: hoog volume maar slotkoers onder openingskoers');
         }
 
-        $threshold = RelativeVolumeCalculator::rvolThreshold();
-        $effectiveRvol = $rvol ?? ($confirmed ? $threshold : 0);
+        if ($close >= $open) {
+            $rvolLabel = RelativeVolumeCalculator::formatPercent($rvol) ?? '—';
 
-        if ($effectiveRvol < $threshold) {
             return self::criterion(
                 'volume',
                 'Volume-overtuiging',
-                0,
                 1,
-                'fail',
-                sprintf(
-                    'RVol %s — onder drempel (%s)',
-                    RelativeVolumeCalculator::formatPercent($effectiveRvol) ?? '—',
-                    RelativeVolumeCalculator::formatThresholdPercent(),
-                ),
+                1,
+                'pass',
+                $rvol !== null
+                    ? sprintf('RVol %s — geen institutionele dump (groene kaars)', $rvolLabel)
+                    : 'Groene kaars — geen institutionele dump',
             );
         }
 
-        return self::criterion(
-            'volume',
-            'Volume-overtuiging',
-            1,
-            1,
-            'pass',
-            sprintf(
-                'RVol %s — institutionele buy-in bevestigd',
-                RelativeVolumeCalculator::formatPercent($effectiveRvol) ?? '—',
-            ),
-        );
+        return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'warn', 'Rode kaars — geen volume-bevestiging');
     }
 
     /**
@@ -323,11 +325,7 @@ class ScoutSetupScorecard
             $reasons[] = 'Close onder SMA 20 — trampoline gebroken';
         }
 
-        $rvol = self::toFloat(RelativeVolumeCalculator::normalizeRatio($inputs['relative_volume'] ?? null));
-        $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
-        $hasHighVolume = $confirmed || ($rvol !== null && $rvol >= RelativeVolumeCalculator::rvolThreshold());
-
-        if ($hasHighVolume && $open !== null && $close !== null && $close < $open) {
+        if ($open !== null && $close !== null && self::isFallingKnife($inputs, $open, $close)) {
             $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
         }
 
@@ -390,7 +388,7 @@ CASE
     WHEN scout_rsi > 70 THEN 5
     WHEN latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL AND latest_close_price < latest_sma_20 THEN 5
     WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price THEN 5
-    WHEN last_setup_score = {$maxPoints} THEN 1
+    WHEN last_setup_score = {$maxPoints} AND trader_promoted_a_plus = 1 THEN 1
     WHEN last_setup_score >= 8 THEN 2
     WHEN last_setup_score = 7 THEN 3
     WHEN last_setup_score >= 5 THEN 4
@@ -407,10 +405,6 @@ SQL;
     {
         if ($hardFailReasons !== []) {
             return ['NO TRADE', 'NO TRADE'];
-        }
-
-        if ($totalPoints === self::maxPoints()) {
-            return ['A++', 'A++ SETUP'];
         }
 
         if ($totalPoints >= 8) {
@@ -456,5 +450,37 @@ SQL;
         }
 
         return (float) $value;
+    }
+
+    public static function smaSlopeLookbackDays(): int
+    {
+        return (int) config('vestix.sniper_scorecard.sma_slope_lookback_days', 10);
+    }
+
+    public static function smaSlopeMinPct(): float
+    {
+        return (float) config('vestix.sniper_scorecard.sma_slope_min_pct', 0.0);
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function isFallingKnife(array $inputs, float $open, float $close): bool
+    {
+        if ($close >= $open) {
+            return false;
+        }
+
+        $volume = isset($inputs['bounce_day_volume']) ? (int) $inputs['bounce_day_volume'] : null;
+        $volumeSma20 = isset($inputs['volume_sma_20']) ? (int) $inputs['volume_sma_20'] : null;
+
+        if ($volume === null || $volumeSma20 === null || $volumeSma20 <= 0) {
+            $rvol = self::toFloat(RelativeVolumeCalculator::normalizeRatio($inputs['relative_volume'] ?? null));
+            $confirmed = (bool) ($inputs['bounce_volume_above_average'] ?? false);
+
+            return $confirmed || ($rvol !== null && $rvol >= RelativeVolumeCalculator::rvolThreshold());
+        }
+
+        return $volume > $volumeSma20;
     }
 }

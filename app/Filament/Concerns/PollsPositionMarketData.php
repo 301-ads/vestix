@@ -41,6 +41,7 @@ trait PollsPositionMarketData
             'latest_close_price',
             'latest_sma_20',
             'sma_20_five_days_ago',
+            'sma_20_ten_days_ago',
             'latest_sma_50',
             'latest_atr_14',
             'scout_rsi',

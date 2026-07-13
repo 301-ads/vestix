@@ -77,6 +77,8 @@ class EditUserProfile extends EditProfile
                                             ->label('Standaard risico-niveau')
                                             ->options(PositionSizing::riskPercentOptions())
                                             ->default('1')
+                                            ->formatStateUsing(fn (mixed $state): string => PositionSizing::normalizeRiskPercentOptionKey($state) ?? '1')
+                                            ->dehydrateStateUsing(fn (mixed $state): ?float => filled($state) ? (float) $state : null)
                                             ->inline()
                                             ->required(),
                                     ]),

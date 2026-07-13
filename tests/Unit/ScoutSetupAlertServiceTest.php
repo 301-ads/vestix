@@ -31,6 +31,7 @@ class ScoutSetupAlertServiceTest extends TestCase
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 95.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
@@ -63,7 +64,7 @@ class ScoutSetupAlertServiceTest extends TestCase
         });
     }
 
-    public function test_sends_a_plus_plus_alert_on_transition_to_ten(): void
+    public function test_sends_perfect_score_alert_on_transition_to_ten(): void
     {
         $user = User::factory()->create(['telegram_chat_id' => '12345']);
         $position = Position::factory()->for($user)->scout()->create([
@@ -73,6 +74,7 @@ class ScoutSetupAlertServiceTest extends TestCase
             'latest_close_price' => 100.50,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 95.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
@@ -95,6 +97,14 @@ class ScoutSetupAlertServiceTest extends TestCase
         $this->assertSame(1, $sent);
         $position->refresh();
         $this->assertNotNull($position->telegram_a_plus_alert_sent_at);
+
+        Http::assertSent(function ($request): bool {
+            $text = $request->data()['text'] ?? '';
+
+            return str_contains($request->url(), 'api.telegram.org')
+                && str_contains($text, 'Perfecte score')
+                && str_contains($text, 'A++');
+        });
     }
 
     public function test_stays_silent_on_transition_from_six_to_seven(): void
@@ -106,6 +116,7 @@ class ScoutSetupAlertServiceTest extends TestCase
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 95.00,
             'scout_rsi' => 50.00,
         ]);

@@ -107,6 +107,8 @@ return [
         'rvol_threshold' => (float) env('SNIPER_RVOL_THRESHOLD', 1.2),
         'extension_atr_threshold' => (float) env('SNIPER_EXTENSION_ATR_THRESHOLD', 2.0),
         'max_points' => 10,
+        'sma_slope_lookback_days' => (int) env('SNIPER_SMA_SLOPE_LOOKBACK_DAYS', 10),
+        'sma_slope_min_pct' => (float) env('SNIPER_SMA_SLOPE_MIN_PCT', 0.0),
     ],
 
     'premarket' => [
