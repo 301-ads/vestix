@@ -37,6 +37,7 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
         $this->cacheAction($this->markLimitPlacedAction());
         $this->cacheAction($this->markInitialSlPlacedAction());
         $this->cacheAction($this->markAsUpdatedAction());
+        $this->cacheAction($this->holdThroughEarningsAction());
         $this->cacheAction($this->archiveAction());
     }
 
@@ -185,6 +186,17 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
         return $action(['record' => $position->getKey()])->record($position);
     }
 
+    public function secondaryActionForPosition(Position $position): ?Action
+    {
+        if ($position->primaryActionType() !== Position::PRIMARY_ACTION_EARNINGS) {
+            return null;
+        }
+
+        $action = $this->cacheAction($this->holdThroughEarningsAction());
+
+        return $action(['record' => $position->getKey()])->record($position);
+    }
+
     public function markLimitPlacedAction(): Action
     {
         return $this->configureRecordAction(PositionRecordActions::markTarget1LimitPlaced());
@@ -198,6 +210,11 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
     public function markAsUpdatedAction(): Action
     {
         return $this->configureRecordAction(PositionRecordActions::markAsUpdated());
+    }
+
+    public function holdThroughEarningsAction(): Action
+    {
+        return $this->configureRecordAction(PositionRecordActions::holdThroughEarnings());
     }
 
     public function archiveAction(): Action

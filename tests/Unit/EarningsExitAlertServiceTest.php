@@ -298,4 +298,35 @@ class EarningsExitAlertServiceTest extends TestCase
             AlertEventType::EarningsFinalReminder,
         ])->count());
     }
+
+    public function test_skips_earnings_alerts_when_position_held_through_current_cycle(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:00:00', 'Europe/Amsterdam'));
+
+        config(['vestix.telegram.bot_token' => 'test-token']);
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $user = User::factory()->create(['telegram_chat_id' => '12345']);
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'BAC',
+            'next_earnings_date' => '2026-07-14',
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
+        ]);
+
+        Position::factory()->create([
+            'user_id' => $user->id,
+            'ticker' => 'BAC',
+            'asset_id' => $asset->id,
+            'status' => 'open',
+            'held_through_earnings_date' => '2026-07-14',
+            'held_through_earnings_at' => now(),
+        ]);
+
+        $summary = app(EarningsExitAlertService::class)->run('action');
+
+        $this->assertSame(0, $summary['action']);
+        $this->assertEquals(0, PositionAlert::query()->count());
+    }
 }

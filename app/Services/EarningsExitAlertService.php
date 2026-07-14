@@ -27,7 +27,8 @@ class EarningsExitAlertService
             ->open()
             ->with('asset')
             ->get()
-            ->filter(fn (Position $position): bool => $position->effectiveEarningsDate() !== null);
+            ->filter(fn (Position $position): bool => $position->effectiveEarningsDate() !== null
+                && ! $position->heldThroughEarningsForCurrentCycle());
 
         foreach ($positions as $position) {
             $earningsDate = $position->effectiveEarningsDate();

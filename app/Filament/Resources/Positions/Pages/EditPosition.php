@@ -99,6 +99,10 @@ class EditPosition extends EditRecord
             PositionRecordActions::fetchMarketData(syncButtonStyle: true),
         ];
 
+        if ($record->requiresEarningsExit()) {
+            $actions[] = PositionRecordActions::holdThroughEarnings();
+        }
+
         $overflowActions = [];
 
         if ($record->status === 'scout') {

@@ -839,6 +839,20 @@
     flex-shrink: 0;
 }
 
+.vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+    .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions {
+        flex-direction: row;
+        align-items: center;
+    }
+}
+
 .vestix-dashboard .vestix-actions-widget .vestix-action-todos-empty {
     padding: 0.5rem 0;
 }

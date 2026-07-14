@@ -34,7 +34,14 @@
                             <p class="vestix-action-todo__instruction">{!! $this->formatInstructionHtml($position) !!}</p>
                         </div>
 
-                        @if ($action)
+                        @if ($secondaryAction = $this->secondaryActionForPosition($position))
+                            <div class="vestix-action-todo__action vestix-action-todo__actions">
+                                {{ $secondaryAction }}
+                                @if ($action)
+                                    {{ $action }}
+                                @endif
+                            </div>
+                        @elseif ($action)
                             <div class="vestix-action-todo__action">
                                 {{ $action }}
                             </div>

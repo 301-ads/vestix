@@ -79,6 +79,8 @@ class Position extends Model
             'target_1_limit_placed_at' => 'datetime',
             'initial_sl' => 'decimal:2',
             'initial_sl_placed_at' => 'datetime',
+            'held_through_earnings_date' => 'date',
+            'held_through_earnings_at' => 'datetime',
             'risk_reward_ratio' => 'decimal:4',
             'visibility' => PositionVisibility::class,
             'broker_order_status' => BrokerOrderStatus::class,
@@ -917,6 +919,39 @@ class Position extends Model
         return EarningsExitSchedule::daysUntilEarnings($earningsDate, $today);
     }
 
+    public function heldThroughEarningsForCurrentCycle(): bool
+    {
+        $earningsDate = $this->effectiveEarningsDate();
+
+        if ($earningsDate === null || $this->held_through_earnings_date === null) {
+            return false;
+        }
+
+        return $this->held_through_earnings_date->equalTo($earningsDate->copy()->startOfDay());
+    }
+
+    public function acknowledgeHeldThroughEarnings(): void
+    {
+        if ($this->status !== 'open') {
+            throw new InvalidArgumentException('Alleen open posities kunnen earnings afwachten.');
+        }
+
+        $earningsDate = $this->effectiveEarningsDate();
+
+        if ($earningsDate === null) {
+            throw new InvalidArgumentException('Geen earnings-datum beschikbaar.');
+        }
+
+        if ($this->earningsExitUrgency() === null) {
+            throw new InvalidArgumentException('Geen actieve earnings-exit voor deze positie.');
+        }
+
+        $this->update([
+            'held_through_earnings_date' => $earningsDate->toDateString(),
+            'held_through_earnings_at' => now(),
+        ]);
+    }
+
     public function requiresEarningsExit(?Carbon $today = null): bool
     {
         if ($this->status !== 'open') {
@@ -931,6 +966,10 @@ class Position extends Model
         $earningsDate = $this->effectiveEarningsDate();
 
         if ($earningsDate === null || $this->status !== 'open') {
+            return null;
+        }
+
+        if ($this->heldThroughEarningsForCurrentCycle()) {
             return null;
         }
 

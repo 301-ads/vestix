@@ -63,6 +63,7 @@ class EarningsExitDisplay
         }
 
         return match (true) {
+            $position->heldThroughEarningsForCurrentCycle() => 'Runner actief',
             $daysUntil === 0 => 'Vandaag',
             $daysUntil === 1 => 'Over 1 dag',
             default => "Over {$daysUntil} dagen",
@@ -83,6 +84,10 @@ class EarningsExitDisplay
 
         if ($daysUntil <= self::DANGER_THRESHOLD_DAYS || $position->requiresEarningsExit()) {
             return 'danger';
+        }
+
+        if ($position->heldThroughEarningsForCurrentCycle()) {
+            return 'success';
         }
 
         if ($daysUntil <= self::windowDays()) {
@@ -135,6 +140,18 @@ class EarningsExitDisplay
 
     public static function smartAlertViewData(Position $position): array
     {
+        if ($position->heldThroughEarningsForCurrentCycle()) {
+            $earningsDate = $position->effectiveEarningsDate();
+            $dateString = $earningsDate?->locale('nl')->isoFormat('D MMM Y') ?? '—';
+
+            return [
+                'daysLabel' => 'runner',
+                'subtitle' => "Earnings {$dateString} afgewacht — positie blijft trailen als runner.",
+                'trailingNote' => null,
+                'isDanger' => false,
+            ];
+        }
+
         $daysUntil = (int) $position->daysUntilEarnings();
         $earningsDate = $position->effectiveEarningsDate();
         $hour = $position->asset?->effectiveEarningsHour() ?? EarningsReleaseHour::Unknown;
@@ -300,6 +317,19 @@ class EarningsExitDisplay
     {
         if (! self::isRelevant($position)) {
             return null;
+        }
+
+        if ($position->heldThroughEarningsForCurrentCycle()) {
+            return [
+                'label' => 'Earnings',
+                'value' => 'Runner',
+                'valueColor' => 'success',
+                'description' => 'Earnings-ronde afgewacht — positie blijft trailen',
+                'descriptionColor' => 'success',
+                'descriptionWrap' => true,
+                'secondaryDescription' => null,
+                'cardVariant' => 'green',
+            ];
         }
 
         $earningsDate = $position->effectiveEarningsDate();

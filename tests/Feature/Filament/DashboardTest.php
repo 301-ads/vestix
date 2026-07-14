@@ -467,4 +467,46 @@ class DashboardTest extends TestCase
             ->assertDontSee('BAC')
             ->assertDontSee('Stel Limit Sell in op');
     }
+
+    public function test_action_widget_shows_hold_through_earnings_for_overdue_bmo_position(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-14', 'Europe/Amsterdam'));
+
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $asset = \App\Models\Asset::factory()->withoutIcon()->create([
+            'ticker' => 'BAC',
+            'next_earnings_date' => '2026-07-14',
+            'next_earnings_hour' => \App\Enums\EarningsReleaseHour::Bmo,
+        ]);
+
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'BAC',
+            'asset_id' => $asset->id,
+            'entry_price' => 51.50,
+            'initial_sl' => 48.00,
+            'current_sl' => 58.14,
+            'latest_close_price' => 59.86,
+            'latest_sma_20' => 57.00,
+            'latest_atr_14' => 1.50,
+            'quantity' => 22,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertSee('BAC')
+            ->assertSee('Earnings-exit (14 juli) is te laat')
+            ->assertSee('Doorgaan als runner')
+            ->assertSee('Archiveer')
+            ->assertActionVisible('hold_through_earnings', arguments: ['record' => $position->getKey()])
+            ->callAction('hold_through_earnings', arguments: ['record' => $position->getKey()])
+            ->assertDontSee('BAC');
+
+        $position->refresh();
+
+        $this->assertTrue($position->heldThroughEarningsForCurrentCycle());
+        $this->assertNotNull($position->held_through_earnings_at);
+    }
 }

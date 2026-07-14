@@ -653,6 +653,41 @@ class PositionRecordActions
             });
     }
 
+    public static function holdThroughEarnings(): Action
+    {
+        return Action::make('hold_through_earnings')
+            ->label('Doorgaan als runner')
+            ->tooltip('Houd de positie open door earnings heen — earnings-exit alerts stoppen')
+            ->icon('heroicon-o-arrow-trending-up')
+            ->color('success')
+            ->visible(fn (Position $record): bool => $record->status === 'open'
+                && $record->requiresEarningsExit())
+            ->requiresConfirmation()
+            ->modalHeading('Doorgaan als runner na earnings?')
+            ->modalDescription(fn (Position $record): string => sprintf(
+                '%s blijft open en trailt verder onder SMA 20. Earnings-exit alerts en de archiveer-actie verdwijnen voor deze earnings-ronde.',
+                $record->ticker,
+            ))
+            ->modalSubmitActionLabel('Doorgaan als runner')
+            ->modalCancelActionLabel('Annuleren')
+            ->action(function (Position $record): void {
+                $record->acknowledgeHeldThroughEarnings();
+
+                FilamentNotifier::send(
+                    title: 'Runner na earnings',
+                    body: sprintf(
+                        '%s: earnings-exit uitgesteld. Positie blijft trailen.',
+                        $record->ticker,
+                    ),
+                );
+            })
+            ->after(function ($livewire): void {
+                if (is_object($livewire) && method_exists($livewire, 'refreshFormData')) {
+                    $livewire->refreshFormData();
+                }
+            });
+    }
+
     public static function archive(): Action
     {
         return Action::make('archive')
