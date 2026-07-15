@@ -3,8 +3,6 @@
 namespace Tests\Feature\Filament;
 
 use App\Filament\Pages\Dashboard;
-use App\Filament\Widgets\AlphaTrackerChart;
-use App\Filament\Widgets\AlphaTrackerStatsWidget;
 use App\Filament\Widgets\BankrollUpdateWidget;
 use App\Filament\Widgets\BuyStopReviewWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
@@ -170,8 +168,6 @@ class DashboardTest extends TestCase
 
         $this->assertSame([
             PortfolioExposureWidget::class,
-            AlphaTrackerStatsWidget::class,
-            AlphaTrackerChart::class,
             BankrollUpdateWidget::class,
             PortfolioTopFlopWidget::class,
             SetupRadarWidget::class,
@@ -180,20 +176,7 @@ class DashboardTest extends TestCase
         ], $widgets);
     }
 
-    public function test_dashboard_shows_bankroll_update_widget_when_weekly_update_due(): void
-    {
-        Carbon::setTestNow(Carbon::parse('2026-07-11 10:00:00', 'Europe/Amsterdam'));
-
-        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
-        $user->update(['trading_bankroll' => 10634.60]);
-
-        $this->actingAsFilamentUser($user, $squad);
-
-        Livewire::test(Dashboard::class)
-            ->assertSee('Wekelijkse Bankroll Update');
-    }
-
-    public function test_dashboard_shows_alpha_tracker_when_two_snapshots_exist(): void
+    public function test_dashboard_does_not_show_alpha_tracker_widgets(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
@@ -218,9 +201,21 @@ class DashboardTest extends TestCase
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(Dashboard::class)
-            ->assertSee('Alpha Tracker')
-            ->assertSee('Jouw Rendement (YTD)')
-            ->assertSee('Jouw Alpha');
+            ->assertDontSee('Jouw Rendement (YTD)')
+            ->assertDontSee('Jouw Alpha');
+    }
+
+    public function test_dashboard_shows_bankroll_update_widget_when_weekly_update_due(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-11 10:00:00', 'Europe/Amsterdam'));
+
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $user->update(['trading_bankroll' => 10634.60]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(Dashboard::class)
+            ->assertSee('Wekelijkse Bankroll Update');
     }
 
     public function test_action_widget_lists_stopped_out_positions_with_liquidation_type(): void

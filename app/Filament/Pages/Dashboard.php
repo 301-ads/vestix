@@ -2,8 +2,6 @@
 
 namespace App\Filament\Pages;
 
-use App\Filament\Widgets\AlphaTrackerChart;
-use App\Filament\Widgets\AlphaTrackerStatsWidget;
 use App\Filament\Widgets\BankrollUpdateWidget;
 use App\Filament\Widgets\BuyStopReviewWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
@@ -40,8 +38,6 @@ class Dashboard extends BaseDashboard
     {
         return [
             PortfolioExposureWidget::class,
-            AlphaTrackerStatsWidget::class,
-            AlphaTrackerChart::class,
             BankrollUpdateWidget::class,
             PortfolioTopFlopWidget::class,
             SetupRadarWidget::class,

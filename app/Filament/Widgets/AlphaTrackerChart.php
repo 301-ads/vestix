@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Services\AlphaTrackerService;
+use Filament\Support\RawJs;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
 class AlphaTrackerChart extends ApexChartWidget
@@ -69,7 +70,6 @@ class AlphaTrackerChart extends ApexChartWidget
             ],
             'yaxis' => [
                 'labels' => [
-                    'formatter' => "function (value) { return value.toFixed(1) + '%'; }",
                     'style' => ['colors' => '#71717a', 'fontFamily' => 'inherit'],
                 ],
                 'title' => [
@@ -89,11 +89,28 @@ class AlphaTrackerChart extends ApexChartWidget
             'legend' => [
                 'labels' => ['colors' => '#a1a1aa'],
             ],
-            'tooltip' => [
-                'y' => [
-                    'formatter' => "function (value) { return value.toFixed(2) + '%'; }",
-                ],
-            ],
         ];
+    }
+
+    protected function extraJsOptions(): ?RawJs
+    {
+        return RawJs::make(<<<'JS'
+        {
+            yaxis: {
+                labels: {
+                    formatter: function (value) {
+                        return value.toFixed(1) + '%'
+                    }
+                }
+            },
+            tooltip: {
+                y: {
+                    formatter: function (value) {
+                        return value.toFixed(2) + '%'
+                    }
+                }
+            }
+        }
+        JS);
     }
 }
