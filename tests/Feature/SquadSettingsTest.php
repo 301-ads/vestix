@@ -57,6 +57,7 @@ class SquadSettingsTest extends TestCase
         Livewire::test(ManageSquadSettings::class)
             ->set('activeTab', 'members')
             ->callTableAction('add_member', data: [
+                'invite_method' => 'email',
                 'email' => $existing->email,
                 'role' => SquadRole::Sniper->value,
             ])
@@ -72,6 +73,7 @@ class SquadSettingsTest extends TestCase
         Livewire::test(ManageSquadSettings::class)
             ->set('activeTab', 'members')
             ->callTableAction('add_member', data: [
+                'invite_method' => 'email',
                 'email' => 'newmember@vestix.test',
                 'name' => 'New Member',
                 'password' => 'secret123',

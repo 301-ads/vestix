@@ -49,4 +49,11 @@ class UserFactory extends Factory
             'is_super_admin' => true,
         ]);
     }
+
+    public function notDiscoverable(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_discoverable' => false,
+        ]);
+    }
 }

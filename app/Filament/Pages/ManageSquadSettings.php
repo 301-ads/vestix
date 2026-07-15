@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Enums\SquadRole;
+use App\Filament\Forms\Components\UserPicker;
 use App\Models\Squad;
 use App\Models\User;
 use App\Services\SquadContext;
@@ -12,6 +13,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Notifications\Notification;
 use Filament\Pages\Concerns\CanUseDatabaseTransactions;
 use Filament\Pages\Page;
@@ -315,36 +317,56 @@ class ManageSquadSettings extends Page implements HasTable
                         && auth()->user() !== null
                         && app(SquadContext::class)->userCanInSquad(auth()->user(), $this->activeSquad, 'user.invite'))
                     ->schema([
+                        ToggleButtons::make('invite_method')
+                            ->label('Toevoegen via')
+                            ->options([
+                                'search' => 'Zoeken',
+                                'email' => 'E-mail',
+                            ])
+                            ->default('search')
+                            ->inline()
+                            ->live(),
+                        UserPicker::make(
+                            'user_id',
+                            $this->activeSquad instanceof Squad ? $this->activeSquad : null,
+                            multiple: false,
+                        )
+                            ->label('Gebruiker')
+                            ->helperText('Zoek op naam of e-mail. Alleen zichtbare gebruikers verschijnen.')
+                            ->required(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'search')
+                            ->visible(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'search'),
                         TextInput::make('email')
                             ->label('E-mail')
                             ->email()
-                            ->required()
-                            ->live(onBlur: true),
+                            ->required(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email')
+                            ->live(onBlur: true)
+                            ->visible(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'),
                         Placeholder::make('existing_account_hint')
                             ->label('')
                             ->content('Bestaand account — alleen rol kiezen en toevoegen.')
-                            ->visible(fn (Get $get): bool => filled($get('email'))
+                            ->visible(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'
+                                && filled($get('email'))
                                 && User::query()->where('email', strtolower(trim((string) $get('email'))))->exists()),
                         TextInput::make('name')
                             ->label('Naam')
-                            ->required(fn (Get $get): bool => filled($get('email'))
+                            ->required(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'
+                                && filled($get('email'))
                                 && ! User::query()->where('email', strtolower(trim((string) $get('email'))))->exists())
-                            ->visible(fn (Get $get): bool => filled($get('email'))
+                            ->visible(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'
+                                && filled($get('email'))
                                 && ! User::query()->where('email', strtolower(trim((string) $get('email'))))->exists()),
                         TextInput::make('password')
                             ->label('Wachtwoord')
                             ->password()
                             ->minLength(8)
-                            ->required(fn (Get $get): bool => filled($get('email'))
+                            ->required(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'
+                                && filled($get('email'))
                                 && ! User::query()->where('email', strtolower(trim((string) $get('email'))))->exists())
-                            ->visible(fn (Get $get): bool => filled($get('email'))
+                            ->visible(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'
+                                && filled($get('email'))
                                 && ! User::query()->where('email', strtolower(trim((string) $get('email'))))->exists()),
                         Select::make('role')
-                            ->options([
-                                SquadRole::Commander->value => 'Commander',
-                                SquadRole::Sniper->value => 'Sniper',
-                                SquadRole::Scout->value => 'Scout',
-                            ])
+                            ->options(SquadRole::options())
                             ->default(SquadRole::Sniper->value)
                             ->required(),
                     ])
@@ -355,14 +377,48 @@ class ManageSquadSettings extends Page implements HasTable
                             return;
                         }
 
-                        $email = strtolower(trim($data['email']));
+                        $inviteMethod = $data['invite_method'] ?? 'search';
+                        $role = SquadRole::from($data['role']);
+
+                        if ($inviteMethod === 'search') {
+                            $user = User::query()->find($data['user_id'] ?? null);
+
+                            if (! $user instanceof User) {
+                                Notification::make()
+                                    ->title('Selecteer een gebruiker')
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
+                            try {
+                                $management->addMember($squad, $user->email, $role);
+                            } catch (InvalidArgumentException $exception) {
+                                Notification::make()
+                                    ->title($exception->getMessage())
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
+                            Notification::make()
+                                ->title('Lid gekoppeld')
+                                ->success()
+                                ->send();
+
+                            return;
+                        }
+
+                        $email = strtolower(trim((string) ($data['email'] ?? '')));
                         $wasExisting = User::query()->where('email', $email)->exists();
 
                         try {
                             $management->addMember(
                                 $squad,
                                 $email,
-                                SquadRole::from($data['role']),
+                                $role,
                                 $data['name'] ?? null,
                                 $data['password'] ?? null,
                             );

@@ -55,6 +55,15 @@ class EditUserProfile extends EditProfile
                                         $this->getNameFormComponent(),
                                         $this->getEmailFormComponent(),
                                     ]),
+                                Section::make('Privacy')
+                                    ->compact()
+                                    ->description('Bepaal of andere gebruikers je kunnen vinden bij het aanmaken of beheren van squads.')
+                                    ->schema([
+                                        Toggle::make('is_discoverable')
+                                            ->label('Zichtbaar voor squad-uitnodigingen')
+                                            ->helperText('Uitgeschakeld: je verschijnt niet in de gebruikerszoekfunctie. Je kunt nog wel via e-mail worden uitgenodigd.')
+                                            ->default(true),
+                                    ]),
                                 Section::make('Beveiliging')
                                     ->compact()
                                     ->schema([

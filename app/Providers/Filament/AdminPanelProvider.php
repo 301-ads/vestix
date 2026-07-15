@@ -16,6 +16,11 @@ use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
 use App\Filament\Widgets\SetupRadarWidget;
+use App\Http\Responses\Filament\AuthRedirectResponse;
+use App\Models\User;
+use DutchCodingCompany\FilamentSocialite\FilamentSocialitePlugin;
+use DutchCodingCompany\FilamentSocialite\Models\Contracts\FilamentSocialiteUser as FilamentSocialiteUserContract;
+use DutchCodingCompany\FilamentSocialite\Provider;
 use Filament\Enums\GlobalSearchPosition;
 use Filament\Enums\ThemeMode;
 use Filament\Http\Middleware\Authenticate;
@@ -32,7 +37,9 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Laravel\Socialite\Contracts\User as SocialiteUserContract;
 use Leandrocfe\FilamentApexCharts\FilamentApexChartsPlugin;
 use Livewire\Livewire;
 
@@ -83,6 +90,33 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugins([
                 FilamentApexChartsPlugin::make(),
+                FilamentSocialitePlugin::make()
+                    ->providers([
+                        Provider::make('google')
+                            ->label('Doorgaan met Google')
+                            ->icon('fab-google'),
+                    ])
+                    ->registration(true)
+                    ->userModelClass(User::class)
+                    ->createUserUsing(function (
+                        string $provider,
+                        SocialiteUserContract $oauthUser,
+                        FilamentSocialitePlugin $plugin,
+                    ): User {
+                        return User::query()->create([
+                            'name' => $oauthUser->getName() ?? $oauthUser->getEmail(),
+                            'email' => $oauthUser->getEmail(),
+                            'email_verified_at' => now(),
+                            'password' => null,
+                        ]);
+                    })
+                    ->redirectAfterLoginUsing(
+                        fn (
+                            string $provider,
+                            FilamentSocialiteUserContract $socialiteUser,
+                            FilamentSocialitePlugin $plugin,
+                        ) => app(AuthRedirectResponse::class)->toResponse(request()),
+                    ),
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
@@ -109,6 +143,23 @@ class AdminPanelProvider extends PanelProvider
             ->globalSearch(position: GlobalSearchPosition::Topbar)
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->globalSearchFieldKeyBindingSuffix()
+            ->renderHook(
+                PanelsRenderHook::AUTH_REGISTER_FORM_AFTER,
+                function (): string {
+                    $panel = filament()->getCurrentPanel();
+
+                    if (! $panel?->hasPlugin('filament-socialite')) {
+                        return '';
+                    }
+
+                    /** @var FilamentSocialitePlugin $plugin */
+                    $plugin = $panel->getPlugin('filament-socialite');
+
+                    return Blade::render(
+                        '<x-filament-socialite::buttons :show-divider="'.($plugin->getShowDivider() ? 'true' : 'false').'" />',
+                    );
+                },
+            )
             ->renderHook(
                 PanelsRenderHook::HEAD_START,
                 fn (): string => '<link rel="apple-touch-icon" sizes="180x180" href="'.asset('images/apple-touch-icon.png').'">'."\n".'<link rel="manifest" href="'.asset('manifest.json').'">'

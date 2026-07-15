@@ -3,9 +3,13 @@
 namespace App\Filament\Pages;
 
 use App\Enums\SquadRole;
+use App\Filament\Forms\Components\UserPicker;
 use App\Models\Squad;
+use App\Models\User;
+use App\Services\SquadManagementService;
 use App\Services\SquadPermissionService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Concerns\CanUseDatabaseTransactions;
@@ -65,6 +69,14 @@ class RegisterSquad extends Page
                             ->label('Squad naam')
                             ->required()
                             ->maxLength(255),
+                        UserPicker::make('member_ids')
+                            ->label('Leden uitnodigen')
+                            ->helperText('Zoek op naam of e-mail. Alleen zichtbare gebruikers verschijnen.'),
+                        Select::make('default_member_role')
+                            ->label('Standaard rol voor uitgenodigde leden')
+                            ->options(SquadRole::options())
+                            ->default(SquadRole::Sniper->value)
+                            ->required(),
                     ]),
             ]);
     }
@@ -105,6 +117,27 @@ class RegisterSquad extends Page
                 $squad,
                 SquadRole::Commander,
             );
+
+            $memberIds = collect($data['member_ids'] ?? [])
+                ->filter(fn (mixed $id): bool => filled($id))
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->values();
+
+            if ($memberIds->isNotEmpty()) {
+                $role = SquadRole::from($data['default_member_role'] ?? SquadRole::Sniper->value);
+                $management = app(SquadManagementService::class);
+
+                foreach ($memberIds as $memberId) {
+                    $member = User::query()->find($memberId);
+
+                    if ($member === null) {
+                        continue;
+                    }
+
+                    $management->addMember($squad, $member->email, $role);
+                }
+            }
         } catch (Halt $exception) {
             $exception->shouldRollbackDatabaseTransaction() ?
                 $this->rollBackDatabaseTransaction() :

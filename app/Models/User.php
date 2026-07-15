@@ -15,7 +15,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'is_super_admin', 'telegram_chat_id', 'telegram_link_token', 'default_risk_per_trade', 'trading_bankroll', 'default_risk_percent', 'primary_broker'])]
+#[Fillable(['name', 'email', 'password', 'email_verified_at', 'is_super_admin', 'is_discoverable', 'telegram_chat_id', 'telegram_link_token', 'default_risk_per_trade', 'trading_bankroll', 'default_risk_percent', 'primary_broker'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -112,6 +112,7 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'is_super_admin' => 'boolean',
+            'is_discoverable' => 'boolean',
             'password' => 'hashed',
             'default_risk_per_trade' => 'decimal:2',
             'trading_bankroll' => 'decimal:2',
