@@ -1,0 +1,72 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\BankrollCashflowType;
+use App\Filament\Pages\EditUserProfile;
+use App\Models\User;
+use App\Services\BankrollCashflowService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Livewire\Livewire;
+use Tests\TestCase;
+
+class BankrollCashflowProfileTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_profile_page_loads_cashflow_section(): void
+    {
+        $this->authenticateFilament();
+
+        Livewire::test(EditUserProfile::class)
+            ->assertSuccessful()
+            ->assertSee('Kapitaalbewegingen')
+            ->assertSee('Registreer storting / opname');
+    }
+
+    public function test_cashflow_service_records_deposit_for_user(): void
+    {
+        $user = $this->authenticateFilament();
+
+        app(BankrollCashflowService::class)->record(
+            $user,
+            BankrollCashflowType::Deposit,
+            3000,
+            Carbon::parse('2026-07-20'),
+            'IBKR top-up',
+        );
+
+        $this->assertDatabaseHas('bankroll_cashflows', [
+            'user_id' => $user->id,
+            'type' => 'deposit',
+            'amount' => '3000.00',
+            'note' => 'IBKR top-up',
+            'source' => 'manual',
+        ]);
+    }
+
+    public function test_cashflow_service_deletes_own_flow_only(): void
+    {
+        $user = $this->authenticateFilament();
+        $other = User::factory()->create();
+
+        $own = app(BankrollCashflowService::class)->record(
+            $user,
+            BankrollCashflowType::Deposit,
+            100,
+            Carbon::parse('2026-07-20'),
+        );
+        $foreign = app(BankrollCashflowService::class)->record(
+            $other,
+            BankrollCashflowType::Deposit,
+            200,
+            Carbon::parse('2026-07-20'),
+        );
+
+        $this->assertTrue(app(BankrollCashflowService::class)->deleteForUser($user, $own->id));
+        $this->assertFalse(app(BankrollCashflowService::class)->deleteForUser($user, $foreign->id));
+        $this->assertDatabaseMissing('bankroll_cashflows', ['id' => $own->id]);
+        $this->assertDatabaseHas('bankroll_cashflows', ['id' => $foreign->id]);
+    }
+}

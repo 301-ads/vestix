@@ -12,7 +12,7 @@ class AlphaTrackerChart extends ApexChartWidget
 
     protected static ?string $heading = 'Alpha Tracker';
 
-    protected static ?string $description = 'Procentuele groei sinds je eerste snapshot — Vestix vs S&P 500 (SPY)';
+    protected static ?string $description = 'Trading-rendement op gestort kapitaal (stortingen/opnames uitgefilterd) — Vestix vs S&P 500 (SPY)';
 
     protected static ?int $contentHeight = 300;
 

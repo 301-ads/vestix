@@ -3,8 +3,11 @@
 namespace App\Filament\Pages;
 
 use App\Enums\AlertEventType;
+use App\Enums\BankrollCashflowType;
 use App\Enums\Broker;
+use App\Models\BankrollCashflow;
 use App\Models\UserAlertPreference;
+use App\Services\BankrollCashflowService;
 use App\Services\BankrollSnapshotService;
 use App\Services\TelegramLinkService;
 use App\Support\PositionSizing;
@@ -12,7 +15,9 @@ use App\Support\TelegramNotifier;
 use Filament\Actions\Action;
 use Filament\Auth\Pages\EditProfile;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
@@ -28,6 +33,7 @@ use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\VerticalAlignment;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
 
 class EditUserProfile extends EditProfile
@@ -84,17 +90,11 @@ class EditUserProfile extends EditProfile
                                             ->numeric()
                                             ->prefix('$')
                                             ->minValue(0.01)
-                                            ->helperText('Kopieer het totaal uit je broker (Revolut: Beleggingsrekening). Update wekelijks of maandelijks.'),
-                                        TextInput::make('baseline_capital')
-                                            ->label('Startkapitaal Vestix 2.0')
-                                            ->numeric()
-                                            ->prefix('$')
-                                            ->minValue(0.01)
-                                            ->helperText('Heilige Day-1 bankroll voor de Alpha Tracker. Alles erboven is rendement; eronder is drawdown.'),
+                                            ->helperText('Huidige NLV bij je broker (IBKR). Update na stortingen en wekelijks voor de Alpha Tracker.'),
                                         TextInput::make('baseline_date')
-                                            ->label('Baseline-datum')
+                                            ->label('Alpha startdatum')
                                             ->type('date')
-                                            ->helperText('Snapshots vóór deze datum tellen niet mee voor Prestaties.'),
+                                            ->helperText('Wordt automatisch gezet bij je eerste storting. Snapshots/cashflows vóór deze datum tellen niet mee.'),
                                         ToggleButtons::make('default_risk_percent')
                                             ->label('Standaard risico-niveau')
                                             ->options(PositionSizing::riskPercentOptions())
@@ -103,6 +103,20 @@ class EditUserProfile extends EditProfile
                                             ->dehydrateStateUsing(fn (mixed $state): ?float => filled($state) ? (float) $state : null)
                                             ->inline()
                                             ->required(),
+                                    ]),
+                                Section::make('Kapitaalbewegingen')
+                                    ->compact()
+                                    ->description('Begin bij $0: registreer je IBKR openingsaldo (bijv. $3428.40) als eerste storting. Extra stortingen/opnames houden Alpha zuiver — alleen trading-rendement telt.')
+                                    ->schema([
+                                        Actions::make([
+                                            $this->recordCashflowAction(),
+                                        ])->alignment(Alignment::Start),
+                                        Placeholder::make('recent_cashflows')
+                                            ->hiddenLabel()
+                                            ->content(fn (): HtmlString => $this->recentCashflowsHtml()),
+                                        Actions::make(
+                                            $this->deleteCashflowActions(),
+                                        )->alignment(Alignment::Start),
                                     ]),
                                 Section::make('Mijn broker')
                                     ->compact()
@@ -319,6 +333,124 @@ class EditUserProfile extends EditProfile
         }
 
         app(BankrollSnapshotService::class)->recordSnapshot($user, (float) $bankroll);
+    }
+
+    protected function recordCashflowAction(): Action
+    {
+        return Action::make('record_cashflow')
+            ->label('Registreer storting / opname')
+            ->icon(Heroicon::OutlinedBanknotes)
+            ->color('primary')
+            ->modalHeading('Kapitaalbeweging registreren')
+            ->modalDescription('Eerste storting = je openingsaldo (bijv. $3428.40). Update daarna ook je Bankroll naar het echte NLV.')
+            ->form([
+                ToggleButtons::make('type')
+                    ->label('Type')
+                    ->options(BankrollCashflowType::options())
+                    ->default(BankrollCashflowType::Deposit->value)
+                    ->inline()
+                    ->required(),
+                TextInput::make('amount')
+                    ->label('Bedrag')
+                    ->numeric()
+                    ->prefix('$')
+                    ->minValue(0.01)
+                    ->default(fn (): ?float => $this->getUser()->bankrollCashflows()->doesntExist() ? 3428.40 : null)
+                    ->helperText(fn (): ?string => $this->getUser()->bankrollCashflows()->doesntExist()
+                        ? 'Voorstel: je huidige IBKR openingsaldo als eerste storting.'
+                        : null)
+                    ->required(),
+                DatePicker::make('occurred_on')
+                    ->label('Datum')
+                    ->default(now()->toDateString())
+                    ->required(),
+                Textarea::make('note')
+                    ->label('Notitie')
+                    ->rows(2)
+                    ->maxLength(255)
+                    ->default(fn (): ?string => $this->getUser()->bankrollCashflows()->doesntExist()
+                        ? 'IBKR openingsaldo Vestix 2.0'
+                        : null),
+            ])
+            ->action(function (array $data): void {
+                $user = $this->getUser();
+
+                app(BankrollCashflowService::class)->record(
+                    $user,
+                    BankrollCashflowType::from((string) $data['type']),
+                    (float) $data['amount'],
+                    Carbon::parse((string) $data['occurred_on'])->startOfDay(),
+                    isset($data['note']) ? (string) $data['note'] : null,
+                );
+
+                Notification::make()
+                    ->title('Kapitaalbeweging opgeslagen')
+                    ->body('Zet je Bankroll gelijk aan je actuele NLV zodat de Alpha Tracker klopt.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * @return list<Action>
+     */
+    protected function deleteCashflowActions(): array
+    {
+        return app(BankrollCashflowService::class)
+            ->recentForUser($this->getUser(), 10)
+            ->map(function (BankrollCashflow $cashflow): Action {
+                $label = sprintf(
+                    'Verwijder %s $%s (%s)',
+                    $cashflow->type->label(),
+                    number_format((float) $cashflow->amount, 2, '.', ''),
+                    $cashflow->occurred_on->format('d-m-Y'),
+                );
+
+                return Action::make('delete_cashflow_'.$cashflow->id)
+                    ->label($label)
+                    ->color('danger')
+                    ->link()
+                    ->requiresConfirmation()
+                    ->modalHeading('Kapitaalbeweging verwijderen?')
+                    ->action(function () use ($cashflow): void {
+                        app(BankrollCashflowService::class)->deleteForUser($this->getUser(), $cashflow->id);
+
+                        Notification::make()
+                            ->title('Kapitaalbeweging verwijderd')
+                            ->success()
+                            ->send();
+                    });
+            })
+            ->all();
+    }
+
+    protected function recentCashflowsHtml(): HtmlString
+    {
+        $flows = app(BankrollCashflowService::class)->recentForUser($this->getUser(), 10);
+
+        if ($flows->isEmpty()) {
+            return new HtmlString(
+                '<p class="text-sm text-gray-500 dark:text-gray-400">Nog geen stortingen of opnames geregistreerd.</p>',
+            );
+        }
+
+        $rows = $flows->map(function (BankrollCashflow $cashflow): string {
+            $sign = $cashflow->type === BankrollCashflowType::Deposit ? '+' : '−';
+            $note = filled($cashflow->note)
+                ? ' — '.e($cashflow->note)
+                : '';
+
+            return sprintf(
+                '<li class="text-sm"><span class="font-medium">%s %s$%s</span> op %s%s</li>',
+                e($cashflow->type->label()),
+                $sign,
+                number_format((float) $cashflow->amount, 2, '.', ','),
+                e($cashflow->occurred_on->format('d-m-Y')),
+                $note,
+            );
+        })->implode('');
+
+        return new HtmlString('<ul class="list-disc space-y-1 ps-5 text-gray-700 dark:text-gray-200">'.$rows.'</ul>');
     }
 
     protected function connectTelegramAction(): Action

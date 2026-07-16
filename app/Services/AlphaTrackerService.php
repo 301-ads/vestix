@@ -10,6 +10,7 @@ class AlphaTrackerService
 {
     public function __construct(
         private BankrollSnapshotService $bankrollSnapshots,
+        private BankrollCashflowService $cashflows,
     ) {}
 
     public function hasEnoughSnapshots(User $user): bool
@@ -48,13 +49,11 @@ class AlphaTrackerService
             ];
         }
 
-        $portfolioBaselineAmount = $this->portfolioBaselineAmount($user, $ytdBaseline);
-
-        $portfolioYtd = $this->growthPercent(
-            $portfolioBaselineAmount,
-            (float) $latest->amount,
+        $portfolioYtd = $this->portfolioReturnPercent(
+            $user,
+            $latest,
+            legacyBaselineAmount: $this->portfolioBaselineAmount($user, $ytdBaseline),
         );
-
         $benchmarkYtd = $this->benchmarkGrowthPercent($ytdBaseline, $latest);
 
         return [
@@ -70,6 +69,8 @@ class AlphaTrackerService
      * @return array<int, array{
      *     date: string,
      *     amount: float,
+     *     adjusted_amount: float|null,
+     *     net_external: float,
      *     portfolio_pct: float,
      *     benchmark_pct: float|null,
      *     alpha_pct: float|null,
@@ -84,14 +85,24 @@ class AlphaTrackerService
         }
 
         $baseline = $snapshots->first();
-        $baselineAmount = $this->portfolioBaselineAmount($user, $baseline);
+        $legacyBaselineAmount = $this->portfolioBaselineAmount($user, $baseline);
         $baselineBenchmark = $baseline->benchmark_close !== null
             ? (float) $baseline->benchmark_close
             : null;
 
         return $snapshots
-            ->map(function (BankrollSnapshot $snapshot) use ($baselineAmount, $baselineBenchmark): array {
-                $portfolioPct = $this->growthPercent($baselineAmount, (float) $snapshot->amount) ?? 0.0;
+            ->map(function (BankrollSnapshot $snapshot) use ($user, $legacyBaselineAmount, $baselineBenchmark): array {
+                $netExternal = $this->cashflows->netExternalIn(
+                    $user,
+                    $snapshot->recorded_on->copy()->startOfDay(),
+                );
+                $tradingPnl = $this->tradingPnl($user, $snapshot, $netExternal);
+                $portfolioPct = $this->portfolioReturnPercent(
+                    $user,
+                    $snapshot,
+                    $netExternal,
+                    $legacyBaselineAmount,
+                ) ?? 0.0;
                 $benchmarkPct = null;
                 $alphaPct = null;
 
@@ -109,6 +120,8 @@ class AlphaTrackerService
                 return [
                     'date' => $snapshot->recorded_on->format('Y-m-d'),
                     'amount' => (float) $snapshot->amount,
+                    'adjusted_amount' => $tradingPnl,
+                    'net_external' => $netExternal,
                     'portfolio_pct' => $portfolioPct,
                     'benchmark_pct' => $benchmarkPct,
                     'alpha_pct' => $alphaPct,
@@ -116,6 +129,50 @@ class AlphaTrackerService
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * Trading P&L in dollars: NLV minus net external capital (deposits − withdrawals).
+     */
+    public function tradingPnl(User $user, BankrollSnapshot $snapshot, ?float $netExternal = null): float
+    {
+        $netExternal ??= $this->cashflows->netExternalIn(
+            $user,
+            $snapshot->recorded_on->copy()->startOfDay(),
+        );
+
+        return round((float) $snapshot->amount - $netExternal, 2);
+    }
+
+    /**
+     * When cashflows exist: return on contributed capital = tradingPnl / netExternal.
+     * Legacy (no cashflows): growth vs baseline_capital or first snapshot amount.
+     */
+    public function portfolioReturnPercent(
+        User $user,
+        BankrollSnapshot $snapshot,
+        ?float $netExternal = null,
+        ?float $legacyBaselineAmount = null,
+    ): ?float {
+        $netExternal ??= $this->cashflows->netExternalIn(
+            $user,
+            $snapshot->recorded_on->copy()->startOfDay(),
+        );
+
+        if ($netExternal > 0) {
+            return round(($this->tradingPnl($user, $snapshot, $netExternal) / $netExternal) * 100, 2);
+        }
+
+        $baselineAmount = $legacyBaselineAmount
+            ?? $this->portfolioBaselineAmount($user, $snapshot);
+
+        return $this->growthPercent($baselineAmount, (float) $snapshot->amount);
+    }
+
+    /** @deprecated Use tradingPnl() — kept for call sites expecting "adjusted equity" naming. */
+    public function adjustedEquity(User $user, BankrollSnapshot $snapshot): ?float
+    {
+        return $this->tradingPnl($user, $snapshot);
     }
 
     private function portfolioBaselineAmount(User $user, BankrollSnapshot $fallbackSnapshot): float
@@ -132,8 +189,7 @@ class AlphaTrackerService
      */
     private function resolveYtdBaseline(User $user, Collection $snapshots, int $year): ?BankrollSnapshot
     {
-        // Vestix 2.0: when a Day-1 baseline is set, Alpha always starts from that cutover.
-        if ($user->baseline_date !== null && $user->baseline_capital !== null) {
+        if ($user->baseline_date !== null) {
             return $snapshots->first();
         }
 
