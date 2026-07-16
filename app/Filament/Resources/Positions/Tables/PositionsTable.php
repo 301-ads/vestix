@@ -7,9 +7,7 @@ use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\FilamentPolling;
 use Filament\Actions\ActionGroup;
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\Summarizers\Average;
@@ -218,11 +216,6 @@ class PositionsTable
                     EditAction::make(),
                     DeleteAction::make(),
                 ])->iconButton(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
             ]);
     }
 
