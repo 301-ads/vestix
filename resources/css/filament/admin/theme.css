@@ -1148,13 +1148,14 @@
 
 .vestix-smart-allocation__table {
     width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8125rem;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.75rem;
 }
 
 .vestix-smart-allocation__table th,
 .vestix-smart-allocation__table td {
-    padding: 0.5rem 0.625rem;
+    padding: 0.375rem 0.5rem;
     text-align: start;
     white-space: nowrap;
     border-bottom: 1px solid var(--gray-100);
@@ -1174,6 +1175,12 @@
 .dark .vestix-smart-allocation__table th {
     color: var(--gray-400);
     background: var(--gray-900);
+}
+
+.vestix-smart-allocation__rr-col {
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 0.15em;
 }
 
 .vestix-smart-allocation__ticker {
@@ -1229,8 +1236,27 @@
 }
 
 .vestix-smart-allocation__actions-col {
-    width: 2rem;
+    position: sticky;
+    right: 0;
+    width: 2.25rem;
+    min-width: 2.25rem;
     text-align: end;
+    background: var(--gray-50);
+    box-shadow: -6px 0 8px -6px rgb(0 0 0 / 0.18);
+    z-index: 1;
+}
+
+.vestix-smart-allocation__table tbody .vestix-smart-allocation__actions-col {
+    background: var(--vestix-panel, white);
+}
+
+.dark .vestix-smart-allocation__actions-col {
+    background: var(--gray-900);
+    box-shadow: -6px 0 8px -6px rgb(0 0 0 / 0.45);
+}
+
+.dark .vestix-smart-allocation__table tbody .vestix-smart-allocation__actions-col {
+    background: var(--gray-950, var(--gray-900));
 }
 
 .vestix-execution-plan__header {

@@ -60,10 +60,14 @@
                     <tr>
                         <th>Ticker</th>
                         <th>Score</th>
-                        <th>R/R</th>
-                        <th>Gewicht</th>
+                        <th
+                            x-data
+                            x-tooltip="{ content: 'Reward/Risk tot Target 1 — potentiële winst per dollar risico (entry → stop).', theme: $store.theme, trigger: 'mouseenter' }"
+                            class="vestix-smart-allocation__rr-col"
+                        >
+                            R/R
+                        </th>
                         <th>Sector</th>
-                        <th>Risico %</th>
                         <th>Risico $</th>
                         <th>Aantal</th>
                         <th>Inleg</th>
@@ -84,7 +88,6 @@
                                     —
                                 @endif
                             </td>
-                            <td>{{ number_format($row['weight_share'] * 100, 0) }}%</td>
                             <td>
                                 {{ $row['sector'] ?? '—' }}
                                 @if ($row['sector_penalty'] > 0)
@@ -92,29 +95,6 @@
                                         −{{ number_format($row['sector_penalty'] * 100, 0) }}%
                                     </span>
                                 @endif
-                            </td>
-                            <td>
-                                <span class="vestix-smart-allocation__copy-group">
-                                    {{ number_format($row['risk_percent'], 2) }}%
-                                    <button
-                                        type="button"
-                                        class="vestix-broker-order-ticket__copy-btn"
-                                        x-data="{ copied: false }"
-                                        x-tooltip="{ content: copied ? 'Gekopieerd!' : 'Kopieer risico %', theme: $store.theme, trigger: 'mouseenter' }"
-                                        @click="
-                                            navigator.clipboard.writeText(@js(number_format($row['risk_percent'], 2, '.', ''))).then(() => {
-                                                copied = true; setTimeout(() => copied = false, 1500);
-                                            })
-                                        "
-                                    >
-                                        <span x-show="! copied">
-                                            {{ \Filament\Support\generate_icon_html('heroicon-o-document-duplicate', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm'])) }}
-                                        </span>
-                                        <span x-show="copied" x-cloak>
-                                            {{ \Filament\Support\generate_icon_html('heroicon-m-check', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm text-success-500'])) }}
-                                        </span>
-                                    </button>
-                                </span>
                             </td>
                             <td>${{ number_format($row['risk_dollars'], 2) }}</td>
                             <td>
