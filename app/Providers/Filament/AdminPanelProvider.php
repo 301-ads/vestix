@@ -12,6 +12,8 @@ use App\Filament\Pages\ManageSquadSettings;
 use App\Filament\Pages\RegisterSquad;
 use App\Filament\Pages\SquadLeaderboard;
 use App\Filament\Pages\StrategyCoach;
+use App\Filament\Resources\Positions\Pages\EditPosition;
+use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
@@ -167,7 +169,11 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::PAGE_HEADER_ACTIONS_BEFORE,
                 fn (): string => view('filament.dashboard.market-data-status')->render(),
-                scopes: [Dashboard::class],
+                scopes: [
+                    Dashboard::class,
+                    EditPosition::class,
+                    EditScout::class,
+                ],
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,
