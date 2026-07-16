@@ -601,18 +601,8 @@
     display: none;
 }
 
-/* Radar: toolbar standaard verborgen; tonen bij selectie zodat Verdeel Budget zichtbaar is. */
 .vestix-radar-list .fi-ta-header-toolbar {
     display: none;
-}
-
-.vestix-radar-list .fi-ta-ctn:has(.fi-ta-selection-indicator:not([hidden])) .fi-ta-header-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1rem;
-    border-block-end: 1px solid var(--vestix-border);
 }
 
 .vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-header-heading,
@@ -1229,6 +1219,156 @@
 
 .fi-modal.vestix-smart-allocation-modal .fi-modal-content {
     max-width: 52rem;
+}
+
+.vestix-smart-allocation__exclusion-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.vestix-smart-allocation__actions-col {
+    width: 2rem;
+    text-align: end;
+}
+
+.vestix-execution-plan__header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.vestix-execution-plan__subtitle {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--gray-500);
+}
+
+.dark .vestix-execution-plan__subtitle {
+    color: var(--gray-400);
+}
+
+.vestix-execution-plan__empty {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1.25rem 0.25rem;
+    text-align: center;
+}
+
+.vestix-execution-plan__mode {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.vestix-execution-plan__mode-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+}
+
+.vestix-execution-plan__mode-btns {
+    display: inline-flex;
+    gap: 0.35rem;
+    padding: 0.2rem;
+    border-radius: 0.6rem;
+    background: var(--gray-100);
+}
+
+.dark .vestix-execution-plan__mode-btns {
+    background: var(--gray-800);
+}
+
+.vestix-execution-plan__mode-btn {
+    border: 0;
+    border-radius: 0.45rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--gray-600);
+    background: transparent;
+    cursor: pointer;
+}
+
+.dark .vestix-execution-plan__mode-btn {
+    color: var(--gray-300);
+}
+
+.vestix-execution-plan__mode-btn--active {
+    color: var(--gray-950);
+    background: white;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+.dark .vestix-execution-plan__mode-btn--active {
+    color: white;
+    background: var(--gray-700);
+}
+
+.vestix-execution-plan__remove-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 0;
+    border-radius: 0.4rem;
+    color: var(--gray-500);
+    background: transparent;
+    cursor: pointer;
+}
+
+.vestix-execution-plan__remove-btn:hover {
+    color: var(--danger-600);
+    background: color-mix(in srgb, var(--danger-500) 12%, transparent);
+}
+
+.vestix-execution-plan__footer {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.vestix-execution-plan__footer-summary {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--gray-500);
+}
+
+.dark .vestix-execution-plan__footer-summary {
+    color: var(--gray-400);
+}
+
+.vestix-order-plan-widget__body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.vestix-order-plan-widget__copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.vestix-order-plan-widget__meta {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--gray-500);
+}
+
+.dark .vestix-order-plan-widget__meta {
+    color: var(--gray-400);
 }
 
 .vestix-broker-order-ticket__value-ctn {

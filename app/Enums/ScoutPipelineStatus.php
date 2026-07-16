@@ -52,7 +52,7 @@ enum ScoutPipelineStatus: string
     {
         return match ($this) {
             self::Scout => null,
-            self::Pending => 'heroicon-m-bell-alert',
+            self::Pending => 'heroicon-m-shopping-cart',
             self::Active => 'heroicon-m-clock',
             self::ReviewRequired => 'heroicon-m-exclamation-triangle',
         };
@@ -63,8 +63,8 @@ enum ScoutPipelineStatus: string
         return match ($this) {
             self::Scout => 'Pending — nog geen order bij je broker.',
             self::Pending => $position->market_open_reminder_on !== null
-                ? 'Op Telegram Order Plan voor '.config('vestix.execution_digest.time', '15:31').' op '.$position->market_open_reminder_on->format('d-m-Y').'.'
-                : 'Op Telegram Order Plan.',
+                ? 'In Order Plan (winkelwagen + Telegram digest) voor '.config('vestix.execution_digest.time', '15:31').' op '.$position->market_open_reminder_on->format('d-m-Y').'.'
+                : 'In Order Plan.',
             self::Active => 'Active — order staat live bij je broker.',
             self::ReviewRequired => $position->buy_stop_review_required_on !== null
                 ? 'Buy-stop review vereist sinds '.$position->buy_stop_review_required_on->format('d-m-Y').'.'

@@ -6,26 +6,18 @@ use App\Enums\ScoutPipelineStatus;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
-use App\Models\User;
-use App\Services\SmartAllocationService;
-use App\Support\FilamentNotifier;
 use App\Support\FilamentPolling;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
 use App\Support\SetupGradeDisplay;
 use Filament\Actions\ActionGroup;
-use Filament\Actions\BulkAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\ToggleButtons;
 use Filament\Resources\Resource;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
 
 class ScoutsTable
@@ -162,113 +154,6 @@ class ScoutsTable
                 ])->iconButton(),
             ]);
 
-        if (! $squadMode) {
-            $table->toolbarActions([
-                self::allocateBudgetBulkAction(),
-            ]);
-        }
-
         return $table;
-    }
-
-    public static function allocateBudgetBulkAction(): BulkAction
-    {
-        $defaultMode = (string) config('vestix.smart_sizing.default_mode', SmartAllocationService::MODE_SMART);
-
-        return BulkAction::make('allocate_budget')
-            ->label('Verdeel Budget')
-            ->icon('heroicon-o-scale')
-            ->color('primary')
-            ->deselectRecordsAfterCompletion()
-            ->modalHeading('Verdeel risicobudget')
-            ->modalDescription('Verdeel je standaard risico over de geselecteerde setups.')
-            ->modalSubmitActionLabel('Toepassen op scouts')
-            ->modalCancelActionLabel('Annuleren')
-            ->extraModalWindowAttributes(['class' => 'vestix-smart-allocation-modal'])
-            ->visible(fn (): bool => auth()->user() !== null)
-            ->authorize(fn (): bool => auth()->user() !== null)
-            ->requiresConfirmation(false)
-            ->form([
-                ToggleButtons::make('mode')
-                    ->label('Verdeelmethode')
-                    ->options([
-                        SmartAllocationService::MODE_EQUAL => 'Gelijkmatig verdelen',
-                        SmartAllocationService::MODE_SMART => 'Smart Sizing',
-                    ])
-                    ->icons([
-                        SmartAllocationService::MODE_EQUAL => 'heroicon-o-squares-2x2',
-                        SmartAllocationService::MODE_SMART => 'heroicon-o-cpu-chip',
-                    ])
-                    ->default($defaultMode)
-                    ->inline()
-                    ->live()
-                    ->required(),
-                Placeholder::make('allocation_preview')
-                    ->label('Voorbeeld')
-                    ->content(function (Get $get, $livewire): HtmlString {
-                        $user = auth()->user();
-
-                        if (! $user instanceof User) {
-                            return new HtmlString('<p>Niet ingelogd.</p>');
-                        }
-
-                        /** @var Collection<int, Position> $records */
-                        $records = $livewire->getSelectedTableRecords();
-
-                        if ($records->count() < 2) {
-                            return new HtmlString(
-                                '<p class="vestix-smart-allocation__empty">Selecteer minstens 2 scouts om te verdelen.</p>'
-                            );
-                        }
-
-                        $mode = (string) ($get('mode') ?: config('vestix.smart_sizing.default_mode', SmartAllocationService::MODE_SMART));
-                        $result = app(SmartAllocationService::class)->allocate($user, $records, $mode);
-
-                        return new HtmlString(
-                            view('filament.positions.smart-budget-allocation', [
-                                'result' => $result,
-                            ])->render()
-                        );
-                    }),
-            ])
-            ->action(function (Collection $records, array $data): void {
-                $user = auth()->user();
-
-                if (! $user instanceof User) {
-                    return;
-                }
-
-                if ($records->count() < 2) {
-                    FilamentNotifier::send(
-                        title: 'Selecteer minstens 2 scouts',
-                        body: 'Budget verdelen werkt vanaf twee setups.',
-                    );
-
-                    return;
-                }
-
-                $mode = (string) ($data['mode'] ?? SmartAllocationService::MODE_SMART);
-                $service = app(SmartAllocationService::class);
-                $result = $service->allocate($user, $records, $mode);
-
-                if ($result['allocations'] === []) {
-                    FilamentNotifier::send(
-                        title: 'Geen allocaties',
-                        body: 'Geen scout voldeed aan de criteria (score, entry/SL, bankroll).',
-                    );
-
-                    return;
-                }
-
-                $updated = $service->applyToPositions($records, $result['allocations']);
-
-                FilamentNotifier::send(
-                    title: 'Budget verdeeld',
-                    body: sprintf(
-                        '%d scout(s) bijgewerkt. Plaats daarna per scout je order via Order plaatsen.',
-                        $updated,
-                    ),
-                );
-            });
     }
 }

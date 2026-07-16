@@ -190,19 +190,19 @@ class PositionRecordActions
     {
         return Action::make('toggle_market_open_reminder')
             ->label(fn (Position $record): string => $record->market_open_reminder_on !== null
-                ? 'Order Plan uit'
-                : 'Order Plan vandaag')
+                ? 'Uit Order Plan'
+                : 'In Order Plan')
             ->tooltip(fn (Position $record): string => $record->entry_price === null
                 ? 'Vul eerst je buy-stop entry in'
                 : ($record->market_open_reminder_on !== null
-                    ? 'Haal deze scout uit het Telegram Order Plan'
+                    ? 'Haal deze scout uit je Order Plan (winkelwagen + Telegram digest)'
                     : sprintf(
-                        'Meenemen in Telegram Order Plan om %s (na US open)',
+                        'Zet in Order Plan: winkelwagen + Telegram digest om %s',
                         config('vestix.execution_digest.time', '15:31'),
                     )))
             ->icon(fn (Position $record): string => $record->market_open_reminder_on !== null
-                ? 'heroicon-s-bell-alert'
-                : 'heroicon-o-bell-alert')
+                ? 'heroicon-s-shopping-cart'
+                : 'heroicon-o-shopping-cart')
             ->color('info')
             ->iconButton()
             ->visible(fn (Position $record): bool => $record->status === 'scout'
@@ -210,7 +210,7 @@ class PositionRecordActions
                 && $record->scoutPipelineStatus() !== ScoutPipelineStatus::Active)
             ->disabled(fn (Position $record): bool => $record->entry_price === null)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
-            ->action(function (Position $record): void {
+            ->action(function (Position $record, $livewire): void {
                 if ($record->entry_price === null) {
                     FilamentNotifier::send(
                         title: 'Entry ontbreekt',
@@ -225,9 +225,11 @@ class PositionRecordActions
                     $record->clearMarketOpenReminder();
 
                     FilamentNotifier::send(
-                        title: 'Order Plan geannuleerd',
-                        body: "{$record->ticker} staat niet meer op het Order Plan van vandaag.",
+                        title: 'Uit Order Plan',
+                        body: "{$record->ticker} staat niet meer in je Order Plan.",
                     );
+
+                    $livewire->dispatch('order-plan-updated');
 
                     return;
                 }
@@ -235,14 +237,16 @@ class PositionRecordActions
                 $record->scheduleMarketOpenReminder();
 
                 FilamentNotifier::send(
-                    title: 'Op Order Plan',
+                    title: 'In Order Plan',
                     body: sprintf(
-                        '%s: Telegram Order Plan op %s om %s.',
+                        '%s staat in je Order Plan (Telegram digest op %s om %s). Open het winkelwagen-icoon rechtsboven voor budgetverdeling.',
                         $record->ticker,
                         $record->fresh()->market_open_reminder_on?->format('d-m-Y') ?? 'volgende handelsdag',
                         config('vestix.execution_digest.time', '15:31'),
                     ),
                 );
+
+                $livewire->dispatch('order-plan-updated');
             });
     }
 

@@ -146,6 +146,10 @@ class AdminPanelProvider extends PanelProvider
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->globalSearchFieldKeyBindingSuffix()
             ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                fn (): string => Blade::render('@livewire(\'execution-plan-panel\')'),
+            )
+            ->renderHook(
                 PanelsRenderHook::AUTH_REGISTER_FORM_AFTER,
                 function (): string {
                     $panel = filament()->getCurrentPanel();

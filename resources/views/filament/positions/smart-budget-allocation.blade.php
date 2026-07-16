@@ -27,6 +27,8 @@
      *     exclusions: list<array{position_id: int, ticker: string, reason: string}>,
      * } $result
      */
+    $removable = $removable ?? false;
+    $hint = $hint ?? 'Bevestig om quantity en risicobudget op de scouts te zetten. Daarna plaats je per scout je order via Order plaatsen / Order geplaatst.';
 @endphp
 
 <div class="vestix-smart-allocation">
@@ -57,6 +59,9 @@
                         <th>Risico $</th>
                         <th>Aantal</th>
                         <th>Inleg</th>
+                        @if ($removable)
+                            <th class="vestix-smart-allocation__actions-col"></th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -149,6 +154,19 @@
                                     </button>
                                 </span>
                             </td>
+                            @if ($removable)
+                                <td class="vestix-smart-allocation__actions-col">
+                                    <button
+                                        type="button"
+                                        class="vestix-execution-plan__remove-btn"
+                                        wire:click="removeFromPlan({{ (int) $row['position_id'] }})"
+                                        wire:loading.attr="disabled"
+                                        title="Haal uit Order Plan"
+                                    >
+                                        {{ \Filament\Support\generate_icon_html('heroicon-o-x-mark', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm'])) }}
+                                    </button>
+                                </td>
+                            @endif
                         </tr>
                     @endforeach
                 </tbody>
@@ -161,9 +179,22 @@
             <h4 class="vestix-smart-allocation__exclusions-heading">Uitgesloten</h4>
             <ul>
                 @foreach ($result['exclusions'] as $exclusion)
-                    <li>
-                        <strong>{{ $exclusion['ticker'] }}</strong>
-                        — {{ $exclusion['reason'] }}
+                    <li class="vestix-smart-allocation__exclusion-row">
+                        <span>
+                            <strong>{{ $exclusion['ticker'] }}</strong>
+                            — {{ $exclusion['reason'] }}
+                        </span>
+                        @if ($removable)
+                            <button
+                                type="button"
+                                class="vestix-execution-plan__remove-btn"
+                                wire:click="removeFromPlan({{ (int) $exclusion['position_id'] }})"
+                                wire:loading.attr="disabled"
+                                title="Haal uit Order Plan"
+                            >
+                                {{ \Filament\Support\generate_icon_html('heroicon-o-x-mark', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm'])) }}
+                            </button>
+                        @endif
                     </li>
                 @endforeach
             </ul>
@@ -172,8 +203,7 @@
 
     @if ($result['allocations'] !== [])
         <p class="vestix-smart-allocation__hint">
-            Bevestig om quantity en risicobudget op de scouts te zetten. Daarna plaats je per scout je order via
-            <em>Order plaatsen</em> / <em>Order geplaatst</em>.
+            {{ $hint }}
         </p>
     @endif
 </div>

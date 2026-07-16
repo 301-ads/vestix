@@ -27,7 +27,7 @@ class RunExecutionOrderPlan extends Command
         $dueCount = $summary['classified'] + $summary['skipped'];
 
         if ($dueCount === 0) {
-            $this->warn('Geen scouts met Order Plan voor vandaag. Zet de bel/toggle op Mijn Radar.');
+            $this->warn('Geen scouts met Order Plan voor vandaag. Zet scouts in je Order Plan (winkelwagen) op Mijn Radar.');
         }
 
         $this->table(

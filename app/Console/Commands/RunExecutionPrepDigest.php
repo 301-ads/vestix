@@ -25,7 +25,7 @@ class RunExecutionPrepDigest extends Command
         $summary = $digestService->runPrepDigest($today);
 
         if ($summary['planned'] === 0 && $summary['skipped'] === 0 && $summary['sent'] === 0) {
-            $this->warn('Geen scouts met Order Plan voor vandaag. Zet de bel/toggle op Mijn Radar.');
+            $this->warn('Geen scouts met Order Plan voor vandaag. Zet scouts in je Order Plan (winkelwagen) op Mijn Radar.');
         }
 
         $this->table(

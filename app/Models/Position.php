@@ -303,6 +303,25 @@ class Position extends Model
         $this->update(['market_open_reminder_on' => null]);
     }
 
+    /**
+     * Scouts in the user's Order Plan (execution cart).
+     *
+     * @return Collection<int, self>
+     */
+    public static function orderPlanForUser(int $userId): Collection
+    {
+        return static::query()
+            ->forUser($userId)
+            ->scout()
+            ->nonLegacy()
+            ->whereNotNull('market_open_reminder_on')
+            ->whereNotNull('entry_price')
+            ->with('asset')
+            ->orderBy('market_open_reminder_on')
+            ->orderBy('ticker')
+            ->get();
+    }
+
     public function scopeRequiringBuyStopReview(Builder $query): Builder
     {
         return $query->scout()->whereNotNull('buy_stop_review_required_on');
