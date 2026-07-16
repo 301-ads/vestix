@@ -26,7 +26,7 @@ class BuyStopReviewWidget extends Widget implements HasActions, HasSchemas
 
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 7;
 
     protected int|string|array $columnSpan = 'full';
 

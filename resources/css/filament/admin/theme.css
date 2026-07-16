@@ -801,6 +801,27 @@
     border-inline-start-style: solid;
 }
 
+@media (min-width: 1024px) {
+    .vestix-dashboard .fi-wi-widget:has(.vestix-actions-widget) {
+        min-width: 0;
+    }
+
+    .vestix-dashboard .vestix-actions-widget .vestix-action-todo {
+        flex-wrap: wrap;
+        gap: 0.625rem 0.75rem;
+        padding: 0.75rem 0.875rem;
+    }
+
+    .vestix-dashboard .vestix-actions-widget .vestix-action-todo__content {
+        flex: 1 1 8rem;
+        min-width: 0;
+    }
+
+    .vestix-dashboard .vestix-actions-widget .vestix-action-todo__instruction {
+        overflow-wrap: anywhere;
+    }
+}
+
 .dark .vestix-dashboard .vestix-actions-widget .vestix-action-todo {
     background-color: rgb(255 255 255 / 0.03);
 }

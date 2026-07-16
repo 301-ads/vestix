@@ -29,7 +29,10 @@ class Dashboard extends BaseDashboard
 
     public function getColumns(): int|array
     {
-        return 2;
+        return [
+            'default' => 1,
+            'lg' => 6,
+        ];
     }
 
     /**
@@ -41,10 +44,10 @@ class Dashboard extends BaseDashboard
             PortfolioExposureWidget::class,
             BankrollUpdateWidget::class,
             OrderPlanTodayWidget::class,
+            PositionsRequiringActionWidget::class,
             PortfolioTopFlopWidget::class,
             SetupRadarWidget::class,
             BuyStopReviewWidget::class,
-            PositionsRequiringActionWidget::class,
         ];
     }
 

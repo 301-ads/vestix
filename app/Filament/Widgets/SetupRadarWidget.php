@@ -22,9 +22,15 @@ class SetupRadarWidget extends TableWidget
 {
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 6;
 
-    protected int|string|array $columnSpan = 1;
+    /**
+     * @var int|string|array<string, int|string|null>
+     */
+    protected int|string|array $columnSpan = [
+        'default' => 'full',
+        'lg' => 3,
+    ];
 
     protected string $view = 'filament.widgets.scrollable-table-widget';
 

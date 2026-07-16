@@ -2,13 +2,17 @@
 
 namespace Tests\Feature\Filament;
 
+use App\Enums\Broker;
+use App\Enums\EarningsReleaseHour;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Widgets\BankrollUpdateWidget;
 use App\Filament\Widgets\BuyStopReviewWidget;
+use App\Filament\Widgets\OrderPlanTodayWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
 use App\Filament\Widgets\SetupRadarWidget;
+use App\Models\Asset;
 use App\Models\BankrollSnapshot;
 use App\Models\Position;
 use App\Models\User;
@@ -169,10 +173,11 @@ class DashboardTest extends TestCase
         $this->assertSame([
             PortfolioExposureWidget::class,
             BankrollUpdateWidget::class,
+            OrderPlanTodayWidget::class,
+            PositionsRequiringActionWidget::class,
             PortfolioTopFlopWidget::class,
             SetupRadarWidget::class,
             BuyStopReviewWidget::class,
-            PositionsRequiringActionWidget::class,
         ], $widgets);
     }
 
@@ -418,7 +423,7 @@ class DashboardTest extends TestCase
     public function test_action_widget_shows_limit_sell_instruction_for_non_revolut_broker(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
-        $user->update(['primary_broker' => \App\Enums\Broker::None]);
+        $user->update(['primary_broker' => Broker::None]);
 
         Position::factory()->for($user)->create([
             'ticker' => 'IBM',
@@ -443,10 +448,10 @@ class DashboardTest extends TestCase
     public function test_action_widget_hides_limit_sell_for_ibkr_tagged_position(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
-        $user->update(['primary_broker' => \App\Enums\Broker::Revolut]);
+        $user->update(['primary_broker' => Broker::Revolut]);
 
         Position::factory()->for($user)->create([
-            'broker' => \App\Enums\Broker::Ibkr,
+            'broker' => Broker::Ibkr,
             'ticker' => 'TSLA',
             'entry_price' => 10.00,
             'initial_sl' => 9.00,
@@ -494,10 +499,10 @@ class DashboardTest extends TestCase
 
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
-        $asset = \App\Models\Asset::factory()->withoutIcon()->create([
+        $asset = Asset::factory()->withoutIcon()->create([
             'ticker' => 'BAC',
             'next_earnings_date' => '2026-07-14',
-            'next_earnings_hour' => \App\Enums\EarningsReleaseHour::Bmo,
+            'next_earnings_hour' => EarningsReleaseHour::Bmo,
         ]);
 
         $position = Position::factory()->for($user)->create([
