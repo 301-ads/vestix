@@ -5,6 +5,9 @@
     >
         @if ($this->actionablePositions->isEmpty())
             <div class="vestix-action-todos-empty">
+                <div class="vestix-action-todos-empty__icon" aria-hidden="true">
+                    {{ \Filament\Support\generate_icon_html('heroicon-o-check-circle', attributes: (new \Illuminate\View\ComponentAttributeBag)->class(['fi-icon fi-size-lg'])) }}
+                </div>
                 <p class="font-medium text-gray-950 dark:text-white">Geen acties vereist</p>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                     Alle stop-losses zijn up-to-date en geen posities onder hun stop-loss.

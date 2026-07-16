@@ -911,7 +911,29 @@
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todos-empty {
-    padding: 0.5rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 1.5rem 0.75rem;
+    text-align: center;
+}
+
+.vestix-action-todos-empty__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-bottom: 0.35rem;
+    border-radius: 9999px;
+    color: var(--gray-500);
+    background: var(--gray-100);
+}
+
+.dark .vestix-action-todos-empty__icon {
+    color: var(--gray-400);
+    background: var(--gray-800);
 }
 
 .vestix-order-plan-section .vestix-order-plan__step-one-action-host {
