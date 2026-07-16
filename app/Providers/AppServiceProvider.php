@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\DailyBarProvider;
+use App\Contracts\IbkrAccountReader;
 use App\Contracts\QuoteProvider;
 use App\Http\Responses\Filament\LoginResponse;
 use App\Http\Responses\Filament\RegistrationResponse;
@@ -13,6 +14,8 @@ use App\Policies\PositionPolicy;
 use App\Policies\SquadPolicy;
 use App\Services\FallbackDailyBarProvider;
 use App\Services\FallbackQuoteProvider;
+use App\Services\Ibkr\FlexIbkrAccountReader;
+use App\Services\Ibkr\StubIbkrAccountReader;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse as RegistrationResponseContract;
 use Illuminate\Support\Facades\Gate;
@@ -30,6 +33,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(DailyBarProvider::class, FallbackDailyBarProvider::class);
         $this->app->bind(LoginResponseContract::class, LoginResponse::class);
         $this->app->bind(RegistrationResponseContract::class, RegistrationResponse::class);
+        $this->app->bind(IbkrAccountReader::class, function (): IbkrAccountReader {
+            return match ((string) config('vestix.ibkr.reader', 'stub')) {
+                'flex' => $this->app->make(FlexIbkrAccountReader::class),
+                default => $this->app->make(StubIbkrAccountReader::class),
+            };
+        });
     }
 
     /**

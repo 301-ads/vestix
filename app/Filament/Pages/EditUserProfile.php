@@ -85,6 +85,16 @@ class EditUserProfile extends EditProfile
                                             ->prefix('$')
                                             ->minValue(0.01)
                                             ->helperText('Kopieer het totaal uit je broker (Revolut: Beleggingsrekening). Update wekelijks of maandelijks.'),
+                                        TextInput::make('baseline_capital')
+                                            ->label('Startkapitaal Vestix 2.0')
+                                            ->numeric()
+                                            ->prefix('$')
+                                            ->minValue(0.01)
+                                            ->helperText('Heilige Day-1 bankroll voor de Alpha Tracker. Alles erboven is rendement; eronder is drawdown.'),
+                                        TextInput::make('baseline_date')
+                                            ->label('Baseline-datum')
+                                            ->type('date')
+                                            ->helperText('Snapshots vóór deze datum tellen niet mee voor Prestaties.'),
                                         ToggleButtons::make('default_risk_percent')
                                             ->label('Standaard risico-niveau')
                                             ->options(PositionSizing::riskPercentOptions())

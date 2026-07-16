@@ -62,9 +62,13 @@ class BankrollSnapshotService
      */
     public function snapshotsForUser(User $user): Collection
     {
-        return $user->bankrollSnapshots()
-            ->orderBy('recorded_on')
-            ->get();
+        $query = $user->bankrollSnapshots()->orderBy('recorded_on');
+
+        if ($user->baseline_date !== null) {
+            $query->whereDate('recorded_on', '>=', $user->baseline_date->toDateString());
+        }
+
+        return $query->get();
     }
 
     public function hasSnapshotThisWeek(User $user, ?Carbon $now = null): bool

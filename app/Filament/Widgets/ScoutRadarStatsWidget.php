@@ -44,7 +44,7 @@ class ScoutRadarStatsWidget extends StatsOverviewWidget
             return [];
         }
 
-        $scouts = Position::scout()->forUser($userId)->get();
+        $scouts = Position::scout()->nonLegacy()->forUser($userId)->get();
 
         $readyCount = $scouts->filter(
             fn (Position $scout): bool => ScoutRadarFilters::matches($scout, 'ready'),

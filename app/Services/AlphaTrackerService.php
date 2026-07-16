@@ -37,7 +37,7 @@ class AlphaTrackerService
         }
 
         $year = now($this->bankrollSnapshots->timezone())->year;
-        $ytdBaseline = $this->resolveYtdBaseline($snapshots, $year);
+        $ytdBaseline = $this->resolveYtdBaseline($user, $snapshots, $year);
         $latest = $snapshots->last();
 
         if ($ytdBaseline === null || $latest === null) {
@@ -48,8 +48,10 @@ class AlphaTrackerService
             ];
         }
 
+        $portfolioBaselineAmount = $this->portfolioBaselineAmount($user, $ytdBaseline);
+
         $portfolioYtd = $this->growthPercent(
-            (float) $ytdBaseline->amount,
+            $portfolioBaselineAmount,
             (float) $latest->amount,
         );
 
@@ -82,7 +84,7 @@ class AlphaTrackerService
         }
 
         $baseline = $snapshots->first();
-        $baselineAmount = (float) $baseline->amount;
+        $baselineAmount = $this->portfolioBaselineAmount($user, $baseline);
         $baselineBenchmark = $baseline->benchmark_close !== null
             ? (float) $baseline->benchmark_close
             : null;
@@ -116,8 +118,25 @@ class AlphaTrackerService
             ->all();
     }
 
-    private function resolveYtdBaseline(Collection $snapshots, int $year): ?BankrollSnapshot
+    private function portfolioBaselineAmount(User $user, BankrollSnapshot $fallbackSnapshot): float
     {
+        if ($user->baseline_capital !== null && (float) $user->baseline_capital > 0) {
+            return (float) $user->baseline_capital;
+        }
+
+        return (float) $fallbackSnapshot->amount;
+    }
+
+    /**
+     * @param  Collection<int, BankrollSnapshot>  $snapshots
+     */
+    private function resolveYtdBaseline(User $user, Collection $snapshots, int $year): ?BankrollSnapshot
+    {
+        // Vestix 2.0: when a Day-1 baseline is set, Alpha always starts from that cutover.
+        if ($user->baseline_date !== null && $user->baseline_capital !== null) {
+            return $snapshots->first();
+        }
+
         $ytdSnapshots = $snapshots->filter(
             fn (BankrollSnapshot $snapshot): bool => (int) $snapshot->recorded_on->year === $year,
         );

@@ -44,6 +44,7 @@ class SetupRadarWidget extends TableWidget
             ->heading('Setup Radar')
             ->searchable()
             ->query(fn (): Builder => Position::scout()
+                ->nonLegacy()
                 ->forUser(auth()->id())
                 ->with('asset')
                 ->orderBySetupGrade('asc'))

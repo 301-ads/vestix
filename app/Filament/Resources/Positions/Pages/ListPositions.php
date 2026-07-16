@@ -30,9 +30,15 @@ class ListPositions extends ListRecords
     {
         return [
             'open' => Tab::make('Open Posities')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'open')),
+                ->modifyQueryUsing(fn (Builder $query) => $query
+                    ->where('status', 'open')
+                    ->where('is_legacy', false)),
             'closed' => Tab::make('Archief')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'closed')),
+                ->modifyQueryUsing(fn (Builder $query) => $query
+                    ->where('status', 'closed')
+                    ->where('is_legacy', false)),
+            'legacy' => Tab::make('Legacy Archief')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_legacy', true)),
         ];
     }
 
@@ -84,9 +90,11 @@ class ListPositions extends ListRecords
             ->components([
                 Grid::make(['@xl' => 4, '@lg' => 2, 'default' => 1])
                     ->schema(fn (): array => $this->getWidgetsSchemaComponents(
-                        ($this->activeTab ?? 'open') === 'closed'
-                            ? [ArchivePostMortemStatsWidget::class]
-                            : [OpenPositionsStatsWidget::class],
+                        match ($this->activeTab ?? 'open') {
+                            'closed' => [ArchivePostMortemStatsWidget::class],
+                            'legacy' => [],
+                            default => [OpenPositionsStatsWidget::class],
+                        },
                     ))
                     ->columnSpanFull(),
                 $this->getTabsContentComponent(),

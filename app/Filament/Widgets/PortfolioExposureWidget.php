@@ -30,7 +30,7 @@ class PortfolioExposureWidget extends StatsOverviewWidget
             return [];
         }
 
-        $openPositions = Position::open()->forUser($userId)->get();
+        $openPositions = Position::open()->nonLegacy()->forUser($userId)->get();
 
         $totalInvested = $openPositions->sum(fn (Position $position) => $position->investment);
         $totalValue = $openPositions->sum(fn (Position $position) => $position->current_value);

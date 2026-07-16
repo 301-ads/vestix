@@ -35,8 +35,16 @@ class PositionFactory extends Factory
             'bounce_volume_above_average' => false,
             'visibility' => PositionVisibility::Private,
             'status' => 'open',
+            'is_legacy' => false,
             'initial_sl_placed_at' => now(),
         ];
+    }
+
+    public function legacy(): static
+    {
+        return $this->state(fn (): array => [
+            'is_legacy' => true,
+        ]);
     }
 
     public function awaitingInitialSlPlacement(): static

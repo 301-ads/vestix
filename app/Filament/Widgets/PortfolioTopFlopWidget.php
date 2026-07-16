@@ -31,6 +31,7 @@ class PortfolioTopFlopWidget extends TableWidget
             ->searchable(false)
             ->recordUrl(fn (Position $record): string => PositionResource::getUrl('edit', ['record' => $record]))
             ->query(fn (): Builder => Position::open()
+                ->nonLegacy()
                 ->forUser(auth()->id())
                 ->with('asset')
                 ->whereNotNull('latest_close_price')

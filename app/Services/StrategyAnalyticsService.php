@@ -22,6 +22,7 @@ class StrategyAnalyticsService
     {
         return Position::query()
             ->closed()
+            ->nonLegacy()
             ->forUser($userId)
             ->with('strategyTag')
             ->orderBy('closed_at')

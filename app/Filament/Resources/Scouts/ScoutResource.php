@@ -44,7 +44,7 @@ class ScoutResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->scout()->with(['asset', 'user']);
+        $query = parent::getEloquentQuery()->scout()->nonLegacy()->with(['asset', 'user']);
 
         $userId = auth()->id();
 
@@ -85,6 +85,7 @@ class ScoutResource extends Resource
 
         $reviewCount = Position::query()
             ->scout()
+            ->nonLegacy()
             ->forUser($userId)
             ->requiringBuyStopReview()
             ->count();
@@ -93,7 +94,7 @@ class ScoutResource extends Resource
             return (string) $reviewCount;
         }
 
-        return (string) Position::query()->scout()->forUser($userId)->count();
+        return (string) Position::query()->scout()->nonLegacy()->forUser($userId)->count();
     }
 
     public static function getNavigationBadgeTooltip(): ?string
@@ -106,6 +107,7 @@ class ScoutResource extends Resource
 
         $reviewCount = Position::query()
             ->scout()
+            ->nonLegacy()
             ->forUser($userId)
             ->requiringBuyStopReview()
             ->count();
@@ -129,6 +131,7 @@ class ScoutResource extends Resource
 
         $reviewCount = Position::query()
             ->scout()
+            ->nonLegacy()
             ->forUser($userId)
             ->requiringBuyStopReview()
             ->count();

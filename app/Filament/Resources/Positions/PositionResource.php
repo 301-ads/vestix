@@ -127,7 +127,7 @@ class PositionResource extends Resource
         $userId = auth()->id();
 
         return $userId
-            ? (string) Position::query()->open()->forUser($userId)->count()
+            ? (string) Position::query()->open()->nonLegacy()->forUser($userId)->count()
             : null;
     }
 

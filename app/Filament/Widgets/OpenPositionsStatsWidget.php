@@ -44,7 +44,7 @@ class OpenPositionsStatsWidget extends StatsOverviewWidget
             return [];
         }
 
-        $openPositions = Position::open()->forUser($userId)->get();
+        $openPositions = Position::open()->nonLegacy()->forUser($userId)->get();
 
         if ($openPositions->isEmpty()) {
             return [

@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Services\Bankroll\IbkrBankrollSource;
 use App\Services\Bankroll\ManualBankrollSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use RuntimeException;
 use Tests\TestCase;
 
 class PositionBrokerWorkflowTest extends TestCase
@@ -60,12 +59,11 @@ class PositionBrokerWorkflowTest extends TestCase
         $this->assertSame(12345.67, $source->resolveAmount($user));
     }
 
-    public function test_ibkr_bankroll_source_is_not_implemented(): void
+    public function test_ibkr_bankroll_source_resolves_via_stub_reader(): void
     {
-        $user = User::factory()->create();
-        $source = new IbkrBankrollSource();
+        $user = User::factory()->create(['baseline_capital' => 3428.40]);
+        $source = app(IbkrBankrollSource::class);
 
-        $this->expectException(RuntimeException::class);
-        $source->resolveAmount($user);
+        $this->assertSame(3428.40, $source->resolveAmount($user));
     }
 }

@@ -24,6 +24,7 @@ class PositionStatsAggregator
     {
         $closed = Position::query()
             ->closed()
+            ->nonLegacy()
             ->forUser($userId)
             ->get();
 

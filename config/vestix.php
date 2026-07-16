@@ -148,6 +148,23 @@ return [
         'source' => env('BANKROLL_SOURCE', 'manual'),
     ],
 
+    // Read-only IBKR account reader (Big 3: NLV, Available Funds, Open Positions).
+    // Phase 2: set IBKR_READER=flex and implement FlexIbkrAccountReader HTTP/XML parse.
+    // Phase 3: order placement belongs in a separate IbkrExecutionService (Client Portal).
+    'ibkr' => [
+        'reader' => env('IBKR_READER', 'stub'), // stub | flex
+        'flex' => [
+            'token' => env('IBKR_FLEX_TOKEN'),
+            'query_id' => env('IBKR_FLEX_QUERY_ID'),
+            'base_url' => env('IBKR_FLEX_BASE_URL', 'https://gdcdyn.interactivebrokers.com/Universal/servlet'),
+        ],
+        'stub' => [
+            'net_liquidation' => env('IBKR_STUB_NLV'),
+            'available_funds' => env('IBKR_STUB_AVAILABLE_FUNDS'),
+            'open_positions' => [],
+        ],
+    ],
+
     'brokers' => [
         'revolut' => [
             'stock_url' => env('REVOLUT_STOCK_URL_TEMPLATE', 'https://www.revolut.com/app-invest/stocks/{ticker}'),

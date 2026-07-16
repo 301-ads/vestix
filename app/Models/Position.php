@@ -95,6 +95,7 @@ class Position extends Model
             'execution_digest_at' => 'datetime',
             'buy_stop_review_required_on' => 'date',
             'buy_stop_review_setup_score' => 'integer',
+            'is_legacy' => 'boolean',
         ];
     }
 
@@ -241,7 +242,7 @@ class Position extends Model
 
     public function scopePersonalScouts(Builder $query, int $userId): Builder
     {
-        return $query->scout()->forUser($userId);
+        return $query->scout()->nonLegacy()->forUser($userId);
     }
 
     public function scopeSquadShared(Builder $query, int $squadId): Builder
@@ -314,6 +315,7 @@ class Position extends Model
     {
         return static::query()
             ->forUser($userId)
+            ->nonLegacy()
             ->requiringBuyStopReview()
             ->with('asset')
             ->orderBy('buy_stop_review_required_on')
@@ -858,6 +860,16 @@ class Position extends Model
     public function scopeClosed(Builder $query): Builder
     {
         return $query->where('status', 'closed');
+    }
+
+    public function scopeLegacy(Builder $query): Builder
+    {
+        return $query->where('is_legacy', true);
+    }
+
+    public function scopeNonLegacy(Builder $query): Builder
+    {
+        return $query->where('is_legacy', false);
     }
 
     public function scopeTracked(Builder $query): Builder
