@@ -131,6 +131,64 @@ class AlertDispatcher
         }
     }
 
+    /**
+     * One Telegram/email Order Plan for multiple scouts (post-open Gap Guard).
+     *
+     * @param  list<Position>  $positions
+     * @param  array{reminder_date: string, rows?: list<array{status: string, price: float|null}>}  $context
+     */
+    public function dispatchExecutionOrderPlan(User $user, string $message, array $positions, array $context): bool
+    {
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $sent = false;
+        $reminderDate = (string) ($context['reminder_date'] ?? now('Europe/Amsterdam')->toDateString());
+
+        foreach ($user->alertPreferences()->where('is_active', true)->get() as $preference) {
+            $allows = $preference->hasEventEnabled(AlertEventType::ExecutionOrderPlan)
+                || $preference->hasEventEnabled(AlertEventType::MarketOpenBuyStopReminder);
+
+            if (! $allows) {
+                continue;
+            }
+
+            $channel = $this->channels[$preference->channel_type->value] ?? null;
+
+            if (! $channel instanceof AlertChannelInterface || ! $channel->isAvailableFor($user)) {
+                continue;
+            }
+
+            if (! $channel->send($user, $message)) {
+                continue;
+            }
+
+            $sent = true;
+
+            foreach ($positions as $index => $position) {
+                $rowMeta = $context['rows'][$index] ?? [];
+
+                PositionAlert::query()->updateOrCreate(
+                    [
+                        'position_id' => $position->id,
+                        'event_type' => AlertEventType::ExecutionOrderPlan,
+                        'channel_type' => $preference->channel_type,
+                    ],
+                    [
+                        'user_id' => $user->id,
+                        'payload' => [
+                            'reminder_date' => $reminderDate,
+                            'status' => $rowMeta['status'] ?? null,
+                            'price' => $rowMeta['price'] ?? null,
+                        ],
+                        'sent_at' => now(),
+                    ],
+                );
+            }
+        }
+
+        return $sent;
+    }
+
     private function alreadySent(int $positionId, AlertEventType $event, AlertChannelType $channel, array $context = []): bool
     {
         if ($event === AlertEventType::DailyDigest) {

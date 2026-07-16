@@ -120,7 +120,13 @@ return [
     ],
 
     'market_open_reminder' => [
-        'time' => env('MARKET_OPEN_REMINDER_TIME', '15:35'),
+        // Legacy; digest gebruikt execution_digest.time.
+        'time' => env('MARKET_OPEN_REMINDER_TIME', env('EXECUTION_DIGEST_TIME', '15:31')),
+    ],
+
+    'execution_digest' => [
+        // 1 min na US open (9:30 ET = 15:30 NL) — eerste 1m candle + Telegram Order Plan.
+        'time' => env('EXECUTION_DIGEST_TIME', '15:31'),
     ],
 
     'bankroll_tracker' => [

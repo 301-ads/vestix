@@ -2,16 +2,15 @@
 
 namespace App\Services;
 
-use App\Alerts\AlertDispatcher;
-use App\Enums\AlertEventType;
-use App\Models\Position;
-use App\Support\UsMarketSession;
 use Illuminate\Support\Carbon;
 
+/**
+ * @deprecated Use ExecutionDigestService / vestix:execution-order-plan (15:31).
+ */
 class MarketOpenBuyStopReminderService
 {
     public function __construct(
-        private readonly AlertDispatcher $alertDispatcher,
+        private readonly ExecutionDigestService $executionDigest,
     ) {}
 
     /**
@@ -19,48 +18,11 @@ class MarketOpenBuyStopReminderService
      */
     public function run(?Carbon $today = null): array
     {
-        $today ??= Carbon::today('Europe/Amsterdam');
-        $summary = ['sent' => 0, 'skipped' => 0];
+        $summary = $this->executionDigest->run($today);
 
-        if (! UsMarketSession::isUsTradingDay(Carbon::now('America/New_York'))) {
-            return $summary;
-        }
-
-        $reminderDate = $today->toDateString();
-
-        $scouts = Position::query()
-            ->where('status', 'scout')
-            ->whereDate('market_open_reminder_on', $reminderDate)
-            ->whereNotNull('entry_price')
-            ->with('user')
-            ->get();
-
-        foreach ($scouts as $scout) {
-            $user = $scout->user;
-
-            if ($user === null || ! $user->hasTelegramConnection()) {
-                $summary['skipped']++;
-
-                continue;
-            }
-
-            $context = [
-                'reminder_date' => $reminderDate,
-                'user' => $user,
-            ];
-
-            $this->alertDispatcher->dispatchNow(
-                $user->id,
-                $scout->id,
-                AlertEventType::MarketOpenBuyStopReminder,
-                $context,
-            );
-
-            $scout->update(['market_open_reminder_on' => null]);
-
-            $summary['sent']++;
-        }
-
-        return $summary;
+        return [
+            'sent' => $summary['sent'],
+            'skipped' => $summary['skipped'],
+        ];
     }
 }

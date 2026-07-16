@@ -898,7 +898,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertSee('Status')
             ->assertSee('Active')
             ->assertSee('Pending')
-            ->assertSee('Reminder');
+            ->assertSee('Order Plan');
     }
 
     public function test_gap_up_filter_uses_premarket_scan(): void

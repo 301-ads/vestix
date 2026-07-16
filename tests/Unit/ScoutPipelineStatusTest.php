@@ -28,7 +28,7 @@ class ScoutPipelineStatusTest extends TestCase
         ]);
 
         $this->assertSame(ScoutPipelineStatus::Pending, $scout->scoutPipelineStatus());
-        $this->assertSame('Reminder', $scout->scoutPipelineStatus()->label());
+        $this->assertSame('Order Plan', $scout->scoutPipelineStatus()->label());
         $this->assertSame('gray', $scout->scoutPipelineStatus()->badgeColor());
     }
 

@@ -18,6 +18,7 @@ enum AlertEventType: string
     case Target1Hit = 'target_1_hit';
     case Overbought = 'overbought';
     case MarketOpenBuyStopReminder = 'market_open_buy_stop_reminder';
+    case ExecutionOrderPlan = 'execution_order_plan';
 
     /**
      * @return list<string>
@@ -38,6 +39,7 @@ enum AlertEventType: string
             self::Target1Hit->value,
             self::Overbought->value,
             self::MarketOpenBuyStopReminder->value,
+            self::ExecutionOrderPlan->value,
         ];
     }
 
@@ -67,7 +69,8 @@ enum AlertEventType: string
             self::EarningsActionRequired => 'Earnings actie — sluit vóór slotbel (08:00)',
             self::EarningsFinalReminder => 'Earnings laatste kans — BMO exit (21:30)',
             self::Overbought => 'Overbought alert — RSI ≥ 70 (23:00)',
-            self::MarketOpenBuyStopReminder => 'Buy-stop reminder bij market open (15:35)',
+            self::MarketOpenBuyStopReminder => 'Buy-stop reminder bij market open (legacy)',
+            self::ExecutionOrderPlan => 'Order Plan bij market open (15:31)',
             self::SquadCopyAlert => 'Squad copy-alerts (Ghost Mode)',
         };
     }
@@ -88,6 +91,7 @@ enum AlertEventType: string
                 self::PremarketGapRisk,
                 self::PremarketReclamation,
                 self::PremarketLanding,
+                self::ExecutionOrderPlan,
                 self::MarketOpenBuyStopReminder,
             ),
             'risk' => self::optionsFor(

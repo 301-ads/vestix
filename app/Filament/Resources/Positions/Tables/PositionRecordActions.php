@@ -16,10 +16,10 @@ use App\Support\FilamentNotifier;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
 use App\Support\PositionSizing;
+use App\Support\ScaleOutDisplay;
 use App\Support\ScoutSetupAlertService;
 use App\Support\ScoutSetupScorecard;
 use App\Support\ShareCardDataFactory;
-use App\Support\ScaleOutDisplay;
 use App\Support\StopLossProtocol;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
@@ -189,13 +189,16 @@ class PositionRecordActions
     {
         return Action::make('toggle_market_open_reminder')
             ->label(fn (Position $record): string => $record->market_open_reminder_on !== null
-                ? 'Reminder uit'
-                : 'Herinner bij market open')
+                ? 'Order Plan uit'
+                : 'Order Plan vandaag')
             ->tooltip(fn (Position $record): string => $record->entry_price === null
                 ? 'Vul eerst je buy-stop entry in'
                 : ($record->market_open_reminder_on !== null
-                    ? 'Annuleer market open reminder'
-                    : 'Plan Telegram-reminder voor volgende handelsdag (15:35)'))
+                    ? 'Haal deze scout uit het Telegram Order Plan'
+                    : sprintf(
+                        'Meenemen in Telegram Order Plan om %s (na US open)',
+                        config('vestix.execution_digest.time', '15:31'),
+                    )))
             ->icon(fn (Position $record): string => $record->market_open_reminder_on !== null
                 ? 'heroicon-s-bell-alert'
                 : 'heroicon-o-bell-alert')
@@ -221,8 +224,8 @@ class PositionRecordActions
                     $record->clearMarketOpenReminder();
 
                     FilamentNotifier::send(
-                        title: 'Reminder geannuleerd',
-                        body: "{$record->ticker} staat weer op Scout.",
+                        title: 'Order Plan geannuleerd',
+                        body: "{$record->ticker} staat niet meer op het Order Plan van vandaag.",
                     );
 
                     return;
@@ -231,12 +234,12 @@ class PositionRecordActions
                 $record->scheduleMarketOpenReminder();
 
                 FilamentNotifier::send(
-                    title: 'Reminder gepland',
+                    title: 'Op Order Plan',
                     body: sprintf(
-                        '%s: Telegram op %s om %s.',
+                        '%s: Telegram Order Plan op %s om %s.',
                         $record->ticker,
                         $record->fresh()->market_open_reminder_on?->format('d-m-Y') ?? 'volgende handelsdag',
-                        config('vestix.market_open_reminder.time', '15:35'),
+                        config('vestix.execution_digest.time', '15:31'),
                     ),
                 );
             });

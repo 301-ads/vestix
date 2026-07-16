@@ -5,12 +5,12 @@ namespace App\Support;
 use App\Enums\AlertEventType;
 use App\Enums\Broker;
 use App\Enums\EarningsExitUrgency;
+use App\Enums\ExecutionDigestStatus;
 use App\Enums\TrailingStopMode;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Models\User;
-use App\Support\EarningsExitSchedule;
 use Illuminate\Support\Carbon;
 
 class AlertMessageBuilder
@@ -91,6 +91,7 @@ class AlertMessageBuilder
             ),
             AlertEventType::Target1Hit => self::target1HitMessage($position, $context),
             AlertEventType::MarketOpenBuyStopReminder => self::marketOpenBuyStopReminder($position, $context),
+            AlertEventType::ExecutionOrderPlan => $context['digest_body'] ?? 'Geen Order Plan vandaag.',
         };
     }
 
@@ -191,6 +192,123 @@ class AlertMessageBuilder
         $lines[] = sprintf('<a href="%s">Open setup</a>', ScoutResource::getUrl('edit', ['record' => $position]));
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @param  list<array{position: Position, status: ExecutionDigestStatus, reason: string, price: float|null}>  $rows
+     */
+    public static function executionOrderPlan(User $user, array $rows, string $reminderDate): string
+    {
+        $safe = [];
+        $cancelled = [];
+        $unavailable = [];
+
+        foreach ($rows as $row) {
+            $status = $row['status'];
+
+            if ($status === ExecutionDigestStatus::Safe) {
+                $safe[] = $row;
+            } elseif ($status->isCancelled()) {
+                $cancelled[] = $row;
+            } else {
+                $unavailable[] = $row;
+            }
+        }
+
+        $lines = [
+            sprintf('📋 <b>Vestix Order Plan — %s</b>', e(Carbon::parse($reminderDate)->locale('nl')->isoFormat('ddd D MMM'))),
+            '',
+        ];
+
+        if ($safe !== []) {
+            $lines[] = '✅ <b>VEILIG OM TE PLAATSEN:</b>';
+            $lines[] = '';
+
+            foreach ($safe as $row) {
+                $lines = [...$lines, ...self::safeOrderPlanBlock($row['position']), ''];
+            }
+        } else {
+            $lines[] = '✅ <b>VEILIG OM TE PLAATSEN:</b> geen';
+            $lines[] = '';
+        }
+
+        if ($cancelled !== []) {
+            $lines[] = '❌ <b>GEANNULEERD (NIET PLAATSEN):</b>';
+            $lines[] = '';
+
+            foreach ($cancelled as $row) {
+                $lines[] = sprintf(
+                    '<b>$%s</b> — %s',
+                    e($row['position']->ticker),
+                    e($row['reason']),
+                );
+            }
+
+            $lines[] = '';
+        }
+
+        if ($unavailable !== []) {
+            $lines[] = '⚠️ <b>GEEN PRIJS — HANDMATIG CHECKEN:</b>';
+
+            foreach ($unavailable as $row) {
+                $lines[] = sprintf(
+                    '<b>$%s</b> — %s',
+                    e($row['position']->ticker),
+                    e($row['reason']),
+                );
+            }
+
+            $lines[] = '';
+        }
+
+        $lines[] = 'Plaats alleen de veilige regels in TradingView/IBKR. Wacht ~5 min na open vóór je verzendt.';
+        $lines[] = sprintf('<a href="%s">Open Mijn Radar</a>', ScoutResource::getUrl('index'));
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function safeOrderPlanBlock(Position $position): array
+    {
+        $entry = (float) ($position->entry_price ?? 0);
+        $quantity = (float) ($position->quantity ?? 0);
+        $stopLoss = (float) ($position->new_sl ?? 0);
+        $target1 = (float) ($position->plannedBracketTarget1Price() ?? 0);
+        $riskDollars = $position->planned_risk_dollars;
+
+        $lines = [
+            sprintf(
+                '<b>$%s</b>%s',
+                e($position->ticker),
+                $riskDollars !== null
+                    ? sprintf(' (Risico: $%s)', number_format((float) $riskDollars, 2))
+                    : '',
+            ),
+            'Type: STOP (Kopen)',
+        ];
+
+        if ($quantity > 0) {
+            $qtyLabel = floor($quantity) === $quantity
+                ? (string) (int) $quantity
+                : rtrim(rtrim(number_format($quantity, 6, '.', ''), '0'), '.');
+            $lines[] = sprintf('Aantal: %s', $qtyLabel);
+        }
+
+        if ($entry > 0) {
+            $lines[] = sprintf('Entry: $%s', number_format($entry, 2));
+        }
+
+        if ($stopLoss > 0) {
+            $lines[] = sprintf('Stop-Loss: $%s', number_format($stopLoss, 2));
+        }
+
+        if ($target1 > 0) {
+            $lines[] = sprintf('Take Profit: $%s', number_format($target1, 2));
+        }
+
+        return $lines;
     }
 
     private static function plannedInvestmentLine(Position $position): ?string

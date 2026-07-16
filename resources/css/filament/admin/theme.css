@@ -597,9 +597,22 @@
 }
 
 .vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-header-toolbar,
-.vestix-positions-list .fi-ta-header-toolbar,
+.vestix-positions-list .fi-ta-header-toolbar {
+    display: none;
+}
+
+/* Radar: toolbar standaard verborgen; tonen bij selectie zodat Verdeel Budget zichtbaar is. */
 .vestix-radar-list .fi-ta-header-toolbar {
     display: none;
+}
+
+.vestix-radar-list .fi-ta-ctn:has(.fi-ta-selection-indicator:not([hidden])) .fi-ta-header-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    border-block-end: 1px solid var(--vestix-border);
 }
 
 .vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-header-heading,
@@ -1641,6 +1654,18 @@
 
 .fi-ta-cell.scout-premarket-gap-up {
     box-shadow: inset 3px 0 0 var(--color-danger-500);
+}
+
+.fi-ta-row:has(.scout-execution-cancelled) {
+    background-color: color-mix(in srgb, var(--color-danger-500) 14%, transparent);
+}
+
+.fi-ta-row:has(.scout-execution-cancelled):hover {
+    background-color: color-mix(in srgb, var(--color-danger-500) 20%, transparent);
+}
+
+.fi-ta-cell.scout-execution-cancelled {
+    box-shadow: inset 3px 0 0 var(--color-danger-600);
 }
 
 .fi-ta-row:has(.scout-premarket-reclamation) {

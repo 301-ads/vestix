@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\EarningsExitUrgency;
+use App\Enums\ExecutionDigestStatus;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
 use App\Enums\ScoutPipelineStatus;
@@ -89,6 +90,9 @@ class Position extends Model
             'broker_order_status' => BrokerOrderStatus::class,
             'broker' => Broker::class,
             'market_open_reminder_on' => 'date',
+            'execution_digest_status' => ExecutionDigestStatus::class,
+            'execution_digest_price' => 'decimal:4',
+            'execution_digest_at' => 'datetime',
             'buy_stop_review_required_on' => 'date',
             'buy_stop_review_setup_score' => 'integer',
         ];
@@ -276,7 +280,10 @@ class Position extends Model
         $now ??= Carbon::now('Europe/Amsterdam');
         $today = $now->copy()->startOfDay();
 
-        $reminderTime = (string) config('vestix.market_open_reminder.time', '15:35');
+        $reminderTime = (string) config(
+            'vestix.execution_digest.time',
+            config('vestix.market_open_reminder.time', '15:31'),
+        );
         [$hour, $minute] = array_pad(explode(':', $reminderTime), 2, '0');
         $reminderAt = $today->copy()->setTime((int) $hour, (int) $minute);
 
@@ -472,8 +479,7 @@ class Position extends Model
         float $quantity,
         ?float $target1Rr = null,
         ?float $firstTrancheFraction = null,
-    ): void
-    {
+    ): void {
         $sl = self::computeNewSl($this->latest_sma_20, $this->latest_atr_14);
 
         if ($sl === null) {
@@ -888,6 +894,26 @@ class Position extends Model
     {
         return $this->premarket_scan_type === PremarketScanResult::Landing
             && $this->wasPremarketCheckedToday();
+    }
+
+    public function wasExecutionDigestCheckedToday(?Carbon $now = null): bool
+    {
+        if ($this->execution_digest_at === null) {
+            return false;
+        }
+
+        $now ??= Carbon::now('Europe/Amsterdam');
+
+        return $this->execution_digest_at
+            ->timezone('Europe/Amsterdam')
+            ->toDateString() === $now->toDateString();
+    }
+
+    public function hasExecutionDigestCancellation(): bool
+    {
+        return $this->wasExecutionDigestCheckedToday()
+            && $this->execution_digest_status instanceof ExecutionDigestStatus
+            && $this->execution_digest_status->isCancelled();
     }
 
     public function scopeStoppedOut(Builder $query): Builder

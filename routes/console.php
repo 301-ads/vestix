@@ -59,10 +59,10 @@ Schedule::command('vestix:earnings-exit-alerts --phase=final')
     ->dailyAt('21:30')
     ->timezone('Europe/Amsterdam');
 
-// Buy-stop reminder: 5 min na US open (9:30 ET = 15:30 NL, reminder om 15:35 NL).
-Schedule::command('vestix:market-open-buy-stop-reminders')
+// Execution Order Plan: 1 min na US open (9:30 ET = 15:30 NL → digest 15:31 NL).
+Schedule::command('vestix:execution-order-plan')
     ->weekdays()
-    ->dailyAt(config('vestix.market_open_reminder.time', '15:35'))
+    ->dailyAt(config('vestix.execution_digest.time', '15:31'))
     ->timezone('Europe/Amsterdam');
 
 Schedule::command('vestix:bankroll-update-reminders')

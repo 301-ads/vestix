@@ -32,6 +32,10 @@ class PremarketGatekeeperDisplay
 
     public static function rowClass(Position $position): ?string
     {
+        if ($position->hasExecutionDigestCancellation()) {
+            return 'scout-execution-cancelled';
+        }
+
         if ($position->hasPremarketGapUpRisk()) {
             return 'scout-premarket-gap-up';
         }
