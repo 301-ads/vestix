@@ -12,7 +12,7 @@ use Filament\Support\Icons\Heroicon;
 
 class Prestaties extends Page
 {
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedChartBar;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedPresentationChartLine;
 
     protected static ?string $navigationLabel = 'Prestaties';
 

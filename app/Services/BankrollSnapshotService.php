@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Contracts\BankrollSource;
 use App\Models\BankrollSnapshot;
 use App\Models\User;
+use App\Services\Bankroll\ManualBankrollSource;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -20,6 +22,13 @@ class BankrollSnapshotService
 
     public function recordSnapshot(User $user, float $amount, ?Carbon $date = null): BankrollSnapshot
     {
+        return $this->recordFromSource($user, new ManualBankrollSource($amount), $date);
+    }
+
+    public function recordFromSource(User $user, BankrollSource $source, ?Carbon $date = null): BankrollSnapshot
+    {
+        $amount = $source->resolveAmount($user);
+
         $recordedOn = ($date ?? now($this->timezone()))->copy()->startOfDay();
         $benchmarkClose = $this->benchmarkCloseResolver->resolveTradingDayClose($recordedOn);
 

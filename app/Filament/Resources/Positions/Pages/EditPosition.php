@@ -14,6 +14,7 @@ use App\Models\Squad;
 use App\Services\AssetSyncService;
 use App\Services\MarketDataFetcher;
 use App\Services\SquadContext;
+use App\Support\EarningsExitDisplay;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupScorecard;
@@ -131,6 +132,7 @@ class EditPosition extends EditRecord
             'title' => $this->getRecordTitle(),
             'status' => $record->status,
             'pipelineStatus' => $record->status === 'scout' ? $record->scoutPipelineStatus() : null,
+            'broker' => $record->status === 'scout' ? $record->effectiveBroker() : null,
             'iconUrl' => $record->asset?->icon_url,
         ])->render());
     }
@@ -325,7 +327,16 @@ class EditPosition extends EditRecord
         return PositionRecordActions::activateScout(iconButton: false)
             ->color('primary')
             ->extraAttributes(fn (): array => $this->scoutActivateExtraAttributes())
+            ->disabled(fn (): bool => $this->scoutActivationDisabled())
             ->tooltip(fn (): string => $this->scoutActivateTooltip());
+    }
+
+    protected function scoutActivationDisabled(): bool
+    {
+        /** @var Position $record */
+        $record = $this->getRecord();
+
+        return PositionRecordActions::scoutActivationDisabled($record);
     }
 
     /**
@@ -346,6 +357,17 @@ class EditPosition extends EditRecord
 
     protected function scoutActivateTooltip(): string
     {
+        /** @var Position $record */
+        $record = $this->getRecord();
+
+        if (EarningsExitDisplay::isWithinAlertWindow($record)) {
+            return PositionRecordActions::scoutActivationTooltip($record);
+        }
+
+        if (PositionRecordActions::scoutActivationDisabled($record)) {
+            return PositionRecordActions::scoutActivationTooltip($record);
+        }
+
         $score = $this->resolveSetupScoreFromForm();
 
         if ($score['hardFailReasons'] !== []) {
@@ -354,8 +376,9 @@ class EditPosition extends EditRecord
 
         return match (true) {
             $score['grade'] === 'A++' => 'A++ SETUP — visueel bevestigde perfecte trade',
+            $score['grade'] === 'A' => 'A SETUP — handmatig bevestigde sterke trade',
             $score['totalPoints'] === ScoutSetupScorecard::maxPoints() => 'Perfecte score — promoveer naar A++ na visuele check',
-            $score['totalPoints'] >= 8 => 'A SETUP — zeer sterke wiskundige edge',
+            $score['totalPoints'] >= 8 => 'Sterke score — promoveer naar A na visuele check',
             $score['totalPoints'] === 7 => 'B SETUP — standaard trade, wees alert op risico',
             $score['totalPoints'] >= 5 => 'C SETUP — wiskundig zwak, alleen monitoren',
             default => 'NO TRADE — objectieve afwijzing',

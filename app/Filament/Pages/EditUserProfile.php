@@ -104,7 +104,7 @@ class EditUserProfile extends EditProfile
                                             ->default(Broker::Revolut->value)
                                             ->inline()
                                             ->required()
-                                            ->helperText('Revolut toont bevestigingsflows in de app. Geen/handmatig toont Limit Sell-instructies op het dashboard.'),
+                                            ->helperText('Nieuwe scouts krijgen deze broker. Bestaande posities behouden hun oorspronkelijke tag. Revolut toont bevestigingsflows; IBKR gebruikt bracket orders; Geen/handmatig toont Limit Sell-instructies.'),
                                     ]),
                             ]),
                         Tab::make('Telegram & Alerts')
@@ -185,13 +185,12 @@ class EditUserProfile extends EditProfile
                                                     ]),
                                                 Section::make('Risico & Earnings Waarschuwingen')
                                                     ->compact()
-                                                    ->columnSpanFull()
                                                     ->extraAttributes(['class' => 'vestix-profile-alert-category'])
                                                     ->schema([
                                                         $this->alertEventCheckboxList('alert_events_risk', $alertGroups['risk']),
                                                     ]),
                                             ]),
-                                        Section::make('Squad')
+                                        Section::make('Social & Squads')
                                             ->compact()
                                             ->extraAttributes(['class' => 'vestix-profile-alert-category'])
                                             ->schema([

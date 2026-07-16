@@ -440,6 +440,31 @@ class DashboardTest extends TestCase
             ->assertSee('voor 50% van je positie.');
     }
 
+    public function test_action_widget_hides_limit_sell_for_ibkr_tagged_position(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $user->update(['primary_broker' => \App\Enums\Broker::Revolut]);
+
+        Position::factory()->for($user)->create([
+            'broker' => \App\Enums\Broker::Ibkr,
+            'ticker' => 'TSLA',
+            'entry_price' => 10.00,
+            'initial_sl' => 9.00,
+            'current_sl' => 9.00,
+            'latest_close_price' => 12.00,
+            'latest_sma_20' => 9.00,
+            'latest_atr_14' => 1.00,
+            'quantity' => 100,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertDontSee('TSLA')
+            ->assertDontSee('Stel Limit Sell in op');
+    }
+
     public function test_action_widget_hides_limit_sell_for_auto_runner_bypass_position(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();

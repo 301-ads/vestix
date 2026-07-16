@@ -30,7 +30,9 @@ class EditUserProfileTest extends TestCase
             ->assertSee('Mijn broker')
             ->assertSee('Order & Winst Executie')
             ->assertSee('Pre-Market & Kansen')
-            ->assertSee('Risico & Earnings Waarschuwingen');
+            ->assertSee('Risico & Earnings Waarschuwingen')
+            ->assertSee('Social & Squads')
+            ->assertSee('Interactive Brokers');
     }
 
     public function test_profile_hydrates_risk_percent_toggle_for_decimal_cast_value(): void

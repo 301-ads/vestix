@@ -127,11 +127,15 @@ return [
         'benchmark_ticker' => env('BANKROLL_BENCHMARK_TICKER', 'SPY'),
         'update_day' => env('BANKROLL_UPDATE_DAY', 'saturday'),
         'timezone' => 'Europe/Amsterdam',
+        'source' => env('BANKROLL_SOURCE', 'manual'),
     ],
 
     'brokers' => [
         'revolut' => [
             'stock_url' => env('REVOLUT_STOCK_URL_TEMPLATE', 'https://www.revolut.com/app-invest/stocks/{ticker}'),
+        ],
+        'ibkr' => [
+            'stock_url' => env('IBKR_STOCK_URL_TEMPLATE'),
         ],
     ],
 

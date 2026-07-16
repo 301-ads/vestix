@@ -27,6 +27,10 @@ class ScoutSetupAlertService
                 $position->clearAPlusPromotion();
             }
 
+            if ($position->trader_promoted_a) {
+                $position->clearAPromotion();
+            }
+
             return 0;
         }
 
@@ -79,6 +83,10 @@ class ScoutSetupAlertService
 
         if ($newScore < $maxPoints && $position->trader_promoted_a_plus) {
             $position->clearAPlusPromotion();
+        }
+
+        if ($newScore < 8 && $position->trader_promoted_a) {
+            $position->clearAPromotion();
         }
 
         return $alertsSent;

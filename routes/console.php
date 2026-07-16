@@ -64,3 +64,8 @@ Schedule::command('vestix:market-open-buy-stop-reminders')
     ->weekdays()
     ->dailyAt(config('vestix.market_open_reminder.time', '15:35'))
     ->timezone('Europe/Amsterdam');
+
+Schedule::command('vestix:bankroll-update-reminders')
+    ->saturdays()
+    ->dailyAt('10:00')
+    ->timezone('Europe/Amsterdam');

@@ -171,6 +171,7 @@ class ScoutRadarFiltersTest extends TestCase
             'sector_etf' => 'XLK',
             'sector_trend_positive' => true,
             'pre_bounce_extension_atr' => 2.50,
+            'trader_promoted_a_plus' => true,
         ]);
 
         $aGrade = Position::factory()->scout()->create([
@@ -187,6 +188,7 @@ class ScoutRadarFiltersTest extends TestCase
             'sector_etf' => 'XLK',
             'sector_trend_positive' => false,
             'pre_bounce_extension_atr' => 2.50,
+            'trader_promoted_a' => true,
         ]);
 
         $bSetup = Position::factory()->scout()->create([
@@ -202,7 +204,7 @@ class ScoutRadarFiltersTest extends TestCase
         $this->assertFalse(ScoutRadarFilters::matches($bSetup, 'strong_setups'));
     }
 
-    public function test_matches_a_plus_for_grade_a_only(): void
+    public function test_matches_a_plus_for_grade_a_plus_plus_only(): void
     {
         $aPlusPlus = Position::factory()->scout()->create([
             'signal_low' => 101.00,
@@ -253,8 +255,8 @@ class ScoutRadarFiltersTest extends TestCase
             'pre_bounce_extension_atr' => 2.50,
         ]);
 
-        $this->assertFalse(ScoutRadarFilters::matches($aPlusPlus, 'a_plus'));
-        $this->assertTrue(ScoutRadarFilters::matches($aGrade, 'a_plus'));
-        $this->assertTrue(ScoutRadarFilters::matches($perfectUnpromoted, 'a_plus'));
+        $this->assertTrue(ScoutRadarFilters::matches($aPlusPlus, 'a_plus'));
+        $this->assertFalse(ScoutRadarFilters::matches($aGrade, 'a_plus'));
+        $this->assertFalse(ScoutRadarFilters::matches($perfectUnpromoted, 'a_plus'));
     }
 }

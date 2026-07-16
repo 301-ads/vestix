@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Positions\Pages;
 
+use App\Enums\Broker;
 use App\Enums\PositionVisibility;
 use App\Events\SquadRadarTargetPosted;
 use App\Filament\Resources\Positions\Schemas\PositionForm;
@@ -43,6 +44,7 @@ class CreateScout extends CreateRecord
     {
         $data['status'] = 'scout';
         $data['user_id'] = auth()->id();
+        $data['broker'] = auth()->user()?->primary_broker?->value ?? Broker::Revolut->value;
 
         $visibility = PositionVisibility::tryFrom((string) ($data['visibility'] ?? ''))
             ?? PositionVisibility::Private;

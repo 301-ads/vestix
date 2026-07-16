@@ -11,6 +11,7 @@ use App\Models\Position;
 use App\Services\SquadContext;
 use App\Support\BrokerOrderTicket;
 use App\Support\ChartScreenshotUpload;
+use App\Support\EarningsExitDisplay;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
@@ -64,7 +65,7 @@ class PositionRecordActions
     {
         $action = Action::make('activate_scout')
             ->label('Activeren')
-            ->tooltip('Zet scout om naar open positie met berekende stop-loss')
+            ->tooltip(fn (Position $record): string => self::scoutActivationTooltip($record))
             ->icon('heroicon-o-rocket-launch')
             ->color('success')
             ->extraAttributes(fn (Position $record): array => self::scoutActivateTableExtraAttributes($record))
@@ -72,6 +73,7 @@ class PositionRecordActions
                 && $record->isOwnedBy(auth()->user())
                 && auth()->user() !== null
                 && app(SquadContext::class)->userCanInAnySquad(auth()->user(), 'position.activate'))
+            ->disabled(fn (Position $record): bool => self::scoutActivationDisabled($record))
             ->authorize(fn (Position $record): bool => auth()->user()?->can('activate', $record) ?? false)
             ->requiresConfirmation(fn (Position $record): bool => self::scoutExceedsRiskLimit($record))
             ->modalHeading(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
@@ -393,6 +395,42 @@ class PositionRecordActions
             ));
     }
 
+    public static function promoteToA(): Action
+    {
+        return Action::make('promote_to_a')
+            ->label('Promoveer naar A')
+            ->tooltip('Bevestig dat deze setup een A-grade setup is')
+            ->icon('heroicon-o-check-badge')
+            ->color('success')
+            ->iconButton()
+            ->visible(fn (Position $record): bool => self::canPromoteToA($record))
+            ->requiresConfirmation()
+            ->modalHeading('Promoveer naar A')
+            ->modalDescription('Je bevestigt dat deze setup de A-grade kwaliteitsdrempel haalt (≥8 punten, geen hard fails).')
+            ->modalSubmitActionLabel('Bevestig A')
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->action(function (Position $record): void {
+                $record->promoteToA();
+
+                FilamentNotifier::send(
+                    title: 'A SETUP bevestigd',
+                    body: "{$record->ticker} is handmatig gepromoveerd naar A.",
+                );
+            });
+    }
+
+    public static function canPromoteToA(Position $record): bool
+    {
+        if ($record->status !== 'scout' || $record->trader_promoted_a) {
+            return false;
+        }
+
+        $score = ScoutSetupScorecard::evaluate(self::algorithmicScorecardInputs($record));
+
+        return $score['hardFailReasons'] === []
+            && $score['totalPoints'] >= 8;
+    }
+
     public static function promoteToAPlus(): Action
     {
         return Action::make('promote_to_a_plus')
@@ -573,7 +611,8 @@ class PositionRecordActions
             ->color('success')
             ->visible(fn (Position $record): bool => $record->status === 'open'
                 && $record->isTarget1Hit()
-                && ! $record->hasTarget1LimitPlaced())
+                && ! $record->hasTarget1LimitPlaced()
+                && ! $record->suppressesLimitSellTodo())
             ->requiresConfirmation()
             ->modalHeading(fn (Position $record): string => BrokerOrderTicket::forLimitSell($record)['title'])
             ->modalIcon(fn (Position $record): HtmlString => BrokerOrderTicket::modalIcon($record))
@@ -829,5 +868,30 @@ class PositionRecordActions
         }
 
         return ['class' => implode(' ', $classes)];
+    }
+
+    public static function scoutActivationDisabled(Position $record): bool
+    {
+        return EarningsExitDisplay::isWithinAlertWindow($record)
+            || MarketDataFreshness::isPositionSyncInProgress($record->id)
+            || MarketDataFreshness::isSyncInProgress();
+    }
+
+    public static function scoutActivationTooltip(Position $record): string
+    {
+        if (EarningsExitDisplay::isWithinAlertWindow($record)) {
+            $daysUntil = $record->daysUntilEarnings();
+
+            return $daysUntil !== null
+                ? "Promotie geblokkeerd: earnings over {$daysUntil} dagen (dead zone ≤14 dagen)"
+                : 'Promotie geblokkeerd: earnings binnen 14 dagen';
+        }
+
+        if (MarketDataFreshness::isPositionSyncInProgress($record->id)
+            || MarketDataFreshness::isSyncInProgress()) {
+            return 'Marktdata wordt opgehaald — even geduld';
+        }
+
+        return 'Zet scout om naar open positie met berekende stop-loss';
     }
 }

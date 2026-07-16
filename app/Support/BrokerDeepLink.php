@@ -25,6 +25,7 @@ class BrokerDeepLink
     {
         return match ($broker) {
             Broker::Revolut => 'Open in Revolut',
+            Broker::Ibkr => 'Open in IBKR',
             default => null,
         };
     }

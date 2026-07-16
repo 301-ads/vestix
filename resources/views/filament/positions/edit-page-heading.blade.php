@@ -1,4 +1,5 @@
 @php
+    use App\Enums\Broker;
     use App\Enums\ScoutPipelineStatus;
     use Filament\Support\View\Components\BadgeComponent;
     use Illuminate\View\ComponentAttributeBag;
@@ -18,6 +19,8 @@
             default => 'Gesloten',
         };
     }
+
+    $brokerLabel = isset($broker) && $broker instanceof Broker ? $broker->label() : null;
 @endphp
 
 <span class="position-edit-heading inline-flex items-center gap-5">
@@ -27,4 +30,11 @@
             <span class="fi-badge-label">{{ $badgeLabel }}</span>
         </span>
     </span>
+    @if ($brokerLabel !== null)
+        <span {{ (new ComponentAttributeBag)->color(BadgeComponent::class, 'gray')->class(['fi-badge', 'fi-size-sm']) }}>
+            <span class="fi-badge-label-ctn">
+                <span class="fi-badge-label">{{ $brokerLabel }}</span>
+            </span>
+        </span>
+    @endif
 </span>

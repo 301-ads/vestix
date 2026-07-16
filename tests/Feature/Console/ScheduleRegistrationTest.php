@@ -40,4 +40,14 @@ class ScheduleRegistrationTest extends TestCase
         $this->assertFalse($event->filtersPass(app()));
         $this->assertFalse(UsMarketSession::isIntradayTargetWatchWindow());
     }
+
+    public function test_bankroll_update_reminders_scheduled_on_saturday_morning(): void
+    {
+        $event = collect(Schedule::events())
+            ->first(fn ($scheduledEvent): bool => str_contains((string) $scheduledEvent->command, 'vestix:bankroll-update-reminders'));
+
+        $this->assertNotNull($event);
+        $this->assertSame('0 10 * * 6', $event->expression);
+        $this->assertTrue($event->timezone === 'Europe/Amsterdam' || $event->timezone?->getName() === 'Europe/Amsterdam');
+    }
 }

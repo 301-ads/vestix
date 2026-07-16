@@ -5,12 +5,14 @@ namespace App\Enums;
 enum Broker: string
 {
     case Revolut = 'revolut';
+    case Ibkr = 'ibkr';
     case None = 'none';
 
     public function label(): string
     {
         return match ($this) {
             self::Revolut => 'Revolut',
+            self::Ibkr => 'Interactive Brokers',
             self::None => 'Geen / handmatig',
         };
     }

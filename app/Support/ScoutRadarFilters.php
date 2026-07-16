@@ -164,7 +164,7 @@ class ScoutRadarFilters
             return false;
         }
 
-        return $scout->evaluateSetupScore()['grade'] === 'A';
+        return $scout->evaluateSetupScore()['grade'] === 'A++';
     }
 
     private static function isStrongSetup(Position $scout): bool

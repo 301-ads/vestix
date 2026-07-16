@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\EarningsExitUrgency;
 use App\Enums\PositionVisibility;
@@ -63,6 +64,8 @@ class Position extends Model
             'telegram_a_plus_alert_sent_at' => 'datetime',
             'trader_promoted_a_plus' => 'boolean',
             'trader_promoted_a_plus_at' => 'datetime',
+            'trader_promoted_a' => 'boolean',
+            'trader_promoted_a_at' => 'datetime',
             'premarket_price' => 'decimal:2',
             'premarket_scan_type' => PremarketScanResult::class,
             'premarket_reference_price' => 'decimal:2',
@@ -84,6 +87,7 @@ class Position extends Model
             'risk_reward_ratio' => 'decimal:4',
             'visibility' => PositionVisibility::class,
             'broker_order_status' => BrokerOrderStatus::class,
+            'broker' => Broker::class,
             'market_open_reminder_on' => 'date',
             'buy_stop_review_required_on' => 'date',
             'buy_stop_review_setup_score' => 'integer',
@@ -105,6 +109,10 @@ class Position extends Model
             if ($position->isDirty('entry_price')) {
                 $position->telegram_a_minus_alert_sent_at = null;
                 $position->telegram_a_plus_alert_sent_at = null;
+                $position->trader_promoted_a = false;
+                $position->trader_promoted_a_at = null;
+                $position->trader_promoted_a_plus = false;
+                $position->trader_promoted_a_plus_at = null;
                 $position->premarket_price = null;
                 $position->premarket_scan_type = null;
                 $position->premarket_reference_price = null;
@@ -504,11 +512,36 @@ class Position extends Model
             && (float) $this->current_sl >= (float) $this->entry_price;
     }
 
-    public function userUsesRevolutWorkflow(): bool
+    public function effectiveBroker(): Broker
     {
+        if ($this->broker !== null) {
+            return $this->broker;
+        }
+
         $this->loadMissing('user');
 
-        return $this->user?->usesRevolutWorkflow() ?? false;
+        return $this->user?->primary_broker ?? Broker::Revolut;
+    }
+
+    public function usesRevolutWorkflow(): bool
+    {
+        return $this->effectiveBroker() === Broker::Revolut;
+    }
+
+    public function usesIbkrWorkflow(): bool
+    {
+        return $this->effectiveBroker() === Broker::Ibkr;
+    }
+
+    public function suppressesLimitSellTodo(): bool
+    {
+        return $this->usesIbkrWorkflow() || $this->isAutoRunnerBypass();
+    }
+
+    /** @deprecated Use usesRevolutWorkflow() — workflow is determined by position broker tag. */
+    public function userUsesRevolutWorkflow(): bool
+    {
+        return $this->usesRevolutWorkflow();
     }
 
     public function isTarget1Hit(): bool
@@ -866,7 +899,7 @@ class Position extends Model
 
         if ($this->isTarget1Hit()
             && ! $this->hasTarget1LimitPlaced()
-            && ! $this->isAutoRunnerBypass()) {
+            && ! $this->suppressesLimitSellTodo()) {
             return self::PRIMARY_ACTION_TARGET_1;
         }
 
@@ -1241,6 +1274,26 @@ class Position extends Model
      *     criteria: array<int, array<string, mixed>>,
      * }
      */
+    public function promoteToA(): void
+    {
+        $this->update([
+            'trader_promoted_a' => true,
+            'trader_promoted_a_at' => now(),
+        ]);
+    }
+
+    public function clearAPromotion(): void
+    {
+        if (! $this->trader_promoted_a) {
+            return;
+        }
+
+        $this->update([
+            'trader_promoted_a' => false,
+            'trader_promoted_a_at' => null,
+        ]);
+    }
+
     public function promoteToAPlus(): void
     {
         $this->update([
@@ -1284,6 +1337,15 @@ class Position extends Model
         ];
 
         $result = ScoutSetupScorecard::evaluate($inputs);
+
+        if (
+            ($overrides['trader_promoted_a'] ?? $this->trader_promoted_a)
+            && $result['hardFailReasons'] === []
+            && $result['totalPoints'] >= 8
+        ) {
+            $result['grade'] = 'A';
+            $result['gradeLabel'] = 'A SETUP';
+        }
 
         if (
             ($overrides['trader_promoted_a_plus'] ?? $this->trader_promoted_a_plus)

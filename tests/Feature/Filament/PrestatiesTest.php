@@ -23,7 +23,20 @@ class PrestatiesTest extends TestCase
 
         Livewire::test(Prestaties::class)
             ->assertOk()
-            ->assertSee('Meer performance-data');
+            ->assertSee('Alpha Tracker')
+            ->assertSee('Naar dashboard');
+    }
+
+    public function test_prestaties_shows_bankroll_cta_without_enough_snapshots(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(Prestaties::class)
+            ->assertSee('Alpha Tracker')
+            ->assertSee('Naar dashboard')
+            ->assertDontSee('Jouw Rendement (YTD)');
     }
 
     public function test_prestaties_widget_order(): void

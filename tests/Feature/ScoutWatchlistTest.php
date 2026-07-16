@@ -903,6 +903,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 55,
             'last_setup_score' => 8,
+            'trader_promoted_a' => true,
         ]);
 
         $aPlus = Position::factory()->for($user)->scout()->create([
