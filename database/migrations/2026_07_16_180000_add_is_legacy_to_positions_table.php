@@ -14,8 +14,9 @@ return new class extends Migration
             $table->index('is_legacy');
         });
 
-        // Vestix 2.0 clean slate: archive all existing positions as Legacy.
-        DB::table('positions')->update(['is_legacy' => true]);
+        // Vestix 2.0: alleen gesloten (oude) trades naar Legacy Archief.
+        // Open posities en scouts blijven actief in het live dashboard.
+        DB::table('positions')->where('status', 'closed')->update(['is_legacy' => true]);
     }
 
     public function down(): void

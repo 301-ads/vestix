@@ -44,7 +44,7 @@ class LegacyArchiveTabTest extends TestCase
 
         Livewire::test(ListPositions::class)
             ->set('activeTab', 'legacy')
-            ->assertCanSeeTableRecords([$legacyOpen, $legacyClosed])
-            ->assertCanNotSeeTableRecords([$open, $closed]);
+            ->assertCanSeeTableRecords([$legacyClosed])
+            ->assertCanNotSeeTableRecords([$open, $closed, $legacyOpen]);
     }
 }

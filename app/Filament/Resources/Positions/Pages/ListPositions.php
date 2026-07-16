@@ -38,7 +38,9 @@ class ListPositions extends ListRecords
                     ->where('status', 'closed')
                     ->where('is_legacy', false)),
             'legacy' => Tab::make('Legacy Archief')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_legacy', true)),
+                ->modifyQueryUsing(fn (Builder $query) => $query
+                    ->where('is_legacy', true)
+                    ->where('status', 'closed')),
         ];
     }
 
@@ -96,6 +98,7 @@ class ListPositions extends ListRecords
                             default => [OpenPositionsStatsWidget::class],
                         },
                     ))
+                    ->visible(fn (): bool => ($this->activeTab ?? 'open') !== 'legacy')
                     ->columnSpanFull(),
                 $this->getTabsContentComponent(),
                 RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_BEFORE),

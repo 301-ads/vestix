@@ -68,7 +68,7 @@ class PositionsTable
                     ->summarize(
                         Count::make()
                             ->label('Trades')
-                            ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire)),
+                            ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire) && ! self::isLegacyTab($livewire)),
                     ),
                 TextColumn::make('entry_price')
                     ->label(fn (HasTable $livewire): string => self::isArchiveTab($livewire) ? 'Entry Prijs' : 'Entry')
@@ -234,7 +234,18 @@ class PositionsTable
             return false;
         }
 
-        return ($livewire->activeTab ?? 'open') === 'closed';
+        $tab = $livewire->activeTab ?? 'open';
+
+        return $tab === 'closed' || $tab === 'legacy';
+    }
+
+    private static function isLegacyTab(HasTable $livewire): bool
+    {
+        if (! $livewire instanceof ListPositions) {
+            return false;
+        }
+
+        return ($livewire->activeTab ?? 'open') === 'legacy';
     }
 
     public static function schildGroupLabel(): HtmlString
