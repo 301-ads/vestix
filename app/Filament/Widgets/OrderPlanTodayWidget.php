@@ -2,7 +2,6 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Position;
 use App\Support\FilamentPolling;
 use Filament\Widgets\Widget;
 use Livewire\Attributes\On;
@@ -25,13 +24,7 @@ class OrderPlanTodayWidget extends Widget
 
     public static function canView(): bool
     {
-        $userId = auth()->id();
-
-        if ($userId === null) {
-            return false;
-        }
-
-        return Position::orderPlanForUser($userId)->isNotEmpty();
+        return auth()->check();
     }
 
     public function getPollingInterval(): ?string

@@ -9,6 +9,9 @@
 ])>
     @if ($scouts->isEmpty())
         <div class="vestix-execution-plan__empty">
+            <div class="vestix-execution-plan__empty-icon" aria-hidden="true">
+                {{ \Filament\Support\generate_icon_html('heroicon-o-shopping-cart', attributes: (new \Illuminate\View\ComponentAttributeBag)->class(['fi-icon fi-size-lg'])) }}
+            </div>
             <p class="font-medium text-gray-950 dark:text-white">Nog geen setups in je Order Plan</p>
             <p class="text-sm text-gray-500 dark:text-gray-400">
                 Zet op Mijn Radar het winkelwagen-icoon aan bij scouts die je wilt executeren.

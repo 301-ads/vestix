@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Filament;
 
+use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\ScoutPipelineStatus;
 use App\Filament\Pages\Dashboard;
@@ -82,7 +83,7 @@ class SmartBudgetAllocationTest extends TestCase
         $user->update([
             'trading_bankroll' => 10000,
             'default_risk_percent' => 1,
-            'primary_broker' => \App\Enums\Broker::Ibkr,
+            'primary_broker' => Broker::Ibkr,
         ]);
 
         $a = Position::factory()->for($user)->scout()->create([
@@ -199,6 +200,41 @@ class SmartBudgetAllocationTest extends TestCase
             ->assertSee('R/R')
             ->assertSee('Risico %')
             ->assertDontSee('Open Executie Paneel');
+    }
+
+    public function test_dashboard_keeps_order_plan_widget_when_empty(): void
+    {
+        $this->authenticateFilament();
+
+        $this->assertTrue(OrderPlanTodayWidget::canView());
+
+        Livewire::test(Dashboard::class)
+            ->assertSee('Order Plan vandaag')
+            ->assertSee('Nog geen setups in je Order Plan');
+
+        Livewire::test(ExecutionPlanContent::class, ['layout' => 'embedded'])
+            ->assertSee('Nog geen setups in je Order Plan')
+            ->assertSee('winkelwagen-icoon');
+    }
+
+    public function test_removing_last_scout_keeps_empty_state_without_error(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'COO',
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        Livewire::test(ExecutionPlanContent::class)
+            ->assertSee('COO')
+            ->call('removeFromPlan', $scout->id)
+            ->assertDontSee('COO')
+            ->assertSee('Nog geen setups in je Order Plan')
+            ->assertHasNoErrors();
     }
 
     public function test_order_plan_row_exposes_place_order_action(): void

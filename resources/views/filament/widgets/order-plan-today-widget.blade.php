@@ -7,7 +7,6 @@
         <div @if ($interval = $this->getPollingInterval()) wire:poll.{{ $interval }} @endif>
             <livewire:execution-plan-content
                 layout="embedded"
-                density="full"
                 :key="'order-plan-dashboard-content'"
             />
         </div>
