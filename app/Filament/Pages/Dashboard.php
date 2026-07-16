@@ -42,9 +42,9 @@ class Dashboard extends BaseDashboard
         return [
             PortfolioExposureWidget::class,
             BankrollUpdateWidget::class,
-            OrderPlanTodayWidget::class,
             PortfolioTopFlopWidget::class,
             PositionsRequiringActionWidget::class,
+            OrderPlanTodayWidget::class,
             BuyStopReviewWidget::class,
         ];
     }

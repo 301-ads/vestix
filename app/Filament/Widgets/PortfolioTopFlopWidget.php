@@ -15,7 +15,7 @@ class PortfolioTopFlopWidget extends TableWidget
 {
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 3;
 
     /**
      * @var int|string|array<string, int|string|null>

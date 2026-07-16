@@ -172,9 +172,9 @@ class DashboardTest extends TestCase
         $this->assertSame([
             PortfolioExposureWidget::class,
             BankrollUpdateWidget::class,
-            OrderPlanTodayWidget::class,
             PortfolioTopFlopWidget::class,
             PositionsRequiringActionWidget::class,
+            OrderPlanTodayWidget::class,
             BuyStopReviewWidget::class,
         ], $widgets);
     }

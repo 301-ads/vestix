@@ -13,7 +13,7 @@ class OrderPlanTodayWidget extends Widget
 
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 5;
 
     protected int|string|array $columnSpan = 'full';
 

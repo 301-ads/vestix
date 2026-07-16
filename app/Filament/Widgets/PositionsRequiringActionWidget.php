@@ -28,7 +28,7 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
 
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 4;
 
     /**
      * @var int|string|array<string, int|string|null>
