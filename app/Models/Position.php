@@ -662,6 +662,37 @@ class Position extends Model
         return round((float) $this->entry_price + ($this->effective_target_1_rr * $riskPerShare), 2);
     }
 
+    /**
+     * Target 1 for scout bracket orders — uses computed new_sl when initial_sl is not set yet.
+     */
+    public function plannedBracketTarget1Price(): ?float
+    {
+        if ($this->target_1_price !== null) {
+            return $this->target_1_price;
+        }
+
+        if ($this->entry_price === null || $this->new_sl === null) {
+            return null;
+        }
+
+        $riskPerShare = (float) $this->entry_price - (float) $this->new_sl;
+
+        if ($riskPerShare <= 0) {
+            return null;
+        }
+
+        return round((float) $this->entry_price + ($this->effective_target_1_rr * $riskPerShare), 2);
+    }
+
+    public function hasCompleteBracketPlan(): bool
+    {
+        return $this->entry_price !== null
+            && $this->quantity !== null
+            && (float) $this->quantity > 0
+            && $this->new_sl !== null
+            && $this->plannedBracketTarget1Price() !== null;
+    }
+
     public function getTarget1QuantityAttribute(): ?float
     {
         if ($this->quantity === null) {

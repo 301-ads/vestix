@@ -241,18 +241,44 @@ class PositionRecordActions
             });
     }
 
-    public static function markBuyStopPlaced(): Action
+    public static function markBuyStopPlaced(bool $iconButton = true): Action
     {
-        return Action::make('mark_buy_stop_placed')
-            ->label('Order geplaatst')
-            ->tooltip('Markeer als Active — buy-stop staat bij je broker')
-            ->icon('heroicon-o-clock')
-            ->color('warning')
-            ->iconButton()
+        $action = Action::make('mark_buy_stop_placed')
+            ->label(fn (Position $record): string => $record->usesIbkrWorkflow()
+                ? 'Order plaatsen'
+                : 'Order geplaatst')
+            ->tooltip(fn (Position $record): string => self::markBuyStopTooltip($record))
+            ->icon(fn (Position $record): string => $record->usesIbkrWorkflow()
+                ? 'heroicon-o-clipboard-document-list'
+                : 'heroicon-o-clock')
+            ->color(fn (Position $record): string => $record->usesIbkrWorkflow() ? 'primary' : 'warning')
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && $record->scoutPipelineStatus() !== ScoutPipelineStatus::Active)
+            ->disabled(fn (Position $record): bool => ! $record->hasCompleteBracketPlan())
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->requiresConfirmation(fn (Position $record): bool => $record->usesIbkrWorkflow())
+            ->modalHeading(fn (Position $record): string => $record->usesIbkrWorkflow()
+                ? BrokerOrderTicket::forIbkrBracket($record)['title']
+                : 'Order geplaatst')
+            ->modalIcon(fn (Position $record): ?HtmlString => $record->usesIbkrWorkflow()
+                ? BrokerOrderTicket::modalIcon($record)
+                : null)
+            ->modalIconColor('gray')
+            ->extraModalWindowAttributes(fn (Position $record): array => $record->usesIbkrWorkflow()
+                ? ['class' => 'vestix-broker-order-modal']
+                : [])
+            ->modalContent(fn (Position $record): ?HtmlString => $record->usesIbkrWorkflow()
+                ? new HtmlString(
+                    view('filament.positions.broker-order-ticket', [
+                        'ticket' => BrokerOrderTicket::forIbkrBracket($record),
+                    ])->render()
+                )
+                : null)
+            ->modalSubmitActionLabel(fn (Position $record): string => $record->usesIbkrWorkflow()
+                ? BrokerOrderTicket::forIbkrBracket($record)['submit_label']
+                : 'Bevestigen')
+            ->modalCancelActionLabel('Annuleren')
             ->action(function (Position $record): void {
                 $record->update([
                     'broker_order_status' => BrokerOrderStatus::Pending,
@@ -260,10 +286,29 @@ class PositionRecordActions
                 ]);
 
                 FilamentNotifier::send(
-                    title: 'Order gemarkeerd als Active',
+                    title: $record->usesIbkrWorkflow()
+                        ? 'Bracket order gemarkeerd'
+                        : 'Order gemarkeerd als Active',
                     body: "{$record->ticker} staat nu op Active in je radar.",
                 );
             });
+
+        if ($iconButton) {
+            $action->iconButton();
+        }
+
+        return $action;
+    }
+
+    private static function markBuyStopTooltip(Position $record): string
+    {
+        if (! $record->hasCompleteBracketPlan()) {
+            return 'Vul eerst entry, aantal en marktdata in of haal data op';
+        }
+
+        return $record->usesIbkrWorkflow()
+            ? 'Toon IBKR bracket order plan voor TradingView'
+            : 'Markeer als Active — buy-stop staat bij je broker';
     }
 
     public static function clearBuyStop(): Action

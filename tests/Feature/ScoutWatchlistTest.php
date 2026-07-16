@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
@@ -679,7 +680,12 @@ class ScoutWatchlistTest extends TestCase
 
         $scout = Position::factory()->for($user)->scout()->create([
             'ticker' => 'WIT',
+            'broker' => Broker::Revolut,
             'broker_order_status' => BrokerOrderStatus::Scout,
+            'entry_price' => 50.00,
+            'quantity' => 10,
+            'latest_sma_20' => 48.00,
+            'latest_atr_14' => 2.00,
         ]);
 
         Livewire::test(ListScouts::class)
@@ -689,6 +695,63 @@ class ScoutWatchlistTest extends TestCase
 
         $this->assertSame(BrokerOrderStatus::Pending, $scout->broker_order_status);
         $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
+    }
+
+    public function test_ibkr_mark_buy_stop_placed_shows_bracket_modal_and_sets_active(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'COO',
+            'broker' => Broker::Ibkr,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'entry_price' => 71.80,
+            'quantity' => 34,
+            'latest_sma_20' => 69.00,
+            'latest_atr_14' => 1.50,
+        ]);
+
+        $ticket = \App\Support\BrokerOrderTicket::forIbkrBracket($scout);
+
+        $this->assertSame('IBKR Bracket Order — COO', $ticket['title']);
+        $this->assertSame('STOP (Kopen)', $ticket['rows'][0]['value']);
+        $this->assertNotNull($ticket['intro']);
+
+        Livewire::test(ListScouts::class)
+            ->assertTableActionVisible('mark_buy_stop_placed', $scout)
+            ->assertTableActionEnabled('mark_buy_stop_placed', $scout)
+            ->callTableAction('mark_buy_stop_placed', $scout);
+
+        $scout->refresh();
+
+        $this->assertSame(BrokerOrderStatus::Pending, $scout->broker_order_status);
+        $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
+    }
+
+    public function test_scout_edit_can_switch_broker_to_ibkr(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'COO',
+            'broker' => Broker::Revolut,
+            'entry_price' => 71.80,
+            'quantity' => 34,
+            'latest_sma_20' => 69.00,
+            'latest_atr_14' => 1.50,
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->assertSee('Broker voor deze scout')
+            ->assertSee('Interactive Brokers')
+            ->fillForm(['broker' => Broker::Ibkr->value])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $scout->refresh();
+
+        $this->assertSame(Broker::Ibkr, $scout->broker);
+        $this->assertTrue($scout->usesIbkrWorkflow());
     }
 
     public function test_clear_buy_stop_resets_scout_status(): void

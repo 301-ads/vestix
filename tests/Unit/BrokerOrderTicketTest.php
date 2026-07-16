@@ -201,4 +201,54 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertStringContainsString('50 stuks (50%)', $html);
         $this->assertStringContainsString('Bevestiging', $html);
     }
+
+    public function test_ibkr_bracket_ticket_formats_trading_view_plan(): void
+    {
+        $position = Position::factory()->scout()->make([
+            'ticker' => 'COO',
+            'entry_price' => 71.80,
+            'quantity' => 34,
+            'latest_sma_20' => 69.00,
+            'latest_atr_14' => 1.50,
+            'first_tranche_fraction' => 0.5,
+            'target_1_rr' => 2.0,
+        ]);
+
+        // new_sl = 69 - 1.50/2 = 68.25; T1 = 71.80 + 2*(71.80-68.25) = 78.90
+        $ticket = BrokerOrderTicket::forIbkrBracket($position);
+
+        $this->assertSame('IBKR Bracket Order — COO', $ticket['title']);
+        $this->assertStringContainsString('TradingView', $ticket['intro']);
+        $this->assertSame('STOP (Kopen)', $ticket['rows'][0]['value']);
+        $this->assertSame('34 stuks', $ticket['rows'][1]['value']);
+        $this->assertSame('34', $ticket['rows'][1]['copy_value']);
+        $this->assertSame('$71.80', $ticket['rows'][2]['value']);
+        $this->assertSame('71.80', $ticket['rows'][2]['copy_value']);
+        $this->assertSame('$78.90', $ticket['rows'][3]['value']);
+        $this->assertSame('78.90', $ticket['rows'][3]['copy_value']);
+        $this->assertStringContainsString('17 stuks', $ticket['rows'][3]['hint']);
+        $this->assertSame('$68.25', $ticket['rows'][4]['value']);
+        $this->assertSame('68.25', $ticket['rows'][4]['copy_value']);
+        $this->assertSame('Order geplaatst', $ticket['submit_label']);
+    }
+
+    public function test_ibkr_bracket_ticket_blade_renders_copy_buttons(): void
+    {
+        $position = Position::factory()->scout()->make([
+            'ticker' => 'COO',
+            'entry_price' => 71.80,
+            'quantity' => 34,
+            'latest_sma_20' => 69.00,
+            'latest_atr_14' => 1.50,
+        ]);
+
+        $html = view('filament.positions.broker-order-ticket', [
+            'ticket' => BrokerOrderTicket::forIbkrBracket($position),
+        ])->render();
+
+        $this->assertStringContainsString('Neem dit exact over in TradingView', $html);
+        $this->assertStringContainsString('vestix-broker-order-ticket__copy-btn', $html);
+        $this->assertStringContainsString('Take Profit (Target 1)', $html);
+        $this->assertStringContainsString('Zet TP-aantal op', $html);
+    }
 }

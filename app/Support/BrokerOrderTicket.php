@@ -10,7 +10,8 @@ class BrokerOrderTicket
     /**
      * @return array{
      *     title: string,
-     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string}>,
+     *     intro: string|null,
+     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>,
      *     difference_label: string|null,
      *     confirmation: string,
      *     submit_label: string,
@@ -22,6 +23,7 @@ class BrokerOrderTicket
 
         return [
             'title' => "{$position->ticker} — Stop-Loss plaatsen",
+            'intro' => null,
             'rows' => [
                 [
                     'label' => 'Positie',
@@ -54,6 +56,7 @@ class BrokerOrderTicket
 
         return [
             'title' => "{$position->ticker} — Stop-Loss Update",
+            'intro' => null,
             'rows' => [
                 [
                     'label' => 'Positie',
@@ -87,7 +90,8 @@ class BrokerOrderTicket
     /**
      * @return array{
      *     title: string,
-     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string}>,
+     *     intro: string|null,
+     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>,
      *     difference_label: string|null,
      *     confirmation: string,
      *     submit_label: string,
@@ -105,6 +109,7 @@ class BrokerOrderTicket
 
         return [
             'title' => "{$position->ticker} — Limit Sell",
+            'intro' => null,
             'rows' => [
                 [
                     'label' => 'Totale positie',
@@ -142,7 +147,68 @@ class BrokerOrderTicket
     /**
      * @return array{
      *     title: string,
-     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string}>,
+     *     intro: string|null,
+     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>,
+     *     difference_label: string|null,
+     *     confirmation: string,
+     *     submit_label: string,
+     * }
+     */
+    public static function forIbkrBracket(Position $position): array
+    {
+        $quantity = (float) ($position->quantity ?? 0);
+        $entry = (float) ($position->entry_price ?? 0);
+        $stopLoss = (float) ($position->new_sl ?? 0);
+        $target1 = (float) ($position->plannedBracketTarget1Price() ?? 0);
+        $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
+        $tpQty = round($quantity * $position->effective_first_tranche_fraction, 6);
+
+        return [
+            'title' => "IBKR Bracket Order — {$position->ticker}",
+            'intro' => 'Neem dit exact over in TradingView: Order Type = STOP (Kopen), vink Take Profit en Stop Loss aan.',
+            'rows' => [
+                [
+                    'label' => 'Order type',
+                    'value' => 'STOP (Kopen)',
+                ],
+                [
+                    'label' => 'Aantal (Quantity)',
+                    'value' => self::formatQuantity($quantity),
+                    'copy_value' => self::formatCopyQuantity($quantity),
+                ],
+                [
+                    'label' => 'Prijs (Buy-Stop)',
+                    'value' => self::formatMoney($entry),
+                    'copy_value' => self::formatCopyMoney($entry),
+                    'accent' => true,
+                ],
+                [
+                    'label' => 'Take Profit (Target 1)',
+                    'value' => self::formatMoney($target1),
+                    'copy_value' => self::formatCopyMoney($target1),
+                    'hint' => sprintf(
+                        'Zet TP-aantal op %s (%d%% van de positie) als je schaalt.',
+                        self::formatQuantity($tpQty),
+                        $fractionPercent,
+                    ),
+                ],
+                [
+                    'label' => 'Stop Loss',
+                    'value' => self::formatMoney($stopLoss),
+                    'copy_value' => self::formatCopyMoney($stopLoss),
+                ],
+            ],
+            'difference_label' => null,
+            'confirmation' => 'Heb je de bracket order in TradingView/IBKR verzonden?',
+            'submit_label' => 'Order geplaatst',
+        ];
+    }
+
+    /**
+     * @return array{
+     *     title: string,
+     *     intro: string|null,
+     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>,
      *     difference_label: string|null,
      *     confirmation: string,
      *     submit_label: string,
@@ -156,6 +222,7 @@ class BrokerOrderTicket
 
         return [
             'title' => "{$position->ticker} — Target 1 bereikt",
+            'intro' => null,
             'rows' => [
                 [
                     'label' => 'Totale positie',
@@ -212,5 +279,15 @@ class BrokerOrderTicket
     public static function formatMoney(float $value): string
     {
         return '$'.number_format($value, 2);
+    }
+
+    public static function formatCopyQuantity(float $quantity): string
+    {
+        return rtrim(rtrim(number_format($quantity, 6, '.', ''), '0'), '.');
+    }
+
+    public static function formatCopyMoney(float $value): string
+    {
+        return number_format($value, 2, '.', '');
     }
 }

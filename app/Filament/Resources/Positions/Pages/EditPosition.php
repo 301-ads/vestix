@@ -107,6 +107,11 @@ class EditPosition extends EditRecord
         $overflowActions = [];
 
         if ($record->status === 'scout') {
+            $actions[] = PositionRecordActions::markBuyStopPlaced(iconButton: false)
+                ->outlined(fn (): bool => $this->getRecord()->usesIbkrWorkflow())
+                ->extraAttributes(fn (): array => $this->getRecord()->usesIbkrWorkflow()
+                    ? ['class' => 'vestix-sync-btn']
+                    : []);
             $actions[] = $this->scoutActivateAction();
             $overflowActions[] = PositionRecordActions::shareSetup();
         } else {
