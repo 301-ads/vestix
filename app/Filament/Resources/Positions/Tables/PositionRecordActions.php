@@ -466,7 +466,11 @@ class PositionRecordActions
 
     public static function canPromoteToA(Position $record): bool
     {
-        if ($record->status !== 'scout' || $record->trader_promoted_a) {
+        if (
+            $record->status !== 'scout'
+            || $record->trader_promoted_a
+            || $record->trader_promoted_a_plus
+        ) {
             return false;
         }
 

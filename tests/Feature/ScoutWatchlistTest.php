@@ -728,9 +728,10 @@ class ScoutWatchlistTest extends TestCase
         $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
     }
 
-    public function test_scout_edit_can_switch_broker_to_ibkr(): void
+    public function test_scout_broker_workflow_follows_profile_primary_broker(): void
     {
         $user = $this->authenticateFilament();
+        $user->update(['primary_broker' => Broker::Ibkr]);
 
         $scout = Position::factory()->for($user)->scout()->create([
             'ticker' => 'COO',
@@ -742,16 +743,11 @@ class ScoutWatchlistTest extends TestCase
         ]);
 
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
-            ->assertSee('Broker voor deze scout')
-            ->assertSee('Interactive Brokers')
-            ->fillForm(['broker' => Broker::Ibkr->value])
-            ->call('save')
-            ->assertHasNoFormErrors();
+            ->assertDontSee('Broker voor deze scout')
+            ->assertSee('Interactive Brokers');
 
-        $scout->refresh();
-
-        $this->assertSame(Broker::Ibkr, $scout->broker);
-        $this->assertTrue($scout->usesIbkrWorkflow());
+        $this->assertTrue($scout->fresh()->usesIbkrWorkflow());
+        $this->assertSame(Broker::Revolut, $scout->fresh()->broker);
     }
 
     public function test_clear_buy_stop_resets_scout_status(): void

@@ -480,12 +480,15 @@ class Position extends Model
             throw new InvalidArgumentException('Marktdata ontbreekt — kan geen stop-loss berekenen.');
         }
 
+        $this->loadMissing('user');
+
         $this->update([
             'status' => 'open',
             'entry_price' => $entryPrice,
             'quantity' => $quantity,
             'current_sl' => $sl,
             'initial_sl' => $sl,
+            'broker' => $this->user?->primary_broker?->value ?? $this->broker?->value ?? Broker::Revolut->value,
             'target_1_rr' => $target1Rr ?? self::defaultTarget1Rr(),
             'first_tranche_fraction' => $firstTrancheFraction ?? self::defaultFirstTrancheFraction(),
             'premarket_price' => null,
@@ -514,6 +517,13 @@ class Position extends Model
 
     public function effectiveBroker(): Broker
     {
+        // Scouts always follow the profile setting (temporary hybrid; no per-scout override).
+        if ($this->status === 'scout') {
+            $this->loadMissing('user');
+
+            return $this->user?->primary_broker ?? Broker::Revolut;
+        }
+
         if ($this->broker !== null) {
             return $this->broker;
         }
@@ -1328,6 +1338,8 @@ class Position extends Model
     public function promoteToAPlus(): void
     {
         $this->update([
+            'trader_promoted_a' => true,
+            'trader_promoted_a_at' => $this->trader_promoted_a_at ?? now(),
             'trader_promoted_a_plus' => true,
             'trader_promoted_a_plus_at' => now(),
         ]);

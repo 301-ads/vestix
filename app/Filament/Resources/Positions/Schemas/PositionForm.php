@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Positions\Schemas;
 
-use App\Enums\Broker;
 use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
 use App\Enums\TrailingStopMode;
@@ -29,7 +28,6 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\ToggleButtons;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Callout;
@@ -246,17 +244,6 @@ class PositionForm
                         self::marketOpenReminderToggle()
                             ->visible(fn (?Position $record, string $operation): bool => $operation === 'edit'),
                     ]),
-                ToggleButtons::make('broker')
-                    ->label('Broker voor deze scout')
-                    ->options(Broker::options())
-                    ->inline()
-                    ->default(fn (?Position $record): string => (
-                        $record?->effectiveBroker()
-                        ?? auth()->user()?->primary_broker
-                        ?? Broker::Revolut
-                    )->value)
-                    ->helperText('Bepaalt het orderplan: Revolut = buy-stop flow, IBKR = bracket order.')
-                    ->columnSpanFull(),
                 self::bankrollSetupCallout($isScoutForm),
                 self::earningsSmartAlert(),
                 Grid::make(3)
