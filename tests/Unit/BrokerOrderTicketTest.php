@@ -227,6 +227,8 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertSame('$78.90', $ticket['rows'][3]['value']);
         $this->assertSame('78.90', $ticket['rows'][3]['copy_value']);
         $this->assertStringContainsString('17 stuks', $ticket['rows'][3]['hint']);
+        $this->assertStringContainsString('100%', $ticket['rows'][3]['hint']);
+        $this->assertStringContainsString('wijzig daarna', $ticket['rows'][3]['hint']);
         $this->assertSame('$68.25', $ticket['rows'][4]['value']);
         $this->assertSame('68.25', $ticket['rows'][4]['copy_value']);
         $this->assertSame('Order geplaatst', $ticket['submit_label']);
@@ -249,6 +251,6 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertStringContainsString('Neem dit exact over in TradingView', $html);
         $this->assertStringContainsString('vestix-broker-order-ticket__copy-btn', $html);
         $this->assertStringContainsString('Take Profit (Target 1)', $html);
-        $this->assertStringContainsString('Zet TP-aantal op', $html);
+        $this->assertStringContainsString('wijzig daarna het TP-aantal', $html);
     }
 }

@@ -72,7 +72,8 @@ class PositionRecordActions
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && auth()->user() !== null
-                && app(SquadContext::class)->userCanInAnySquad(auth()->user(), 'position.activate'))
+                && app(SquadContext::class)->userCanInAnySquad(auth()->user(), 'position.activate')
+                && $record->scoutPipelineStatus() === ScoutPipelineStatus::Active)
             ->disabled(fn (Position $record): bool => self::scoutActivationDisabled($record))
             ->authorize(fn (Position $record): bool => auth()->user()?->can('activate', $record) ?? false)
             ->requiresConfirmation(fn (Position $record): bool => self::scoutExceedsRiskLimit($record))
@@ -311,26 +312,34 @@ class PositionRecordActions
             : 'Markeer als Active — buy-stop staat bij je broker';
     }
 
-    public static function clearBuyStop(): Action
+    public static function clearBuyStop(bool $iconButton = true): Action
     {
-        return Action::make('clear_buy_stop')
-            ->label('Terug naar scout')
-            ->tooltip('Order bij broker geannuleerd of gewijzigd')
-            ->icon('heroicon-o-arrow-uturn-left')
-            ->color('gray')
-            ->iconButton()
+        $action = Action::make('clear_buy_stop')
+            ->label('Order annuleren')
+            ->tooltip('Order bij broker geannuleerd — terug naar Pending')
+            ->icon('heroicon-o-no-symbol')
+            ->color('danger')
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && $record->scoutPipelineStatus() === ScoutPipelineStatus::Active)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->requiresConfirmation()
+            ->modalHeading('Order annuleren')
+            ->modalDescription('Bevestig dat je de order bij je broker hebt geannuleerd. De scout gaat terug naar Pending.')
             ->action(function (Position $record): void {
                 $record->update(['broker_order_status' => BrokerOrderStatus::Scout]);
 
                 FilamentNotifier::send(
-                    title: 'Terug naar scout',
-                    body: "{$record->ticker} staat weer op Scout in je radar.",
+                    title: 'Order geannuleerd',
+                    body: "{$record->ticker} staat weer op Pending — plaats opnieuw een order wanneer je klaar bent.",
                 );
             });
+
+        if ($iconButton) {
+            $action->iconButton();
+        }
+
+        return $action;
     }
 
     public static function rolloverBuyStop(): Action

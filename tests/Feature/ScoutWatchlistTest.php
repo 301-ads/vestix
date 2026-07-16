@@ -353,18 +353,45 @@ class ScoutWatchlistTest extends TestCase
         ]);
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
-            ->assertSee('Scout')
+            ->assertSee('Pending')
             ->assertSee('Geplande Entry')
             ->assertSee('Gepland risico')
             ->assertSee('Totale inleg')
-            ->assertSee('Activeren')
+            ->assertSee('Order geplaatst')
+            ->assertDontSee('Activeren')
             ->assertDontSee('Actie / Executie');
+    }
+
+    public function test_scout_estafette_hides_activate_until_order_placed(): void
+    {
+        $user = $this->authenticateFilament();
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'ESTF',
+            'entry_price' => 50.00,
+            'quantity' => 10,
+            'latest_sma_20' => 48.00,
+            'latest_atr_14' => 2.00,
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->assertActionVisible('mark_buy_stop_placed')
+            ->assertActionHidden('activate_scout')
+            ->callAction('mark_buy_stop_placed')
+            ->assertActionHidden('mark_buy_stop_placed')
+            ->assertActionVisible('activate_scout')
+            ->assertActionVisible('clear_buy_stop')
+            ->callAction('clear_buy_stop')
+            ->assertActionVisible('mark_buy_stop_placed')
+            ->assertActionHidden('activate_scout');
+
+        $this->assertSame(BrokerOrderStatus::Scout, $scout->fresh()->broker_order_status);
+        $this->assertSame(ScoutPipelineStatus::Scout, $scout->fresh()->scoutPipelineStatus());
     }
 
     public function test_activate_scout_action_from_list(): void
     {
         $user = $this->authenticateFilament();
-        $scout = Position::factory()->for($user)->scout()->create([
+        $scout = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
             'entry_price' => 78.00,
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
@@ -387,7 +414,7 @@ class ScoutWatchlistTest extends TestCase
     public function test_activate_scout_action_works_without_strategy_tag(): void
     {
         $user = $this->authenticateFilament();
-        $scout = Position::factory()->for($user)->scout()->create([
+        $scout = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
             'entry_price' => 78.00,
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
@@ -510,9 +537,9 @@ class ScoutWatchlistTest extends TestCase
     public function test_activate_button_has_a_plus_class_for_perfect_setup(): void
     {
         $user = $this->authenticateFilament();
-        $scout = Position::factory()->for($user)->scout()->create(array_merge(
+        $scout = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create(array_merge(
             $this->aPlusSetupAttributes(),
-            ['entry_price' => 100.50],
+            ['entry_price' => 100.50, 'quantity' => 10],
         ));
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
@@ -627,13 +654,17 @@ class ScoutWatchlistTest extends TestCase
             'latest_open_price' => 100.00,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
             'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
             'sector_etf' => 'XLK',
-            'sector_trend_positive' => false,
+            'sector_trend_positive' => true,
             'pre_bounce_extension_atr' => 2.50,
+            'trader_promoted_a' => true,
         ]);
 
         $nearButWeak = Position::factory()->for($user)->scout()->create([
@@ -744,7 +775,7 @@ class ScoutWatchlistTest extends TestCase
 
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertDontSee('Broker voor deze scout')
-            ->assertSee('Interactive Brokers');
+            ->assertSee('IBKR');
 
         $this->assertTrue($scout->fresh()->usesIbkrWorkflow());
         $this->assertSame(Broker::Revolut, $scout->fresh()->broker);
@@ -771,8 +802,9 @@ class ScoutWatchlistTest extends TestCase
     {
         $user = $this->authenticateFilament();
 
-        $scout = Position::factory()->for($user)->scout()->create([
+        $scout = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
             'entry_price' => 78.00,
+            'quantity' => 10,
             'latest_close_price' => 78.20,
             'latest_sma_20' => 77.50,
             'latest_atr_14' => 2.80,
@@ -780,6 +812,7 @@ class ScoutWatchlistTest extends TestCase
 
         Livewire::test(ListScouts::class)
             ->assertCanSeeTableRecords([$scout])
+            ->assertTableActionVisible('activate_scout', $scout)
             ->callTableAction('activate_scout', $scout, data: [
                 'entry_price' => 79.00,
                 'quantity' => 8,
@@ -865,7 +898,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertSee('Status')
             ->assertSee('Active')
             ->assertSee('Pending')
-            ->assertDontSee('Reminder');
+            ->assertSee('Reminder');
     }
 
     public function test_gap_up_filter_uses_premarket_scan(): void
@@ -1092,9 +1125,12 @@ class ScoutWatchlistTest extends TestCase
             'scout_rsi' => 50.00,
             'bounce_volume_above_average' => true,
             'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
             'sector_etf' => 'XLK',
-            'sector_trend_positive' => false,
+            'sector_trend_positive' => true,
             'pre_bounce_extension_atr' => 2.50,
+            'trader_promoted_a' => true,
         ];
     }
 

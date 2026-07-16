@@ -187,7 +187,7 @@ class BrokerOrderTicket
                     'value' => self::formatMoney($target1),
                     'copy_value' => self::formatCopyMoney($target1),
                     'hint' => sprintf(
-                        'Zet TP-aantal op %s (%d%% van de positie) als je schaalt.',
+                        'TradingView zet TP standaard op 100%%. Plaats eerst de bracket; wijzig daarna het TP-aantal naar %s (%d%%) om te schalen. Verlaag vervolgens de SL-qty naar het restant.',
                         self::formatQuantity($tpQty),
                         $fractionPercent,
                     ),

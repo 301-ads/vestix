@@ -34,6 +34,7 @@
                                 x-tooltip="{
                                     content: copied ? 'Gekopieerd!' : 'Kopieer waarde',
                                     theme: $store.theme,
+                                    trigger: 'mouseenter',
                                 }"
                                 @click="
                                     navigator.clipboard.writeText(@js($row['copy_value'])).then(() => {

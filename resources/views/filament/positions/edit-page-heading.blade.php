@@ -20,7 +20,7 @@
         };
     }
 
-    $brokerLabel = isset($broker) && $broker instanceof Broker ? $broker->label() : null;
+    $brokerLabel = isset($broker) && $broker instanceof Broker ? $broker->shortLabel() : null;
 @endphp
 
 <span class="position-edit-heading inline-flex items-center gap-5">

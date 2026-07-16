@@ -113,6 +113,7 @@ class EditPosition extends EditRecord
                     ? ['class' => 'vestix-sync-btn']
                     : []);
             $actions[] = $this->scoutActivateAction();
+            $overflowActions[] = PositionRecordActions::clearBuyStop(iconButton: false);
             $overflowActions[] = PositionRecordActions::shareSetup();
         } else {
             $overflowActions[] = PositionRecordActions::shareSuccess();

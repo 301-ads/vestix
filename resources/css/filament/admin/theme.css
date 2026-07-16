@@ -482,6 +482,26 @@
     color: rgb(148 163 184 / 0.55);
 }
 
+@media (max-width: 640px) {
+    .fi-header .fi-header-actions .fi-btn.vestix-sync-btn {
+        gap: 0;
+        padding: 0.5rem;
+        min-width: 2.25rem;
+        min-height: 2.25rem;
+        justify-content: center;
+        border-radius: 0.75rem;
+    }
+
+    .fi-header .fi-header-actions .fi-btn.vestix-sync-btn .fi-btn-label {
+        display: none;
+    }
+
+    .fi-header-heading .position-edit-heading {
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+}
+
 .fi-header .fi-header-actions .fi-btn.vestix-sync-btn:disabled:hover,
 .fi-header .fi-header-actions .fi-btn.vestix-sync-btn[disabled]:hover,
 .fi-header .fi-header-actions .fi-btn.vestix-sync-btn.fi-disabled:hover,
@@ -545,8 +565,21 @@
 /* -------------------------------------------------------------------------- */
 
 .vestix-market-data-status {
-    font-size: 0.875rem;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    color: var(--gray-400);
+}
+
+.dark .vestix-market-data-status {
     color: var(--gray-500);
+}
+
+.vestix-market-data-status.animate-pulse {
+    color: rgb(16 185 129);
+}
+
+.dark .vestix-market-data-status.animate-pulse {
+    color: rgb(52 211 153);
 }
 
 /* -------------------------------------------------------------------------- */

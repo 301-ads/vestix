@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Enums\Broker;
 use App\Enums\ScoutPipelineStatus;
 use App\Models\Position;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,6 +17,8 @@ class ScoutPipelineStatusTest extends TestCase
         $scout = Position::factory()->scout()->create();
 
         $this->assertSame(ScoutPipelineStatus::Scout, $scout->scoutPipelineStatus());
+        $this->assertSame('Pending', $scout->scoutPipelineStatus()->label());
+        $this->assertSame('info', $scout->scoutPipelineStatus()->badgeColor());
     }
 
     public function test_pending_when_market_open_reminder_scheduled(): void
@@ -25,6 +28,8 @@ class ScoutPipelineStatusTest extends TestCase
         ]);
 
         $this->assertSame(ScoutPipelineStatus::Pending, $scout->scoutPipelineStatus());
+        $this->assertSame('Reminder', $scout->scoutPipelineStatus()->label());
+        $this->assertSame('gray', $scout->scoutPipelineStatus()->badgeColor());
     }
 
     public function test_active_when_order_live_at_broker(): void
@@ -32,6 +37,8 @@ class ScoutPipelineStatusTest extends TestCase
         $scout = Position::factory()->scout()->pendingBrokerOrder()->create();
 
         $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
+        $this->assertSame('Active', $scout->scoutPipelineStatus()->label());
+        $this->assertSame('info', $scout->scoutPipelineStatus()->badgeColor());
     }
 
     public function test_active_takes_priority_over_reminder(): void
@@ -48,5 +55,12 @@ class ScoutPipelineStatusTest extends TestCase
         $scout = Position::factory()->scout()->pendingBrokerOrder()->requiringBuyStopReview()->create();
 
         $this->assertSame(ScoutPipelineStatus::ReviewRequired, $scout->scoutPipelineStatus());
+    }
+
+    public function test_broker_short_labels(): void
+    {
+        $this->assertSame('IBKR', Broker::Ibkr->shortLabel());
+        $this->assertSame('Revolut', Broker::Revolut->shortLabel());
+        $this->assertSame('Handmatig', Broker::None->shortLabel());
     }
 }

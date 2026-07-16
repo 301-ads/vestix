@@ -11,9 +11,7 @@ use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
 use App\Support\SetupGradeDisplay;
 use Filament\Actions\ActionGroup;
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\ColumnGroup;
@@ -154,12 +152,6 @@ class ScoutsTable
                     DeleteAction::make()
                         ->visible(fn (Position $record): bool => auth()->user()?->can('delete', $record) ?? false),
                 ])->iconButton(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make()
-                        ->visible(! $squadMode),
-                ]),
             ]);
     }
 }

@@ -17,6 +17,15 @@ enum Broker: string
         };
     }
 
+    public function shortLabel(): string
+    {
+        return match ($this) {
+            self::Revolut => 'Revolut',
+            self::Ibkr => 'IBKR',
+            self::None => 'Handmatig',
+        };
+    }
+
     /**
      * @return array<string, string>
      */

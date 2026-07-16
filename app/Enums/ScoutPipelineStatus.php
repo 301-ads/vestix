@@ -31,8 +31,8 @@ enum ScoutPipelineStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::Scout => 'Scout',
-            self::Pending => 'Pending',
+            self::Scout => 'Pending',
+            self::Pending => 'Reminder',
             self::Active => 'Active',
             self::ReviewRequired => 'Review',
         };
@@ -41,9 +41,9 @@ enum ScoutPipelineStatus: string
     public function badgeColor(): string
     {
         return match ($this) {
-            self::Scout => 'gray',
-            self::Pending => 'info',
-            self::Active => 'warning',
+            self::Scout => 'info',
+            self::Pending => 'gray',
+            self::Active => 'info',
             self::ReviewRequired => 'warning',
         };
     }
@@ -61,11 +61,11 @@ enum ScoutPipelineStatus: string
     public function tooltip(Position $position): ?string
     {
         return match ($this) {
-            self::Scout => 'Op de radar — nog geen order gepland.',
+            self::Scout => 'Pending — nog geen order bij je broker.',
             self::Pending => $position->market_open_reminder_on !== null
-                ? 'Wacht op market open — reminder op '.$position->market_open_reminder_on->format('d-m-Y').'.'
-                : 'Wacht op market open.',
-            self::Active => 'Buy-stop staat live bij je broker.',
+                ? 'Reminder gepland voor market open op '.$position->market_open_reminder_on->format('d-m-Y').'.'
+                : 'Reminder voor market open.',
+            self::Active => 'Active — order staat live bij je broker.',
             self::ReviewRequired => $position->buy_stop_review_required_on !== null
                 ? 'Buy-stop review vereist sinds '.$position->buy_stop_review_required_on->format('d-m-Y').'.'
                 : 'Buy-stop review vereist.',
