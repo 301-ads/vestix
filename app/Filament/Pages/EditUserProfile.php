@@ -16,6 +16,7 @@ use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Auth\Pages\EditProfile;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Component;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Textarea;
@@ -87,11 +88,11 @@ class EditUserProfile extends EditProfile
                                     ->description('Bankroll en standaard risico-limiet voor de waakhond op scouts.')
                                     ->schema([
                                         TextInput::make('trading_bankroll')
-                                            ->label('Mijn Totale Trading Kapitaal (Bankroll)')
+                                            ->label('IBKR Net Liquidation (Bankroll)')
                                             ->numeric()
                                             ->prefix('$')
                                             ->minValue(0.01)
-                                            ->helperText('Huidige NLV bij je broker (IBKR). Update na stortingen en wekelijks voor de Alpha Tracker.'),
+                                            ->helperText('Alleen Interactive Brokers NLV — zonder Revolut/legacy. Update na stortingen en wekelijks voor de Alpha Tracker. Smart Sizing gebruikt dit bedrag.'),
                                         DatePicker::make('baseline_date')
                                             ->label('Alpha startdatum')
                                             ->native(false)
@@ -342,7 +343,7 @@ class EditUserProfile extends EditProfile
     }
 
     /**
-     * @return array<int, \Filament\Forms\Components\Component>
+     * @return array<int, Component>
      */
     protected function cashflowFormSchema(): array
     {

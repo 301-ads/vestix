@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\Broker;
 use App\Models\Position;
 use App\Models\User;
+use App\Services\Bankroll\IbkrBankrollSource;
 use App\Support\PositionSizing;
 use Illuminate\Support\Collection;
 
@@ -13,6 +15,22 @@ class SmartAllocationService
 
     public const MODE_SMART = 'smart';
 
+    public function __construct(
+        private readonly IbkrBankrollSource $ibkrBankrollSource,
+    ) {}
+
+    /**
+     * IBKR Net Liquidation for sizing — excludes open Revolut / legacy position value
+     * when that capital is still folded into a manual bankroll total.
+     */
+    public function resolveSizingBankroll(User $user): float
+    {
+        $nlv = $this->ibkrBankrollSource->resolveAmount($user);
+        $nonIbkrValue = $this->nonIbkrOpenPositionValue($user);
+
+        return max(0.0, round($nlv - $nonIbkrValue, 2));
+    }
+
     /**
      * @param  Collection<int, Position>|iterable<Position>  $positions
      * @return array{
@@ -20,6 +38,7 @@ class SmartAllocationService
      *     pie: float,
      *     pie_percent: float,
      *     bankroll: float,
+     *     weights_uniform: bool,
      *     allocations: list<array{
      *         position_id: int,
      *         ticker: string,
@@ -44,7 +63,7 @@ class SmartAllocationService
     public function allocate(User $user, iterable $positions, string $mode = self::MODE_SMART): array
     {
         $mode = $mode === self::MODE_EQUAL ? self::MODE_EQUAL : self::MODE_SMART;
-        $bankroll = (float) ($user->trading_bankroll ?? 0);
+        $bankroll = $this->resolveSizingBankroll($user);
         $piePercent = (float) ($user->default_risk_percent ?? 1);
         $pie = ($bankroll > 0 && $piePercent > 0)
             ? PositionSizing::riskBudgetFromPercent($bankroll, $piePercent)
@@ -126,6 +145,7 @@ class SmartAllocationService
                 'pie' => $pie,
                 'pie_percent' => $piePercent,
                 'bankroll' => $bankroll,
+                'weights_uniform' => true,
                 'allocations' => [],
                 'exclusions' => $exclusions,
             ];
@@ -182,6 +202,7 @@ class SmartAllocationService
                 'pie' => $pie,
                 'pie_percent' => $piePercent,
                 'bankroll' => $bankroll,
+                'weights_uniform' => true,
                 'allocations' => [],
                 'exclusions' => $exclusions,
             ];
@@ -225,6 +246,7 @@ class SmartAllocationService
             'pie' => round($pie, 2),
             'pie_percent' => $piePercent,
             'bankroll' => $bankroll,
+            'weights_uniform' => $this->weightsAreUniform($allocations),
             'allocations' => $allocations,
             'exclusions' => $exclusions,
         ];
@@ -265,6 +287,47 @@ class SmartAllocationService
         }
 
         return $updated;
+    }
+
+    /**
+     * @param  list<array{weight_share: float}>  $allocations
+     */
+    private function weightsAreUniform(array $allocations): bool
+    {
+        if (count($allocations) <= 1) {
+            return true;
+        }
+
+        $shares = array_column($allocations, 'weight_share');
+        $first = (float) $shares[0];
+
+        foreach ($shares as $share) {
+            if (abs((float) $share - $first) > 0.001) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function nonIbkrOpenPositionValue(User $user): float
+    {
+        $positions = Position::query()
+            ->forUser((int) $user->id)
+            ->open()
+            ->where(function ($query): void {
+                $query->where('is_legacy', true)
+                    ->orWhere('broker', Broker::Revolut->value);
+            })
+            ->get();
+
+        $total = 0.0;
+
+        foreach ($positions as $position) {
+            $total += (float) $position->current_value;
+        }
+
+        return round($total, 2);
     }
 
     private function resolveScore(Position $position): int

@@ -1337,6 +1337,20 @@
     gap: 1rem;
 }
 
+.vestix-execution-plan-content--embedded .vestix-execution-plan__footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--gray-200);
+}
+
+.dark .vestix-execution-plan-content--embedded .vestix-execution-plan__footer {
+    border-top-color: var(--gray-700);
+}
+
+.vestix-execution-plan-content--panel .vestix-execution-plan__footer {
+    margin-top: 1rem;
+}
+
 .vestix-execution-plan__footer-summary {
     margin: 0;
     font-size: 0.8125rem;
@@ -1347,28 +1361,8 @@
     color: var(--gray-400);
 }
 
-.vestix-order-plan-widget__body {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.vestix-order-plan-widget__copy {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.vestix-order-plan-widget__meta {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--gray-500);
-}
-
-.dark .vestix-order-plan-widget__meta {
-    color: var(--gray-400);
+.vestix-order-plan-widget .fi-section-content {
+    padding-top: 0.75rem;
 }
 
 .vestix-broker-order-ticket__value-ctn {

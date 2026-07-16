@@ -33,7 +33,7 @@
 
 <div class="vestix-smart-allocation">
     <p class="vestix-smart-allocation__intro">
-        Risicopie:
+        IBKR risicopie:
         <strong>{{ number_format($result['pie_percent'], 2) }}%</strong>
         van ${{ number_format($result['bankroll'], 2) }}
         = <strong>${{ number_format($result['pie'], 2) }}</strong>
@@ -41,10 +41,17 @@
         <strong>{{ $result['mode'] === 'equal' ? 'Gelijkmatig' : 'Smart Sizing' }}</strong>
     </p>
 
+    @if (($result['mode'] ?? '') === 'smart' && ($result['weights_uniform'] ?? false) && count($result['allocations']) >= 2)
+        <p class="vestix-smart-allocation__hint">
+            Smart Sizing verdeelt hier gelijk aan Gelijkmatig: score en R/R zijn per setup (nagenoeg) gelijk,
+            dus de gewichten vallen samen. Verschil zie je pas bij ongelijke scores of R/R.
+        </p>
+    @endif
+
     @if ($result['allocations'] === [])
         <p class="vestix-smart-allocation__empty">
             Geen allocaties mogelijk. Controleer scores (≥ {{ config('vestix.smart_sizing.min_score', 5) }}),
-            bankroll en entry/stop-loss.
+            IBKR bankroll en entry/stop-loss.
         </p>
     @else
         <div class="vestix-smart-allocation__table-wrap">
@@ -54,6 +61,7 @@
                         <th>Ticker</th>
                         <th>Score</th>
                         <th>R/R</th>
+                        <th>Gewicht</th>
                         <th>Sector</th>
                         <th>Risico %</th>
                         <th>Risico $</th>
@@ -76,6 +84,7 @@
                                     —
                                 @endif
                             </td>
+                            <td>{{ number_format($row['weight_share'] * 100, 0) }}%</td>
                             <td>
                                 {{ $row['sector'] ?? '—' }}
                                 @if ($row['sector_penalty'] > 0)

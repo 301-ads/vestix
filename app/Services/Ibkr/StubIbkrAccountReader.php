@@ -18,12 +18,13 @@ class StubIbkrAccountReader implements IbkrAccountReader
             return round((float) $configured, 2);
         }
 
-        if ($user->baseline_capital !== null && (float) $user->baseline_capital > 0) {
-            return round((float) $user->baseline_capital, 2);
-        }
-
+        // Current IBKR NLV (profile field) takes priority over historical baseline.
         if ($user->trading_bankroll !== null && (float) $user->trading_bankroll > 0) {
             return round((float) $user->trading_bankroll, 2);
+        }
+
+        if ($user->baseline_capital !== null && (float) $user->baseline_capital > 0) {
+            return round((float) $user->baseline_capital, 2);
         }
 
         return 0.0;

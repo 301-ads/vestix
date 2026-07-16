@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Enums\Broker;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\SmartAllocationService;
@@ -18,7 +19,7 @@ class SmartAllocationServiceTest extends TestCase
     {
         parent::setUp();
 
-        $this->service = new SmartAllocationService;
+        $this->service = app(SmartAllocationService::class);
     }
 
     public function test_equal_mode_splits_pie_evenly(): void
@@ -172,6 +173,46 @@ class SmartAllocationServiceTest extends TestCase
         foreach ($result['allocations'] as $allocation) {
             $this->assertEqualsWithDelta(0.0, $allocation['sector_penalty'], 0.001);
         }
+    }
+
+    public function test_identical_score_and_rr_makes_smart_match_equal(): void
+    {
+        $user = $this->userWithBankroll();
+        $coo = $this->scout($user, 'COO', score: 10, sector: 'XLV');
+        $rprx = $this->scout($user, 'RPRX', score: 10, sector: 'XLV');
+
+        $smart = $this->service->allocate($user, [$coo, $rprx], SmartAllocationService::MODE_SMART);
+        $equal = $this->service->allocate($user, [$coo, $rprx], SmartAllocationService::MODE_EQUAL);
+
+        $this->assertTrue($smart['weights_uniform']);
+        $this->assertEqualsWithDelta(
+            $equal['allocations'][0]['risk_dollars'],
+            $smart['allocations'][0]['risk_dollars'],
+            0.01,
+        );
+        $this->assertEqualsWithDelta(
+            $equal['allocations'][1]['risk_dollars'],
+            $smart['allocations'][1]['risk_dollars'],
+            0.01,
+        );
+    }
+
+    public function test_sizing_bankroll_excludes_open_revolut_position_value(): void
+    {
+        $user = $this->userWithBankroll();
+        $user->update(['trading_bankroll' => 10000]);
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'LEG',
+            'status' => 'open',
+            'broker' => Broker::Revolut,
+            'is_legacy' => false,
+            'quantity' => 100,
+            'entry_price' => 20,
+            'latest_close_price' => 20,
+        ]);
+
+        $this->assertEqualsWithDelta(8000.0, $this->service->resolveSizingBankroll($user->fresh()), 0.01);
     }
 
     private function userWithBankroll(): User

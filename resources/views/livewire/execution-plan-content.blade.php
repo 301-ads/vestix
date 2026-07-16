@@ -1,0 +1,64 @@
+@php
+    use App\Services\SmartAllocationService;
+@endphp
+
+<div @class([
+    'vestix-execution-plan-content',
+    'vestix-execution-plan-content--panel' => $layout === 'panel',
+    'vestix-execution-plan-content--embedded' => $layout === 'embedded',
+])>
+    @if ($scouts->isEmpty())
+        <div class="vestix-execution-plan__empty">
+            <p class="font-medium text-gray-950 dark:text-white">Nog geen setups in je Order Plan</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Zet op Mijn Radar het winkelwagen-icoon aan bij scouts die je wilt executeren.
+            </p>
+        </div>
+    @else
+        <div class="vestix-execution-plan__mode">
+            <span class="vestix-execution-plan__mode-label">Verdeelmethode</span>
+            <div class="vestix-execution-plan__mode-btns" role="group" aria-label="Verdeelmethode">
+                <button
+                    type="button"
+                    wire:click="setMode('{{ SmartAllocationService::MODE_SMART }}')"
+                    @class([
+                        'vestix-execution-plan__mode-btn',
+                        'vestix-execution-plan__mode-btn--active' => $mode === SmartAllocationService::MODE_SMART,
+                    ])
+                >
+                    Smart Sizing
+                </button>
+                <button
+                    type="button"
+                    wire:click="setMode('{{ SmartAllocationService::MODE_EQUAL }}')"
+                    @class([
+                        'vestix-execution-plan__mode-btn',
+                        'vestix-execution-plan__mode-btn--active' => $mode === SmartAllocationService::MODE_EQUAL,
+                    ])
+                >
+                    Gelijkmatig
+                </button>
+            </div>
+        </div>
+
+        @include('filament.positions.smart-budget-allocation', [
+            'result' => $result,
+            'removable' => true,
+            'hint' => 'Klik Toepassen om quantity en risicobudget op de scouts te zetten. Daarna plaats je per scout je order via Order plaatsen.',
+        ])
+
+        <div class="vestix-execution-plan__footer">
+            <p class="vestix-execution-plan__footer-summary">
+                {{ $planCount }} setup{{ $planCount === 1 ? '' : 's' }}
+                · inleg ≈ ${{ number_format($totalInvestment, 2) }}
+            </p>
+            <x-filament::button
+                color="primary"
+                wire:click="applyAllocation"
+                wire:loading.attr="disabled"
+            >
+                Toepassen
+            </x-filament::button>
+        </div>
+    @endif
+</div>

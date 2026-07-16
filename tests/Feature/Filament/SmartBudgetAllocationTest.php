@@ -4,7 +4,10 @@ namespace Tests\Feature\Filament;
 
 use App\Enums\BrokerOrderStatus;
 use App\Enums\ScoutPipelineStatus;
+use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Positions\Pages\ListScouts;
+use App\Filament\Widgets\OrderPlanTodayWidget;
+use App\Livewire\ExecutionPlanContent;
 use App\Livewire\ExecutionPlanPanel;
 use App\Models\Position;
 use App\Services\SmartAllocationService;
@@ -24,7 +27,7 @@ class SmartBudgetAllocationTest extends TestCase
             ->assertTableBulkActionDoesNotExist('allocate_budget');
     }
 
-    public function test_execution_plan_panel_applies_quantity_without_activating(): void
+    public function test_execution_plan_content_applies_quantity_without_activating(): void
     {
         $user = $this->authenticateFilament();
         $user->update([
@@ -56,7 +59,7 @@ class SmartBudgetAllocationTest extends TestCase
             'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
         ]);
 
-        Livewire::test(ExecutionPlanPanel::class)
+        Livewire::test(ExecutionPlanContent::class)
             ->assertSet('mode', SmartAllocationService::MODE_SMART)
             ->assertSee('RPRX')
             ->assertSee('EWTX')
@@ -101,7 +104,7 @@ class SmartBudgetAllocationTest extends TestCase
             'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
         ]);
 
-        Livewire::test(ExecutionPlanPanel::class)
+        Livewire::test(ExecutionPlanContent::class)
             ->call('setMode', SmartAllocationService::MODE_EQUAL)
             ->call('applyAllocation');
 
@@ -131,7 +134,7 @@ class SmartBudgetAllocationTest extends TestCase
             'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
         ]);
 
-        Livewire::test(ExecutionPlanPanel::class)
+        Livewire::test(ExecutionPlanContent::class)
             ->call('applyAllocation');
 
         $scout->refresh();
@@ -140,7 +143,7 @@ class SmartBudgetAllocationTest extends TestCase
         $this->assertNotNull($scout->risk_budget);
     }
 
-    public function test_remove_from_plan_clears_reminder_and_updates_badge(): void
+    public function test_remove_from_plan_clears_reminder(): void
     {
         $user = $this->authenticateFilament();
 
@@ -152,12 +155,51 @@ class SmartBudgetAllocationTest extends TestCase
             'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
         ]);
 
-        Livewire::test(ExecutionPlanPanel::class)
+        Livewire::test(ExecutionPlanContent::class)
             ->assertSee('RPRX')
             ->call('removeFromPlan', $scout->id)
             ->assertDontSee('RPRX');
 
         $this->assertNull($scout->fresh()->market_open_reminder_on);
+    }
+
+    public function test_dashboard_widget_shows_allocation_table(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10000,
+            'default_risk_percent' => 1,
+        ]);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'COO',
+            'last_setup_score' => 10,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'sector_etf' => 'XLV',
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        $this->assertTrue(OrderPlanTodayWidget::canView());
+
+        Livewire::test(OrderPlanTodayWidget::class)
+            ->assertSeeLivewire(ExecutionPlanContent::class);
+
+        Livewire::test(Dashboard::class)
+            ->assertSee('Order Plan vandaag')
+            ->assertSee('COO')
+            ->assertSee('Smart Sizing')
+            ->assertSee('Toepassen')
+            ->assertDontSee('Open Executie Paneel');
+    }
+
+    public function test_topbar_panel_embeds_same_content_component(): void
+    {
+        $this->authenticateFilament();
+
+        Livewire::test(ExecutionPlanPanel::class)
+            ->assertSeeLivewire(ExecutionPlanContent::class);
     }
 
     public function test_mark_buy_stop_after_allocation_activates_with_new_quantity(): void
@@ -190,7 +232,7 @@ class SmartBudgetAllocationTest extends TestCase
             'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
         ]);
 
-        Livewire::test(ExecutionPlanPanel::class)
+        Livewire::test(ExecutionPlanContent::class)
             ->call('applyAllocation');
 
         $a->refresh();

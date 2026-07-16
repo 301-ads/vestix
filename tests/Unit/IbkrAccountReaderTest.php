@@ -14,18 +14,30 @@ class IbkrAccountReaderTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_stub_reader_uses_baseline_capital_as_nlv(): void
+    public function test_stub_reader_prefers_trading_bankroll_over_baseline(): void
     {
         $user = User::factory()->create([
             'baseline_capital' => 3428.40,
-            'trading_bankroll' => 3000,
+            'trading_bankroll' => 10600.68,
+        ]);
+
+        $reader = new StubIbkrAccountReader;
+
+        $this->assertSame(10600.68, $reader->netLiquidationValue($user));
+        $this->assertSame(10600.68, $reader->availableFunds($user));
+        $this->assertSame([], $reader->openPositions($user));
+    }
+
+    public function test_stub_reader_falls_back_to_baseline_capital(): void
+    {
+        $user = User::factory()->create([
+            'baseline_capital' => 3428.40,
+            'trading_bankroll' => null,
         ]);
 
         $reader = new StubIbkrAccountReader;
 
         $this->assertSame(3428.40, $reader->netLiquidationValue($user));
-        $this->assertSame(3428.40, $reader->availableFunds($user));
-        $this->assertSame([], $reader->openPositions($user));
     }
 
     public function test_stub_reader_honors_config_overrides(): void
