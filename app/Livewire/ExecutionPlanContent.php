@@ -2,33 +2,44 @@
 
 namespace App\Livewire;
 
+use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\SmartAllocationService;
 use App\Support\FilamentNotifier;
+use Filament\Actions\Action;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Actions\Contracts\HasActions;
+use Filament\Schemas\Concerns\InteractsWithSchemas;
+use Filament\Schemas\Contracts\HasSchemas;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-class ExecutionPlanContent extends Component
+class ExecutionPlanContent extends Component implements HasActions, HasSchemas
 {
+    use InteractsWithActions;
+    use InteractsWithSchemas;
+
     /** @var 'embedded'|'panel' */
     public string $layout = 'embedded';
 
-    /** @var 'compact'|'full' */
-    public string $density = 'compact';
-
     public string $mode = SmartAllocationService::MODE_SMART;
 
-    public function mount(string $layout = 'embedded', string $density = 'compact'): void
+    public function mount(string $layout = 'embedded'): void
     {
         $this->layout = $layout === 'panel' ? 'panel' : 'embedded';
-        $this->density = $density === 'full' ? 'full' : 'compact';
         $this->mode = (string) config(
             'vestix.smart_sizing.default_mode',
             SmartAllocationService::MODE_SMART,
         );
+    }
+
+    public function boot(): void
+    {
+        $this->cacheAction($this->placeOrderAction());
     }
 
     #[On('order-plan-updated')]
@@ -116,12 +127,30 @@ class ExecutionPlanContent extends Component
         FilamentNotifier::send(
             title: 'Budget verdeeld',
             body: sprintf(
-                '%d scout(s) bijgewerkt. Plaats daarna per scout je order via Order plaatsen.',
+                '%d scout(s) bijgewerkt. Plaats daarna per scout je order via Order Ticket.',
                 $updated,
             ),
         );
 
         $this->dispatch('order-plan-updated');
+    }
+
+    public function getDefaultActionRecord(Action $action): ?Model
+    {
+        $arguments = $action->getArguments();
+        $key = $arguments['record'] ?? $arguments['recordKey'] ?? null;
+
+        return $this->resolveOrderPlanPosition($key);
+    }
+
+    public function placeOrderActionForPosition(Position $position): Action
+    {
+        return $this->cacheAction($this->placeOrderAction())(['record' => $position->getKey()])->record($position);
+    }
+
+    public function placeOrderAction(): Action
+    {
+        return $this->configureRecordAction(PositionRecordActions::markBuyStopPlaced());
     }
 
     /**
@@ -184,6 +213,46 @@ class ExecutionPlanContent extends Component
     {
         return (float) collect($this->allocationResult()['allocations'])
             ->sum('investment');
+    }
+
+    private function configureRecordAction(Action $action): Action
+    {
+        return $action
+            ->resolveRecordUsing(function (array $arguments) use ($action): ?Position {
+                $key = $arguments['key']
+                    ?? $action->getArguments()['record']
+                    ?? $action->getArguments()['recordKey']
+                    ?? null;
+
+                return $this->resolveOrderPlanPosition($key);
+            })
+            ->before(function (Action $action): void {
+                $record = $this->getDefaultActionRecord($action);
+
+                if ($record instanceof Position) {
+                    $action->record($record);
+                }
+            })
+            ->after(function (): void {
+                $this->dispatch('order-plan-updated');
+            });
+    }
+
+    private function resolveOrderPlanPosition(mixed $key): ?Position
+    {
+        if ($key === null || $key === '') {
+            return null;
+        }
+
+        if ($key instanceof Position) {
+            return $key;
+        }
+
+        return Position::query()
+            ->forUser(auth()->id() ?? 0)
+            ->scout()
+            ->nonLegacy()
+            ->find($key);
     }
 
     public function render(): View

@@ -82,6 +82,7 @@ class SmartBudgetAllocationTest extends TestCase
         $user->update([
             'trading_bankroll' => 10000,
             'default_risk_percent' => 1,
+            'primary_broker' => \App\Enums\Broker::Ibkr,
         ]);
 
         $a = Position::factory()->for($user)->scout()->create([
@@ -163,7 +164,7 @@ class SmartBudgetAllocationTest extends TestCase
         $this->assertNull($scout->fresh()->market_open_reminder_on);
     }
 
-    public function test_dashboard_widget_shows_full_density_ibkr_columns(): void
+    public function test_dashboard_widget_shows_compact_decision_table(): void
     {
         $user = $this->authenticateFilament();
         $user->update([
@@ -183,23 +184,21 @@ class SmartBudgetAllocationTest extends TestCase
 
         $this->assertTrue(OrderPlanTodayWidget::canView());
 
-        Livewire::test(ExecutionPlanContent::class, ['layout' => 'embedded', 'density' => 'full'])
-            ->assertSet('density', 'full')
+        Livewire::test(ExecutionPlanContent::class, ['layout' => 'embedded'])
             ->assertSee('COO')
-            ->assertSee('Buy-Stop')
-            ->assertSee('Limit')
-            ->assertSee('Stop-Loss')
-            ->assertSee('Take-Profit');
+            ->assertSee('R/R')
+            ->assertDontSee('Buy-Stop')
+            ->assertDontSee('Take-Profit')
+            ->assertSee('Toepassen');
 
         Livewire::test(Dashboard::class)
             ->assertSee('Order Plan vandaag')
             ->assertSee('COO')
-            ->assertSee('Buy-Stop')
-            ->assertSee('Toepassen')
+            ->assertSee('R/R')
             ->assertDontSee('Open Executie Paneel');
     }
 
-    public function test_slide_over_uses_compact_density_without_ibkr_price_headers(): void
+    public function test_order_plan_row_exposes_place_order_action(): void
     {
         $user = $this->authenticateFilament();
         $user->update([
@@ -207,22 +206,19 @@ class SmartBudgetAllocationTest extends TestCase
             'default_risk_percent' => 1,
         ]);
 
-        Position::factory()->for($user)->scout()->create([
-            'ticker' => 'RPRX',
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'COO',
             'last_setup_score' => 10,
-            'entry_price' => 100.00,
-            'latest_sma_20' => 98.00,
-            'latest_atr_14' => 2.00,
-            'sector_etf' => 'XLK',
+            'entry_price' => 71.80,
+            'latest_sma_20' => 70.30,
+            'latest_atr_14' => 4.05,
+            'quantity' => 11,
             'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
         ]);
 
-        Livewire::test(ExecutionPlanContent::class, ['layout' => 'panel', 'density' => 'compact'])
-            ->assertSet('density', 'compact')
-            ->assertSee('RPRX')
-            ->assertSee('R/R')
-            ->assertDontSee('Buy-Stop')
-            ->assertDontSee('Take-Profit');
+        Livewire::test(ExecutionPlanContent::class)
+            ->assertSee('COO')
+            ->assertSee('Order geplaatst');
     }
 
     public function test_topbar_panel_embeds_same_content_component(): void

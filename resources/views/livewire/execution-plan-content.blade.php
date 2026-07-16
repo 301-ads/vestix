@@ -43,9 +43,10 @@
 
         @include('filament.positions.smart-budget-allocation', [
             'result' => $result,
+            'scouts' => $scouts,
             'removable' => true,
-            'density' => $density,
-            'hint' => 'Klik Toepassen om quantity en risicobudget op de scouts te zetten. Daarna plaats je per scout je order via Order plaatsen.',
+            'actionable' => true,
+            'hint' => 'Klik Toepassen om quantity en risicobudget op de scouts te zetten. Daarna open je per scout het Order Ticket.',
         ])
 
         <div class="vestix-execution-plan__footer">
@@ -62,4 +63,6 @@
             </x-filament::button>
         </div>
     @endif
+
+    <x-filament-actions::modals />
 </div>

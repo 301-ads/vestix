@@ -1259,12 +1259,19 @@
 .vestix-smart-allocation__actions-col {
     position: sticky;
     right: 0;
-    width: 2.25rem;
-    min-width: 2.25rem;
+    width: 4.75rem;
+    min-width: 4.75rem;
     text-align: end;
     background: var(--gray-50);
     box-shadow: -6px 0 8px -6px rgb(0 0 0 / 0.18);
     z-index: 1;
+}
+
+.vestix-smart-allocation__row-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
 }
 
 .vestix-smart-allocation__table tbody .vestix-smart-allocation__actions-col {
