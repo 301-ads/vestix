@@ -44,6 +44,34 @@ class BankrollCashflowService
         return $cashflow;
     }
 
+    public function update(
+        User $user,
+        int $cashflowId,
+        BankrollCashflowType $type,
+        float $amount,
+        Carbon $occurredOn,
+        ?string $note = null,
+    ): ?BankrollCashflow {
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('Cashflow amount must be positive.');
+        }
+
+        $cashflow = $user->bankrollCashflows()->whereKey($cashflowId)->first();
+
+        if ($cashflow === null) {
+            return null;
+        }
+
+        $cashflow->update([
+            'type' => $type,
+            'amount' => round(abs($amount), 2),
+            'occurred_on' => $occurredOn->toDateString(),
+            'note' => filled($note) ? trim($note) : null,
+        ]);
+
+        return $cashflow->fresh();
+    }
+
     /**
      * Net external capital in since baseline (deposits − withdrawals), as of a date inclusive.
      */

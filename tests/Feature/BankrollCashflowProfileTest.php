@@ -46,6 +46,49 @@ class BankrollCashflowProfileTest extends TestCase
         ]);
     }
 
+    public function test_cashflow_service_updates_own_flow(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $flow = app(BankrollCashflowService::class)->record(
+            $user,
+            BankrollCashflowType::Deposit,
+            3428.40,
+            Carbon::parse('2026-07-15'),
+        );
+
+        $updated = app(BankrollCashflowService::class)->update(
+            $user,
+            $flow->id,
+            BankrollCashflowType::Deposit,
+            3500,
+            Carbon::parse('2026-07-16'),
+            'Gecorrigeerd openingsaldo',
+        );
+
+        $this->assertNotNull($updated);
+        $this->assertEquals(3500.0, (float) $updated->amount);
+        $this->assertSame('2026-07-16', $updated->occurred_on->toDateString());
+        $this->assertSame('Gecorrigeerd openingsaldo', $updated->note);
+    }
+
+    public function test_profile_can_save_baseline_date(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->forceFill(['default_risk_percent' => 1])->save();
+
+        Livewire::test(EditUserProfile::class)
+            ->fillForm([
+                'baseline_date' => '2026-07-16',
+                'default_risk_percent' => '1',
+                'primary_broker' => 'ibkr',
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('2026-07-16', $user->fresh()->baseline_date?->toDateString());
+    }
+
     public function test_cashflow_service_deletes_own_flow_only(): void
     {
         $user = $this->authenticateFilament();

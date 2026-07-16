@@ -13,6 +13,7 @@ use App\Services\TelegramLinkService;
 use App\Support\PositionSizing;
 use App\Support\TelegramNotifier;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Auth\Pages\EditProfile;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
@@ -91,9 +92,11 @@ class EditUserProfile extends EditProfile
                                             ->prefix('$')
                                             ->minValue(0.01)
                                             ->helperText('Huidige NLV bij je broker (IBKR). Update na stortingen en wekelijks voor de Alpha Tracker.'),
-                                        TextInput::make('baseline_date')
+                                        DatePicker::make('baseline_date')
                                             ->label('Alpha startdatum')
-                                            ->type('date')
+                                            ->native(false)
+                                            ->displayFormat('d-m-Y')
+                                            ->format('Y-m-d')
                                             ->helperText('Wordt automatisch gezet bij je eerste storting. Snapshots/cashflows vóór deze datum tellen niet mee.'),
                                         ToggleButtons::make('default_risk_percent')
                                             ->label('Standaard risico-niveau')
@@ -110,13 +113,10 @@ class EditUserProfile extends EditProfile
                                     ->schema([
                                         Actions::make([
                                             $this->recordCashflowAction(),
-                                        ])->alignment(Alignment::Start),
-                                        Placeholder::make('recent_cashflows')
-                                            ->hiddenLabel()
-                                            ->content(fn (): HtmlString => $this->recentCashflowsHtml()),
-                                        Actions::make(
-                                            $this->deleteCashflowActions(),
-                                        )->alignment(Alignment::Start),
+                                            ...$this->cashflowRowActions(),
+                                        ])
+                                            ->alignment(Alignment::Start)
+                                            ->verticalAlignment(VerticalAlignment::Start),
                                     ]),
                                 Section::make('Mijn broker')
                                     ->compact()
@@ -316,6 +316,12 @@ class EditUserProfile extends EditProfile
             $this->shouldRecordBankrollSnapshot = true;
         }
 
+        if (array_key_exists('baseline_date', $data)) {
+            $data['baseline_date'] = filled($data['baseline_date'] ?? null)
+                ? Carbon::parse((string) $data['baseline_date'])->toDateString()
+                : null;
+        }
+
         return $data;
     }
 
@@ -335,48 +341,56 @@ class EditUserProfile extends EditProfile
         app(BankrollSnapshotService::class)->recordSnapshot($user, (float) $bankroll);
     }
 
+    /**
+     * @return array<int, \Filament\Forms\Components\Component>
+     */
+    protected function cashflowFormSchema(): array
+    {
+        return [
+            ToggleButtons::make('type')
+                ->label('Type')
+                ->options(BankrollCashflowType::options())
+                ->inline()
+                ->required(),
+            TextInput::make('amount')
+                ->label('Bedrag')
+                ->numeric()
+                ->prefix('$')
+                ->minValue(0.01)
+                ->required(),
+            DatePicker::make('occurred_on')
+                ->label('Datum')
+                ->native(false)
+                ->displayFormat('d-m-Y')
+                ->format('Y-m-d')
+                ->required(),
+            Textarea::make('note')
+                ->label('Notitie')
+                ->rows(2)
+                ->maxLength(255),
+        ];
+    }
+
     protected function recordCashflowAction(): Action
     {
+        $isFirst = $this->getUser()->bankrollCashflows()->doesntExist();
+
         return Action::make('record_cashflow')
             ->label('Registreer storting / opname')
             ->icon(Heroicon::OutlinedBanknotes)
             ->color('primary')
             ->modalHeading('Kapitaalbeweging registreren')
             ->modalDescription('Eerste storting = je openingsaldo (bijv. $3428.40). Update daarna ook je Bankroll naar het echte NLV.')
-            ->form([
-                ToggleButtons::make('type')
-                    ->label('Type')
-                    ->options(BankrollCashflowType::options())
-                    ->default(BankrollCashflowType::Deposit->value)
-                    ->inline()
-                    ->required(),
-                TextInput::make('amount')
-                    ->label('Bedrag')
-                    ->numeric()
-                    ->prefix('$')
-                    ->minValue(0.01)
-                    ->default(fn (): ?float => $this->getUser()->bankrollCashflows()->doesntExist() ? 3428.40 : null)
-                    ->helperText(fn (): ?string => $this->getUser()->bankrollCashflows()->doesntExist()
-                        ? 'Voorstel: je huidige IBKR openingsaldo als eerste storting.'
-                        : null)
-                    ->required(),
-                DatePicker::make('occurred_on')
-                    ->label('Datum')
-                    ->default(now()->toDateString())
-                    ->required(),
-                Textarea::make('note')
-                    ->label('Notitie')
-                    ->rows(2)
-                    ->maxLength(255)
-                    ->default(fn (): ?string => $this->getUser()->bankrollCashflows()->doesntExist()
-                        ? 'IBKR openingsaldo Vestix 2.0'
-                        : null),
+            ->form($this->cashflowFormSchema())
+            ->fillForm([
+                'type' => BankrollCashflowType::Deposit->value,
+                'amount' => $isFirst ? 3428.40 : null,
+                'occurred_on' => now()->toDateString(),
+                'note' => $isFirst ? 'IBKR openingsaldo Vestix 2.0' : null,
             ])
             ->action(function (array $data): void {
-                $user = $this->getUser();
-
                 app(BankrollCashflowService::class)->record(
-                    $user,
+                    $this->getUser(),
                     BankrollCashflowType::from((string) $data['type']),
                     (float) $data['amount'],
                     Carbon::parse((string) $data['occurred_on'])->startOfDay(),
@@ -388,69 +402,92 @@ class EditUserProfile extends EditProfile
                     ->body('Zet je Bankroll gelijk aan je actuele NLV zodat de Alpha Tracker klopt.')
                     ->success()
                     ->send();
+
+                $this->fillForm();
             });
     }
 
     /**
-     * @return list<Action>
+     * @return list<ActionGroup>
      */
-    protected function deleteCashflowActions(): array
+    protected function cashflowRowActions(): array
     {
         return app(BankrollCashflowService::class)
             ->recentForUser($this->getUser(), 10)
-            ->map(function (BankrollCashflow $cashflow): Action {
+            ->map(function (BankrollCashflow $cashflow): ActionGroup {
+                $sign = $cashflow->type === BankrollCashflowType::Deposit ? '+' : '−';
                 $label = sprintf(
-                    'Verwijder %s $%s (%s)',
+                    '%s %s$%s · %s',
                     $cashflow->type->label(),
+                    $sign,
                     number_format((float) $cashflow->amount, 2, '.', ''),
                     $cashflow->occurred_on->format('d-m-Y'),
                 );
 
-                return Action::make('delete_cashflow_'.$cashflow->id)
+                return ActionGroup::make([
+                    $this->editCashflowAction($cashflow),
+                    $this->deleteCashflowAction($cashflow),
+                ])
                     ->label($label)
-                    ->color('danger')
-                    ->link()
-                    ->requiresConfirmation()
-                    ->modalHeading('Kapitaalbeweging verwijderen?')
-                    ->action(function () use ($cashflow): void {
-                        app(BankrollCashflowService::class)->deleteForUser($this->getUser(), $cashflow->id);
-
-                        Notification::make()
-                            ->title('Kapitaalbeweging verwijderd')
-                            ->success()
-                            ->send();
-                    });
+                    ->button()
+                    ->outlined()
+                    ->color('gray')
+                    ->dropdownPlacement('bottom-start');
             })
+            ->values()
             ->all();
     }
 
-    protected function recentCashflowsHtml(): HtmlString
+    protected function editCashflowAction(BankrollCashflow $cashflow): Action
     {
-        $flows = app(BankrollCashflowService::class)->recentForUser($this->getUser(), 10);
+        return Action::make('edit_cashflow_'.$cashflow->id)
+            ->label('Wijzig')
+            ->icon(Heroicon::OutlinedPencilSquare)
+            ->modalHeading('Kapitaalbeweging wijzigen')
+            ->form($this->cashflowFormSchema())
+            ->fillForm([
+                'type' => $cashflow->type->value,
+                'amount' => (float) $cashflow->amount,
+                'occurred_on' => $cashflow->occurred_on->toDateString(),
+                'note' => $cashflow->note,
+            ])
+            ->action(function (array $data) use ($cashflow): void {
+                app(BankrollCashflowService::class)->update(
+                    $this->getUser(),
+                    $cashflow->id,
+                    BankrollCashflowType::from((string) $data['type']),
+                    (float) $data['amount'],
+                    Carbon::parse((string) $data['occurred_on'])->startOfDay(),
+                    isset($data['note']) ? (string) $data['note'] : null,
+                );
 
-        if ($flows->isEmpty()) {
-            return new HtmlString(
-                '<p class="text-sm text-gray-500 dark:text-gray-400">Nog geen stortingen of opnames geregistreerd.</p>',
-            );
-        }
+                Notification::make()
+                    ->title('Kapitaalbeweging bijgewerkt')
+                    ->success()
+                    ->send();
 
-        $rows = $flows->map(function (BankrollCashflow $cashflow): string {
-            $sign = $cashflow->type === BankrollCashflowType::Deposit ? '+' : '−';
-            $note = filled($cashflow->note)
-                ? ' — '.e($cashflow->note)
-                : '';
+                $this->fillForm();
+            });
+    }
 
-            return sprintf(
-                '<li class="text-sm"><span class="font-medium">%s %s$%s</span> op %s%s</li>',
-                e($cashflow->type->label()),
-                $sign,
-                number_format((float) $cashflow->amount, 2, '.', ','),
-                e($cashflow->occurred_on->format('d-m-Y')),
-                $note,
-            );
-        })->implode('');
+    protected function deleteCashflowAction(BankrollCashflow $cashflow): Action
+    {
+        return Action::make('delete_cashflow_'.$cashflow->id)
+            ->label('Verwijder')
+            ->icon(Heroicon::OutlinedTrash)
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Kapitaalbeweging verwijderen?')
+            ->action(function () use ($cashflow): void {
+                app(BankrollCashflowService::class)->deleteForUser($this->getUser(), $cashflow->id);
 
-        return new HtmlString('<ul class="list-disc space-y-1 ps-5 text-gray-700 dark:text-gray-200">'.$rows.'</ul>');
+                Notification::make()
+                    ->title('Kapitaalbeweging verwijderd')
+                    ->success()
+                    ->send();
+
+                $this->fillForm();
+            });
     }
 
     protected function connectTelegramAction(): Action
