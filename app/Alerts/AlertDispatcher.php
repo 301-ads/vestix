@@ -132,7 +132,62 @@ class AlertDispatcher
     }
 
     /**
-     * One Telegram/email Order Plan for multiple scouts (post-open Gap Guard).
+     * Pre-open Daily Execution Digest (14:30): Stop-Limit plans.
+     *
+     * @param  list<Position>  $positions
+     * @param  array{reminder_date: string}  $context
+     */
+    public function dispatchExecutionPrepDigest(User $user, string $message, array $positions, array $context): bool
+    {
+        UserAlertPreference::ensureDefaultsForUser($user);
+
+        $sent = false;
+        $reminderDate = (string) ($context['reminder_date'] ?? now('Europe/Amsterdam')->toDateString());
+
+        foreach ($user->alertPreferences()->where('is_active', true)->get() as $preference) {
+            $allows = $preference->hasEventEnabled(AlertEventType::ExecutionPrepDigest)
+                || $preference->hasEventEnabled(AlertEventType::ExecutionOrderPlan)
+                || $preference->hasEventEnabled(AlertEventType::MarketOpenBuyStopReminder);
+
+            if (! $allows) {
+                continue;
+            }
+
+            $channel = $this->channels[$preference->channel_type->value] ?? null;
+
+            if (! $channel instanceof AlertChannelInterface || ! $channel->isAvailableFor($user)) {
+                continue;
+            }
+
+            if (! $channel->send($user, $message)) {
+                continue;
+            }
+
+            $sent = true;
+
+            foreach ($positions as $position) {
+                PositionAlert::query()->updateOrCreate(
+                    [
+                        'position_id' => $position->id,
+                        'event_type' => AlertEventType::ExecutionPrepDigest,
+                        'channel_type' => $preference->channel_type,
+                    ],
+                    [
+                        'user_id' => $user->id,
+                        'payload' => [
+                            'reminder_date' => $reminderDate,
+                        ],
+                        'sent_at' => now(),
+                    ],
+                );
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
+     * One Telegram/email Gap Reality Check for multiple scouts (post-open).
      *
      * @param  list<Position>  $positions
      * @param  array{reminder_date: string, rows?: list<array{status: string, price: float|null}>}  $context

@@ -12,9 +12,9 @@ enum ExecutionDigestStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::Safe => 'Veilig',
-            self::CancelledGapUp => 'Niet plaatsen — gap up',
-            self::CancelledTrendBreak => 'Niet plaatsen — trend break',
+            self::Safe => 'OK — onder limit',
+            self::CancelledGapUp => 'Stop-Limit overgeslagen — gap up',
+            self::CancelledTrendBreak => 'Trend break (audit)',
             self::Unavailable => 'Geen openingsprijs',
         };
     }

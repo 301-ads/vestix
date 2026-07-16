@@ -8,6 +8,7 @@ use App\Enums\ExecutionDigestStatus;
 use App\Models\Position;
 use App\Models\User;
 use App\Support\AlertMessageBuilder;
+use App\Support\StopLimitBuffer;
 use App\Support\UsMarketSession;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -21,6 +22,63 @@ class ExecutionDigestService
     ) {}
 
     /**
+     * Pre-open Daily Execution Digest (14:30 NL): Stop-Limit plans without Gap Guard.
+     * Does not clear market_open_reminder_on — that happens at the 15:31 reality check.
+     *
+     * @return array{sent: int, skipped: int, planned: int}
+     */
+    public function runPrepDigest(?Carbon $today = null): array
+    {
+        $today ??= Carbon::today('Europe/Amsterdam');
+        $summary = [
+            'sent' => 0,
+            'skipped' => 0,
+            'planned' => 0,
+        ];
+
+        if (! UsMarketSession::isUsTradingDay(Carbon::now('America/New_York'))) {
+            return $summary;
+        }
+
+        $reminderDate = $today->toDateString();
+        $scouts = $this->scoutsDueForReminder($reminderDate);
+
+        if ($scouts->isEmpty()) {
+            return $summary;
+        }
+
+        /** @var Collection<int, Collection<int, Position>> $byUser */
+        $byUser = $scouts->groupBy('user_id');
+
+        foreach ($byUser as $userScouts) {
+            $user = $userScouts->first()?->user;
+
+            if (! $user instanceof User || ! $user->hasTelegramConnection()) {
+                $summary['skipped'] += $userScouts->count();
+
+                continue;
+            }
+
+            $positions = $userScouts->all();
+            $summary['planned'] += count($positions);
+
+            $message = AlertMessageBuilder::executionPrepDigest($user, $positions, $reminderDate);
+
+            if ($this->alertDispatcher->dispatchExecutionPrepDigest($user, $message, $positions, [
+                'reminder_date' => $reminderDate,
+            ])) {
+                $summary['sent']++;
+            } else {
+                $summary['skipped']++;
+            }
+        }
+
+        return $summary;
+    }
+
+    /**
+     * Post-open Gap Reality Check (15:31 NL): warn only when Stop-Limit was likely skipped.
+     *
      * @return array{sent: int, skipped: int, classified: int, safe: int, cancelled: int}
      */
     public function run(?Carbon $today = null): array
@@ -39,14 +97,7 @@ class ExecutionDigestService
         }
 
         $reminderDate = $today->toDateString();
-
-        $scouts = Position::query()
-            ->where('status', 'scout')
-            ->whereDate('market_open_reminder_on', $reminderDate)
-            ->whereNotNull('entry_price')
-            ->with('user')
-            ->orderBy('ticker')
-            ->get();
+        $scouts = $this->scoutsDueForReminder($reminderDate);
 
         if ($scouts->isEmpty()) {
             return $summary;
@@ -67,6 +118,7 @@ class ExecutionDigestService
             $rows = [];
             $positions = [];
             $rowMeta = [];
+            $skippedRows = [];
 
             foreach ($userScouts as $scout) {
                 $classification = $this->classify($scout);
@@ -81,19 +133,28 @@ class ExecutionDigestService
 
                 $fresh = $scout->fresh();
                 $positions[] = $fresh;
-                $rows[] = [
+                $row = [
                     'position' => $fresh,
                     ...$classification,
                 ];
+                $rows[] = $row;
                 $rowMeta[] = [
                     'status' => $classification['status']->value,
                     'price' => $classification['price'],
                 ];
 
+                if ($classification['status'] === ExecutionDigestStatus::CancelledGapUp) {
+                    $skippedRows[] = $row;
+                }
+
                 $scout->update(['market_open_reminder_on' => null]);
             }
 
-            $message = AlertMessageBuilder::executionOrderPlan($user, $rows, $reminderDate);
+            if ($skippedRows === []) {
+                continue;
+            }
+
+            $message = AlertMessageBuilder::executionRealityCheck($user, $skippedRows, $reminderDate);
 
             if ($this->alertDispatcher->dispatchExecutionOrderPlan($user, $message, $positions, [
                 'reminder_date' => $reminderDate,
@@ -106,6 +167,20 @@ class ExecutionDigestService
         }
 
         return $summary;
+    }
+
+    /**
+     * @return Collection<int, Position>
+     */
+    private function scoutsDueForReminder(string $reminderDate): Collection
+    {
+        return Position::query()
+            ->where('status', 'scout')
+            ->whereDate('market_open_reminder_on', $reminderDate)
+            ->whereNotNull('entry_price')
+            ->with('user')
+            ->orderBy('ticker')
+            ->get();
     }
 
     /**
@@ -137,13 +212,15 @@ class ExecutionDigestService
             ];
         }
 
-        if ($price >= $entry) {
+        $limitPrice = StopLimitBuffer::limitPrice($entry);
+
+        if ($price > $limitPrice) {
             return [
                 'status' => ExecutionDigestStatus::CancelledGapUp,
                 'reason' => sprintf(
-                    'Open/live $%s ≥ entry $%s — gap-up / buy-stop al geraakt',
+                    'opende op $%s. Je Stop-Limit was $%s. Order is veilig genegeerd door IBKR. Verwijder deze uit TradingView.',
                     number_format($price, 2),
-                    number_format($entry, 2),
+                    number_format($limitPrice, 2),
                 ),
                 'price' => $price,
             ];
@@ -182,9 +259,9 @@ class ExecutionDigestService
         return [
             'status' => ExecutionDigestStatus::Safe,
             'reason' => sprintf(
-                'Open/live $%s onder entry $%s — safe zone',
+                'Open/live $%s ≤ limit $%s — Stop-Limit actief of onder trigger',
                 number_format($price, 2),
-                number_format($entry, 2),
+                number_format($limitPrice, 2),
             ),
             'price' => $price,
         ];

@@ -219,18 +219,23 @@ class BrokerOrderTicketTest extends TestCase
 
         $this->assertSame('IBKR Bracket Order — COO', $ticket['title']);
         $this->assertStringContainsString('TradingView', $ticket['intro']);
-        $this->assertSame('STOP (Kopen)', $ticket['rows'][0]['value']);
+        $this->assertStringContainsString('STOP LIMIT (Kopen)', $ticket['intro']);
+        $this->assertStringContainsString('GTC', $ticket['intro']);
+        $this->assertSame('STOP LIMIT (Kopen)', $ticket['rows'][0]['value']);
         $this->assertSame('34 stuks', $ticket['rows'][1]['value']);
         $this->assertSame('34', $ticket['rows'][1]['copy_value']);
         $this->assertSame('$71.80', $ticket['rows'][2]['value']);
         $this->assertSame('71.80', $ticket['rows'][2]['copy_value']);
-        $this->assertSame('$78.90', $ticket['rows'][3]['value']);
-        $this->assertSame('78.90', $ticket['rows'][3]['copy_value']);
-        $this->assertStringContainsString('17 stuks', $ticket['rows'][3]['hint']);
-        $this->assertStringContainsString('100%', $ticket['rows'][3]['hint']);
-        $this->assertStringContainsString('wijzig daarna', $ticket['rows'][3]['hint']);
-        $this->assertSame('$68.25', $ticket['rows'][4]['value']);
-        $this->assertSame('68.25', $ticket['rows'][4]['copy_value']);
+        $this->assertSame('Limit Prijs (Max Inkoop)', $ticket['rows'][3]['label']);
+        $this->assertSame('$71.95', $ticket['rows'][3]['value']);
+        $this->assertSame('71.95', $ticket['rows'][3]['copy_value']);
+        $this->assertSame('$78.90', $ticket['rows'][4]['value']);
+        $this->assertSame('78.90', $ticket['rows'][4]['copy_value']);
+        $this->assertStringContainsString('17 stuks', $ticket['rows'][4]['hint']);
+        $this->assertStringContainsString('100%', $ticket['rows'][4]['hint']);
+        $this->assertStringContainsString('wijzig daarna', $ticket['rows'][4]['hint']);
+        $this->assertSame('$68.25', $ticket['rows'][5]['value']);
+        $this->assertSame('68.25', $ticket['rows'][5]['copy_value']);
         $this->assertSame('Order geplaatst', $ticket['submit_label']);
     }
 
@@ -249,6 +254,8 @@ class BrokerOrderTicketTest extends TestCase
         ])->render();
 
         $this->assertStringContainsString('Neem dit exact over in TradingView', $html);
+        $this->assertStringContainsString('STOP LIMIT', $html);
+        $this->assertStringContainsString('Limit Prijs (Max Inkoop)', $html);
         $this->assertStringContainsString('vestix-broker-order-ticket__copy-btn', $html);
         $this->assertStringContainsString('Take Profit (Target 1)', $html);
         $this->assertStringContainsString('wijzig daarna het TP-aantal', $html);

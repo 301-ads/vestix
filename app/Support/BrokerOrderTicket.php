@@ -158,6 +158,7 @@ class BrokerOrderTicket
     {
         $quantity = (float) ($position->quantity ?? 0);
         $entry = (float) ($position->entry_price ?? 0);
+        $limitPrice = StopLimitBuffer::limitPrice($entry);
         $stopLoss = (float) ($position->new_sl ?? 0);
         $target1 = (float) ($position->plannedBracketTarget1Price() ?? 0);
         $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
@@ -165,11 +166,11 @@ class BrokerOrderTicket
 
         return [
             'title' => "IBKR Bracket Order — {$position->ticker}",
-            'intro' => 'Neem dit exact over in TradingView: Order Type = STOP (Kopen), vink Take Profit en Stop Loss aan.',
+            'intro' => 'Neem dit exact over in TradingView: Order Type = STOP LIMIT (Kopen), Time in Force = GTC, vink Take Profit en Stop Loss aan.',
             'rows' => [
                 [
                     'label' => 'Order type',
-                    'value' => 'STOP (Kopen)',
+                    'value' => 'STOP LIMIT (Kopen)',
                 ],
                 [
                     'label' => 'Aantal (Quantity)',
@@ -180,6 +181,12 @@ class BrokerOrderTicket
                     'label' => 'Prijs (Buy-Stop)',
                     'value' => self::formatMoney($entry),
                     'copy_value' => self::formatCopyMoney($entry),
+                    'accent' => true,
+                ],
+                [
+                    'label' => 'Limit Prijs (Max Inkoop)',
+                    'value' => self::formatMoney($limitPrice),
+                    'copy_value' => self::formatCopyMoney($limitPrice),
                     'accent' => true,
                 ],
                 [

@@ -7,11 +7,11 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
-class RunExecutionOrderPlan extends Command
+class RunExecutionPrepDigest extends Command
 {
-    protected $signature = 'vestix:execution-order-plan {--date= : Datum (Y-m-d) voor handmatige run}';
+    protected $signature = 'vestix:execution-prep-digest {--date= : Datum (Y-m-d) voor handmatige run}';
 
-    protected $description = 'Post-open Gap Reality Check (15:31 NL): waarschuwing bij overgeslagen Stop-Limits.';
+    protected $description = 'Pre-open Daily Execution Digest (14:30 NL): Stop-Limit plannen voor scouts met Order Plan vandaag.';
 
     public function handle(ExecutionDigestService $digestService): int
     {
@@ -20,28 +20,24 @@ class RunExecutionOrderPlan extends Command
             ? Carbon::parse((string) $dateOption, 'Europe/Amsterdam')->startOfDay()
             : null;
 
-        $this->info('Gap Reality Check gestart...');
+        $this->info('Daily Execution Digest (prep) gestart...');
 
-        $summary = $digestService->run($today);
+        $summary = $digestService->runPrepDigest($today);
 
-        $dueCount = $summary['classified'] + $summary['skipped'];
-
-        if ($dueCount === 0) {
+        if ($summary['planned'] === 0 && $summary['skipped'] === 0 && $summary['sent'] === 0) {
             $this->warn('Geen scouts met Order Plan voor vandaag. Zet de bel/toggle op Mijn Radar.');
         }
 
         $this->table(
             ['Status', 'Aantal'],
             [
-                ['Classified', $summary['classified']],
-                ['OK (onder limit)', $summary['safe']],
-                ['Overgeslagen / cancelled', $summary['cancelled']],
-                ['Telegram waarschuwingen', $summary['sent']],
-                ['Overgeslagen users', $summary['skipped']],
+                ['Plannen', $summary['planned']],
+                ['Telegram digests', $summary['sent']],
+                ['Overgeslagen', $summary['skipped']],
             ],
         );
 
-        Log::info('Gap Reality Check completed.', [
+        Log::info('Execution Prep Digest completed.', [
             'date' => ($today ?? Carbon::today('Europe/Amsterdam'))->toDateString(),
             ...$summary,
         ]);

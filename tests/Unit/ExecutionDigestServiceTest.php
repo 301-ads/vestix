@@ -16,15 +16,30 @@ class ExecutionDigestServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_classifies_gap_up_when_open_at_or_above_entry(): void
+    public function test_classifies_gap_up_when_open_above_limit_price(): void
     {
-        $service = $this->serviceWithSessionOpen(56.50);
+        // entry 56.45 → limit 56.60; open 56.70 > limit
+        $service = $this->serviceWithSessionOpen(56.70);
         $scout = $this->scout(entry: 56.45, sma: 55.00);
 
         $result = $service->classify($scout);
 
         $this->assertSame(ExecutionDigestStatus::CancelledGapUp, $result['status']);
-        $this->assertEqualsWithDelta(56.50, $result['price'], 0.001);
+        $this->assertEqualsWithDelta(56.70, $result['price'], 0.001);
+        $this->assertStringContainsString('56.70', $result['reason']);
+        $this->assertStringContainsString('56.60', $result['reason']);
+        $this->assertStringContainsString('Verwijder', $result['reason']);
+    }
+
+    public function test_classifies_safe_when_open_between_entry_and_limit(): void
+    {
+        // entry 56.45 → limit 56.60; open 56.50 is above entry but ≤ limit
+        $service = $this->serviceWithSessionOpen(56.50);
+        $scout = $this->scout(entry: 56.45, sma: 55.00);
+
+        $result = $service->classify($scout);
+
+        $this->assertSame(ExecutionDigestStatus::Safe, $result['status']);
     }
 
     public function test_classifies_trend_break_when_open_below_sma(): void

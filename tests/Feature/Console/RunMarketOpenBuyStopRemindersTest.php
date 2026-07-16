@@ -23,7 +23,7 @@ class RunMarketOpenBuyStopRemindersTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_command_sends_order_plan_and_clears_scheduled_date(): void
+    public function test_command_sends_reality_check_and_clears_scheduled_date(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-02 15:31:00', 'Europe/Amsterdam'));
 
@@ -32,10 +32,10 @@ class RunMarketOpenBuyStopRemindersTest extends TestCase
 
         $quotes = Mockery::mock(QuoteProvider::class);
         $quotes->shouldReceive('fetchSessionQuote')->andReturn([
-            'open' => 118.00,
-            'close' => 118.00,
-            'high' => 119.00,
-            'low' => 117.00,
+            'open' => 121.00,
+            'close' => 121.00,
+            'high' => 122.00,
+            'low' => 120.00,
         ]);
         $this->app->instance(QuoteProvider::class, $quotes);
 
@@ -55,7 +55,7 @@ class RunMarketOpenBuyStopRemindersTest extends TestCase
         $this->artisan('vestix:market-open-buy-stop-reminders')
             ->assertSuccessful();
 
-        Http::assertSent(fn ($request): bool => str_contains($request->data()['text'] ?? '', 'Vestix Order Plan')
+        Http::assertSent(fn ($request): bool => str_contains($request->data()['text'] ?? '', 'Gap Reality Check')
             && str_contains($request->data()['text'] ?? '', 'NVDA'));
 
         $scout->refresh();

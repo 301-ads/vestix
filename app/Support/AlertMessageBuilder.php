@@ -91,7 +91,8 @@ class AlertMessageBuilder
             ),
             AlertEventType::Target1Hit => self::target1HitMessage($position, $context),
             AlertEventType::MarketOpenBuyStopReminder => self::marketOpenBuyStopReminder($position, $context),
-            AlertEventType::ExecutionOrderPlan => $context['digest_body'] ?? 'Geen Order Plan vandaag.',
+            AlertEventType::ExecutionOrderPlan => $context['digest_body'] ?? 'Geen Gap Reality Check vandaag.',
+            AlertEventType::ExecutionPrepDigest => $context['digest_body'] ?? 'Geen Execution Digest vandaag.',
         };
     }
 
@@ -195,76 +196,90 @@ class AlertMessageBuilder
     }
 
     /**
+     * Pre-open Daily Execution Digest (14:30): all Stop-Limit plans for today.
+     *
+     * @param  list<Position>  $positions
+     */
+    public static function executionPrepDigest(User $user, array $positions, string $reminderDate): string
+    {
+        $lines = [
+            sprintf(
+                '📋 <b>Vestix Daily Execution Digest — %s</b>',
+                e(Carbon::parse($reminderDate)->locale('nl')->isoFormat('ddd D MMM')),
+            ),
+            '',
+            '🛑 <b>STOP-LIMIT PLANNEN (plaats vóór 15:25, TIF = GTC):</b>',
+            '',
+        ];
+
+        if ($positions === []) {
+            $lines[] = 'Geen goedgekeurde setups voor vandaag.';
+            $lines[] = '';
+        } else {
+            foreach ($positions as $position) {
+                $lines = [...$lines, ...self::safeOrderPlanBlock($position), ''];
+            }
+        }
+
+        $lines[] = 'Neem elk plan 1-op-1 over in TradingView: Order Type = STOP LIMIT, Time in Force = GTC.';
+        $lines[] = sprintf('<a href="%s">Open Mijn Radar</a>', ScoutResource::getUrl('index'));
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Post-open Gap Reality Check (15:31): only Stop-Limits that were likely skipped.
+     *
+     * @param  list<array{position: Position, status: ExecutionDigestStatus, reason: string, price: float|null}>  $skippedRows
+     */
+    public static function executionRealityCheck(User $user, array $skippedRows, string $reminderDate): string
+    {
+        $lines = [
+            sprintf(
+                'ℹ️ <b>Vestix Gap Reality Check — %s</b>',
+                e(Carbon::parse($reminderDate)->locale('nl')->isoFormat('ddd D MMM')),
+            ),
+            '',
+            '⚠️ <b>STOP-LIMIT WAARSCHIJNLIJK OVERGESLAGEN:</b>',
+            '',
+        ];
+
+        foreach ($skippedRows as $row) {
+            $lines[] = sprintf(
+                '<b>$%s</b> %s',
+                e($row['position']->ticker),
+                e($row['reason']),
+            );
+        }
+
+        $lines[] = '';
+        $lines[] = 'Geen emotie — je wiskunde is gered. Verwijder deze setups uit TradingView.';
+        $lines[] = sprintf('<a href="%s">Open Mijn Radar</a>', ScoutResource::getUrl('index'));
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @deprecated Use executionPrepDigest / executionRealityCheck.
+     *
      * @param  list<array{position: Position, status: ExecutionDigestStatus, reason: string, price: float|null}>  $rows
      */
     public static function executionOrderPlan(User $user, array $rows, string $reminderDate): string
     {
-        $safe = [];
-        $cancelled = [];
-        $unavailable = [];
+        $skipped = array_values(array_filter(
+            $rows,
+            fn (array $row): bool => $row['status'] === ExecutionDigestStatus::CancelledGapUp,
+        ));
 
-        foreach ($rows as $row) {
-            $status = $row['status'];
-
-            if ($status === ExecutionDigestStatus::Safe) {
-                $safe[] = $row;
-            } elseif ($status->isCancelled()) {
-                $cancelled[] = $row;
-            } else {
-                $unavailable[] = $row;
-            }
+        if ($skipped === []) {
+            return self::executionPrepDigest(
+                $user,
+                array_map(fn (array $row): Position => $row['position'], $rows),
+                $reminderDate,
+            );
         }
 
-        $lines = [
-            sprintf('📋 <b>Vestix Order Plan — %s</b>', e(Carbon::parse($reminderDate)->locale('nl')->isoFormat('ddd D MMM'))),
-            '',
-        ];
-
-        if ($safe !== []) {
-            $lines[] = '✅ <b>VEILIG OM TE PLAATSEN:</b>';
-            $lines[] = '';
-
-            foreach ($safe as $row) {
-                $lines = [...$lines, ...self::safeOrderPlanBlock($row['position']), ''];
-            }
-        } else {
-            $lines[] = '✅ <b>VEILIG OM TE PLAATSEN:</b> geen';
-            $lines[] = '';
-        }
-
-        if ($cancelled !== []) {
-            $lines[] = '❌ <b>GEANNULEERD (NIET PLAATSEN):</b>';
-            $lines[] = '';
-
-            foreach ($cancelled as $row) {
-                $lines[] = sprintf(
-                    '<b>$%s</b> — %s',
-                    e($row['position']->ticker),
-                    e($row['reason']),
-                );
-            }
-
-            $lines[] = '';
-        }
-
-        if ($unavailable !== []) {
-            $lines[] = '⚠️ <b>GEEN PRIJS — HANDMATIG CHECKEN:</b>';
-
-            foreach ($unavailable as $row) {
-                $lines[] = sprintf(
-                    '<b>$%s</b> — %s',
-                    e($row['position']->ticker),
-                    e($row['reason']),
-                );
-            }
-
-            $lines[] = '';
-        }
-
-        $lines[] = 'Plaats alleen de veilige regels in TradingView/IBKR. Wacht ~5 min na open vóór je verzendt.';
-        $lines[] = sprintf('<a href="%s">Open Mijn Radar</a>', ScoutResource::getUrl('index'));
-
-        return implode("\n", $lines);
+        return self::executionRealityCheck($user, $skipped, $reminderDate);
     }
 
     /**
@@ -273,6 +288,7 @@ class AlertMessageBuilder
     private static function safeOrderPlanBlock(Position $position): array
     {
         $entry = (float) ($position->entry_price ?? 0);
+        $limitPrice = StopLimitBuffer::limitPrice($entry);
         $quantity = (float) ($position->quantity ?? 0);
         $stopLoss = (float) ($position->new_sl ?? 0);
         $target1 = (float) ($position->plannedBracketTarget1Price() ?? 0);
@@ -286,7 +302,7 @@ class AlertMessageBuilder
                     ? sprintf(' (Risico: $%s)', number_format((float) $riskDollars, 2))
                     : '',
             ),
-            'Type: STOP (Kopen)',
+            'Type: STOP LIMIT (Kopen)',
         ];
 
         if ($quantity > 0) {
@@ -297,7 +313,8 @@ class AlertMessageBuilder
         }
 
         if ($entry > 0) {
-            $lines[] = sprintf('Entry: $%s', number_format($entry, 2));
+            $lines[] = sprintf('Buy-Stop: $%s', number_format($entry, 2));
+            $lines[] = sprintf('Limit Prijs: $%s', number_format($limitPrice, 2));
         }
 
         if ($stopLoss > 0) {

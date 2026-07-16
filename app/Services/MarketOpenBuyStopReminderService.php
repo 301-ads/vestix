@@ -5,7 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Carbon;
 
 /**
- * @deprecated Use ExecutionDigestService / vestix:execution-order-plan (15:31).
+ * @deprecated Use ExecutionDigestService / vestix:execution-order-plan (15:31 Gap Reality Check).
  */
 class MarketOpenBuyStopReminderService
 {

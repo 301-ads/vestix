@@ -125,8 +125,20 @@ return [
     ],
 
     'execution_digest' => [
-        // 1 min na US open (9:30 ET = 15:30 NL) — eerste 1m candle + Telegram Order Plan.
+        // Pre-open Stop-Limit plannen (vóór US open 15:30 NL).
+        'prep_time' => env('EXECUTION_DIGEST_PREP_TIME', '14:30'),
+        // 1 min na US open — Gap Reality Check (overgeslagen Stop-Limits).
         'time' => env('EXECUTION_DIGEST_TIME', '15:31'),
+    ],
+
+    // Slippage buffer tussen Buy-Stop en Limit Prijs (Stop-Limit valstrik).
+    'stop_limit_buffer' => [
+        'tiers' => [
+            ['max_price' => 20.0, 'buffer' => 0.05],
+            ['max_price' => 50.0, 'buffer' => 0.10],
+            ['max_price' => 100.0, 'buffer' => 0.15],
+            ['max_price' => null, 'buffer' => 0.25],
+        ],
     ],
 
     'bankroll_tracker' => [

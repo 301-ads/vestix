@@ -39,6 +39,12 @@ Schedule::command('vestix:premarket-gatekeeper')
     ->dailyAt(config('vestix.premarket.gatekeeper_time', '14:30'))
     ->timezone('Europe/Amsterdam');
 
+// Daily Execution Digest: Stop-Limit plannen vóór open (14:30 NL).
+Schedule::command('vestix:execution-prep-digest')
+    ->weekdays()
+    ->dailyAt(config('vestix.execution_digest.prep_time', '14:30'))
+    ->timezone('Europe/Amsterdam');
+
 Schedule::command('vestix:earnings-exit-alerts --phase=warning')
     ->weekdays()
     ->dailyAt('08:00')
@@ -59,7 +65,7 @@ Schedule::command('vestix:earnings-exit-alerts --phase=final')
     ->dailyAt('21:30')
     ->timezone('Europe/Amsterdam');
 
-// Execution Order Plan: 1 min na US open (9:30 ET = 15:30 NL → digest 15:31 NL).
+// Gap Reality Check: 1 min na US open (9:30 ET = 15:30 NL → 15:31 NL).
 Schedule::command('vestix:execution-order-plan')
     ->weekdays()
     ->dailyAt(config('vestix.execution_digest.time', '15:31'))

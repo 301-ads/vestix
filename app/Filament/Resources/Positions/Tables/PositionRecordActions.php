@@ -82,7 +82,7 @@ class PositionRecordActions
                 : 'Scout activeren als positie')
             ->modalDescription(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
                 ? self::scoutRiskOverrideDescription($record)
-                : 'Vul je werkelijke fill en aantal in. Na activatie verschijnt een actie om de stop-loss bij je broker in te stellen.')
+                : 'Vul je werkelijke fill en aantal in. Bij een partial fill: pas het aantal aan naar wat IBKR echt gevuld heeft (ook later via Edit). Na activatie verschijnt een actie om de stop-loss bij je broker in te stellen.')
             ->modalSubmitActionLabel(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
                 ? 'Toch doordrukken'
                 : 'Activeren')
@@ -103,6 +103,7 @@ class PositionRecordActions
                     ->inputMode('decimal')
                     ->step('any')
                     ->minValue(0.000001)
+                    ->helperText('Bij partial fill: vul het werkelijke aantal in (niet het geplande).')
                     ->default(fn (Position $record): ?float => $record->quantity !== null
                         ? (float) $record->quantity
                         : null),
