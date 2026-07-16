@@ -1209,6 +1209,20 @@
     letter-spacing: 0.02em;
 }
 
+.vestix-smart-allocation__ticker-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.vestix-smart-allocation__ticker-link:hover {
+    color: var(--primary-600);
+    text-decoration: underline;
+}
+
+.dark .vestix-smart-allocation__ticker-link:hover {
+    color: var(--primary-400);
+}
+
 .vestix-smart-allocation__copy-group {
     display: inline-flex;
     align-items: center;

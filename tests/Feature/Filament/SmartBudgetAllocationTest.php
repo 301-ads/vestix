@@ -187,6 +187,8 @@ class SmartBudgetAllocationTest extends TestCase
         Livewire::test(ExecutionPlanContent::class, ['layout' => 'embedded'])
             ->assertSee('COO')
             ->assertSee('R/R')
+            ->assertSee('Risico %')
+            ->assertSeeHtml('vestix-smart-allocation__ticker-link')
             ->assertDontSee('Buy-Stop')
             ->assertDontSee('Take-Profit')
             ->assertSee('Toepassen');
@@ -195,6 +197,7 @@ class SmartBudgetAllocationTest extends TestCase
             ->assertSee('Order Plan vandaag')
             ->assertSee('COO')
             ->assertSee('R/R')
+            ->assertSee('Risico %')
             ->assertDontSee('Open Executie Paneel');
     }
 

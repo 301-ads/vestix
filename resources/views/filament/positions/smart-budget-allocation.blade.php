@@ -1,4 +1,5 @@
 @php
+    use App\Filament\Resources\Scouts\ScoutResource;
     use Illuminate\View\ComponentAttributeBag;
 
     /** @var array{
@@ -71,6 +72,12 @@
                         </th>
                         <th>Sector</th>
                         <th>Risico $</th>
+                        <th
+                            x-data
+                            x-tooltip="{ content: 'Risico als percentage van je IBKR bankroll (NLV).', theme: $store.theme, trigger: 'mouseenter' }"
+                        >
+                            Risico %
+                        </th>
                         <th>Aantal</th>
                         <th>Inleg</th>
                         @if ($actionable || $removable)
@@ -81,10 +88,21 @@
                 <tbody>
                     @foreach ($result['allocations'] as $row)
                         @php
-                            $position = $actionable ? $scouts->firstWhere('id', (int) $row['position_id']) : null;
+                            $position = $scouts->firstWhere('id', (int) $row['position_id']);
+                            $editUrl = $position !== null
+                                ? ScoutResource::getUrl('edit', ['record' => $position])
+                                : null;
                         @endphp
                         <tr>
-                            <td class="vestix-smart-allocation__ticker">{{ $row['ticker'] }}</td>
+                            <td class="vestix-smart-allocation__ticker">
+                                @if ($editUrl)
+                                    <a href="{{ $editUrl }}" class="vestix-smart-allocation__ticker-link">
+                                        {{ $row['ticker'] }}
+                                    </a>
+                                @else
+                                    {{ $row['ticker'] }}
+                                @endif
+                            </td>
                             <td>{{ $row['score'] }}</td>
                             <td>
                                 @if ($row['reward_risk'] !== null)
@@ -102,6 +120,7 @@
                                 @endif
                             </td>
                             <td>${{ number_format($row['risk_dollars'], 2) }}</td>
+                            <td>{{ number_format($row['risk_percent'], 2) }}%</td>
                             <td>{{ number_format($row['quantity'], 0) }}</td>
                             <td>${{ number_format($row['investment'], 2) }}</td>
                             @if ($actionable || $removable)
