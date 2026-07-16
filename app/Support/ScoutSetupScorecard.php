@@ -389,6 +389,7 @@ CASE
     WHEN latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL AND latest_close_price < latest_sma_20 THEN 5
     WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price THEN 5
     WHEN last_setup_score = {$maxPoints} AND trader_promoted_a_plus = 1 THEN 1
+    WHEN last_setup_score >= {$maxPoints} - 1 THEN 2
     WHEN last_setup_score >= 8 AND trader_promoted_a = 1 THEN 2
     WHEN last_setup_score >= 7 THEN 3
     WHEN last_setup_score >= 5 THEN 4
@@ -405,6 +406,10 @@ SQL;
     {
         if ($hardFailReasons !== []) {
             return ['NO TRADE', 'NO TRADE'];
+        }
+
+        if ($totalPoints >= self::maxPoints() - 1) {
+            return ['A', 'A SETUP'];
         }
 
         if ($totalPoints >= 7) {

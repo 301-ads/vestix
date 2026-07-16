@@ -102,7 +102,7 @@ class ScoutSetupAlertServiceTest extends TestCase
             $text = $request->data()['text'] ?? '';
 
             return str_contains($request->url(), 'api.telegram.org')
-                && str_contains($text, 'Perfecte score')
+                && str_contains($text, 'A SETUP')
                 && str_contains($text, 'A++');
         });
     }

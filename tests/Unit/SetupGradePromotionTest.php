@@ -38,9 +38,38 @@ class SetupGradePromotionTest extends TestCase
     public function test_can_promote_to_a_when_score_is_strong_and_unpromoted(): void
     {
         $user = User::factory()->create();
+        $scout = Position::factory()->for($user)->scout()->create([
+            ...$this->perfectScoutAttributes(),
+            'scout_rsi' => 68.00,
+        ]);
+
+        $this->assertSame(8, $scout->evaluateSetupScore()['totalPoints']);
+        $this->assertSame('B', $scout->evaluateSetupScore()['grade']);
+        $this->assertTrue(PositionRecordActions::canPromoteToA($scout));
+        $this->assertFalse(PositionRecordActions::canPromoteToAPlus($scout));
+    }
+
+    public function test_nine_points_is_already_a_without_manual_promotion(): void
+    {
+        $user = User::factory()->create();
+        $scout = Position::factory()->for($user)->scout()->create([
+            ...$this->perfectScoutAttributes(),
+            'pre_bounce_extension_atr' => 1.0,
+        ]);
+
+        $this->assertSame(9, $scout->evaluateSetupScore()['totalPoints']);
+        $this->assertSame('A', $scout->evaluateSetupScore()['grade']);
+        $this->assertFalse(PositionRecordActions::canPromoteToA($scout));
+        $this->assertFalse(PositionRecordActions::canPromoteToAPlus($scout));
+    }
+
+    public function test_perfect_score_is_already_a_and_only_offers_a_plus_promotion(): void
+    {
+        $user = User::factory()->create();
         $scout = Position::factory()->for($user)->scout()->create($this->perfectScoutAttributes());
 
-        $this->assertTrue(PositionRecordActions::canPromoteToA($scout));
+        $this->assertSame('A', $scout->evaluateSetupScore()['grade']);
+        $this->assertFalse(PositionRecordActions::canPromoteToA($scout));
         $this->assertTrue(PositionRecordActions::canPromoteToAPlus($scout));
     }
 

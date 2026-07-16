@@ -493,8 +493,10 @@ class PositionRecordActions
 
         $score = ScoutSetupScorecard::evaluate(self::algorithmicScorecardInputs($record));
 
+        // 9–10 are already A; promote-to-A is only for strong B setups (8/10).
         return $score['hardFailReasons'] === []
-            && $score['totalPoints'] >= 8;
+            && $score['totalPoints'] >= 8
+            && $score['totalPoints'] < ScoutSetupScorecard::maxPoints() - 1;
     }
 
     public static function promoteToAPlus(): Action

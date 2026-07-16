@@ -69,7 +69,7 @@ class ScoutSetupAlertService
             && $position->telegram_a_plus_alert_sent_at === null
         ) {
             $message = sprintf(
-                '✨ Perfecte score: %s haalt %d/%d punten. Beoordeel visueel op de radar en promoveer naar A++ als de setup klopt.',
+                '✨ A SETUP: %s haalt %d/%d punten. Beoordeel visueel op de radar en promoveer naar A++ als de setup klopt.',
                 $position->ticker,
                 $newScore,
                 $maxPoints,

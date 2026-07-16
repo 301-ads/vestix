@@ -382,9 +382,10 @@ class EditPosition extends EditRecord
 
         return match (true) {
             $score['grade'] === 'A++' => 'A++ SETUP — visueel bevestigde perfecte trade',
+            $score['totalPoints'] === ScoutSetupScorecard::maxPoints() => 'A SETUP — perfecte score; promoveer naar A++ na visuele check',
+            $score['totalPoints'] >= ScoutSetupScorecard::maxPoints() - 1 => 'A SETUP — sterke score',
             $score['grade'] === 'A' => 'A SETUP — handmatig bevestigde sterke trade',
-            $score['totalPoints'] === ScoutSetupScorecard::maxPoints() => 'Perfecte score — promoveer naar A++ na visuele check',
-            $score['totalPoints'] >= 8 => 'Sterke score — promoveer naar A na visuele check',
+            $score['totalPoints'] >= 8 => 'Sterke B — promoveer naar A na visuele check',
             $score['totalPoints'] === 7 => 'B SETUP — standaard trade, wees alert op risico',
             $score['totalPoints'] >= 5 => 'C SETUP — wiskundig zwak, alleen monitoren',
             default => 'NO TRADE — objectieve afwijzing',

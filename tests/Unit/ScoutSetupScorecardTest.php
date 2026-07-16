@@ -12,6 +12,7 @@ use Tests\TestCase;
 class ScoutSetupScorecardTest extends TestCase
 {
     use RefreshDatabase;
+
     /**
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>
@@ -46,9 +47,22 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame(10, $result['totalPoints']);
         $this->assertSame(10, $result['maxPoints']);
-        $this->assertSame('B', $result['grade']);
-        $this->assertSame('B SETUP', $result['gradeLabel']);
+        $this->assertSame('A', $result['grade']);
+        $this->assertSame('A SETUP', $result['gradeLabel']);
         $this->assertSame([], $result['hardFailReasons']);
+    }
+
+    public function test_nine_points_is_automatic_a_setup(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'pre_bounce_extension_atr' => 1.0,
+        ]));
+
+        $this->assertSame(9, $result['totalPoints']);
+        $this->assertSame('A', $result['grade']);
+        $this->assertSame('A SETUP', $result['gradeLabel']);
     }
 
     public function test_close_below_sma_scores_zero_trampoline_and_hard_fail(): void
@@ -464,7 +478,7 @@ class ScoutSetupScorecardTest extends TestCase
         ]));
 
         $this->assertSame(10, $result['totalPoints']);
-        $this->assertSame('B', $result['grade']);
+        $this->assertSame('A', $result['grade']);
         $this->assertSame([], $result['hardFailReasons']);
     }
 
@@ -477,11 +491,11 @@ class ScoutSetupScorecardTest extends TestCase
         ]));
 
         $this->assertSame(10, $result['totalPoints']);
-        $this->assertSame('B', $result['grade']);
+        $this->assertSame('A', $result['grade']);
         $this->assertSame([], $result['hardFailReasons']);
     }
 
-    public function test_position_display_grade_promotes_to_a_when_confirmed(): void
+    public function test_position_display_grade_is_a_for_perfect_score_without_manual_promotion(): void
     {
         $user = User::factory()->create();
         $position = Position::factory()->for($user)->scout()->create([
@@ -499,12 +513,40 @@ class ScoutSetupScorecardTest extends TestCase
             'sector_etf' => 'XLK',
             'sector_trend_positive' => true,
             'pre_bounce_extension_atr' => 2.50,
-            'trader_promoted_a' => true,
+            'trader_promoted_a' => false,
         ]);
 
         $result = $position->evaluateSetupScore();
 
         $this->assertSame(10, $result['totalPoints']);
+        $this->assertSame('A', $result['grade']);
+        $this->assertSame('A SETUP', $result['gradeLabel']);
+    }
+
+    public function test_position_display_grade_promotes_to_a_when_confirmed(): void
+    {
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->scout()->create([
+            'signal_low' => 101.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_ten_days_ago' => 98.00,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 68.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
+            'sector_etf' => 'XLK',
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
+            'trader_promoted_a' => true,
+        ]);
+
+        $result = $position->evaluateSetupScore();
+
+        $this->assertSame(8, $result['totalPoints']);
         $this->assertSame('A', $result['grade']);
         $this->assertSame('A SETUP', $result['gradeLabel']);
     }
