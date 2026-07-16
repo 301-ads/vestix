@@ -17,7 +17,6 @@ use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
-use App\Filament\Widgets\SetupRadarWidget;
 use App\Http\Responses\Filament\AuthRedirectResponse;
 use App\Models\User;
 use DutchCodingCompany\FilamentSocialite\FilamentSocialitePlugin;
@@ -125,7 +124,6 @@ class AdminPanelProvider extends PanelProvider
                 PortfolioExposureWidget::class,
                 PositionsRequiringActionWidget::class,
                 PortfolioTopFlopWidget::class,
-                SetupRadarWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

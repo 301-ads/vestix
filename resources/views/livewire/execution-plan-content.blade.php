@@ -44,6 +44,7 @@
         @include('filament.positions.smart-budget-allocation', [
             'result' => $result,
             'removable' => true,
+            'density' => $density,
             'hint' => 'Klik Toepassen om quantity en risicobudget op de scouts te zetten. Daarna plaats je per scout je order via Order plaatsen.',
         ])
 

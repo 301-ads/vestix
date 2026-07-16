@@ -1,4 +1,5 @@
 @php
+    use App\Support\StopLimitBuffer;
     use Illuminate\View\ComponentAttributeBag;
 
     /** @var array{
@@ -28,10 +29,15 @@
      * } $result
      */
     $removable = $removable ?? false;
+    $density = ($density ?? 'compact') === 'full' ? 'full' : 'compact';
     $hint = $hint ?? 'Bevestig om quantity en risicobudget op de scouts te zetten. Daarna plaats je per scout je order via Order plaatsen / Order geplaatst.';
 @endphp
 
-<div class="vestix-smart-allocation">
+<div @class([
+    'vestix-smart-allocation',
+    'vestix-smart-allocation--full' => $density === 'full',
+    'vestix-smart-allocation--compact' => $density === 'compact',
+])>
     <p class="vestix-smart-allocation__intro">
         IBKR risicopie:
         <strong>{{ number_format($result['pie_percent'], 2) }}%</strong>
@@ -60,17 +66,29 @@
                     <tr>
                         <th>Ticker</th>
                         <th>Score</th>
-                        <th
-                            x-data
-                            x-tooltip="{ content: 'Reward/Risk tot Target 1 — potentiële winst per dollar risico (entry → stop).', theme: $store.theme, trigger: 'mouseenter' }"
-                            class="vestix-smart-allocation__rr-col"
-                        >
-                            R/R
-                        </th>
+                        @if ($density === 'compact')
+                            <th
+                                x-data
+                                x-tooltip="{ content: 'Reward/Risk tot Target 1 — potentiële winst per dollar risico (entry → stop).', theme: $store.theme, trigger: 'mouseenter' }"
+                                class="vestix-smart-allocation__rr-col"
+                            >
+                                R/R
+                            </th>
+                        @endif
                         <th>Sector</th>
-                        <th>Risico $</th>
-                        <th>Aantal</th>
-                        <th>Inleg</th>
+                        @if ($density === 'full')
+                            <th>Aantal</th>
+                            <th>Buy-Stop</th>
+                            <th>Limit</th>
+                            <th>Stop-Loss</th>
+                            <th>Take-Profit</th>
+                            <th>Risico $</th>
+                            <th>Inleg</th>
+                        @else
+                            <th>Risico $</th>
+                            <th>Aantal</th>
+                            <th>Inleg</th>
+                        @endif
                         @if ($removable)
                             <th class="vestix-smart-allocation__actions-col"></th>
                         @endif
@@ -78,16 +96,21 @@
                 </thead>
                 <tbody>
                     @foreach ($result['allocations'] as $row)
+                        @php
+                            $limitPrice = StopLimitBuffer::limitPrice((float) $row['entry']);
+                        @endphp
                         <tr>
                             <td class="vestix-smart-allocation__ticker">{{ $row['ticker'] }}</td>
                             <td>{{ $row['score'] }}</td>
-                            <td>
-                                @if ($row['reward_risk'] !== null)
-                                    {{ number_format($row['reward_risk'], 2) }}
-                                @else
-                                    —
-                                @endif
-                            </td>
+                            @if ($density === 'compact')
+                                <td>
+                                    @if ($row['reward_risk'] !== null)
+                                        {{ number_format($row['reward_risk'], 2) }}
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                            @endif
                             <td>
                                 {{ $row['sector'] ?? '—' }}
                                 @if ($row['sector_penalty'] > 0)
@@ -96,53 +119,71 @@
                                     </span>
                                 @endif
                             </td>
-                            <td>${{ number_format($row['risk_dollars'], 2) }}</td>
-                            <td>
-                                <span class="vestix-smart-allocation__copy-group">
-                                    {{ number_format($row['quantity'], 0) }}
-                                    <button
-                                        type="button"
-                                        class="vestix-broker-order-ticket__copy-btn"
-                                        x-data="{ copied: false }"
-                                        x-tooltip="{ content: copied ? 'Gekopieerd!' : 'Kopieer aantal', theme: $store.theme, trigger: 'mouseenter' }"
-                                        @click="
-                                            navigator.clipboard.writeText(@js((string) $row['quantity'])).then(() => {
-                                                copied = true; setTimeout(() => copied = false, 1500);
-                                            })
-                                        "
-                                    >
-                                        <span x-show="! copied">
-                                            {{ \Filament\Support\generate_icon_html('heroicon-o-document-duplicate', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm'])) }}
-                                        </span>
-                                        <span x-show="copied" x-cloak>
-                                            {{ \Filament\Support\generate_icon_html('heroicon-m-check', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm text-success-500'])) }}
-                                        </span>
-                                    </button>
-                                </span>
-                            </td>
-                            <td>
-                                <span class="vestix-smart-allocation__copy-group">
-                                    ${{ number_format($row['investment'], 2) }}
-                                    <button
-                                        type="button"
-                                        class="vestix-broker-order-ticket__copy-btn"
-                                        x-data="{ copied: false }"
-                                        x-tooltip="{ content: copied ? 'Gekopieerd!' : 'Kopieer inleg', theme: $store.theme, trigger: 'mouseenter' }"
-                                        @click="
-                                            navigator.clipboard.writeText(@js(number_format($row['investment'], 2, '.', ''))).then(() => {
-                                                copied = true; setTimeout(() => copied = false, 1500);
-                                            })
-                                        "
-                                    >
-                                        <span x-show="! copied">
-                                            {{ \Filament\Support\generate_icon_html('heroicon-o-document-duplicate', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm'])) }}
-                                        </span>
-                                        <span x-show="copied" x-cloak>
-                                            {{ \Filament\Support\generate_icon_html('heroicon-m-check', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm text-success-500'])) }}
-                                        </span>
-                                    </button>
-                                </span>
-                            </td>
+                            @if ($density === 'full')
+                                <td>
+                                    @include('filament.positions.partials.copy-value-button', [
+                                        'display' => number_format($row['quantity'], 0),
+                                        'copyValue' => (string) $row['quantity'],
+                                        'label' => 'Kopieer aantal',
+                                    ])
+                                </td>
+                                <td>
+                                    @include('filament.positions.partials.copy-value-button', [
+                                        'display' => '$'.number_format($row['entry'], 2),
+                                        'copyValue' => number_format($row['entry'], 2, '.', ''),
+                                        'label' => 'Kopieer Buy-Stop',
+                                    ])
+                                </td>
+                                <td>
+                                    @include('filament.positions.partials.copy-value-button', [
+                                        'display' => '$'.number_format($limitPrice, 2),
+                                        'copyValue' => number_format($limitPrice, 2, '.', ''),
+                                        'label' => 'Kopieer Limit',
+                                    ])
+                                </td>
+                                <td>
+                                    @include('filament.positions.partials.copy-value-button', [
+                                        'display' => '$'.number_format($row['stop_loss'], 2),
+                                        'copyValue' => number_format($row['stop_loss'], 2, '.', ''),
+                                        'label' => 'Kopieer Stop-Loss',
+                                    ])
+                                </td>
+                                <td>
+                                    @if ($row['target_1'] !== null)
+                                        @include('filament.positions.partials.copy-value-button', [
+                                            'display' => '$'.number_format($row['target_1'], 2),
+                                            'copyValue' => number_format($row['target_1'], 2, '.', ''),
+                                            'label' => 'Kopieer Take-Profit',
+                                        ])
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td>${{ number_format($row['risk_dollars'], 2) }}</td>
+                                <td>
+                                    @include('filament.positions.partials.copy-value-button', [
+                                        'display' => '$'.number_format($row['investment'], 2),
+                                        'copyValue' => number_format($row['investment'], 2, '.', ''),
+                                        'label' => 'Kopieer inleg',
+                                    ])
+                                </td>
+                            @else
+                                <td>${{ number_format($row['risk_dollars'], 2) }}</td>
+                                <td>
+                                    @include('filament.positions.partials.copy-value-button', [
+                                        'display' => number_format($row['quantity'], 0),
+                                        'copyValue' => (string) $row['quantity'],
+                                        'label' => 'Kopieer aantal',
+                                    ])
+                                </td>
+                                <td>
+                                    @include('filament.positions.partials.copy-value-button', [
+                                        'display' => '$'.number_format($row['investment'], 2),
+                                        'copyValue' => number_format($row['investment'], 2, '.', ''),
+                                        'label' => 'Kopieer inleg',
+                                    ])
+                                </td>
+                            @endif
                             @if ($removable)
                                 <td class="vestix-smart-allocation__actions-col">
                                     <button

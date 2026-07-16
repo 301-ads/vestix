@@ -47,6 +47,10 @@
             </div>
         </x-slot>
 
-        <livewire:execution-plan-content layout="panel" :key="'execution-plan-panel-content'" />
+        <livewire:execution-plan-content
+            layout="panel"
+            density="compact"
+            :key="'execution-plan-panel-content'"
+        />
     </x-filament::modal>
 </div>

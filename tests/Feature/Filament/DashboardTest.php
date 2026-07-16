@@ -11,7 +11,6 @@ use App\Filament\Widgets\OrderPlanTodayWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
-use App\Filament\Widgets\SetupRadarWidget;
 use App\Models\Asset;
 use App\Models\BankrollSnapshot;
 use App\Models\Position;
@@ -174,9 +173,8 @@ class DashboardTest extends TestCase
             PortfolioExposureWidget::class,
             BankrollUpdateWidget::class,
             OrderPlanTodayWidget::class,
-            PositionsRequiringActionWidget::class,
             PortfolioTopFlopWidget::class,
-            SetupRadarWidget::class,
+            PositionsRequiringActionWidget::class,
             BuyStopReviewWidget::class,
         ], $widgets);
     }

@@ -163,7 +163,7 @@ class SmartBudgetAllocationTest extends TestCase
         $this->assertNull($scout->fresh()->market_open_reminder_on);
     }
 
-    public function test_dashboard_widget_shows_allocation_table(): void
+    public function test_dashboard_widget_shows_full_density_ibkr_columns(): void
     {
         $user = $this->authenticateFilament();
         $user->update([
@@ -183,15 +183,46 @@ class SmartBudgetAllocationTest extends TestCase
 
         $this->assertTrue(OrderPlanTodayWidget::canView());
 
-        Livewire::test(OrderPlanTodayWidget::class)
-            ->assertSeeLivewire(ExecutionPlanContent::class);
+        Livewire::test(ExecutionPlanContent::class, ['layout' => 'embedded', 'density' => 'full'])
+            ->assertSet('density', 'full')
+            ->assertSee('COO')
+            ->assertSee('Buy-Stop')
+            ->assertSee('Limit')
+            ->assertSee('Stop-Loss')
+            ->assertSee('Take-Profit');
 
         Livewire::test(Dashboard::class)
             ->assertSee('Order Plan vandaag')
             ->assertSee('COO')
-            ->assertSee('Smart Sizing')
+            ->assertSee('Buy-Stop')
             ->assertSee('Toepassen')
             ->assertDontSee('Open Executie Paneel');
+    }
+
+    public function test_slide_over_uses_compact_density_without_ibkr_price_headers(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10000,
+            'default_risk_percent' => 1,
+        ]);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'RPRX',
+            'last_setup_score' => 10,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'sector_etf' => 'XLK',
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        Livewire::test(ExecutionPlanContent::class, ['layout' => 'panel', 'density' => 'compact'])
+            ->assertSet('density', 'compact')
+            ->assertSee('RPRX')
+            ->assertSee('R/R')
+            ->assertDontSee('Buy-Stop')
+            ->assertDontSee('Take-Profit');
     }
 
     public function test_topbar_panel_embeds_same_content_component(): void

@@ -28,27 +28,15 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
 
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 5;
 
     /**
      * @var int|string|array<string, int|string|null>
      */
     protected int|string|array $columnSpan = [
         'default' => 'full',
-        'lg' => 2,
+        'lg' => 1,
     ];
-
-    /**
-     * @return int|string|array<string, int|string|null>
-     */
-    public function getColumnSpan(): int|string|array
-    {
-        if (! OrderPlanTodayWidget::canView()) {
-            return 'full';
-        }
-
-        return $this->columnSpan;
-    }
 
     public function boot(): void
     {

@@ -8,7 +8,6 @@ use App\Filament\Widgets\OrderPlanTodayWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
-use App\Filament\Widgets\SetupRadarWidget;
 use App\Support\BackgroundArtisan;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
@@ -31,7 +30,7 @@ class Dashboard extends BaseDashboard
     {
         return [
             'default' => 1,
-            'lg' => 6,
+            'lg' => 2,
         ];
     }
 
@@ -44,9 +43,8 @@ class Dashboard extends BaseDashboard
             PortfolioExposureWidget::class,
             BankrollUpdateWidget::class,
             OrderPlanTodayWidget::class,
-            PositionsRequiringActionWidget::class,
             PortfolioTopFlopWidget::class,
-            SetupRadarWidget::class,
+            PositionsRequiringActionWidget::class,
             BuyStopReviewWidget::class,
         ];
     }

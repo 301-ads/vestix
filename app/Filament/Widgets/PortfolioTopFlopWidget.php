@@ -15,14 +15,14 @@ class PortfolioTopFlopWidget extends TableWidget
 {
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 4;
 
     /**
      * @var int|string|array<string, int|string|null>
      */
     protected int|string|array $columnSpan = [
         'default' => 'full',
-        'lg' => 3,
+        'lg' => 1,
     ];
 
     protected string $view = 'filament.widgets.scrollable-table-widget';

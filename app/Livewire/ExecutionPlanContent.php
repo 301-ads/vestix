@@ -16,11 +16,15 @@ class ExecutionPlanContent extends Component
     /** @var 'embedded'|'panel' */
     public string $layout = 'embedded';
 
+    /** @var 'compact'|'full' */
+    public string $density = 'compact';
+
     public string $mode = SmartAllocationService::MODE_SMART;
 
-    public function mount(string $layout = 'embedded'): void
+    public function mount(string $layout = 'embedded', string $density = 'compact'): void
     {
         $this->layout = $layout === 'panel' ? 'panel' : 'embedded';
+        $this->density = $density === 'full' ? 'full' : 'compact';
         $this->mode = (string) config(
             'vestix.smart_sizing.default_mode',
             SmartAllocationService::MODE_SMART,

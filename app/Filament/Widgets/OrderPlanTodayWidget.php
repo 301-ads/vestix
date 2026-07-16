@@ -15,13 +15,7 @@ class OrderPlanTodayWidget extends Widget
 
     protected static ?int $sort = 3;
 
-    /**
-     * @var int|string|array<string, int|string|null>
-     */
-    protected int|string|array $columnSpan = [
-        'default' => 'full',
-        'lg' => 4,
-    ];
+    protected int|string|array $columnSpan = 'full';
 
     #[On('order-plan-updated')]
     public function refreshPlan(): void
