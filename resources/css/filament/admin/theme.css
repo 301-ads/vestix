@@ -1103,6 +1103,121 @@
     color: var(--gray-400);
 }
 
+.vestix-smart-allocation {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+}
+
+.vestix-smart-allocation__intro {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--gray-600);
+}
+
+.dark .vestix-smart-allocation__intro {
+    color: var(--gray-300);
+}
+
+.vestix-smart-allocation__empty,
+.vestix-smart-allocation__hint {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--gray-500);
+}
+
+.dark .vestix-smart-allocation__empty,
+.dark .vestix-smart-allocation__hint {
+    color: var(--gray-400);
+}
+
+.vestix-smart-allocation__table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--gray-200);
+    border-radius: 0.5rem;
+}
+
+.dark .vestix-smart-allocation__table-wrap {
+    border-color: var(--gray-700);
+}
+
+.vestix-smart-allocation__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.vestix-smart-allocation__table th,
+.vestix-smart-allocation__table td {
+    padding: 0.5rem 0.625rem;
+    text-align: start;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.dark .vestix-smart-allocation__table th,
+.dark .vestix-smart-allocation__table td {
+    border-bottom-color: var(--gray-800);
+}
+
+.vestix-smart-allocation__table th {
+    font-weight: 600;
+    color: var(--gray-500);
+    background: var(--gray-50);
+}
+
+.dark .vestix-smart-allocation__table th {
+    color: var(--gray-400);
+    background: var(--gray-900);
+}
+
+.vestix-smart-allocation__ticker {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.vestix-smart-allocation__copy-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.vestix-smart-allocation__penalty {
+    margin-inline-start: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--warning-600);
+}
+
+.dark .vestix-smart-allocation__penalty {
+    color: var(--warning-400);
+}
+
+.vestix-smart-allocation__exclusions {
+    font-size: 0.8125rem;
+    color: var(--gray-600);
+}
+
+.dark .vestix-smart-allocation__exclusions {
+    color: var(--gray-300);
+}
+
+.vestix-smart-allocation__exclusions-heading {
+    margin: 0 0 0.35rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.vestix-smart-allocation__exclusions ul {
+    margin: 0;
+    padding-inline-start: 1.1rem;
+}
+
+.fi-modal.vestix-smart-allocation-modal .fi-modal-content {
+    max-width: 52rem;
+}
+
 .vestix-broker-order-ticket__value-ctn {
     display: inline-flex;
     align-items: center;

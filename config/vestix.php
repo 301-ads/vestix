@@ -151,4 +151,11 @@ return [
         'atr_multiplier' => (float) env('PRE_EARNINGS_TRAILING_ATR_MULTIPLIER', 1.5),
         'prior_day_buffer_pct' => (float) env('PRE_EARNINGS_TRAILING_PRIOR_DAY_BUFFER_PCT', 0.1),
     ],
+
+    'smart_sizing' => [
+        'min_score' => (int) env('SMART_SIZING_MIN_SCORE', 5),
+        'default_mode' => env('SMART_SIZING_DEFAULT_MODE', 'smart'),
+        'sector_penalty_per_extra' => (float) env('SMART_SIZING_SECTOR_PENALTY_PER_EXTRA', 0.20),
+        'sector_penalty_cap' => (float) env('SMART_SIZING_SECTOR_PENALTY_CAP', 0.90),
+    ],
 ];
