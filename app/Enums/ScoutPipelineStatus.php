@@ -41,8 +41,8 @@ enum ScoutPipelineStatus: string
     public function badgeColor(): string
     {
         return match ($this) {
-            self::Scout => 'info',
-            self::Pending => 'gray',
+            self::Scout => 'gray',
+            self::Pending => 'info',
             self::Active => 'info',
             self::ReviewRequired => 'warning',
         };

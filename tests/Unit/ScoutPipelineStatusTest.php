@@ -18,7 +18,7 @@ class ScoutPipelineStatusTest extends TestCase
 
         $this->assertSame(ScoutPipelineStatus::Scout, $scout->scoutPipelineStatus());
         $this->assertSame('Pending', $scout->scoutPipelineStatus()->label());
-        $this->assertSame('info', $scout->scoutPipelineStatus()->badgeColor());
+        $this->assertSame('gray', $scout->scoutPipelineStatus()->badgeColor());
     }
 
     public function test_pending_when_market_open_reminder_scheduled(): void
@@ -29,7 +29,7 @@ class ScoutPipelineStatusTest extends TestCase
 
         $this->assertSame(ScoutPipelineStatus::Pending, $scout->scoutPipelineStatus());
         $this->assertSame('Order Plan', $scout->scoutPipelineStatus()->label());
-        $this->assertSame('gray', $scout->scoutPipelineStatus()->badgeColor());
+        $this->assertSame('info', $scout->scoutPipelineStatus()->badgeColor());
     }
 
     public function test_active_when_order_live_at_broker(): void
