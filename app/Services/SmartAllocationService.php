@@ -111,6 +111,20 @@ class SmartAllocationService
                 continue;
             }
 
+            if ($pie > 0 && $riskPerShare > $pie) {
+                $exclusions[] = [
+                    'position_id' => (int) $position->id,
+                    'ticker' => $ticker,
+                    'reason' => sprintf(
+                        'Risico/aandeel $%s > hele pie $%s — 1 aandeel past niet',
+                        number_format($riskPerShare, 2),
+                        number_format($pie, 2),
+                    ),
+                ];
+
+                continue;
+            }
+
             $target1 = $position->plannedBracketTarget1Price();
             $rewardRisk = null;
 
@@ -138,7 +152,7 @@ class SmartAllocationService
         if ($candidates === [] || $pie <= 0) {
             return [
                 'mode' => $mode,
-                'pie' => $pie,
+                'pie' => round($pie, 2),
                 'pie_percent' => $piePercent,
                 'bankroll' => $bankroll,
                 'weights_uniform' => true,
@@ -147,6 +161,99 @@ class SmartAllocationService
             ];
         }
 
+        $working = $candidates;
+        $allocations = [];
+        $maxRounds = count($working) + 1;
+
+        while ($working !== [] && $maxRounds-- > 0) {
+            $round = $this->allocateAmong($working, $pie, $bankroll, $mode);
+
+            if ($round === []) {
+                $allocations = [];
+
+                break;
+            }
+
+            $affordable = [];
+            $droppedIds = [];
+
+            foreach ($round as $row) {
+                if ($row['quantity'] >= 1) {
+                    $affordable[] = $row;
+
+                    continue;
+                }
+
+                $droppedIds[(int) $row['position_id']] = true;
+                $exclusions[] = [
+                    'position_id' => (int) $row['position_id'],
+                    'ticker' => $row['ticker'],
+                    'reason' => sprintf(
+                        'Min. 1 aandeel kost $%s risico; toegekend $%s — budget herverdeeld',
+                        number_format($row['entry'] - $row['stop_loss'], 2),
+                        number_format($row['risk_dollars'], 2),
+                    ),
+                ];
+            }
+
+            $allocations = $affordable;
+
+            if ($droppedIds === []) {
+                break;
+            }
+
+            $working = array_values(array_filter(
+                $working,
+                fn (array $candidate): bool => ! isset($droppedIds[(int) $candidate['position']->id]),
+            ));
+        }
+
+        usort($allocations, fn (array $a, array $b): int => $b['weight'] <=> $a['weight']);
+
+        return [
+            'mode' => $mode,
+            'pie' => round($pie, 2),
+            'pie_percent' => $piePercent,
+            'bankroll' => $bankroll,
+            'weights_uniform' => $this->weightsAreUniform($allocations),
+            'allocations' => $allocations,
+            'exclusions' => $exclusions,
+        ];
+    }
+
+    /**
+     * @param  list<array{
+     *     position: Position,
+     *     ticker: string,
+     *     score: int,
+     *     entry: float,
+     *     stop_loss: float,
+     *     target_1: float|null,
+     *     reward_risk: float|null,
+     *     sector: string|null,
+     *     risk_per_share: float,
+     * }>  $candidates
+     * @return list<array{
+     *     position_id: int,
+     *     ticker: string,
+     *     score: int,
+     *     reward_risk: float|null,
+     *     expected_value: float|null,
+     *     sector: string|null,
+     *     sector_penalty: float,
+     *     weight: float,
+     *     weight_share: float,
+     *     risk_dollars: float,
+     *     risk_percent: float,
+     *     quantity: int,
+     *     investment: float,
+     *     entry: float,
+     *     stop_loss: float,
+     *     target_1: float|null,
+     * }>
+     */
+    private function allocateAmong(array $candidates, float $pie, float $bankroll, string $mode): array
+    {
         $sectorCounts = [];
 
         foreach ($candidates as $candidate) {
@@ -193,15 +300,7 @@ class SmartAllocationService
         $totalWeight = array_sum(array_column($weighted, 'weight'));
 
         if ($totalWeight <= 0) {
-            return [
-                'mode' => $mode,
-                'pie' => $pie,
-                'pie_percent' => $piePercent,
-                'bankroll' => $bankroll,
-                'weights_uniform' => true,
-                'allocations' => [],
-                'exclusions' => $exclusions,
-            ];
+            return [];
         }
 
         $allocations = [];
@@ -235,17 +334,7 @@ class SmartAllocationService
             ];
         }
 
-        usort($allocations, fn (array $a, array $b): int => $b['weight'] <=> $a['weight']);
-
-        return [
-            'mode' => $mode,
-            'pie' => round($pie, 2),
-            'pie_percent' => $piePercent,
-            'bankroll' => $bankroll,
-            'weights_uniform' => $this->weightsAreUniform($allocations),
-            'allocations' => $allocations,
-            'exclusions' => $exclusions,
-        ];
+        return $allocations;
     }
 
     /**

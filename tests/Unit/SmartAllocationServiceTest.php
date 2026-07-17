@@ -216,6 +216,78 @@ class SmartAllocationServiceTest extends TestCase
         $this->assertEqualsWithDelta(10000.0, $this->service->resolveSizingBankroll($user->fresh()), 0.01);
     }
 
+    public function test_unaffordable_share_is_excluded_and_budget_redistributed(): void
+    {
+        $user = User::factory()->create([
+            'trading_bankroll' => 4578.94,
+            'default_risk_percent' => 2.5,
+        ]);
+
+        // Pie ≈ $114.47 over 4 setups → LLY gets ~$27.58 < ~$31.89 risk/share → 0 stuks.
+        $all = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'ALL',
+            'last_setup_score' => 10,
+            'entry_price' => 245.40,
+            'latest_sma_20' => 240.00,
+            'latest_atr_14' => 4.00,
+            'signal_low' => 236.80,
+            'sector_etf' => 'XLF',
+            'target_1_rr' => 2.0,
+        ]);
+
+        $lly = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'LLY',
+            'last_setup_score' => 8,
+            'entry_price' => 1192.89,
+            'latest_sma_20' => 1171.00,
+            'latest_atr_14' => 20.00,
+            'signal_low' => 1141.20,
+            'sector_etf' => 'XLV',
+            'target_1_rr' => 2.0,
+        ]);
+
+        $kvue = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'KVUE',
+            'last_setup_score' => 10,
+            'entry_price' => 19.14,
+            'latest_sma_20' => 18.50,
+            'latest_atr_14' => 0.40,
+            'signal_low' => 18.50,
+            'sector_etf' => 'XLP',
+            'target_1_rr' => 2.0,
+        ]);
+
+        $syy = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'SYY',
+            'last_setup_score' => 9,
+            'entry_price' => 82.91,
+            'latest_sma_20' => 82.09,
+            'latest_atr_14' => 1.77,
+            'signal_low' => 80.50,
+            'sector_etf' => 'XLP',
+            'target_1_rr' => 2.0,
+        ]);
+
+        $result = $this->service->allocate($user, [$all, $lly, $kvue, $syy], SmartAllocationService::MODE_SMART);
+
+        $tickers = collect($result['allocations'])->pluck('ticker')->all();
+        $this->assertNotContains('LLY', $tickers);
+        $this->assertContains('ALL', $tickers);
+        $this->assertContains('KVUE', $tickers);
+        $this->assertContains('SYY', $tickers);
+
+        foreach ($result['allocations'] as $allocation) {
+            $this->assertGreaterThanOrEqual(1, $allocation['quantity']);
+        }
+
+        $exclusion = collect($result['exclusions'])->firstWhere('ticker', 'LLY');
+        $this->assertNotNull($exclusion);
+        $this->assertStringContainsString('herverdeeld', $exclusion['reason']);
+
+        $allocatedRisk = array_sum(array_column($result['allocations'], 'risk_dollars'));
+        $this->assertEqualsWithDelta($result['pie'], $allocatedRisk, 0.05);
+    }
+
     private function userWithBankroll(): User
     {
         return User::factory()->create([
