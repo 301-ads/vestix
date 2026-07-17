@@ -20,7 +20,6 @@ use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupScorecard;
 use App\Support\StopLossProtocol;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Contracts\Support\Htmlable;
@@ -104,27 +103,44 @@ class EditPosition extends EditRecord
             $actions[] = PositionRecordActions::holdThroughEarnings();
         }
 
-        $overflowActions = [];
-
         if ($record->status === 'scout') {
             $actions[] = PositionRecordActions::markBuyStopPlaced(iconButton: false)
-                ->outlined(fn (): bool => $this->getRecord()->usesIbkrWorkflow())
-                ->extraAttributes(fn (): array => $this->getRecord()->usesIbkrWorkflow()
-                    ? ['class' => 'vestix-sync-btn']
-                    : []);
+                ->label('Order')
+                ->color('primary')
+                ->extraAttributes(['class' => 'vestix-order-btn']);
             $actions[] = $this->scoutActivateAction();
-            $overflowActions[] = PositionRecordActions::clearBuyStop(iconButton: false);
-            $overflowActions[] = PositionRecordActions::shareSetup();
-        } else {
-            $overflowActions[] = PositionRecordActions::shareSuccess();
-            $overflowActions[] = PositionRecordActions::archive();
-            $overflowActions[] = $this->applyCalculatedSlAction()
-                ->extraAttributes(['class' => 'hidden']);
+            $actions[] = PositionRecordActions::clearBuyStop(iconButton: false)
+                ->outlined()
+                ->extraAttributes(['class' => 'vestix-sync-btn']);
+            $actions[] = PositionRecordActions::shareSetup()
+                ->outlined()
+                ->extraAttributes(['class' => 'vestix-sync-btn']);
+            $actions[] = DeleteAction::make()
+                ->label('Delete')
+                ->outlined()
+                ->extraAttributes(['class' => 'vestix-header-delete-btn']);
+
+            return $actions;
         }
 
-        $overflowActions[] = DeleteAction::make();
-
-        $actions[] = ActionGroup::make($overflowActions)->iconButton();
+        $actions[] = PositionRecordActions::shareSuccess()
+            ->label('Delen')
+            ->color('info')
+            ->outlined()
+            ->extraAttributes(['class' => 'vestix-header-share-btn']);
+        $actions[] = PositionRecordActions::archive()
+            ->label(fn (): string => $this->getRecord()->action_command === 'STOPPED OUT'
+                ? 'Schild Geraakt'
+                : 'Sluiten')
+            ->color('gray')
+            ->outlined()
+            ->extraAttributes(['class' => 'vestix-header-close-btn']);
+        $actions[] = $this->applyCalculatedSlAction()
+            ->extraAttributes(['class' => 'hidden']);
+        $actions[] = DeleteAction::make()
+            ->label('Delete')
+            ->outlined()
+            ->extraAttributes(['class' => 'vestix-header-delete-btn']);
 
         return $actions;
     }
@@ -138,7 +154,6 @@ class EditPosition extends EditRecord
             'title' => $this->getRecordTitle(),
             'status' => $record->status,
             'pipelineStatus' => $record->status === 'scout' ? $record->scoutPipelineStatus() : null,
-            'broker' => $record->status === 'scout' ? $record->effectiveBroker() : null,
             'iconUrl' => $record->asset?->icon_url,
         ])->render());
     }

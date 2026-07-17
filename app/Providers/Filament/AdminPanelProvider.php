@@ -173,6 +173,12 @@ class AdminPanelProvider extends PanelProvider
                 fn (): string => view('filament.dashboard.market-data-status')->render(),
                 scopes: [
                     Dashboard::class,
+                ],
+            )
+            ->renderHook(
+                PanelsRenderHook::PAGE_HEADER_HEADING_AFTER,
+                fn (): string => view('filament.dashboard.market-data-status')->render(),
+                scopes: [
                     EditPosition::class,
                     EditScout::class,
                 ],

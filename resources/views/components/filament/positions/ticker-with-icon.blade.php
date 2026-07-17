@@ -1,25 +1,46 @@
 @props([
     'ticker',
     'iconUrl' => null,
+    'statusDotColor' => null,
+    'statusDotLabel' => null,
 ])
 
 @php
     $letter = strtoupper(substr((string) $ticker, 0, 1));
     $hue = abs(crc32((string) $ticker)) % 360;
+    $hasStatusDot = filled($statusDotColor) && filled($statusDotLabel);
 @endphp
 
 <span {{ $attributes->class(['ticker-with-icon']) }}>
-    @if (filled($iconUrl))
-        <span class="ticker-with-icon__logo">
-            <img src="{{ $iconUrl }}" alt="" class="ticker-with-icon__image" />
-        </span>
-    @else
-        <span
-            class="ticker-letter-avatar"
-            style="background-color: hsl({{ $hue }}, 55%, 42%);"
-            aria-hidden="true"
-        >{{ $letter }}</span>
-    @endif
+    <span @class([
+        'ticker-with-icon__mark',
+        'ticker-with-icon__mark--has-dot' => $hasStatusDot,
+    ])>
+        @if (filled($iconUrl))
+            <span class="ticker-with-icon__logo">
+                <img src="{{ $iconUrl }}" alt="" class="ticker-with-icon__image" />
+            </span>
+        @else
+            <span
+                class="ticker-letter-avatar"
+                style="background-color: hsl({{ $hue }}, 55%, 42%);"
+                aria-hidden="true"
+            >{{ $letter }}</span>
+        @endif
+
+        @if ($hasStatusDot)
+            <span
+                @class([
+                    'ticker-with-icon__status-dot',
+                    'ticker-with-icon__status-dot--'.$statusDotColor,
+                ])
+                title="{{ $statusDotLabel }}"
+                aria-label="{{ $statusDotLabel }}"
+                x-data
+                x-tooltip="{ content: @js($statusDotLabel), theme: $store.theme, trigger: 'mouseenter' }"
+            ></span>
+        @endif
+    </span>
 
     <span class="ticker-with-icon__label font-bold">{{ $ticker }}</span>
 </span>

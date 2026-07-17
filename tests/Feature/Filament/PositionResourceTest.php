@@ -125,7 +125,7 @@ class PositionResourceTest extends TestCase
             ->assertOk()
             ->assertSee('Open')
             ->assertDontSee('Status')
-            ->assertSee('Archiveer')
+            ->assertSee('Sluiten')
             ->assertDontSee('Archiveer Positie')
             ->assertSee('Actuele Koers')
             ->assertSee('Positiewaarde')
@@ -230,7 +230,7 @@ class PositionResourceTest extends TestCase
         ]);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
-            ->assertSee('Archiveer')
+            ->assertSee('Sluiten')
             ->assertDontSee('Archiveer Positie')
             ->callAction('archive', data: [
                 'exit_price' => 79.50,
@@ -255,7 +255,7 @@ class PositionResourceTest extends TestCase
         ]);
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
-            ->assertSee('Schild Geraakt (Sluit)');
+            ->assertSee('Schild Geraakt');
     }
 
     public function test_edit_page_closed_position_shows_archive_metadata_in_header(): void

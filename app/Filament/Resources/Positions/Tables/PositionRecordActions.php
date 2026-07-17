@@ -53,9 +53,12 @@ class PositionRecordActions
 
         if ($syncButtonStyle) {
             $action
+                ->label(fn (Position $record): string => MarketDataFreshness::isPositionSyncInProgress($record->id)
+                    ? 'Bezig…'
+                    : 'Sync')
                 ->color('primary')
                 ->outlined()
-                ->extraAttributes(['class' => 'vestix-sync-btn']);
+                ->extraAttributes(['class' => 'vestix-sync-btn vestix-sync-btn--green']);
         }
 
         return $action;

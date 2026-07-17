@@ -16,6 +16,7 @@ use App\Filament\Widgets\BuyStopReviewWidget;
 use App\Filament\Widgets\SetupRadarWidget;
 use App\Models\Position;
 use App\Services\MarketDataFetcher;
+use App\Support\BrokerOrderTicket;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -353,11 +354,14 @@ class ScoutWatchlistTest extends TestCase
         ]);
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertOk()
-            ->assertSee('Pending')
+            ->assertSeeHtml('ticker-with-icon__status-dot--gray')
+            ->assertSeeHtml('aria-label="Pending"')
             ->assertSee('Geplande Entry')
             ->assertSee('Gepland risico')
             ->assertSee('Totale inleg')
-            ->assertSee('Order geplaatst')
+            ->assertSee('Sync')
+            ->assertSee('Order')
+            ->assertSee('Delete')
             ->assertDontSee('Activeren')
             ->assertDontSee('Actie / Executie');
     }
@@ -742,7 +746,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_atr_14' => 1.50,
         ]);
 
-        $ticket = \App\Support\BrokerOrderTicket::forIbkrBracket($scout);
+        $ticket = BrokerOrderTicket::forIbkrBracket($scout);
 
         $this->assertSame('IBKR Bracket Order — COO', $ticket['title']);
         $this->assertSame('STOP LIMIT (Kopen)', $ticket['rows'][0]['value']);
@@ -778,7 +782,7 @@ class ScoutWatchlistTest extends TestCase
 
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertDontSee('Broker voor deze scout')
-            ->assertSee('IBKR');
+            ->assertDontSeeHtml('>IBKR</span>');
 
         $this->assertTrue($scout->fresh()->usesIbkrWorkflow());
         $this->assertSame(Broker::Revolut, $scout->fresh()->broker);
