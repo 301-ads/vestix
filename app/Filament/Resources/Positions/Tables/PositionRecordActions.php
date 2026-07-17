@@ -21,6 +21,7 @@ use App\Support\ScoutSetupAlertService;
 use App\Support\ScoutSetupScorecard;
 use App\Support\ShareCardDataFactory;
 use App\Support\StopLossProtocol;
+use App\Support\UsMarketSession;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
@@ -652,7 +653,8 @@ class PositionRecordActions
             ->color('success')
             ->visible(fn (Position $record): bool => $record->status === 'open'
                 && $record->hasInitialSlPlaced()
-                && $record->action_command === 'UPDATE')
+                && $record->action_command === 'UPDATE'
+                && UsMarketSession::isTrailingStopReviewWindow())
             ->requiresConfirmation()
             ->modalHeading(fn (Position $record): string => BrokerOrderTicket::forStopLossUpdate($record)['title'])
             ->modalIcon(fn (Position $record): HtmlString => BrokerOrderTicket::modalIcon($record))

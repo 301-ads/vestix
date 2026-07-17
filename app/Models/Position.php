@@ -1070,7 +1070,8 @@ class Position extends Model
             return self::PRIMARY_ACTION_PLACE_INITIAL_SL;
         }
 
-        if ($this->action_command === 'UPDATE') {
+        if ($this->action_command === 'UPDATE'
+            && UsMarketSession::isTrailingStopReviewWindow()) {
             return self::PRIMARY_ACTION_UPDATE_SL;
         }
 

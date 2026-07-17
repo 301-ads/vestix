@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Bankroll\IbkrBankrollSource;
 use App\Services\Bankroll\ManualBankrollSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class PositionBrokerWorkflowTest extends TestCase
@@ -105,5 +106,31 @@ class PositionBrokerWorkflowTest extends TestCase
         $source = app(IbkrBankrollSource::class);
 
         $this->assertSame(3428.40, $source->resolveAmount($user));
+    }
+
+    public function test_update_sl_action_is_hidden_during_us_regular_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:08:00', 'America/New_York'));
+
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->create([
+            'broker' => Broker::Ibkr,
+            'entry_price' => 59.00,
+            'initial_sl' => 59.70,
+            'current_sl' => 59.70,
+            'latest_close_price' => 62.00,
+            'latest_sma_20' => 60.00,
+            'latest_atr_14' => 0.40,
+            'quantity' => 100,
+            'status' => 'open',
+            'initial_sl_placed_at' => now(),
+        ]);
+
+        // new_sl = 60 - 0.20 = 59.80 > 59.70 → UPDATE, but suppressed during RTH
+        $this->assertSame('UPDATE', $position->action_command);
+        $this->assertNull($position->primaryActionType());
+
+        Carbon::setTestNow(Carbon::parse('2026-06-15 16:20:00', 'America/New_York'));
+        $this->assertSame(Position::PRIMARY_ACTION_UPDATE_SL, $position->primaryActionType());
     }
 }

@@ -55,6 +55,24 @@ class UsMarketSession
         );
     }
 
+    /**
+     * Daily trailing SL (SMA/ATR) is an end-of-day protocol.
+     * Surface raise-todos after US close, overnight, weekends, and before the next open — not during RTH.
+     */
+    public static function isTrailingStopReviewWindow(?Carbon $now = null): bool
+    {
+        $now ??= Carbon::now('America/New_York');
+
+        if (! $now->isWeekday()) {
+            return true;
+        }
+
+        $open = $now->copy()->startOfDay()->setTime(self::MARKET_OPEN_HOUR, self::MARKET_OPEN_MINUTE);
+        $close = $now->copy()->startOfDay()->setTime(self::MARKET_CLOSE_HOUR, self::MARKET_CLOSE_MINUTE);
+
+        return $now->lt($open) || $now->greaterThanOrEqualTo($close);
+    }
+
     public static function needsLatestSessionQuote(string $lastBarDate, ?Carbon $now = null): bool
     {
         return self::isBarStale($lastBarDate, $now);

@@ -80,4 +80,27 @@ class UsMarketSessionTest extends TestCase
 
         $this->assertTrue(UsMarketSession::isGatekeeperWindow());
     }
+
+    public function test_trailing_stop_review_window_is_false_during_regular_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:08:00', 'America/New_York'));
+
+        $this->assertFalse(UsMarketSession::isTrailingStopReviewWindow());
+    }
+
+    public function test_trailing_stop_review_window_is_true_after_close(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 16:15:00', 'America/New_York'));
+
+        $this->assertTrue(UsMarketSession::isTrailingStopReviewWindow());
+    }
+
+    public function test_trailing_stop_review_window_is_true_before_open_and_on_weekend(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-15 08:00:00', 'America/New_York'));
+        $this->assertTrue(UsMarketSession::isTrailingStopReviewWindow());
+
+        Carbon::setTestNow(Carbon::parse('2026-06-13 12:00:00', 'America/New_York'));
+        $this->assertTrue(UsMarketSession::isTrailingStopReviewWindow());
+    }
 }
