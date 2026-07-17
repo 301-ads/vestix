@@ -39,11 +39,14 @@ Schedule::command('vestix:premarket-gatekeeper')
     ->dailyAt(config('vestix.premarket.gatekeeper_time', '14:30'))
     ->timezone('Europe/Amsterdam');
 
-// Daily Execution Digest: Stop-Limit plannen vóór open (14:30 NL).
-Schedule::command('vestix:execution-prep-digest')
+// Order Plan prune → daarna prep digest (zelfde run, gegarandeerde volgorde).
+Schedule::command('vestix:order-plan-premarket-prune')
     ->weekdays()
-    ->dailyAt(config('vestix.execution_digest.prep_time', '14:30'))
-    ->timezone('Europe/Amsterdam');
+    ->dailyAt(config('vestix.execution_digest.prune_time', '14:30'))
+    ->timezone('Europe/Amsterdam')
+    ->then(function (): void {
+        Artisan::call('vestix:execution-prep-digest');
+    });
 
 Schedule::command('vestix:earnings-exit-alerts --phase=warning')
     ->weekdays()

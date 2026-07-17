@@ -93,6 +93,7 @@ class AlertMessageBuilder
             AlertEventType::MarketOpenBuyStopReminder => self::marketOpenBuyStopReminder($position, $context),
             AlertEventType::ExecutionOrderPlan => $context['digest_body'] ?? 'Geen Gap Reality Check vandaag.',
             AlertEventType::ExecutionPrepDigest => $context['digest_body'] ?? 'Geen Execution Digest vandaag.',
+            AlertEventType::OrderPlanRevised => $context['digest_body'] ?? 'Geen Order Plan-herziening vandaag.',
         };
     }
 
@@ -191,6 +192,39 @@ class AlertMessageBuilder
         }
 
         $lines[] = sprintf('<a href="%s">Open setup</a>', ScoutResource::getUrl('edit', ['record' => $position]));
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Pre-market Order Plan revision: scouts dropped below SMA 20 / prior day low.
+     *
+     * @param  list<array{position: Position, status: ExecutionDigestStatus, reason: string, price: float|null}>  $prunedRows
+     */
+    public static function orderPlanRevised(User $user, array $prunedRows, string $reminderDate): string
+    {
+        $lines = [
+            sprintf(
+                '🔄 <b>Vestix Order Plan herzien — %s</b>',
+                e(Carbon::parse($reminderDate)->locale('nl')->isoFormat('ddd D MMM')),
+            ),
+            '',
+            '❌ <b>VERWIJDERD (pre-market onder steun):</b>',
+            '',
+        ];
+
+        foreach ($prunedRows as $row) {
+            $lines[] = sprintf(
+                '<b>$%s</b> %s',
+                e($row['position']->ticker),
+                e($row['reason']),
+            );
+        }
+
+        $lines[] = '';
+        $lines[] = 'Herverdeel je budget in het Order Plan (Toepassen) en kies eventueel een vervanger op Mijn Radar.';
+        $lines[] = sprintf('<a href="%s">Open Mijn Radar</a>', ScoutResource::getUrl('index'));
+        $lines[] = sprintf('<a href="%s">Open dashboard</a>', url('/admin'));
 
         return implode("\n", $lines);
     }

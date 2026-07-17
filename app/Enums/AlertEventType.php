@@ -20,6 +20,7 @@ enum AlertEventType: string
     case MarketOpenBuyStopReminder = 'market_open_buy_stop_reminder';
     case ExecutionOrderPlan = 'execution_order_plan';
     case ExecutionPrepDigest = 'execution_prep_digest';
+    case OrderPlanRevised = 'order_plan_revised';
 
     /**
      * @return list<string>
@@ -42,6 +43,7 @@ enum AlertEventType: string
             self::MarketOpenBuyStopReminder->value,
             self::ExecutionOrderPlan->value,
             self::ExecutionPrepDigest->value,
+            self::OrderPlanRevised->value,
         ];
     }
 
@@ -74,6 +76,7 @@ enum AlertEventType: string
             self::MarketOpenBuyStopReminder => 'Buy-stop reminder bij market open (legacy)',
             self::ExecutionOrderPlan => 'Gap Reality Check na open (15:31)',
             self::ExecutionPrepDigest => 'Daily Execution Digest — Stop-Limit plannen (14:30)',
+            self::OrderPlanRevised => 'Order Plan herzien — pre-market onder SMA 20 (14:30)',
             self::SquadCopyAlert => 'Squad copy-alerts (Ghost Mode)',
         };
     }
@@ -94,6 +97,7 @@ enum AlertEventType: string
                 self::PremarketGapRisk,
                 self::PremarketReclamation,
                 self::PremarketLanding,
+                self::OrderPlanRevised,
                 self::ExecutionPrepDigest,
                 self::ExecutionOrderPlan,
                 self::MarketOpenBuyStopReminder,

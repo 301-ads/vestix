@@ -125,6 +125,8 @@ return [
     ],
 
     'execution_digest' => [
+        // Pre-market Order Plan prune (onder SMA 20) — vóór prep digest.
+        'prune_time' => env('EXECUTION_DIGEST_PRUNE_TIME', '14:30'),
         // Pre-open Stop-Limit plannen (vóór US open 15:30 NL).
         'prep_time' => env('EXECUTION_DIGEST_PREP_TIME', '14:30'),
         // 1 min na US open — Gap Reality Check (overgeslagen Stop-Limits).
