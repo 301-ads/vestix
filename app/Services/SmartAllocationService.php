@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\Broker;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\Bankroll\IbkrBankrollSource;
@@ -20,15 +19,12 @@ class SmartAllocationService
     ) {}
 
     /**
-     * IBKR Net Liquidation for sizing — excludes open Revolut / legacy position value
-     * when that capital is still folded into a manual bankroll total.
+     * IBKR Net Liquidation for sizing.
+     * Profile field is already IBKR-only (excluding Revolut/legacy) — do not subtract again.
      */
     public function resolveSizingBankroll(User $user): float
     {
-        $nlv = $this->ibkrBankrollSource->resolveAmount($user);
-        $nonIbkrValue = $this->nonIbkrOpenPositionValue($user);
-
-        return max(0.0, round($nlv - $nonIbkrValue, 2));
+        return max(0.0, round($this->ibkrBankrollSource->resolveAmount($user), 2));
     }
 
     /**
@@ -308,26 +304,6 @@ class SmartAllocationService
         }
 
         return true;
-    }
-
-    private function nonIbkrOpenPositionValue(User $user): float
-    {
-        $positions = Position::query()
-            ->forUser((int) $user->id)
-            ->open()
-            ->where(function ($query): void {
-                $query->where('is_legacy', true)
-                    ->orWhere('broker', Broker::Revolut->value);
-            })
-            ->get();
-
-        $total = 0.0;
-
-        foreach ($positions as $position) {
-            $total += (float) $position->current_value;
-        }
-
-        return round($total, 2);
     }
 
     private function resolveScore(Position $position): int

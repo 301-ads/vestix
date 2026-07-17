@@ -197,7 +197,7 @@ class SmartAllocationServiceTest extends TestCase
         );
     }
 
-    public function test_sizing_bankroll_excludes_open_revolut_position_value(): void
+    public function test_sizing_bankroll_uses_ibkr_nlv_without_subtracting_revolut(): void
     {
         $user = $this->userWithBankroll();
         $user->update(['trading_bankroll' => 10000]);
@@ -212,7 +212,8 @@ class SmartAllocationServiceTest extends TestCase
             'latest_close_price' => 20,
         ]);
 
-        $this->assertEqualsWithDelta(8000.0, $this->service->resolveSizingBankroll($user->fresh()), 0.01);
+        // Profile NLV is already IBKR-only; Revolut opens must not shrink the pie again.
+        $this->assertEqualsWithDelta(10000.0, $this->service->resolveSizingBankroll($user->fresh()), 0.01);
     }
 
     private function userWithBankroll(): User
