@@ -90,6 +90,19 @@ class ScoutSetupScorecard
         }
 
         if ($close < $sma) {
+            if (self::isTrampolineNearMiss($inputs)) {
+                $belowPct = (($sma - $close) / $sma) * 100;
+
+                return self::criterion(
+                    'trampoline',
+                    'Trampoline-afstand',
+                    2,
+                    2,
+                    'pass',
+                    sprintf('Voordeel van de twijfel — close %.2f%% onder SMA 20', $belowPct),
+                );
+            }
+
             return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Close onder SMA 20 — trampoline gebroken');
         }
 
@@ -321,7 +334,7 @@ class ScoutSetupScorecard
         $close = self::resolveClosePrice($inputs);
         $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
 
-        if ($close !== null && $sma !== null && $close < $sma) {
+        if ($close !== null && $sma !== null && $close < $sma && ! self::isTrampolineNearMiss($inputs)) {
             $reasons[] = 'Close onder SMA 20 — trampoline gebroken';
         }
 
@@ -342,6 +355,40 @@ class ScoutSetupScorecard
         }
 
         return $reasons;
+    }
+
+    /**
+     * Green candle that closes only a fraction below SMA 20 — benefit of the doubt.
+     *
+     * @param  array<string, mixed>  $inputs
+     */
+    public static function isTrampolineNearMiss(array $inputs): bool
+    {
+        $close = self::resolveClosePrice($inputs);
+        $open = self::resolveOpenPrice($inputs);
+        $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
+        $threshold = self::trampolineNearMissPct();
+
+        if ($close === null || $sma === null || $sma <= 0 || $threshold <= 0) {
+            return false;
+        }
+
+        if ($close >= $sma) {
+            return false;
+        }
+
+        if ($open === null || $close < $open) {
+            return false;
+        }
+
+        $belowPct = (($sma - $close) / $sma) * 100;
+
+        return $belowPct <= $threshold;
+    }
+
+    public static function trampolineNearMissPct(): float
+    {
+        return (float) config('vestix.sniper_scorecard.trampoline_near_miss_pct', 0.25);
     }
 
     /**
@@ -381,12 +428,20 @@ class ScoutSetupScorecard
     public static function setupGradeSortRankSql(): string
     {
         $maxPoints = self::maxPoints();
+        $nearMissFactor = 1 - (self::trampolineNearMissPct() / 100);
 
         return <<<SQL
 CASE
     WHEN (signal_low IS NULL AND latest_close_price IS NULL) OR latest_sma_20 IS NULL OR scout_rsi IS NULL THEN 6
     WHEN scout_rsi > 70 THEN 5
-    WHEN latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL AND latest_close_price < latest_sma_20 THEN 5
+    WHEN latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL
+        AND latest_close_price < latest_sma_20
+        AND NOT (
+            latest_open_price IS NOT NULL
+            AND latest_close_price >= latest_open_price
+            AND latest_close_price >= latest_sma_20 * {$nearMissFactor}
+        )
+        THEN 5
     WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price THEN 5
     WHEN last_setup_score = {$maxPoints} AND trader_promoted_a_plus = 1 THEN 1
     WHEN last_setup_score >= {$maxPoints} - 1 THEN 2

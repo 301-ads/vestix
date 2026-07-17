@@ -109,6 +109,8 @@ return [
         'max_points' => 10,
         'sma_slope_lookback_days' => (int) env('SNIPER_SMA_SLOPE_LOOKBACK_DAYS', 10),
         'sma_slope_min_pct' => (float) env('SNIPER_SMA_SLOPE_MIN_PCT', 0.0),
+        // Groene bounce net onder SMA 20: voordeel van de twijfel (geen hard fail).
+        'trampoline_near_miss_pct' => (float) env('SNIPER_TRAMPOLINE_NEAR_MISS_PCT', 0.25),
     ],
 
     'premarket' => [

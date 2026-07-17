@@ -67,15 +67,64 @@ class ScoutSetupScorecardTest extends TestCase
 
     public function test_close_below_sma_scores_zero_trampoline_and_hard_fail(): void
     {
+        // 1% under SMA — outside near-miss band (0.25%).
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
-            'signal_low' => 99.90,
-            'latest_close_price' => 99.90,
+            'signal_low' => 99.00,
+            'latest_open_price' => 99.50,
+            'latest_close_price' => 99.00,
         ]));
 
         $this->assertSame(0, $result['criteria'][0]['points']);
         $this->assertStringContainsString('trampoline gebroken', $result['criteria'][0]['detail']);
         $this->assertSame('NO TRADE', $result['grade']);
         $this->assertContains('Close onder SMA 20 — trampoline gebroken', $result['hardFailReasons']);
+    }
+
+    public function test_green_near_miss_below_sma_gets_benefit_of_the_doubt(): void
+    {
+        // LLY-achtig: ~0.18% onder SMA op groene kaars.
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 1160.00,
+            'latest_open_price' => 1165.00,
+            'latest_close_price' => 1169.17,
+            'latest_sma_20' => 1171.25,
+        ]));
+
+        $this->assertSame(2, $result['criteria'][0]['points']);
+        $this->assertSame('pass', $result['criteria'][0]['status']);
+        $this->assertStringContainsString('Voordeel van de twijfel', $result['criteria'][0]['detail']);
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame(10, $result['totalPoints']);
+        $this->assertSame('A', $result['grade']);
+    }
+
+    public function test_deep_miss_below_sma_still_hard_fails(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 99.00,
+            'latest_open_price' => 99.20,
+            'latest_close_price' => 99.50,
+            'latest_sma_20' => 100.00,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][0]['points']);
+        $this->assertContains('Close onder SMA 20 — trampoline gebroken', $result['hardFailReasons']);
+        $this->assertSame('NO TRADE', $result['grade']);
+    }
+
+    public function test_red_candle_near_miss_does_not_get_benefit_of_the_doubt(): void
+    {
+        // 0.18% onder SMA maar rode kaars — geen near-miss.
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 1160.00,
+            'latest_open_price' => 1172.00,
+            'latest_close_price' => 1169.17,
+            'latest_sma_20' => 1171.25,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][0]['points']);
+        $this->assertContains('Close onder SMA 20 — trampoline gebroken', $result['hardFailReasons']);
+        $this->assertSame('NO TRADE', $result['grade']);
     }
 
     public function test_low_below_sma_but_close_above_is_not_hard_fail(): void
