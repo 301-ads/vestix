@@ -5,13 +5,12 @@ namespace App\Contracts;
 use App\Models\User;
 
 /**
- * Read-only IBKR account surface (the "Big 3").
+ * Read-only IBKR account surface.
  *
- * Phase 2: FlexIbkrAccountReader will fetch NLV, Available Funds, and open
- * positions via the IBKR Flex Web Service (token + nightly report).
+ * Flex (EOD): NLV, Available Funds, Settled Cash, open positions, cash transactions.
+ * Client Portal (live read-only): open/working orders.
  *
- * Phase 3: order placement belongs in a separate IbkrExecutionService
- * (Client Portal) — never in this reader.
+ * Phase 3: order placement belongs in a separate IbkrExecutionService — never here.
  */
 interface IbkrAccountReader
 {
@@ -19,8 +18,29 @@ interface IbkrAccountReader
 
     public function availableFunds(User $user): float;
 
+    public function settledCash(User $user): float;
+
+    /**
+     * Conservative deployable capital: min(availableFunds, settledCash).
+     */
+    public function deployableCapital(User $user): float;
+
     /**
      * @return list<array{symbol: string, quantity: float}>
      */
     public function openPositions(User $user): array;
+
+    /**
+     * @return list<array{
+     *     symbol: string,
+     *     quantity: float,
+     *     side: string,
+     *     order_type: string,
+     *     status: string,
+     *     limit_price?: float|null,
+     *     stop_price?: float|null,
+     *     broker_order_id?: string|null
+     * }>
+     */
+    public function openOrders(User $user): array;
 }

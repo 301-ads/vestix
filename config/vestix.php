@@ -164,20 +164,53 @@ return [
         'source' => env('BANKROLL_SOURCE', 'manual'),
     ],
 
-    // Read-only IBKR account reader (Big 3: NLV, Available Funds, Open Positions).
-    // Phase 2: set IBKR_READER=flex and implement FlexIbkrAccountReader HTTP/XML parse.
-    // Phase 3: order placement belongs in a separate IbkrExecutionService (Client Portal).
+    // Read-only IBKR sync (Phase 2). Phase 3 order placement = IbkrExecutionService.
     'ibkr' => [
         'reader' => env('IBKR_READER', 'stub'), // stub | flex
+        'expected_base_currency' => env('IBKR_BASE_CURRENCY', 'USD'),
+        'stale_after_hours' => (int) env('IBKR_STALE_AFTER_HOURS', 48),
+        'block_automation_when_stale' => filter_var(env('IBKR_BLOCK_AUTOMATION_WHEN_STALE', true), FILTER_VALIDATE_BOOL),
+        'sync_bankroll_snapshot' => filter_var(env('IBKR_SYNC_BANKROLL_SNAPSHOT', true), FILTER_VALIDATE_BOOL),
         'flex' => [
             'token' => env('IBKR_FLEX_TOKEN'),
             'query_id' => env('IBKR_FLEX_QUERY_ID'),
             'base_url' => env('IBKR_FLEX_BASE_URL', 'https://gdcdyn.interactivebrokers.com/Universal/servlet'),
+            'timeout_seconds' => (int) env('IBKR_FLEX_TIMEOUT', 30),
+            'poll_attempts' => (int) env('IBKR_FLEX_POLL_ATTEMPTS', 8),
+            'poll_delay_ms' => (int) env('IBKR_FLEX_POLL_DELAY_MS', 1500),
+        ],
+        'client_portal' => [
+            'enabled' => filter_var(env('IBKR_CP_ENABLED', false), FILTER_VALIDATE_BOOL),
+            'base_url' => env('IBKR_CP_BASE_URL', 'https://localhost:5000'),
+            'timeout_seconds' => (int) env('IBKR_CP_TIMEOUT', 15),
+        ],
+        'cashflow' => [
+            'allowlist' => [
+                'Deposits & Withdrawals',
+                'Deposit',
+                'Withdrawal',
+                'Electronic Fund Transfer',
+                'Deposits',
+                'Withdrawals',
+            ],
+            'denylist' => [
+                'Dividend',
+                'Payment In Lieu',
+                'Payment in Lieu',
+                'Withholding Tax',
+                'Broker Interest',
+                'Advisor Fee',
+                'Commission',
+                'Other Fees',
+                'Bond Interest',
+            ],
         ],
         'stub' => [
             'net_liquidation' => env('IBKR_STUB_NLV'),
             'available_funds' => env('IBKR_STUB_AVAILABLE_FUNDS'),
+            'settled_cash' => env('IBKR_STUB_SETTLED_CASH'),
             'open_positions' => [],
+            'open_orders' => [],
         ],
     ],
 

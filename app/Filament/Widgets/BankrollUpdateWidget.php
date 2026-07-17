@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Services\BankrollSnapshotService;
+use App\Services\Ibkr\IbkrSyncHealth;
 use App\Support\FilamentNotifier;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Auth;
@@ -19,13 +20,19 @@ class BankrollUpdateWidget extends Widget
 
     public ?string $bankrollAmount = null;
 
+    public bool $ibkrStale = false;
+
     public function mount(): void
     {
-        $bankroll = Auth::user()?->trading_bankroll;
+        $user = Auth::user();
+        $bankroll = $user?->trading_bankroll;
 
         $this->bankrollAmount = $bankroll !== null
             ? number_format((float) $bankroll, 2, '.', '')
             : null;
+
+        $this->ibkrStale = $user !== null && app(IbkrSyncHealth::class)->isStale($user)
+            && ($user->ibkr_last_success_at !== null || (string) config('vestix.ibkr.reader', 'stub') === 'flex');
     }
 
     public static function canView(): bool
@@ -34,6 +41,15 @@ class BankrollUpdateWidget extends Widget
 
         if ($user === null) {
             return false;
+        }
+
+        $health = app(IbkrSyncHealth::class);
+        $usesIbkrSync = $user->ibkr_last_success_at !== null
+            || (string) config('vestix.ibkr.reader', 'stub') === 'flex'
+            || (string) config('vestix.bankroll_tracker.source', 'manual') === 'ibkr';
+
+        if ($usesIbkrSync) {
+            return $health->isStale($user);
         }
 
         return app(BankrollSnapshotService::class)->isUpdateDue($user);

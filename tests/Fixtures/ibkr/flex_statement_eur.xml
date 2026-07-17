@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexQueryResponse queryName="Vestix" type="AF">
+    <FlexStatements count="1">
+        <FlexStatement accountId="U1234567" fromDate="20260701" toDate="20260717" period="Last30CalendarDays" whenGenerated="20260717;223000">
+            <AccountInformation accountId="U1234567" currency="EUR" currencyPrimary="EUR" name="Test Account"/>
+            <EquitySummaryInBase accountId="U1234567" currency="EUR" total="9500.00" availableFunds="4000.00" endingValue="9500.00"/>
+            <CashReport>
+                <CashReportCurrency accountId="U1234567" currency="BASE" levelOfDetail="BaseCurrency" endingCash="4000.00" endingSettledCash="3500.00"/>
+            </CashReport>
+        </FlexStatement>
+    </FlexStatements>
+</FlexQueryResponse>

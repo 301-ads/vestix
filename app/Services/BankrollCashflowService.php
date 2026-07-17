@@ -18,6 +18,7 @@ class BankrollCashflowService
         ?Carbon $occurredOn = null,
         ?string $note = null,
         string $source = 'manual',
+        ?string $externalId = null,
     ): BankrollCashflow {
         if ($amount <= 0) {
             throw new InvalidArgumentException('Cashflow amount must be positive.');
@@ -31,6 +32,7 @@ class BankrollCashflowService
             'occurred_on' => $occurredOn->toDateString(),
             'note' => filled($note) ? trim($note) : null,
             'source' => $source,
+            'external_id' => filled($externalId) ? trim($externalId) : null,
         ]);
 
         // Day-1 cutover: first cashflow stamps baseline_date so older Revolut snapshots stay out.

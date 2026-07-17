@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexQueryResponse queryName="Vestix" type="AF">
+    <FlexStatements count="1">
+        <FlexStatement accountId="U1234567" fromDate="20260701" toDate="20260717" period="Last30CalendarDays" whenGenerated="20260717;223000">
+            <AccountInformation accountId="U1234567" currency="USD" currencyPrimary="USD" name="Test Account"/>
+            <EquitySummaryInBase accountId="U1234567" currency="USD" total="10634.60" availableFunds="4200.00" endingValue="10634.60"/>
+            <CashReport>
+                <CashReportCurrency accountId="U1234567" currency="BASE" levelOfDetail="BaseCurrency" endingCash="5100.00" endingSettledCash="3800.50" deposits="3428.40" withdrawals="0"/>
+            </CashReport>
+            <OpenPositions>
+                <OpenPosition accountId="U1234567" symbol="RPRX" position="100" markPrice="32.10"/>
+                <OpenPosition accountId="U1234567" symbol="OCUL" position="50" markPrice="8.20"/>
+            </OpenPositions>
+            <CashTransactions>
+                <CashTransaction accountId="U1234567" transactionID="TX-DEP-001" type="Deposits &amp; Withdrawals" amount="3428.40" currency="USD" reportDate="20260716" description="Electronic Fund Transfer"/>
+                <CashTransaction accountId="U1234567" transactionID="TX-DIV-001" type="Dividends" amount="12.50" currency="USD" reportDate="20260710" description="RPRX(US) Cash Dividend"/>
+                <CashTransaction accountId="U1234567" transactionID="TX-WDR-001" type="Deposits &amp; Withdrawals" amount="-500.00" currency="USD" reportDate="20260712" description="Disbursement"/>
+                <CashTransaction accountId="U1234567" transactionID="TX-INT-001" type="Broker Interest" amount="1.10" currency="USD" reportDate="20260715" description="USD Credit Interest"/>
+            </CashTransactions>
+        </FlexStatement>
+    </FlexStatements>
+</FlexQueryResponse>

@@ -9,6 +9,7 @@ use App\Models\BankrollCashflow;
 use App\Models\UserAlertPreference;
 use App\Services\BankrollCashflowService;
 use App\Services\BankrollSnapshotService;
+use App\Services\Ibkr\IbkrSyncHealth;
 use App\Services\TelegramLinkService;
 use App\Support\PositionSizing;
 use App\Support\TelegramNotifier;
@@ -37,6 +38,7 @@ use Filament\Support\Enums\VerticalAlignment;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 
 class EditUserProfile extends EditProfile
 {
@@ -87,12 +89,19 @@ class EditUserProfile extends EditProfile
                                     ->compact()
                                     ->description('Bankroll en standaard risico-limiet voor de waakhond op scouts.')
                                     ->schema([
+                                        Placeholder::make('ibkr_sync_status')
+                                            ->label('IBKR sync')
+                                            ->content(fn (): HtmlString => $this->ibkrSyncStatusHtml()),
                                         TextInput::make('trading_bankroll')
                                             ->label('IBKR Net Liquidation (Bankroll)')
                                             ->numeric()
                                             ->prefix('$')
                                             ->minValue(0.01)
-                                            ->helperText('Alleen Interactive Brokers NLV — zonder Revolut/legacy. Update na stortingen en wekelijks voor de Alpha Tracker. Smart Sizing gebruikt dit bedrag.'),
+                                            ->helperText(fn (): string => $this->tradingBankrollHelperText()),
+                                        Placeholder::make('ibkr_deployable')
+                                            ->label('Deployable (Settled / AF)')
+                                            ->content(fn (): string => $this->ibkrDeployableSummary())
+                                            ->visible(fn (): bool => $this->getUser()->ibkr_last_success_at !== null),
                                         DatePicker::make('baseline_date')
                                             ->label('Alpha startdatum')
                                             ->native(false)
@@ -546,5 +555,80 @@ class EditUserProfile extends EditProfile
                     ->warning()
                     ->send();
             });
+    }
+
+    protected function ibkrSyncStatusHtml(): HtmlString
+    {
+        $user = $this->getUser();
+        $health = app(IbkrSyncHealth::class);
+
+        if ($user->ibkr_last_success_at === null) {
+            return new HtmlString(
+                '<span class="text-sm text-gray-500 dark:text-gray-400">'
+                .'Nog geen IBKR sync. Vul NLV handmatig in, of configureer Flex en run <code>vestix:sync-ibkr</code>.'
+                .'</span>',
+            );
+        }
+
+        $when = $user->ibkr_last_success_at
+            ->timezone(config('vestix.bankroll_tracker.timezone', 'Europe/Amsterdam'))
+            ->format('d-m-Y H:i');
+
+        if ($health->isStale($user)) {
+            $error = filled($user->ibkr_last_error)
+                ? e(Str::limit((string) $user->ibkr_last_error, 120))
+                : 'geen verse data';
+
+            return new HtmlString(
+                '<span class="text-sm font-medium text-danger-600 dark:text-danger-400">'
+                ."Stale — laatste succes {$when}. Automatische sizing/orders geblokkeerd ({$error})."
+                .'</span>',
+            );
+        }
+
+        return new HtmlString(
+            '<span class="text-sm text-success-600 dark:text-success-400">'
+            ."Synced {$when} (base ".e((string) ($user->ibkr_base_currency ?? 'USD')).').'
+            .'</span>',
+        );
+    }
+
+    protected function tradingBankrollHelperText(): string
+    {
+        if ($this->getUser()->ibkr_last_success_at !== null) {
+            return 'Wordt bijgewerkt door IBKR Flex sync (NLV). Handmatige override blijft mogelijk. Smart Sizing gebruikt Settled Cash / Available Funds.';
+        }
+
+        return 'Alleen Interactive Brokers NLV — zonder Revolut/legacy. Update na stortingen en wekelijks voor de Alpha Tracker. Smart Sizing gebruikt dit bedrag tot IBKR sync actief is.';
+    }
+
+    protected function ibkrDeployableSummary(): string
+    {
+        $user = $this->getUser();
+        $settled = $user->ibkr_settled_cash !== null ? (float) $user->ibkr_settled_cash : null;
+        $available = $user->ibkr_available_funds !== null ? (float) $user->ibkr_available_funds : null;
+
+        if ($settled === null && $available === null) {
+            return '—';
+        }
+
+        $settledLabel = $settled !== null ? '$'.number_format($settled, 2) : '—';
+        $availableLabel = $available !== null ? '$'.number_format($available, 2) : '—';
+        $deployable = null;
+
+        if ($settled !== null && $available !== null) {
+            $deployable = min($settled, $available);
+        } elseif ($settled !== null) {
+            $deployable = $settled;
+        } else {
+            $deployable = $available;
+        }
+
+        return sprintf(
+            'Settled %s · Available Funds %s → deployable $%s',
+            $settledLabel,
+            $availableLabel,
+            number_format((float) $deployable, 2),
+        );
     }
 }

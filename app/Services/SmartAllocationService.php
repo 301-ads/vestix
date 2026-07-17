@@ -2,9 +2,10 @@
 
 namespace App\Services;
 
+use App\Contracts\IbkrAccountReader;
 use App\Models\Position;
 use App\Models\User;
-use App\Services\Bankroll\IbkrBankrollSource;
+use App\Services\Ibkr\IbkrSyncHealth;
 use App\Support\PositionSizing;
 use Illuminate\Support\Collection;
 
@@ -15,16 +16,32 @@ class SmartAllocationService
     public const MODE_SMART = 'smart';
 
     public function __construct(
-        private readonly IbkrBankrollSource $ibkrBankrollSource,
+        private readonly IbkrAccountReader $ibkrAccountReader,
+        private readonly IbkrSyncHealth $ibkrSyncHealth,
     ) {}
 
     /**
-     * IBKR Net Liquidation for sizing.
-     * Profile field is already IBKR-only (excluding Revolut/legacy) — do not subtract again.
+     * Deployable IBKR capital for sizing: min(Available Funds, Settled Cash).
+     * Falls back to NLV when settled/AF are unavailable (manual/stub mode).
+     * Returns 0 when IBKR data is stale and automation blocking is enabled.
      */
     public function resolveSizingBankroll(User $user): float
     {
-        return max(0.0, round($this->ibkrBankrollSource->resolveAmount($user), 2));
+        if ($this->ibkrSyncHealth->blocksAutomatedExecution($user)) {
+            return 0.0;
+        }
+
+        $available = $this->ibkrAccountReader->availableFunds($user);
+        $settled = $this->ibkrAccountReader->settledCash($user);
+
+        if ($available > 0 || $settled > 0) {
+            return max(0.0, round(min(
+                $available > 0 ? $available : $settled,
+                $settled > 0 ? $settled : $available,
+            ), 2));
+        }
+
+        return max(0.0, round($this->ibkrAccountReader->netLiquidationValue($user), 2));
     }
 
     /**

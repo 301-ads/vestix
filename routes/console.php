@@ -78,3 +78,9 @@ Schedule::command('vestix:bankroll-update-reminders')
     ->saturdays()
     ->dailyAt('10:00')
     ->timezone('Europe/Amsterdam');
+
+// IBKR Flex EOD sync: na US close (balances + cashflows; open orders via CP when enabled).
+Schedule::command('vestix:sync-ibkr')
+    ->weekdays()
+    ->dailyAt('23:30')
+    ->timezone('Europe/Amsterdam');

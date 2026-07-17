@@ -1,14 +1,27 @@
 <x-filament-widgets::widget class="vestix-actions-widget">
     <x-filament::section
-        heading="Wekelijkse Bankroll Update"
+        :heading="$ibkrStale ? 'IBKR sync stale' : 'Wekelijkse Bankroll Update'"
         :compact="true"
     >
-        <div class="vestix-action-todo vestix-action-todo--info">
+        <div @class([
+            'vestix-action-todo',
+            'vestix-action-todo--info' => ! $ibkrStale,
+            'vestix-action-todo--danger' => $ibkrStale,
+        ])>
             <div class="vestix-action-todo__content w-full">
-                <p class="vestix-action-todo__ticker">💰 Bankroll bijwerken</p>
-                <p class="vestix-action-todo__instruction">
-                    Vul je actuele saldo in uit je broker (Revolut: Beleggingsrekening). SPY-benchmark wordt automatisch opgeslagen voor je Alpha Tracker.
-                </p>
+                @if ($ibkrStale)
+                    <p class="vestix-action-todo__ticker">IBKR data verouderd</p>
+                    <p class="vestix-action-todo__instruction">
+                        Flex sync is langer dan {{ (int) config('vestix.ibkr.stale_after_hours', 48) }} uur stil.
+                        Automatische sizing/orders zijn geblokkeerd tot <code>vestix:sync-ibkr</code> weer slaagt.
+                        Je kunt hieronder tijdelijk handmatig je NLV zetten als escape hatch.
+                    </p>
+                @else
+                    <p class="vestix-action-todo__ticker">Bankroll bijwerken</p>
+                    <p class="vestix-action-todo__instruction">
+                        Vul je actuele saldo in uit je broker (Revolut: Beleggingsrekening). SPY-benchmark wordt automatisch opgeslagen voor je Alpha Tracker.
+                    </p>
+                @endif
 
                 <form wire:submit="saveBankroll" class="mt-4 flex flex-wrap items-end gap-3">
                     <div class="min-w-[12rem] flex-1">

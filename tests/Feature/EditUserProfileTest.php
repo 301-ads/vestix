@@ -114,4 +114,23 @@ class EditUserProfileTest extends TestCase
         $this->assertSame('20:30', $preference->daily_digest_time);
         $this->assertNotContains(AlertEventType::DailyDigest->value, $preference->active_events);
     }
+
+    public function test_profile_shows_ibkr_sync_status_when_synced(): void
+    {
+        $user = User::factory()->create([
+            'ibkr_last_success_at' => now(),
+            'ibkr_base_currency' => 'USD',
+            'ibkr_settled_cash' => 3800.50,
+            'ibkr_available_funds' => 4200,
+            'ibkr_data_stale' => false,
+            'trading_bankroll' => 10634.60,
+        ]);
+        $this->actingAs($user);
+
+        Livewire::test(EditUserProfile::class)
+            ->assertOk()
+            ->assertSee('IBKR sync')
+            ->assertSee('Synced')
+            ->assertSee('deployable');
+    }
 }
