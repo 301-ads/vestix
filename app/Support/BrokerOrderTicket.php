@@ -162,7 +162,7 @@ class BrokerOrderTicket
         $stopLoss = (float) ($position->new_sl ?? 0);
         $target1 = (float) ($position->plannedBracketTarget1Price() ?? 0);
         $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
-        $tpQty = round($quantity * $position->effective_first_tranche_fraction, 6);
+        $tpQty = (float) ($position->target_1_quantity ?? 0);
 
         return [
             'title' => "IBKR Bracket Order — {$position->ticker}",

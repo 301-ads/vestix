@@ -29,6 +29,29 @@ class ScaleOutTest extends TestCase
         $this->assertEquals(50.74, $position->target_1_price);
     }
 
+    public function test_target_1_quantity_uses_whole_shares_rounded_to_nearest(): void
+    {
+        $odd = Position::factory()->make([
+            'quantity' => 11,
+            'first_tranche_fraction' => 0.5,
+        ]);
+        $even = Position::factory()->make([
+            'quantity' => 10,
+            'first_tranche_fraction' => 0.5,
+        ]);
+        $single = Position::factory()->make([
+            'quantity' => 1,
+            'first_tranche_fraction' => 0.5,
+        ]);
+
+        // 11 × 50% = 5.5 → 6 (nearest); always keep ≥1 runner
+        $this->assertSame(6.0, $odd->target_1_quantity);
+        $this->assertSame(5.0, $even->target_1_quantity);
+        $this->assertNull($single->target_1_quantity);
+        $this->assertSame(6.0, Position::wholeShareTrancheQuantity(11, 0.5));
+        $this->assertSame(5.0, Position::wholeShareTrancheQuantity(10, 0.5));
+    }
+
     public function test_is_target_1_hit_when_close_at_or_above_target(): void
     {
         $position = Position::factory()->make([

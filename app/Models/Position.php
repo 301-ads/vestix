@@ -721,6 +721,24 @@ class Position extends Model
         return (float) config('vestix.scale_out.first_tranche_fraction', 0.5);
     }
 
+    /**
+     * Target 1 sell size in whole shares only (no fractional lots).
+     * Rounds to nearest; keeps at least 1 share for the runner when qty ≥ 2.
+     */
+    public static function wholeShareTrancheQuantity(float $quantity, float $fraction): ?float
+    {
+        $total = (int) round($quantity);
+
+        if ($total < 2 || $fraction <= 0) {
+            return null;
+        }
+
+        $sell = (int) round($total * $fraction);
+        $sell = max(1, min($total - 1, $sell));
+
+        return (float) $sell;
+    }
+
     public function getEffectiveTarget1RrAttribute(): float
     {
         return $this->target_1_rr !== null
@@ -793,9 +811,10 @@ class Position extends Model
             return null;
         }
 
-        $fraction = $this->effective_first_tranche_fraction;
-
-        return round((float) $this->quantity * $fraction, 6);
+        return self::wholeShareTrancheQuantity(
+            (float) $this->quantity,
+            $this->effective_first_tranche_fraction,
+        );
     }
 
     public function getTarget1ProfitDollarsAttribute(): ?float
