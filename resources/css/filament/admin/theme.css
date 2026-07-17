@@ -1621,23 +1621,16 @@
 }
 
 .vestix-smart-allocation__exclusions {
-    margin: 0;
-    padding: 0.75rem 0.875rem;
-    border-radius: 0.5rem;
-    border: 1px solid var(--gray-200);
-    background: var(--gray-50);
     font-size: 0.8125rem;
     color: var(--gray-600);
 }
 
 .dark .vestix-smart-allocation__exclusions {
-    border-color: var(--gray-700);
-    background: var(--gray-800);
     color: var(--gray-300);
 }
 
 .vestix-smart-allocation__exclusions-heading {
-    margin: 0 0 0.35rem;
+    margin: 0 0 0.5rem;
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--gray-700);
@@ -1649,7 +1642,11 @@
 
 .vestix-smart-allocation__exclusions ul {
     margin: 0;
-    padding-inline-start: 1.1rem;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .fi-modal.vestix-smart-allocation-modal .fi-modal-content {
@@ -1661,6 +1658,15 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--gray-200);
+    background: var(--gray-50);
+}
+
+.dark .vestix-smart-allocation__exclusion-row {
+    border-color: var(--gray-700);
+    background: var(--gray-800);
 }
 
 .vestix-smart-allocation__actions-col {
