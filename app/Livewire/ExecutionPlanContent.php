@@ -167,9 +167,28 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
         return Position::orderPlanForUser((int) $userId);
     }
 
+    /**
+     * @return Collection<int, Position>
+     */
+    public function activeOrderPlanScouts(): Collection
+    {
+        $userId = auth()->id();
+
+        if ($userId === null) {
+            return new Collection;
+        }
+
+        return Position::activeOrderPlanForUser((int) $userId);
+    }
+
     public function planCount(): int
     {
         return $this->orderPlanScouts()->count();
+    }
+
+    public function activeCount(): int
+    {
+        return $this->activeOrderPlanScouts()->count();
     }
 
     /**
@@ -259,9 +278,11 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
     {
         return view('livewire.execution-plan-content', [
             'planCount' => $this->planCount(),
+            'activeCount' => $this->activeCount(),
             'result' => $this->allocationResult(),
             'totalInvestment' => $this->totalInvestment(),
             'scouts' => $this->orderPlanScouts(),
+            'activeScouts' => $this->activeOrderPlanScouts(),
         ]);
     }
 }

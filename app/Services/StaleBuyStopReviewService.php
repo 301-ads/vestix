@@ -33,6 +33,7 @@ class StaleBuyStopReviewService
             $scout->update([
                 'broker_order_status' => BrokerOrderStatus::Scout,
                 'market_open_reminder_on' => null,
+                'order_plan_excluded_on' => null,
                 'buy_stop_review_required_on' => $reviewDateString,
                 'buy_stop_review_setup_score' => $scorecard['totalPoints'],
                 'buy_stop_review_setup_grade' => $scorecard['grade'],

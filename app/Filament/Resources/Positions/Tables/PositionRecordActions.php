@@ -295,6 +295,7 @@ class PositionRecordActions
                 $record->update([
                     'broker_order_status' => BrokerOrderStatus::Pending,
                     'market_open_reminder_on' => null,
+                    'order_plan_excluded_on' => null,
                 ]);
 
                 FilamentNotifier::send(

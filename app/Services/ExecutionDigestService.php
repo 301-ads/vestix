@@ -147,7 +147,10 @@ class ExecutionDigestService
                     $skippedRows[] = $row;
                 }
 
-                $scout->update(['market_open_reminder_on' => null]);
+                $scout->update([
+                    'market_open_reminder_on' => null,
+                    'order_plan_excluded_on' => null,
+                ]);
             }
 
             if ($skippedRows === []) {

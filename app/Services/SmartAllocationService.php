@@ -79,6 +79,16 @@ class SmartAllocationService
             $stopLoss = $position->new_sl !== null ? (float) $position->new_sl : null;
             $score = $this->resolveScore($position);
 
+            if ($position->isOrderPlanExcludedToday()) {
+                $exclusions[] = [
+                    'position_id' => (int) $position->id,
+                    'ticker' => $ticker,
+                    'reason' => 'Uitgesloten vandaag (min. 1 aandeel paste niet) — niet opnieuw verdeeld',
+                ];
+
+                continue;
+            }
+
             if ($score < $minScore) {
                 $exclusions[] = [
                     'position_id' => (int) $position->id,
@@ -112,6 +122,7 @@ class SmartAllocationService
             }
 
             if ($pie > 0 && $riskPerShare > $pie) {
+                $position->markOrderPlanExcludedToday();
                 $exclusions[] = [
                     'position_id' => (int) $position->id,
                     'ticker' => $ticker,
@@ -184,9 +195,19 @@ class SmartAllocationService
                     continue;
                 }
 
-                $droppedIds[(int) $row['position_id']] = true;
+                $positionId = (int) $row['position_id'];
+                $droppedIds[$positionId] = true;
+
+                $dropped = collect($working)->first(
+                    fn (array $candidate): bool => (int) $candidate['position']->id === $positionId,
+                );
+
+                if (is_array($dropped) && $dropped['position'] instanceof Position) {
+                    $dropped['position']->markOrderPlanExcludedToday();
+                }
+
                 $exclusions[] = [
-                    'position_id' => (int) $row['position_id'],
+                    'position_id' => $positionId,
                     'ticker' => $row['ticker'],
                     'reason' => sprintf(
                         'Min. 1 aandeel kost $%s risico; toegekend $%s — budget herverdeeld',

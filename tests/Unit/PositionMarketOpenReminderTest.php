@@ -67,6 +67,7 @@ class PositionMarketOpenReminderTest extends TestCase
     {
         $scout = Position::factory()->scout()->create([
             'market_open_reminder_on' => '2026-07-06',
+            'order_plan_excluded_on' => '2026-07-06',
         ]);
 
         $scout->clearMarketOpenReminder();
@@ -74,5 +75,6 @@ class PositionMarketOpenReminderTest extends TestCase
         $scout->refresh();
 
         $this->assertNull($scout->market_open_reminder_on);
+        $this->assertNull($scout->order_plan_excluded_on);
     }
 }

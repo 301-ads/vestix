@@ -90,6 +90,7 @@ class Position extends Model
             'broker_order_status' => BrokerOrderStatus::class,
             'broker' => Broker::class,
             'market_open_reminder_on' => 'date',
+            'order_plan_excluded_on' => 'date',
             'execution_digest_status' => ExecutionDigestStatus::class,
             'execution_digest_price' => 'decimal:4',
             'execution_digest_at' => 'datetime',
@@ -300,7 +301,27 @@ class Position extends Model
 
     public function clearMarketOpenReminder(): void
     {
-        $this->update(['market_open_reminder_on' => null]);
+        $this->update([
+            'market_open_reminder_on' => null,
+            'order_plan_excluded_on' => null,
+        ]);
+    }
+
+    public function isOrderPlanExcludedToday(?Carbon $today = null): bool
+    {
+        $today ??= Carbon::today('Europe/Amsterdam');
+
+        return $this->order_plan_excluded_on !== null
+            && $this->order_plan_excluded_on->toDateString() === $today->toDateString();
+    }
+
+    public function markOrderPlanExcludedToday(?Carbon $today = null): void
+    {
+        $today ??= Carbon::today('Europe/Amsterdam');
+
+        $this->update([
+            'order_plan_excluded_on' => $today->toDateString(),
+        ]);
     }
 
     /**
@@ -318,6 +339,24 @@ class Position extends Model
             ->whereNotNull('entry_price')
             ->with('asset')
             ->orderBy('market_open_reminder_on')
+            ->orderBy('ticker')
+            ->get();
+    }
+
+    /**
+     * Scouts with a pending buy-stop (pipeline Active) — shown under Order Plan “Actief”.
+     *
+     * @return Collection<int, self>
+     */
+    public static function activeOrderPlanForUser(int $userId): Collection
+    {
+        return static::query()
+            ->forUser($userId)
+            ->scout()
+            ->nonLegacy()
+            ->where('broker_order_status', BrokerOrderStatus::Pending)
+            ->whereNull('buy_stop_review_required_on')
+            ->with('asset')
             ->orderBy('ticker')
             ->get();
     }
@@ -356,6 +395,7 @@ class Position extends Model
         $this->update([
             'broker_order_status' => BrokerOrderStatus::Pending,
             'market_open_reminder_on' => null,
+            'order_plan_excluded_on' => null,
             'buy_stop_review_required_on' => null,
             'buy_stop_review_setup_score' => null,
             'buy_stop_review_setup_grade' => null,

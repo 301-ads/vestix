@@ -3,10 +3,12 @@
 namespace Tests\Unit;
 
 use App\Enums\Broker;
+use App\Enums\BrokerOrderStatus;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\SmartAllocationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class SmartAllocationServiceTest extends TestCase
@@ -20,6 +22,12 @@ class SmartAllocationServiceTest extends TestCase
         parent::setUp();
 
         $this->service = app(SmartAllocationService::class);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     public function test_equal_mode_splits_pie_evenly(): void
@@ -283,9 +291,66 @@ class SmartAllocationServiceTest extends TestCase
         $exclusion = collect($result['exclusions'])->firstWhere('ticker', 'LLY');
         $this->assertNotNull($exclusion);
         $this->assertStringContainsString('herverdeeld', $exclusion['reason']);
+        $this->assertTrue($lly->fresh()->isOrderPlanExcludedToday());
 
         $allocatedRisk = array_sum(array_column($result['allocations'], 'risk_dollars'));
         $this->assertEqualsWithDelta($result['pie'], $allocatedRisk, 0.05);
+    }
+
+    public function test_sticky_exclusion_keeps_lly_out_when_only_scout_left(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-17 14:00:00', 'Europe/Amsterdam'));
+
+        $user = User::factory()->create([
+            'trading_bankroll' => 4578.94,
+            'default_risk_percent' => 1.5,
+        ]);
+
+        $lly = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'LLY',
+            'last_setup_score' => 8,
+            'entry_price' => 1192.89,
+            'latest_sma_20' => 1171.00,
+            'latest_atr_14' => 20.00,
+            'signal_low' => 1141.20,
+            'sector_etf' => 'XLV',
+            'target_1_rr' => 2.0,
+            'market_open_reminder_on' => '2026-07-17',
+            'order_plan_excluded_on' => '2026-07-17',
+        ]);
+
+        // Alone with full pie LLY would be affordable — sticky must still block.
+        $result = $this->service->allocate($user, [$lly], SmartAllocationService::MODE_SMART);
+
+        $this->assertSame([], $result['allocations']);
+        $this->assertCount(1, $result['exclusions']);
+        $this->assertSame('LLY', $result['exclusions'][0]['ticker']);
+        $this->assertStringContainsString('niet opnieuw verdeeld', $result['exclusions'][0]['reason']);
+    }
+
+    public function test_active_order_plan_lists_pending_buy_stops(): void
+    {
+        $user = $this->userWithBankroll();
+
+        $active = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'ALL',
+            'broker_order_status' => BrokerOrderStatus::Pending,
+            'entry_price' => 245.00,
+            'quantity' => 5,
+            'market_open_reminder_on' => null,
+        ]);
+
+        $cart = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'KVUE',
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'entry_price' => 19.00,
+            'market_open_reminder_on' => '2026-07-17',
+        ]);
+
+        $activeList = Position::activeOrderPlanForUser((int) $user->id);
+
+        $this->assertTrue($activeList->contains('id', $active->id));
+        $this->assertFalse($activeList->contains('id', $cart->id));
     }
 
     private function userWithBankroll(): User
