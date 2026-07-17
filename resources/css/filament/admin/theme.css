@@ -178,6 +178,11 @@
     }
 }
 
+/* Badge op het icoon zelf, niet in de ruimte tussen knoppen */
+.fi-topbar .fi-icon-btn > .fi-icon-btn-badge-ctn {
+    inset-inline-start: 85%;
+}
+
 .fi-logo {
     align-items: flex-end;
     line-height: 1;
@@ -807,7 +812,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 0.75rem;
-    row-gap: 0.35rem;
+    row-gap: 0.50rem;
     align-items: center;
 }
 
