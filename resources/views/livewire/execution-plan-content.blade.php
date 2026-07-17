@@ -75,32 +75,51 @@
                 <p class="vestix-smart-allocation__active-intro">
                     Buy-stops die je al hebt geplaatst — wachten op fill.
                 </p>
-                <ul class="vestix-smart-allocation__active-list">
-                    @foreach ($activeScouts as $active)
-                        @php
-                            $editUrl = ScoutResource::getUrl('edit', ['record' => $active]);
-                            $qty = $active->quantity !== null ? (float) $active->quantity : null;
-                            $entry = $active->entry_price !== null ? (float) $active->entry_price : null;
-                            $investment = ($qty !== null && $entry !== null) ? $qty * $entry : null;
-                        @endphp
-                        <li class="vestix-smart-allocation__active-row">
-                            <span class="vestix-smart-allocation__active-main">
-                                <a href="{{ $editUrl }}" class="vestix-smart-allocation__ticker-link">
-                                    <strong>{{ $active->ticker }}</strong>
-                                </a>
-                                @if ($active->last_setup_score !== null)
-                                    <span class="vestix-smart-allocation__active-meta">Score {{ $active->last_setup_score }}</span>
-                                @endif
-                                @if ($qty !== null && $qty > 0)
-                                    <span class="vestix-smart-allocation__active-meta">{{ number_format($qty, 0) }} stuks</span>
-                                @endif
-                                @if ($investment !== null)
-                                    <span class="vestix-smart-allocation__active-meta">inleg ${{ number_format($investment, 2) }}</span>
-                                @endif
-                            </span>
-                        </li>
-                    @endforeach
-                </ul>
+                <div class="vestix-smart-allocation__table-wrap vestix-smart-allocation__table-wrap--active">
+                    <table class="vestix-smart-allocation__table">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Score</th>
+                                <th>Aantal</th>
+                                <th>Inleg</th>
+                                <th class="vestix-smart-allocation__actions-col"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($activeScouts as $active)
+                                @php
+                                    $editUrl = ScoutResource::getUrl('edit', ['record' => $active]);
+                                    $qty = $active->quantity !== null ? (float) $active->quantity : null;
+                                    $entry = $active->entry_price !== null ? (float) $active->entry_price : null;
+                                    $investment = ($qty !== null && $entry !== null) ? $qty * $entry : null;
+                                @endphp
+                                <tr>
+                                    <td class="vestix-smart-allocation__ticker">
+                                        <a href="{{ $editUrl }}" class="vestix-smart-allocation__ticker-link">
+                                            {{ $active->ticker }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {{ $active->last_setup_score !== null ? $active->last_setup_score : '—' }}
+                                    </td>
+                                    <td>
+                                        {{ $qty !== null && $qty > 0 ? number_format($qty, 0) : '—' }}
+                                    </td>
+                                    <td>
+                                        {{ $investment !== null ? '$'.number_format($investment, 2) : '—' }}
+                                    </td>
+                                    <td class="vestix-smart-allocation__actions-col">
+                                        <div class="vestix-smart-allocation__row-actions">
+                                            {{ $this->activateScoutActionForPosition($active) }}
+                                            {{ $this->clearBuyStopActionForPosition($active) }}
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </div>
         @endif
     @endif

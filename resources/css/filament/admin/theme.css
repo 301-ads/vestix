@@ -1670,7 +1670,7 @@
 }
 
 .vestix-smart-allocation__active {
-    margin-top: 0.25rem;
+    margin-top: 0.75rem;
 }
 
 .vestix-smart-allocation__active-heading {
@@ -1694,51 +1694,20 @@
     color: var(--gray-400);
 }
 
-.vestix-smart-allocation__active-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+.vestix-smart-allocation__table-wrap--active {
+    border-color: color-mix(in srgb, var(--success-500) 28%, var(--gray-200));
 }
 
-.vestix-smart-allocation__active-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.625rem 0.75rem;
-    border-radius: 0.5rem;
-    border: 1px solid color-mix(in srgb, var(--success-500) 28%, var(--gray-200));
-    background: color-mix(in srgb, var(--success-500) 8%, white);
-}
-
-.dark .vestix-smart-allocation__active-row {
+.dark .vestix-smart-allocation__table-wrap--active {
     border-color: color-mix(in srgb, var(--success-400) 35%, var(--gray-700));
+}
+
+.vestix-smart-allocation__table-wrap--active .vestix-smart-allocation__table th {
+    background: color-mix(in srgb, var(--success-500) 8%, var(--gray-50));
+}
+
+.dark .vestix-smart-allocation__table-wrap--active .vestix-smart-allocation__table th {
     background: color-mix(in srgb, var(--success-500) 12%, var(--gray-900));
-}
-
-.vestix-smart-allocation__active-main {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.5rem 0.75rem;
-    font-size: 0.8125rem;
-    color: var(--gray-700);
-}
-
-.dark .vestix-smart-allocation__active-main {
-    color: var(--gray-200);
-}
-
-.vestix-smart-allocation__active-meta {
-    font-size: 0.75rem;
-    color: var(--gray-500);
-}
-
-.dark .vestix-smart-allocation__active-meta {
-    color: var(--gray-400);
 }
 
 .vestix-smart-allocation__actions-col {

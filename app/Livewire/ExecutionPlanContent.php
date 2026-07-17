@@ -40,6 +40,8 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
     public function boot(): void
     {
         $this->cacheAction($this->placeOrderAction());
+        $this->cacheAction($this->clearBuyStopAction());
+        $this->cacheAction($this->activateScoutAction());
     }
 
     #[On('order-plan-updated')]
@@ -151,6 +153,26 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
     public function placeOrderAction(): Action
     {
         return $this->configureRecordAction(PositionRecordActions::markBuyStopPlaced());
+    }
+
+    public function clearBuyStopActionForPosition(Position $position): Action
+    {
+        return $this->cacheAction($this->clearBuyStopAction())(['record' => $position->getKey()])->record($position);
+    }
+
+    public function clearBuyStopAction(): Action
+    {
+        return $this->configureRecordAction(PositionRecordActions::clearBuyStop());
+    }
+
+    public function activateScoutActionForPosition(Position $position): Action
+    {
+        return $this->cacheAction($this->activateScoutAction())(['record' => $position->getKey()])->record($position);
+    }
+
+    public function activateScoutAction(): Action
+    {
+        return $this->configureRecordAction(PositionRecordActions::activateScout());
     }
 
     /**

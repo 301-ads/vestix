@@ -395,6 +395,7 @@ class DashboardTest extends TestCase
 
         $position = Position::factory()->for($user)->awaitingInitialSlPlacement()->create([
             'ticker' => 'NVDA',
+            'broker' => Broker::Revolut,
             'entry_price' => 79.50,
             'initial_sl' => 76.10,
             'quantity' => 12,
@@ -416,6 +417,32 @@ class DashboardTest extends TestCase
             ->assertDontSee('NVDA');
 
         $this->assertNotNull($position->fresh()->initial_sl_placed_at);
+    }
+
+    public function test_action_widget_hides_initial_stop_loss_for_ibkr_bracket_positions(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $user->update(['primary_broker' => Broker::Ibkr]);
+
+        // current_sl already matches computed SL so only the initial-SL todo would apply — which IBKR suppresses.
+        Position::factory()->for($user)->awaitingInitialSlPlacement()->create([
+            'ticker' => 'ALL',
+            'broker' => Broker::Ibkr,
+            'entry_price' => 245.40,
+            'initial_sl' => 238.00,
+            'quantity' => 3,
+            'latest_close_price' => 245.00,
+            'latest_sma_20' => 240.00,
+            'latest_atr_14' => 4.00,
+            'current_sl' => 238.00,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertDontSee('ALL')
+            ->assertDontSee('Stel Stop-Loss in op');
     }
 
     public function test_action_widget_shows_limit_sell_instruction_for_non_revolut_broker(): void

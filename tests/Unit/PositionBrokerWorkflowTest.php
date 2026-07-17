@@ -51,6 +51,46 @@ class PositionBrokerWorkflowTest extends TestCase
         $this->assertNull($position->primaryActionType());
     }
 
+    public function test_suppresses_initial_sl_todo_for_ibkr_bracket_workflow(): void
+    {
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->awaitingInitialSlPlacement()->create([
+            'broker' => Broker::Ibkr,
+            'entry_price' => 79.50,
+            'initial_sl' => 76.10,
+            'current_sl' => 76.10,
+            'latest_close_price' => 78.20,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'quantity' => 12,
+            'status' => 'open',
+        ]);
+
+        $this->assertTrue($position->suppressesInitialSlTodo());
+        $this->assertNull($position->primaryActionType());
+    }
+
+    public function test_activate_as_position_marks_initial_sl_placed_for_ibkr(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'ALL',
+            'entry_price' => 245.00,
+            'latest_close_price' => 245.00,
+            'latest_sma_20' => 240.00,
+            'latest_atr_14' => 4.00,
+            'broker' => Broker::Ibkr,
+        ]);
+
+        $scout->activateAsPosition(245.40, 5);
+        $scout->refresh();
+
+        $this->assertSame('open', $scout->status);
+        $this->assertSame(Broker::Ibkr, $scout->broker);
+        $this->assertNotNull($scout->initial_sl_placed_at);
+        $this->assertNull($scout->primaryActionType());
+    }
+
     public function test_manual_bankroll_source_returns_configured_amount(): void
     {
         $user = User::factory()->create();

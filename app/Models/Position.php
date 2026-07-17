@@ -549,13 +549,15 @@ class Position extends Model
 
         $this->loadMissing('user');
 
-        $this->update([
+        $broker = $this->user?->primary_broker?->value ?? $this->broker?->value ?? Broker::Revolut->value;
+
+        $attributes = [
             'status' => 'open',
             'entry_price' => $entryPrice,
             'quantity' => $quantity,
             'current_sl' => $sl,
             'initial_sl' => $sl,
-            'broker' => $this->user?->primary_broker?->value ?? $this->broker?->value ?? Broker::Revolut->value,
+            'broker' => $broker,
             'target_1_rr' => $target1Rr ?? self::defaultTarget1Rr(),
             'first_tranche_fraction' => $firstTrancheFraction ?? self::defaultFirstTrancheFraction(),
             'premarket_price' => null,
@@ -563,7 +565,14 @@ class Position extends Model
             'premarket_reference_price' => null,
             'premarket_distance_pct' => null,
             'premarket_checked_at' => null,
-        ]);
+        ];
+
+        // Bracket orders already place the SL at the broker — skip the manual SL todo.
+        if ($broker === Broker::Ibkr->value) {
+            $attributes['initial_sl_placed_at'] = now();
+        }
+
+        $this->update($attributes);
     }
 
     public function hasScaledOut(): bool
@@ -613,6 +622,14 @@ class Position extends Model
     public function suppressesLimitSellTodo(): bool
     {
         return $this->usesIbkrWorkflow() || $this->isAutoRunnerBypass();
+    }
+
+    /**
+     * IBKR bracket orders already include the stop-loss — no separate “place initial SL” todo.
+     */
+    public function suppressesInitialSlTodo(): bool
+    {
+        return $this->usesIbkrWorkflow();
     }
 
     /** @deprecated Use usesRevolutWorkflow() — workflow is determined by position broker tag. */
@@ -1049,7 +1066,7 @@ class Position extends Model
             return self::PRIMARY_ACTION_EARNINGS;
         }
 
-        if (! $this->hasInitialSlPlaced()) {
+        if (! $this->hasInitialSlPlaced() && ! $this->suppressesInitialSlTodo()) {
             return self::PRIMARY_ACTION_PLACE_INITIAL_SL;
         }
 
