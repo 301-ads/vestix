@@ -1621,11 +1621,18 @@
 }
 
 .vestix-smart-allocation__exclusions {
+    margin: 0;
+    padding: 0.75rem 0.875rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--gray-200);
+    background: var(--gray-50);
     font-size: 0.8125rem;
     color: var(--gray-600);
 }
 
 .dark .vestix-smart-allocation__exclusions {
+    border-color: var(--gray-700);
+    background: var(--gray-800);
     color: var(--gray-300);
 }
 
@@ -1633,6 +1640,11 @@
     margin: 0 0 0.35rem;
     font-size: 0.8125rem;
     font-weight: 600;
+    color: var(--gray-700);
+}
+
+.dark .vestix-smart-allocation__exclusions-heading {
+    color: var(--gray-200);
 }
 
 .vestix-smart-allocation__exclusions ul {
