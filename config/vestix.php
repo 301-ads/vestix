@@ -75,6 +75,13 @@ return [
         'Utilities' => 'XLU',
     ],
 
+    // Finnhub profile2 misclassificeert sommige tickers (geen gsector). Override wint van industry_mapping.
+    'ticker_sector_overrides' => [
+        'SYY' => 'XLP', // Sysco — Food Distributors (Finnhub: Retail → zou XLY worden)
+        'USFD' => 'XLP', // US Foods
+        'PFGC' => 'XLP', // Performance Food Group
+    ],
+
     // Finnhub profile2 levert vaak finnhubIndustry i.p.v. gsector — map naar sector-ETF.
     'industry_mapping' => [
         'Semiconductors' => 'XLK',
@@ -93,6 +100,11 @@ return [
         'Retail' => 'XLY',
         'Consumer Cyclicals' => 'XLY',
         'Food & Beverage' => 'XLP',
+        'Food Distributors' => 'XLP',
+        'Food Distribution' => 'XLP',
+        'Food Wholesale' => 'XLP',
+        'Consumer Defensives' => 'XLP',
+        'Consumer Non-Cyclicals' => 'XLP',
         'Industrial Services' => 'XLI',
         'Machinery' => 'XLI',
         'Metals & Mining' => 'XLB',

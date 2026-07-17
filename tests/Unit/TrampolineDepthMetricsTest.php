@@ -84,6 +84,7 @@ class TrampolineDepthMetricsTest extends TestCase
             'vestix.industry_mapping' => [
                 'Semiconductors' => 'XLK',
             ],
+            'vestix.ticker_sector_overrides' => [],
         ]);
 
         $this->mock(FinnhubService::class, function ($mock): void {
@@ -101,6 +102,39 @@ class TrampolineDepthMetricsTest extends TestCase
 
         $this->assertSame('XLK', $resolver->resolveEtfTicker('AAPL', null));
         $this->assertSame('XLK', $resolver->resolveEtfTicker('ASML', null));
+    }
+
+    public function test_ticker_override_maps_syy_to_xlp_despite_finnhub_retail(): void
+    {
+        config([
+            'vestix.industry_mapping' => [
+                'Retail' => 'XLY',
+            ],
+            'vestix.ticker_sector_overrides' => [
+                'SYY' => 'XLP',
+            ],
+        ]);
+
+        $this->mock(FinnhubService::class, function ($mock): void {
+            $mock->shouldReceive('fetchCompanyProfile')->never();
+        });
+
+        $resolver = app(SectorTrendResolver::class);
+
+        $this->assertSame('XLP', $resolver->resolveEtfTicker('SYY', null));
+    }
+
+    public function test_manual_override_wins_over_ticker_override(): void
+    {
+        config([
+            'vestix.ticker_sector_overrides' => [
+                'SYY' => 'XLP',
+            ],
+        ]);
+
+        $resolver = app(SectorTrendResolver::class);
+
+        $this->assertSame('XLI', $resolver->resolveEtfTicker('SYY', 'XLI'));
     }
 
     public function test_override_skips_profile_lookup(): void

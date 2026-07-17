@@ -67,6 +67,13 @@ class SectorTrendResolver
             return $override;
         }
 
+        $tickerKey = strtoupper(trim($ticker));
+        $tickerOverride = config("vestix.ticker_sector_overrides.{$tickerKey}");
+
+        if (is_string($tickerOverride) && trim($tickerOverride) !== '') {
+            return strtoupper(trim($tickerOverride));
+        }
+
         $profile = $this->finnhub->fetchCompanyProfile($ticker);
 
         if ($profile === null) {
