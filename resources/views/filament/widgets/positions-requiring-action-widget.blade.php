@@ -38,14 +38,14 @@
                         </div>
 
                         @if ($secondaryAction = $this->secondaryActionForPosition($position))
-                            <div class="vestix-action-todo__action vestix-action-todo__actions">
+                            <div class="vestix-action-todo__action vestix-action-todo__actions" wire:key="action-row-{{ $position->getKey() }}">
                                 {{ $secondaryAction }}
                                 @if ($action)
                                     {{ $action }}
                                 @endif
                             </div>
                         @elseif ($action)
-                            <div class="vestix-action-todo__action">
+                            <div class="vestix-action-todo__action" wire:key="action-row-{{ $position->getKey() }}">
                                 {{ $action }}
                             </div>
                         @endif

@@ -40,11 +40,14 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
 
     public function boot(): void
     {
-        $this->cacheAction($this->markLimitPlacedAction());
-        $this->cacheAction($this->markInitialSlPlacedAction());
-        $this->cacheAction($this->markAsUpdatedAction());
-        $this->cacheAction($this->holdThroughEarningsAction());
-        $this->cacheAction($this->archiveAction());
+        // Unique per-row action names must be re-cached on every Livewire request
+        // so mountAction() can resolve them (cachedActions is not persisted).
+        // Query directly — do not touch the computed actionablePositions property here,
+        // or Livewire memoizes a stale list before callMountedAction updates records.
+        foreach ($this->loadActionablePositions() as $position) {
+            $this->actionForPosition($position);
+            $this->secondaryActionForPosition($position);
+        }
     }
 
     public function getPollingInterval(): ?string
@@ -64,6 +67,14 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
      * @return EloquentCollection<int, Position>
      */
     public function getActionablePositionsProperty(): EloquentCollection
+    {
+        return $this->loadActionablePositions();
+    }
+
+    /**
+     * @return EloquentCollection<int, Position>
+     */
+    private function loadActionablePositions(): EloquentCollection
     {
         $userId = auth()->id() ?? 0;
         $actionableIds = Position::requiringActionForUser($userId)->pluck('id');
@@ -175,21 +186,19 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
 
     public function actionForPosition(Position $position): ?Action
     {
-        $method = match ($position->primaryActionType()) {
-            Position::PRIMARY_ACTION_TARGET_1 => 'markLimitPlacedAction',
-            Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'markInitialSlPlacedAction',
-            Position::PRIMARY_ACTION_UPDATE_SL => 'markAsUpdatedAction',
-            Position::PRIMARY_ACTION_EARNINGS => 'archiveAction',
+        $factory = match ($position->primaryActionType()) {
+            Position::PRIMARY_ACTION_TARGET_1 => 'makeMarkLimitPlaced',
+            Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'makeMarkInitialSlPlaced',
+            Position::PRIMARY_ACTION_UPDATE_SL => 'makeMarkAsUpdated',
+            Position::PRIMARY_ACTION_EARNINGS => 'makeArchive',
             default => null,
         };
 
-        if ($method === null) {
+        if ($factory === null) {
             return null;
         }
 
-        $action = $this->cacheAction($this->{$method}());
-
-        return $action(['record' => $position->getKey()])->record($position);
+        return $this->cacheAction($this->uniqueRecordAction($this->{$factory}(), $position));
     }
 
     public function secondaryActionForPosition(Position $position): ?Action
@@ -198,32 +207,49 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
             return null;
         }
 
-        $action = $this->cacheAction($this->holdThroughEarningsAction());
+        return $this->cacheAction($this->uniqueRecordAction($this->makeHoldThroughEarnings(), $position));
+    }
+
+    private function uniqueRecordAction(Action $action, Position $position): Action
+    {
+        $name = $action->getName().'_'.$position->getKey();
+
+        $action->name($name);
+
+        // Row is already filtered by primaryActionType(); keep the button mountable
+        // even before Filament has injected the record into visible() callbacks.
+        $action->visible(true);
+
+        // Scope loading-disabled to this button only — without wire:target, wire:poll
+        // on the list disables every Update button on the component.
+        $action->extraAttributes([
+            'wire:target' => "mountAction('{$name}')",
+        ], merge: true);
 
         return $action(['record' => $position->getKey()])->record($position);
     }
 
-    public function markLimitPlacedAction(): Action
+    private function makeMarkLimitPlaced(): Action
     {
         return $this->configureRecordAction(PositionRecordActions::markTarget1LimitPlaced());
     }
 
-    public function markInitialSlPlacedAction(): Action
+    private function makeMarkInitialSlPlaced(): Action
     {
         return $this->configureRecordAction(PositionRecordActions::markInitialSlPlaced());
     }
 
-    public function markAsUpdatedAction(): Action
+    private function makeMarkAsUpdated(): Action
     {
         return $this->configureRecordAction(PositionRecordActions::markAsUpdated());
     }
 
-    public function holdThroughEarningsAction(): Action
+    private function makeHoldThroughEarnings(): Action
     {
         return $this->configureRecordAction(PositionRecordActions::holdThroughEarnings());
     }
 
-    public function archiveAction(): Action
+    private function makeArchive(): Action
     {
         return $this->configureRecordAction(PositionRecordActions::archive());
     }

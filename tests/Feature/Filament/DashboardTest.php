@@ -212,8 +212,17 @@ class DashboardTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-07-11 10:00:00', 'Europe/Amsterdam'));
 
+        config([
+            'vestix.ibkr.reader' => 'stub',
+            'vestix.bankroll_tracker.source' => 'manual',
+        ]);
+
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
-        $user->update(['trading_bankroll' => 10634.60]);
+        $user->update([
+            'trading_bankroll' => 10634.60,
+            'ibkr_last_success_at' => null,
+            'ibkr_data_stale' => false,
+        ]);
 
         $this->actingAsFilamentUser($user, $squad);
 
@@ -281,10 +290,50 @@ class DashboardTest extends TestCase
 
         Livewire::test(PositionsRequiringActionWidget::class)
             ->assertSee($position->ticker)
-            ->callAction('mark_as_updated', arguments: ['record' => $position->getKey()])
+            ->callAction('mark_as_updated_'.$position->getKey(), arguments: ['record' => $position->getKey()])
             ->assertDontSee($position->ticker);
 
         $this->assertEquals(76.10, (float) $position->fresh()->current_sl);
+    }
+
+    public function test_action_widget_update_buttons_are_unique_and_each_callable(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $attrs = [
+            'entry_price' => 78.00,
+            'initial_sl' => 74.50,
+            'latest_close_price' => 78.20,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+            'current_sl' => 74.50,
+            'status' => 'open',
+        ];
+
+        $positions = collect(['ALL', 'HALO', 'KVUE'])->map(
+            fn (string $ticker) => Position::factory()->for($user)->create([...$attrs, 'ticker' => $ticker])
+        );
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        $component = Livewire::test(PositionsRequiringActionWidget::class);
+        $html = $component->html();
+
+        foreach ($positions as $position) {
+            $name = 'mark_as_updated_'.$position->getKey();
+            $component->assertActionExists($name);
+            $this->assertMatchesRegularExpression("/mountAction\\('{$name}'[,)]/", $html);
+        }
+
+        // Shared bare name must not be used — it breaks sibling buttons.
+        $this->assertDoesNotMatchRegularExpression("/mountAction\\('mark_as_updated'[,)]/", $html);
+
+        foreach ($positions as $position) {
+            Livewire::test(PositionsRequiringActionWidget::class)
+                ->callAction('mark_as_updated_'.$position->getKey(), arguments: ['record' => $position->getKey()]);
+
+            $this->assertEquals(76.10, (float) $position->fresh()->current_sl);
+        }
     }
 
     public function test_portfolio_widget_shows_locked_profit_per_position(): void
@@ -357,8 +406,8 @@ class DashboardTest extends TestCase
             ->assertSee('Update')
             ->assertDontSee('Archiveer')
             ->assertDontSee('Close')
-            ->assertActionVisible('mark_as_updated', arguments: ['record' => $updatePosition->getKey()])
-            ->assertActionHidden('mark_as_updated', arguments: ['record' => $stoppedOut->getKey()]);
+            ->assertActionVisible('mark_as_updated_'.$updatePosition->getKey(), arguments: ['record' => $updatePosition->getKey()])
+            ->assertActionDoesNotExist('mark_as_updated_'.$stoppedOut->getKey());
     }
 
     public function test_action_widget_shows_limit_sell_instruction_and_update_action(): void
@@ -384,8 +433,8 @@ class DashboardTest extends TestCase
             ->assertSee('Target 1 bereikt op')
             ->assertSee('$12.00')
             ->assertSee('Pas SL aan, verkoop 50%')
-            ->assertActionVisible('mark_limit_placed', arguments: ['record' => $targetHit->getKey()])
-            ->callAction('mark_limit_placed', arguments: ['record' => $targetHit->getKey()])
+            ->assertActionVisible('mark_limit_placed_'.$targetHit->getKey(), arguments: ['record' => $targetHit->getKey()])
+            ->callAction('mark_limit_placed_'.$targetHit->getKey(), arguments: ['record' => $targetHit->getKey()])
             ->assertDontSee('GS');
     }
 
@@ -412,8 +461,8 @@ class DashboardTest extends TestCase
             ->assertSee('NVDA')
             ->assertSee('Stel Stop-Loss in op')
             ->assertSee('$76.10')
-            ->assertActionVisible('mark_initial_sl_placed', arguments: ['record' => $position->getKey()])
-            ->callAction('mark_initial_sl_placed', arguments: ['record' => $position->getKey()])
+            ->assertActionVisible('mark_initial_sl_placed_'.$position->getKey(), arguments: ['record' => $position->getKey()])
+            ->callAction('mark_initial_sl_placed_'.$position->getKey(), arguments: ['record' => $position->getKey()])
             ->assertDontSee('NVDA');
 
         $this->assertNotNull($position->fresh()->initial_sl_placed_at);
@@ -550,8 +599,8 @@ class DashboardTest extends TestCase
             ->assertSee('Earnings-exit (14 juli) is te laat')
             ->assertSee('Doorgaan als runner')
             ->assertSee('Archiveer')
-            ->assertActionVisible('hold_through_earnings', arguments: ['record' => $position->getKey()])
-            ->callAction('hold_through_earnings', arguments: ['record' => $position->getKey()])
+            ->assertActionVisible('hold_through_earnings_'.$position->getKey(), arguments: ['record' => $position->getKey()])
+            ->callAction('hold_through_earnings_'.$position->getKey(), arguments: ['record' => $position->getKey()])
             ->assertDontSee('BAC');
 
         $position->refresh();
