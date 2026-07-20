@@ -78,6 +78,39 @@ class EditUserProfileTest extends TestCase
         $this->assertEquals(10634.60, (float) $user->fresh()->trading_bankroll);
     }
 
+    public function test_ibkr_manual_bankroll_override_updates_deployable_fields(): void
+    {
+        $this->mock(BenchmarkCloseResolver::class, function ($mock): void {
+            $mock->shouldReceive('benchmarkTicker')->andReturn('SPY');
+            $mock->shouldReceive('resolveTradingDayClose')->andReturn(550.25);
+        });
+
+        $user = User::factory()->create([
+            'primary_broker' => Broker::Ibkr,
+            'trading_bankroll' => 4555.29,
+            'ibkr_net_liquidation' => 4555.29,
+            'ibkr_settled_cash' => 4555.29,
+            'ibkr_available_funds' => 4555.29,
+            'ibkr_last_success_at' => now(),
+            'ibkr_data_stale' => false,
+            'default_risk_percent' => 1.5,
+        ]);
+        $this->actingAs($user);
+
+        Livewire::test(EditUserProfile::class)
+            ->fillForm([
+                'trading_bankroll' => 5009.03,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $user->refresh();
+        $this->assertEquals(5009.03, (float) $user->trading_bankroll);
+        $this->assertEquals(5009.03, (float) $user->ibkr_net_liquidation);
+        $this->assertEquals(5009.03, (float) $user->ibkr_settled_cash);
+        $this->assertEquals(5009.03, (float) $user->ibkr_available_funds);
+    }
+
     public function test_profile_saves_merged_alert_preferences(): void
     {
         $user = User::factory()->create([

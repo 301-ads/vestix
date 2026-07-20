@@ -348,7 +348,17 @@ class EditUserProfile extends EditProfile
             return;
         }
 
-        app(BankrollSnapshotService::class)->recordSnapshot($user, (float) $bankroll);
+        $amount = round((float) $bankroll, 2);
+
+        // Manual NLV override must also refresh deployable capital — Order Plan / Smart Sizing
+        // reads Settled + Available Funds, not trading_bankroll alone.
+        $user->forceFill([
+            'ibkr_net_liquidation' => $amount,
+            'ibkr_available_funds' => $amount,
+            'ibkr_settled_cash' => $amount,
+        ])->save();
+
+        app(BankrollSnapshotService::class)->recordSnapshot($user->fresh() ?? $user, $amount);
     }
 
     /**
@@ -596,7 +606,7 @@ class EditUserProfile extends EditProfile
     protected function tradingBankrollHelperText(): string
     {
         if ($this->getUser()->ibkr_last_success_at !== null) {
-            return 'Wordt bijgewerkt door IBKR Flex sync (NLV). Handmatige override blijft mogelijk. Smart Sizing gebruikt Settled Cash / Available Funds.';
+            return 'Wordt bijgewerkt door IBKR Flex sync (NLV). Handmatige override werkt voor Alpha én Smart Sizing (Settled/AF worden meegenomen). Bij open posities: vul bij voorkeur je Available Funds/cash in — niet de volle NLV — anders size je te groot.';
         }
 
         return 'Alleen Interactive Brokers NLV — zonder Revolut/legacy. Update na stortingen en wekelijks voor de Alpha Tracker. Smart Sizing gebruikt dit bedrag tot IBKR sync actief is.';
