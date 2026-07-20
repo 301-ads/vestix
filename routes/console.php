@@ -11,10 +11,10 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // EOD sync: alle open posities en scouts (Polygon bars + Finnhub/AV quote).
-// 23:00 NL = ~45 min na US close (16:15 ET) zodat slotkoersen en volume beschikbaar zijn.
+// 22:30 NL ≈ 30 min na US close in CEST (16:00 ET = 22:00) zodat slotkoersen en volume beschikbaar zijn.
 Schedule::command('vestix:fetch-data')
     ->weekdays()
-    ->dailyAt('23:00')
+    ->dailyAt('22:30')
     ->timezone('Europe/Amsterdam');
 
 // Intraday live koersen: elk uur op :05 ET (niet op :00 — voorkomt race met schedule:run).
@@ -79,8 +79,8 @@ Schedule::command('vestix:bankroll-update-reminders')
     ->dailyAt('10:00')
     ->timezone('Europe/Amsterdam');
 
-// IBKR Flex EOD sync: na US close (balances + cashflows; open orders via CP when enabled).
+// IBKR Flex EOD sync: kort na market-data (balances + cashflows; open orders via CP when enabled).
 Schedule::command('vestix:sync-ibkr')
     ->weekdays()
-    ->dailyAt('23:30')
+    ->dailyAt('22:45')
     ->timezone('Europe/Amsterdam');
