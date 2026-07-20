@@ -87,21 +87,32 @@ class EditUserProfile extends EditProfile
                             ->schema([
                                 Section::make('Position sizing')
                                     ->compact()
-                                    ->description('Bankroll en standaard risico-limiet voor de waakhond op scouts.')
+                                    ->description('NLV voor Alpha · Cash/AF voor Order Plan sizing. Zelfde splitsing als in IBKR/TradingView.')
                                     ->schema([
                                         Placeholder::make('ibkr_sync_status')
                                             ->label('IBKR sync')
                                             ->content(fn (): HtmlString => $this->ibkrSyncStatusHtml()),
                                         TextInput::make('trading_bankroll')
-                                            ->label('IBKR Net Liquidation (Bankroll)')
+                                            ->label('Net Liquidation (NLV)')
                                             ->numeric()
                                             ->prefix('$')
                                             ->minValue(0.01)
                                             ->helperText(fn (): string => $this->tradingBankrollHelperText()),
+                                        TextInput::make('ibkr_available_funds')
+                                            ->label('Cash / Available Funds')
+                                            ->numeric()
+                                            ->prefix('$')
+                                            ->minValue(0)
+                                            ->helperText('Voor Order Plan / Smart Sizing. Op een cash-account gelijk aan Cash in IBKR. Settled Cash wordt hieraan gelijk gezet.')
+                                            ->visible(fn (): bool => $this->getUser()->ibkr_last_success_at !== null
+                                                || (string) config('vestix.ibkr.reader', 'stub') === 'flex'
+                                                || $this->getUser()->primary_broker === Broker::Ibkr),
                                         Placeholder::make('ibkr_deployable')
-                                            ->label('Deployable (Settled / AF)')
+                                            ->label('Deployable')
                                             ->content(fn (): string => $this->ibkrDeployableSummary())
-                                            ->visible(fn (): bool => $this->getUser()->ibkr_last_success_at !== null),
+                                            ->visible(fn (): bool => $this->getUser()->ibkr_last_success_at !== null
+                                                || $this->getUser()->ibkr_available_funds !== null
+                                                || $this->getUser()->ibkr_settled_cash !== null),
                                         DatePicker::make('baseline_date')
                                             ->label('Alpha startdatum')
                                             ->native(false)
@@ -324,6 +335,14 @@ class EditUserProfile extends EditProfile
 
         if (array_key_exists('trading_bankroll', $data) && filled($data['trading_bankroll'])) {
             $this->shouldRecordBankrollSnapshot = true;
+            $data['ibkr_net_liquidation'] = round((float) $data['trading_bankroll'], 2);
+        }
+
+        if (array_key_exists('ibkr_available_funds', $data) && filled($data['ibkr_available_funds'])) {
+            // Cash account: treat Available Funds as deployable; keep Settled in sync for min(AF, settled).
+            $deployable = round((float) $data['ibkr_available_funds'], 2);
+            $data['ibkr_available_funds'] = $deployable;
+            $data['ibkr_settled_cash'] = $deployable;
         }
 
         if (array_key_exists('baseline_date', $data)) {
@@ -348,17 +367,7 @@ class EditUserProfile extends EditProfile
             return;
         }
 
-        $amount = round((float) $bankroll, 2);
-
-        // Manual NLV override must also refresh deployable capital — Order Plan / Smart Sizing
-        // reads Settled + Available Funds, not trading_bankroll alone.
-        $user->forceFill([
-            'ibkr_net_liquidation' => $amount,
-            'ibkr_available_funds' => $amount,
-            'ibkr_settled_cash' => $amount,
-        ])->save();
-
-        app(BankrollSnapshotService::class)->recordSnapshot($user->fresh() ?? $user, $amount);
+        app(BankrollSnapshotService::class)->recordSnapshot($user, (float) $bankroll);
     }
 
     /**
@@ -606,10 +615,10 @@ class EditUserProfile extends EditProfile
     protected function tradingBankrollHelperText(): string
     {
         if ($this->getUser()->ibkr_last_success_at !== null) {
-            return 'Wordt bijgewerkt door IBKR Flex sync (NLV). Handmatige override werkt voor Alpha én Smart Sizing (Settled/AF worden meegenomen). Bij open posities: vul bij voorkeur je Available Funds/cash in — niet de volle NLV — anders size je te groot.';
+            return 'Gelijk aan Net Liquidation in IBKR/TradingView (cash + open posities). Voor Alpha Tracker. Wordt door Flex sync bijgewerkt; handmatige override blijft mogelijk.';
         }
 
-        return 'Alleen Interactive Brokers NLV — zonder Revolut/legacy. Update na stortingen en wekelijks voor de Alpha Tracker. Smart Sizing gebruikt dit bedrag tot IBKR sync actief is.';
+        return 'Alleen Interactive Brokers NLV — zonder Revolut/legacy. Update na stortingen en wekelijks voor de Alpha Tracker.';
     }
 
     protected function ibkrDeployableSummary(): string
@@ -635,7 +644,7 @@ class EditUserProfile extends EditProfile
         }
 
         return sprintf(
-            'Settled %s · Available Funds %s → deployable $%s',
+            'Settled %s · Available Funds %s → Order Plan gebruikt $%s',
             $settledLabel,
             $availableLabel,
             number_format((float) $deployable, 2),

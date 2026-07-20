@@ -99,14 +99,15 @@ class EditUserProfileTest extends TestCase
 
         Livewire::test(EditUserProfile::class)
             ->fillForm([
-                'trading_bankroll' => 5009.03,
+                'trading_bankroll' => 6840.89,
+                'ibkr_available_funds' => 5009.03,
             ])
             ->call('save')
             ->assertHasNoFormErrors();
 
         $user->refresh();
-        $this->assertEquals(5009.03, (float) $user->trading_bankroll);
-        $this->assertEquals(5009.03, (float) $user->ibkr_net_liquidation);
+        $this->assertEquals(6840.89, (float) $user->trading_bankroll);
+        $this->assertEquals(6840.89, (float) $user->ibkr_net_liquidation);
         $this->assertEquals(5009.03, (float) $user->ibkr_settled_cash);
         $this->assertEquals(5009.03, (float) $user->ibkr_available_funds);
     }
