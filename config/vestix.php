@@ -193,6 +193,8 @@ return [
                 'Deposits',
                 'Withdrawals',
             ],
+            // EUR (and optionally others) bank deposits are converted to base USD via fxRateToBase.
+            'foreign_deposit_currencies' => ['EUR'],
             'denylist' => [
                 'Dividend',
                 'Payment In Lieu',

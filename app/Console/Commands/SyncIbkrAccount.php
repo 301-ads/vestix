@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Log;
 
 class SyncIbkrAccount extends Command
 {
-    protected $signature = 'vestix:sync-ibkr {--user= : Limit sync to a single user id}';
+    protected $signature = 'vestix:sync-ibkr
+        {--user= : Limit sync to a single user id}
+        {--details : Show Flex statement dates, balances and cashflow skip reasons}';
 
     protected $description = 'Sync read-only IBKR Flex balances/cashflows and optional Client Portal open orders.';
 
@@ -41,8 +43,104 @@ class SyncIbkrAccount extends Command
             ],
         );
 
-        Log::info('IBKR sync completed.', $summary);
+        if ($this->option('details') || $this->output->isVerbose()) {
+            $this->renderVerbose($summary);
+        }
+
+        Log::info('IBKR sync completed.', [
+            'success' => $summary['success'],
+            'users' => $summary['users'],
+            'cashflows_imported' => $summary['cashflows_imported'],
+            'cashflows_skipped' => $summary['cashflows_skipped'],
+            'error' => $summary['error'],
+            'snapshot' => $summary['snapshot'],
+        ]);
 
         return $summary['success'] ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * @param  array{
+     *     snapshot: array<string, mixed>|null,
+     *     cashflow_details: list<array<string, mixed>>
+     * }  $summary
+     */
+    private function renderVerbose(array $summary): void
+    {
+        $snapshot = $summary['snapshot'];
+
+        if (is_array($snapshot)) {
+            $this->newLine();
+            $this->info('Flex statement');
+            $this->table(
+                ['Field', 'Value'],
+                [
+                    ['Account', $snapshot['account_id'] ?? '—'],
+                    ['Period', $snapshot['period'] ?? '—'],
+                    ['From', $snapshot['from_date'] ?? '—'],
+                    ['To', $snapshot['to_date'] ?? '—'],
+                    ['When generated', $snapshot['when_generated_at'] ?? ($snapshot['when_generated'] ?? '—')],
+                    ['Base currency', $snapshot['base_currency'] ?? '—'],
+                    ['Net Liquidation', $this->money($snapshot['net_liquidation'] ?? null)],
+                    ['Available Funds', $this->money($snapshot['available_funds'] ?? null)],
+                    ['Settled Cash', $this->money($snapshot['settled_cash'] ?? null)],
+                    ['Deployable', $this->money($snapshot['deployable'] ?? null)],
+                    ['Open positions', (string) ($snapshot['open_positions'] ?? 0)],
+                    ['Open orders', (string) ($snapshot['open_orders'] ?? 0)],
+                    ['Cash transactions in Flex', (string) ($snapshot['cash_transactions'] ?? 0)],
+                ],
+            );
+
+            $toDate = $snapshot['to_date'] ?? null;
+            $today = now(config('vestix.bankroll_tracker.timezone', 'Europe/Amsterdam'))->toDateString();
+
+            if (is_string($toDate) && $toDate !== '' && $toDate < $today) {
+                $this->warn(
+                    "Flex toDate ({$toDate}) is before today ({$today}). "
+                    .'Balances can lag IBKR Live — check the Flex Query period / generation time.',
+                );
+            }
+        }
+
+        $details = $summary['cashflow_details'] ?? [];
+
+        if ($details === []) {
+            return;
+        }
+
+        $this->newLine();
+        $this->info('Cashflow classification');
+        $this->table(
+            ['External ID', 'Type', 'Ccy', 'Amount', 'USD', 'Reason'],
+            array_map(
+                fn (array $row): array => [
+                    $row['external_id'] ?? '—',
+                    $row['type'] ?? '—',
+                    $row['currency'] ?? '—',
+                    isset($row['amount']) ? number_format((float) $row['amount'], 2, '.', '') : '—',
+                    isset($row['amount_base']) && $row['amount_base'] !== null
+                        ? number_format((float) $row['amount_base'], 2, '.', '')
+                        : '—',
+                    $row['reason'] ?? '—',
+                ],
+                $details,
+            ),
+        );
+
+        $this->line(
+            'Reasons: imported | duplicate | denied_type | not_external_transfer | fx_conversion | missing_fx_rate_to_base',
+        );
+        $this->line(
+            'EUR bank deposits → USD via Flex fxRateToBase. EUR.USD sells are FX conversion (not new capital).',
+        );
+    }
+
+    private function money(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return '$'.number_format((float) $value, 2, '.', ',');
     }
 }

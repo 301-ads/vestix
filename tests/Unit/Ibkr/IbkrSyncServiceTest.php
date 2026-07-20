@@ -66,10 +66,21 @@ class IbkrSyncServiceTest extends TestCase
         $this->assertEquals(10634.60, (float) $user->trading_bankroll);
         $this->assertFalse((bool) $user->ibkr_data_stale);
         $this->assertSame('RPRX', $user->ibkr_open_orders[0]['symbol']);
-        $this->assertSame(2, $summary['cashflows_imported']);
+        $this->assertSame(3, $summary['cashflows_imported']);
+        $this->assertSame(3, $summary['cashflows_skipped']);
+        $this->assertIsArray($summary['snapshot']);
+        $this->assertSame(10634.60, $summary['snapshot']['net_liquidation']);
+        $this->assertSame('2026-07-17', $summary['snapshot']['to_date']);
         $this->assertDatabaseHas('bankroll_snapshots', [
             'user_id' => $user->id,
             'amount' => 10634.60,
+        ]);
+        $this->assertDatabaseHas('bankroll_cashflows', [
+            'external_id' => 'TX-EUR-DEP-001',
+            'amount' => 2287.30,
+        ]);
+        $this->assertDatabaseMissing('bankroll_cashflows', [
+            'external_id' => 'TX-FX-001',
         ]);
     }
 

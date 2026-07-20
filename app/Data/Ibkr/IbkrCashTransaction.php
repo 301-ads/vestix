@@ -13,6 +13,7 @@ final readonly class IbkrCashTransaction
         public string $currency,
         public string $date,
         public ?string $description = null,
+        public ?float $fxRateToBase = null,
     ) {}
 
     public function isExternalTransfer(): bool
@@ -44,5 +45,33 @@ final readonly class IbkrCashTransaction
     public function absoluteAmount(): float
     {
         return round(abs($this->amount), 2);
+    }
+
+    /**
+     * Amount in account base currency (USD) for Alpha / Kapitaalbewegingen.
+     * EUR bank deposits use fxRateToBase from Flex; FX conversions are not external transfers.
+     */
+    public function resolvedAmountInBase(string $baseCurrency): ?float
+    {
+        $baseCurrency = strtoupper(trim($baseCurrency));
+        $currency = strtoupper(trim($this->currency));
+
+        if ($currency === $baseCurrency) {
+            return $this->absoluteAmount();
+        }
+
+        foreach (config('vestix.ibkr.cashflow.foreign_deposit_currencies', ['EUR']) as $allowed) {
+            if ($currency !== strtoupper((string) $allowed)) {
+                continue;
+            }
+
+            if ($this->fxRateToBase !== null && $this->fxRateToBase > 0) {
+                return round($this->absoluteAmount() * $this->fxRateToBase, 2);
+            }
+
+            return null;
+        }
+
+        return null;
     }
 }

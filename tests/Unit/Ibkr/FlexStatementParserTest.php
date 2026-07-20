@@ -20,7 +20,11 @@ class FlexStatementParserTest extends TestCase
         $this->assertSame(3800.50, $snapshot->deployableCapital());
         $this->assertCount(2, $snapshot->openPositions);
         $this->assertSame('RPRX', $snapshot->openPositions[0]->symbol);
-        $this->assertCount(4, $snapshot->cashTransactions);
+        $this->assertCount(6, $snapshot->cashTransactions);
+        $this->assertSame('U1234567', $snapshot->metadata?->accountId);
+        $this->assertSame('2026-07-17', $snapshot->metadata?->formattedToDate());
+        $this->assertSame(1.14365, $snapshot->cashTransactions[4]->fxRateToBase);
+        $this->assertSame(2287.30, $snapshot->cashTransactions[4]->resolvedAmountInBase('USD'));
     }
 
     public function test_rejects_non_usd_base_currency(): void

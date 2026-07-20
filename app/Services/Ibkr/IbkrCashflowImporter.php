@@ -3,6 +3,7 @@
 namespace App\Services\Ibkr;
 
 use App\Data\Ibkr\IbkrAccountSnapshot;
+use App\Data\Ibkr\IbkrCashflowImportResult;
 use App\Data\Ibkr\IbkrCashTransaction;
 use App\Enums\BankrollCashflowType;
 use App\Models\User;
@@ -16,24 +17,37 @@ class IbkrCashflowImporter
     ) {}
 
     /**
-     * Import only external bank transfers. Dividends/fees/interest are ignored.
+     * Import only external bank transfers. Dividends/fees/interest and FX
+     * conversions (EUR.USD sells) are ignored — they are not new capital.
      *
-     * @return array{imported: int, skipped: int}
+     * EUR bank deposits are converted to account base (USD) via Flex fxRateToBase
+     * when present, so Alpha Kapitaalbewegingen stay in USD.
      */
-    public function import(User $user, IbkrAccountSnapshot $snapshot): array
+    public function import(User $user, IbkrAccountSnapshot $snapshot): IbkrCashflowImportResult
     {
         $imported = 0;
         $skipped = 0;
+        $details = [];
+        $baseCurrency = strtoupper($snapshot->baseCurrency);
 
         foreach ($snapshot->cashTransactions as $transaction) {
             if (! $transaction instanceof IbkrCashTransaction) {
                 $skipped++;
+                $details[] = $this->detail($transaction, 'invalid_payload');
 
                 continue;
             }
 
             if ($this->isDenied($transaction)) {
                 $skipped++;
+                $details[] = $this->detail($transaction, 'denied_type');
+
+                continue;
+            }
+
+            if ($this->looksLikeFxConversion($transaction)) {
+                $skipped++;
+                $details[] = $this->detail($transaction, 'fx_conversion');
 
                 continue;
             }
@@ -42,6 +56,16 @@ class IbkrCashflowImporter
 
             if ($type === null) {
                 $skipped++;
+                $details[] = $this->detail($transaction, 'not_external_transfer');
+
+                continue;
+            }
+
+            $amountBase = $transaction->resolvedAmountInBase($baseCurrency);
+
+            if ($amountBase === null) {
+                $skipped++;
+                $details[] = $this->detail($transaction, 'missing_fx_rate_to_base');
 
                 continue;
             }
@@ -53,6 +77,7 @@ class IbkrCashflowImporter
 
             if ($exists) {
                 $skipped++;
+                $details[] = $this->detail($transaction, 'duplicate', $amountBase);
 
                 continue;
             }
@@ -60,17 +85,18 @@ class IbkrCashflowImporter
             $this->cashflows->record(
                 $user,
                 $type,
-                $transaction->absoluteAmount(),
+                $amountBase,
                 Carbon::parse($transaction->date, $this->cashflows->timezone())->startOfDay(),
-                $this->noteFor($transaction, $type),
+                $this->noteFor($transaction, $type, $baseCurrency, $amountBase),
                 'ibkr',
                 $transaction->externalId,
             );
 
             $imported++;
+            $details[] = $this->detail($transaction, 'imported', $amountBase);
         }
 
-        return compact('imported', 'skipped');
+        return new IbkrCashflowImportResult($imported, $skipped, $details);
     }
 
     private function isDenied(IbkrCashTransaction $transaction): bool
@@ -89,14 +115,88 @@ class IbkrCashflowImporter
         return false;
     }
 
-    private function noteFor(IbkrCashTransaction $transaction, BankrollCashflowType $type): string
+    /**
+     * Spot FX / currency conversion legs (e.g. selling EUR.USD after an EUR deposit).
+     * These change currency mix, not external capital — do not book as deposits.
+     */
+    private function looksLikeFxConversion(IbkrCashTransaction $transaction): bool
     {
-        $label = $type === BankrollCashflowType::Withdrawal ? 'IBKR withdrawal' : 'IBKR deposit';
+        $haystack = strtolower(trim($transaction->type.' '.($transaction->description ?? '')));
 
-        if (filled($transaction->description)) {
-            return $label.': '.$transaction->description;
+        foreach ([
+            'currency conversion',
+            'forex',
+            'fx conversion',
+            'spot currency',
+            'eur.usd',
+            'usd.eur',
+        ] as $needle) {
+            if (str_contains($haystack, $needle)) {
+                return true;
+            }
         }
 
-        return $label;
+        return false;
+    }
+
+    private function noteFor(
+        IbkrCashTransaction $transaction,
+        BankrollCashflowType $type,
+        string $baseCurrency,
+        float $amountBase,
+    ): string {
+        $label = $type === BankrollCashflowType::Withdrawal ? 'IBKR withdrawal' : 'IBKR deposit';
+        $parts = [$label];
+
+        $currency = strtoupper($transaction->currency);
+
+        if ($currency !== $baseCurrency) {
+            $parts[] = sprintf(
+                '%s %s → %s %s',
+                number_format($transaction->absoluteAmount(), 2, '.', ''),
+                $currency,
+                number_format($amountBase, 2, '.', ''),
+                $baseCurrency,
+            );
+        }
+
+        if (filled($transaction->description)) {
+            $parts[] = $transaction->description;
+        }
+
+        return implode(': ', $parts);
+    }
+
+    /**
+     * @return array{
+     *     external_id: string,
+     *     type: string,
+     *     currency: string,
+     *     amount: float,
+     *     amount_base: float|null,
+     *     reason: string
+     * }
+     */
+    private function detail(mixed $transaction, string $reason, ?float $amountBase = null): array
+    {
+        if (! $transaction instanceof IbkrCashTransaction) {
+            return [
+                'external_id' => '—',
+                'type' => '—',
+                'currency' => '—',
+                'amount' => 0.0,
+                'amount_base' => null,
+                'reason' => $reason,
+            ];
+        }
+
+        return [
+            'external_id' => $transaction->externalId,
+            'type' => $transaction->type,
+            'currency' => $transaction->currency,
+            'amount' => $transaction->amount,
+            'amount_base' => $amountBase,
+            'reason' => $reason,
+        ];
     }
 }

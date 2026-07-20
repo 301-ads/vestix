@@ -16,6 +16,8 @@
                 <CashTransaction accountId="U1234567" transactionID="TX-DIV-001" type="Dividends" amount="12.50" currency="USD" reportDate="20260710" description="RPRX(US) Cash Dividend"/>
                 <CashTransaction accountId="U1234567" transactionID="TX-WDR-001" type="Deposits &amp; Withdrawals" amount="-500.00" currency="USD" reportDate="20260712" description="Disbursement"/>
                 <CashTransaction accountId="U1234567" transactionID="TX-INT-001" type="Broker Interest" amount="1.10" currency="USD" reportDate="20260715" description="USD Credit Interest"/>
+                <CashTransaction accountId="U1234567" transactionID="TX-EUR-DEP-001" type="Deposits &amp; Withdrawals" amount="2000.00" currency="EUR" fxRateToBase="1.14365" reportDate="20260720" description="Electronic Fund Transfer"/>
+                <CashTransaction accountId="U1234567" transactionID="TX-FX-001" type="Deposits &amp; Withdrawals" amount="2287.30" currency="USD" reportDate="20260720" description="EUR.USD Currency Conversion"/>
             </CashTransactions>
         </FlexStatement>
     </FlexStatements>

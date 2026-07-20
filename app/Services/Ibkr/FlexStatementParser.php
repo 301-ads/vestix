@@ -2,6 +2,7 @@
 
 namespace App\Services\Ibkr;
 
+use App\Data\Ibkr\FlexStatementMetadata;
 use App\Data\Ibkr\IbkrAccountSnapshot;
 use App\Data\Ibkr\IbkrCashTransaction;
 use App\Data\Ibkr\IbkrOpenPosition;
@@ -42,7 +43,26 @@ class FlexStatementParser
             openPositions: $this->parseOpenPositions($statement),
             openOrders: [],
             cashTransactions: $this->parseCashTransactions($statement),
+            metadata: $this->parseMetadata($statement),
         );
+    }
+
+    private function parseMetadata(SimpleXMLElement $statement): FlexStatementMetadata
+    {
+        return new FlexStatementMetadata(
+            accountId: $this->nullableAttribute($statement, 'accountId'),
+            fromDate: $this->nullableAttribute($statement, 'fromDate'),
+            toDate: $this->nullableAttribute($statement, 'toDate'),
+            period: $this->nullableAttribute($statement, 'period'),
+            whenGenerated: $this->nullableAttribute($statement, 'whenGenerated'),
+        );
+    }
+
+    private function nullableAttribute(SimpleXMLElement $node, string $attribute): ?string
+    {
+        $value = trim((string) ($node[$attribute] ?? ''));
+
+        return $value !== '' ? $value : null;
     }
 
     private function resolveFlexStatement(SimpleXMLElement $xml): SimpleXMLElement
@@ -196,6 +216,7 @@ class FlexStatementParser
             $date = $this->normalizeDate($dateRaw);
             $transactionId = trim((string) ($node['transactionID'] ?? $node['transactionId'] ?? ''));
             $description = trim((string) ($node['description'] ?? '')) ?: null;
+            $fxRateToBase = $this->nullableFloat($node['fxRateToBase'] ?? $node['fxRateToBaseCurrency'] ?? null);
 
             if ($type === '' || $amount == 0.0 || $date === null) {
                 continue;
@@ -203,7 +224,7 @@ class FlexStatementParser
 
             $externalId = $transactionId !== ''
                 ? $transactionId
-                : hash('sha256', implode('|', [$date, $type, $amount, $description ?? '']));
+                : hash('sha256', implode('|', [$date, $type, $amount, $currency, $description ?? '']));
 
             $transactions[] = new IbkrCashTransaction(
                 externalId: $externalId,
@@ -212,10 +233,28 @@ class FlexStatementParser
                 currency: $currency,
                 date: $date,
                 description: $description,
+                fxRateToBase: $fxRateToBase,
             );
         }
 
         return $transactions;
+    }
+
+    private function nullableFloat(mixed $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $raw = trim((string) $value);
+
+        if ($raw === '' || ! is_numeric($raw)) {
+            return null;
+        }
+
+        $rate = (float) $raw;
+
+        return $rate > 0 ? $rate : null;
     }
 
     private function normalizeDate(string $raw): ?string

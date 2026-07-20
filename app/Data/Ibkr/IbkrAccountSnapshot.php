@@ -17,6 +17,7 @@ final readonly class IbkrAccountSnapshot
         public array $openPositions = [],
         public array $openOrders = [],
         public array $cashTransactions = [],
+        public ?FlexStatementMetadata $metadata = null,
     ) {}
 
     /**
