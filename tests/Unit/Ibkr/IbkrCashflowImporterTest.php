@@ -98,4 +98,45 @@ XML;
         $this->assertSame('6319814182', $flows[0]->external_id);
         $this->assertSame('6328136794', $flows[1]->external_id);
     }
+
+    public function test_claims_near_matching_manual_deposit_instead_of_duplicating(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+
+        // Handmatig geschat openingsaldo (bijna Flex EUR→USD).
+        $user->bankrollCashflows()->create([
+            'type' => BankrollCashflowType::Deposit,
+            'amount' => 3428.40,
+            'occurred_on' => '2026-07-15',
+            'note' => 'Handmatig openingsaldo',
+            'source' => 'manual',
+            'external_id' => null,
+        ]);
+
+        $user->bankrollCashflows()->create([
+            'type' => BankrollCashflowType::Deposit,
+            'amount' => 1145.10,
+            'occurred_on' => '2026-07-17',
+            'note' => 'Handmatig tweede storting',
+            'source' => 'manual',
+            'external_id' => null,
+        ]);
+
+        $xml = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_real_structure.xml'));
+        $snapshot = (new FlexStatementParser)->parse($xml);
+        $result = app(IbkrCashflowImporter::class)->import($user, $snapshot);
+
+        $this->assertSame(0, $result->imported);
+        $this->assertSame(2, $result->skipped);
+        $this->assertSame('duplicate_claimed', $result->details[0]['reason']);
+        $this->assertSame('duplicate_claimed', $result->details[1]['reason']);
+
+        $flows = $user->bankrollCashflows()->orderBy('occurred_on')->get();
+        $this->assertCount(2, $flows);
+        $this->assertEquals(3432.90, (float) $flows[0]->amount);
+        $this->assertSame('ibkr', $flows[0]->source);
+        $this->assertSame('6319814182', $flows[0]->external_id);
+        $this->assertEquals(1143.90, (float) $flows[1]->amount);
+        $this->assertSame('6328136794', $flows[1]->external_id);
+    }
 }

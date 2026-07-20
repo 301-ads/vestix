@@ -14,7 +14,6 @@ use App\Services\TelegramLinkService;
 use App\Support\PositionSizing;
 use App\Support\TelegramNotifier;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Auth\Pages\EditProfile;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Component;
@@ -31,6 +30,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Alignment;
@@ -45,6 +45,12 @@ class EditUserProfile extends EditProfile
     private const TELEGRAM_BRAND = '#26A5E4';
 
     private bool $shouldRecordBankrollSnapshot = false;
+
+    public function boot(): void
+    {
+        $this->cacheAction($this->editCashflowAction());
+        $this->cacheAction($this->deleteCashflowAction());
+    }
 
     public function form(Schema $schema): Schema
     {
@@ -130,14 +136,19 @@ class EditUserProfile extends EditProfile
                                     ]),
                                 Section::make('Kapitaalbewegingen')
                                     ->compact()
-                                    ->description('Begin bij $0: registreer je IBKR openingsaldo (bijv. $3428.40) als eerste storting. Extra stortingen/opnames houden Alpha zuiver — alleen trading-rendement telt.')
+                                    ->description('IBKR Flex importeert stortingen/opnames automatisch. Alleen handmatig registreren als Flex ze mist — niet opnieuw invoeren (dat maakt Alpha dubbel).')
                                     ->schema([
                                         Actions::make([
                                             $this->recordCashflowAction(),
-                                            ...$this->cashflowRowActions(),
                                         ])
                                             ->alignment(Alignment::Start)
-                                            ->verticalAlignment(VerticalAlignment::Start),
+                                            ->verticalAlignment(VerticalAlignment::Start)
+                                            ->extraAttributes(['class' => 'vestix-cashflows-toolbar']),
+                                        View::make('filament.pages.cashflows-table')
+                                            ->viewData(fn (): array => [
+                                                'cashflows' => app(BankrollCashflowService::class)
+                                                    ->recentForUser($this->getUser(), 50),
+                                            ]),
                                     ]),
                                 Section::make('Mijn broker')
                                     ->compact()
@@ -402,20 +413,18 @@ class EditUserProfile extends EditProfile
 
     protected function recordCashflowAction(): Action
     {
-        $isFirst = $this->getUser()->bankrollCashflows()->doesntExist();
-
         return Action::make('record_cashflow')
             ->label('Registreer storting / opname')
             ->icon(Heroicon::OutlinedBanknotes)
             ->color('primary')
             ->modalHeading('Kapitaalbeweging registreren')
-            ->modalDescription('Eerste storting = je openingsaldo (bijv. $3428.40). Update daarna ook je Bankroll naar het echte NLV.')
+            ->modalDescription('Alleen nodig als IBKR Flex een storting mist. Update daarna ook je NLV naar het echte saldo.')
             ->form($this->cashflowFormSchema())
             ->fillForm([
                 'type' => BankrollCashflowType::Deposit->value,
-                'amount' => $isFirst ? 3428.40 : null,
+                'amount' => null,
                 'occurred_on' => now()->toDateString(),
-                'note' => $isFirst ? 'IBKR openingsaldo Vestix 2.0' : null,
+                'note' => null,
             ])
             ->action(function (array $data): void {
                 app(BankrollCashflowService::class)->record(
@@ -428,7 +437,7 @@ class EditUserProfile extends EditProfile
 
                 Notification::make()
                     ->title('Kapitaalbeweging opgeslagen')
-                    ->body('Zet je Bankroll gelijk aan je actuele NLV zodat de Alpha Tracker klopt.')
+                    ->body('Zet je NLV gelijk aan je actuele IBKR Net Liquidation zodat de Alpha Tracker klopt.')
                     ->success()
                     ->send();
 
@@ -436,51 +445,34 @@ class EditUserProfile extends EditProfile
             });
     }
 
-    /**
-     * @return list<ActionGroup>
-     */
-    protected function cashflowRowActions(): array
+    protected function editCashflowAction(): Action
     {
-        return app(BankrollCashflowService::class)
-            ->recentForUser($this->getUser(), 10)
-            ->map(function (BankrollCashflow $cashflow): ActionGroup {
-                $sign = $cashflow->type === BankrollCashflowType::Deposit ? '+' : '−';
-                $label = sprintf(
-                    '%s %s$%s · %s',
-                    $cashflow->type->label(),
-                    $sign,
-                    number_format((float) $cashflow->amount, 2, '.', ''),
-                    $cashflow->occurred_on->format('d-m-Y'),
-                );
-
-                return ActionGroup::make([
-                    $this->editCashflowAction($cashflow),
-                    $this->deleteCashflowAction($cashflow),
-                ])
-                    ->label($label)
-                    ->button()
-                    ->outlined()
-                    ->color('gray')
-                    ->dropdownPlacement('bottom-start');
-            })
-            ->values()
-            ->all();
-    }
-
-    protected function editCashflowAction(BankrollCashflow $cashflow): Action
-    {
-        return Action::make('edit_cashflow_'.$cashflow->id)
+        return Action::make('edit_cashflow')
             ->label('Wijzig')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->modalHeading('Kapitaalbeweging wijzigen')
             ->form($this->cashflowFormSchema())
-            ->fillForm([
-                'type' => $cashflow->type->value,
-                'amount' => (float) $cashflow->amount,
-                'occurred_on' => $cashflow->occurred_on->toDateString(),
-                'note' => $cashflow->note,
-            ])
-            ->action(function (array $data) use ($cashflow): void {
+            ->fillForm(function (array $arguments): array {
+                $cashflow = $this->resolveCashflow($arguments['cashflow'] ?? null);
+
+                if ($cashflow === null) {
+                    return [];
+                }
+
+                return [
+                    'type' => $cashflow->type->value,
+                    'amount' => (float) $cashflow->amount,
+                    'occurred_on' => $cashflow->occurred_on->toDateString(),
+                    'note' => $cashflow->note,
+                ];
+            })
+            ->action(function (array $data, array $arguments): void {
+                $cashflow = $this->resolveCashflow($arguments['cashflow'] ?? null);
+
+                if ($cashflow === null) {
+                    return;
+                }
+
                 app(BankrollCashflowService::class)->update(
                     $this->getUser(),
                     $cashflow->id,
@@ -499,15 +491,21 @@ class EditUserProfile extends EditProfile
             });
     }
 
-    protected function deleteCashflowAction(BankrollCashflow $cashflow): Action
+    protected function deleteCashflowAction(): Action
     {
-        return Action::make('delete_cashflow_'.$cashflow->id)
+        return Action::make('delete_cashflow')
             ->label('Verwijder')
             ->icon(Heroicon::OutlinedTrash)
             ->color('danger')
             ->requiresConfirmation()
             ->modalHeading('Kapitaalbeweging verwijderen?')
-            ->action(function () use ($cashflow): void {
+            ->action(function (array $arguments): void {
+                $cashflow = $this->resolveCashflow($arguments['cashflow'] ?? null);
+
+                if ($cashflow === null) {
+                    return;
+                }
+
                 app(BankrollCashflowService::class)->deleteForUser($this->getUser(), $cashflow->id);
 
                 Notification::make()
@@ -517,6 +515,18 @@ class EditUserProfile extends EditProfile
 
                 $this->fillForm();
             });
+    }
+
+    protected function resolveCashflow(mixed $id): ?BankrollCashflow
+    {
+        if ($id === null || $id === '') {
+            return null;
+        }
+
+        return $this->getUser()
+            ->bankrollCashflows()
+            ->whereKey($id)
+            ->first();
     }
 
     protected function connectTelegramAction(): Action

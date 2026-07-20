@@ -185,7 +185,7 @@ class SyncIbkrAccount extends Command
         );
 
         $this->line(
-            'Reasons: imported | duplicate | denied_type | not_external_transfer | fx_conversion | missing_fx_rate_to_base',
+            'Reasons: imported | duplicate | duplicate_claimed | denied_type | not_external_transfer | fx_conversion | missing_fx_rate_to_base',
         );
         $this->line(
             'EUR bank deposits → USD via Flex fxRateToBase. EUR.USD sells are FX conversion (not new capital).',

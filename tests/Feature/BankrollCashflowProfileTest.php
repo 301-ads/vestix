@@ -25,6 +25,56 @@ class BankrollCashflowProfileTest extends TestCase
             ->assertSee('Registreer storting / opname');
     }
 
+    public function test_profile_cashflow_table_shows_source_and_actions(): void
+    {
+        $user = $this->authenticateFilament();
+
+        app(BankrollCashflowService::class)->record(
+            $user,
+            BankrollCashflowType::Deposit,
+            3428.40,
+            Carbon::parse('2026-07-15'),
+            'Handmatig openingsaldo',
+        );
+
+        $user->bankrollCashflows()->create([
+            'type' => BankrollCashflowType::Deposit,
+            'amount' => 1143.90,
+            'occurred_on' => '2026-07-17',
+            'note' => 'IBKR deposit',
+            'source' => 'ibkr',
+            'external_id' => '6328136794',
+        ]);
+
+        Livewire::test(EditUserProfile::class)
+            ->assertSuccessful()
+            ->assertSee('Bron')
+            ->assertSee('Handmatig')
+            ->assertSee('IBKR sync')
+            ->assertSee('3,428.40')
+            ->assertSee('1,143.90')
+            ->assertSee('Wijzig')
+            ->assertSee('Verwijder');
+    }
+
+    public function test_profile_can_delete_cashflow_via_table_action(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $flow = app(BankrollCashflowService::class)->record(
+            $user,
+            BankrollCashflowType::Deposit,
+            1145.10,
+            Carbon::parse('2026-07-17'),
+        );
+
+        Livewire::test(EditUserProfile::class)
+            ->callAction('delete_cashflow', arguments: ['cashflow' => $flow->id])
+            ->assertSuccessful();
+
+        $this->assertDatabaseMissing('bankroll_cashflows', ['id' => $flow->id]);
+    }
+
     public function test_cashflow_service_records_deposit_for_user(): void
     {
         $user = $this->authenticateFilament();

@@ -56,6 +56,7 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertSame('$1,614.99', $ticket['rows'][1]['value']);
         $this->assertSame('old', $ticket['rows'][1]['tone']);
         $this->assertSame('$'.number_format($newSl, 2), $ticket['rows'][2]['value']);
+        $this->assertSame(BrokerOrderTicket::formatCopyMoney($newSl), $ticket['rows'][2]['copy_value']);
         $this->assertSame('new', $ticket['rows'][2]['tone']);
         $this->assertSame(($difference >= 0 ? '+' : '').'$'.number_format($difference, 2), $ticket['rows'][3]['value']);
         $this->assertTrue($ticket['rows'][3]['accent']);
@@ -259,5 +260,26 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertStringContainsString('vestix-broker-order-ticket__copy-btn', $html);
         $this->assertStringContainsString('Take Profit (Target 1)', $html);
         $this->assertStringContainsString('wijzig daarna het TP-aantal', $html);
+    }
+
+    public function test_stop_loss_update_ticket_blade_renders_copy_button_for_new_sl(): void
+    {
+        $position = Position::factory()->make([
+            'ticker' => 'EMBJ',
+            'quantity' => 8,
+            'current_sl' => 62.70,
+            'latest_close_price' => 65.00,
+            'latest_sma_20' => 64.00,
+            'latest_atr_14' => 1.00,
+        ]);
+
+        $ticket = BrokerOrderTicket::forStopLossUpdate($position);
+        $html = view('filament.positions.broker-order-ticket', [
+            'ticket' => $ticket,
+        ])->render();
+
+        $this->assertStringContainsString('Nieuwe Stop-Loss', $html);
+        $this->assertStringContainsString('vestix-broker-order-ticket__copy-btn', $html);
+        $this->assertStringContainsString($ticket['rows'][2]['copy_value'], $html);
     }
 }

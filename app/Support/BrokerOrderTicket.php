@@ -70,6 +70,7 @@ class BrokerOrderTicket
                 [
                     'label' => 'Nieuwe Stop-Loss',
                     'value' => self::formatMoney($newSl),
+                    'copy_value' => self::formatCopyMoney($newSl),
                     'tone' => 'new',
                 ],
                 [

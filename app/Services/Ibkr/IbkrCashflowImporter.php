@@ -82,11 +82,30 @@ class IbkrCashflowImporter
                 continue;
             }
 
+            $occurredOn = Carbon::parse($transaction->date, $this->cashflows->timezone())->startOfDay();
+            $nearMatch = $this->findNearMatchWithoutExternalId($user, $type, $amountBase, $occurredOn);
+
+            if ($nearMatch !== null) {
+                // Manual / legacy row for the same transfer — claim it instead of duplicating.
+                $nearMatch->update([
+                    'amount' => round(abs($amountBase), 2),
+                    'occurred_on' => $occurredOn->toDateString(),
+                    'note' => $this->noteFor($transaction, $type, $baseCurrency, $amountBase),
+                    'source' => 'ibkr',
+                    'external_id' => $transaction->externalId,
+                ]);
+
+                $skipped++;
+                $details[] = $this->detail($transaction, 'duplicate_claimed', $amountBase);
+
+                continue;
+            }
+
             $this->cashflows->record(
                 $user,
                 $type,
                 $amountBase,
-                Carbon::parse($transaction->date, $this->cashflows->timezone())->startOfDay(),
+                $occurredOn,
                 $this->noteFor($transaction, $type, $baseCurrency, $amountBase),
                 'ibkr',
                 $transaction->externalId,
@@ -97,6 +116,30 @@ class IbkrCashflowImporter
         }
 
         return new IbkrCashflowImportResult($imported, $skipped, $details);
+    }
+
+    /**
+     * Manual deposits often use approximate FX / dates. Match within ±$5 or 0.5%
+     * and ±3 days so Flex import claims that row instead of creating a twin.
+     */
+    private function findNearMatchWithoutExternalId(
+        User $user,
+        BankrollCashflowType $type,
+        float $amountBase,
+        Carbon $occurredOn,
+    ): ?\App\Models\BankrollCashflow {
+        $tolerance = max(5.0, round(abs($amountBase) * 0.005, 2));
+        $from = $occurredOn->copy()->subDays(3)->toDateString();
+        $to = $occurredOn->copy()->addDays(3)->toDateString();
+
+        return $user->bankrollCashflows()
+            ->where('type', $type->value)
+            ->whereNull('external_id')
+            ->whereDate('occurred_on', '>=', $from)
+            ->whereDate('occurred_on', '<=', $to)
+            ->orderBy('id')
+            ->get()
+            ->first(fn ($cashflow): bool => abs((float) $cashflow->amount - $amountBase) <= $tolerance);
     }
 
     private function isDenied(IbkrCashTransaction $transaction): bool
