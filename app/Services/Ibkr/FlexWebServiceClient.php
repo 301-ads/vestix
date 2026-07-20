@@ -31,7 +31,7 @@ class FlexWebServiceClient
     {
         $baseUrl = rtrim((string) config('vestix.ibkr.flex.base_url'), '/');
         $url = "{$baseUrl}/FlexStatementService.SendRequest";
-        $attempts = max(1, (int) config('vestix.ibkr.flex.send_request_attempts', 5));
+        $attempts = max(1, (int) config('vestix.ibkr.flex.send_request_attempts', 3));
         $delayMs = max(250, (int) config('vestix.ibkr.flex.poll_delay_ms', 1500));
 
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
@@ -44,7 +44,7 @@ class FlexWebServiceClient
                     ]);
             } catch (ConnectionException $exception) {
                 if ($attempt < $attempts) {
-                    usleep($delayMs * 1000);
+                    $this->sleepBeforeRetry($delayMs, $attempt);
 
                     continue;
                 }
@@ -71,7 +71,7 @@ class FlexWebServiceClient
                 $errorMessage = (string) ($xml->ErrorMessage ?? $xml->Status ?? 'Unknown error');
 
                 if ($this->isRetryableFlexError($errorCode, $errorMessage) && $attempt < $attempts) {
-                    usleep($delayMs * 1000);
+                    $this->sleepBeforeRetry($delayMs, $attempt);
 
                     continue;
                 }
@@ -131,7 +131,7 @@ class FlexWebServiceClient
                 $errorMessage = (string) ($xml->ErrorMessage ?? $xml->Status ?? 'Statement not ready');
 
                 if ($this->isRetryableFlexError($errorCode, $errorMessage) && $attempt < $attempts) {
-                    usleep($delayMs * 1000);
+                    $this->sleepBeforeRetry($delayMs, $attempt);
 
                     continue;
                 }
@@ -147,7 +147,7 @@ class FlexWebServiceClient
             }
 
             if ($attempt < $attempts) {
-                usleep($delayMs * 1000);
+                $this->sleepBeforeRetry($delayMs, $attempt);
 
                 continue;
             }
@@ -158,8 +158,21 @@ class FlexWebServiceClient
         throw new RuntimeException('IBKR Flex GetStatement exhausted poll attempts.');
     }
 
+    private function sleepBeforeRetry(int $baseDelayMs, int $attempt): void
+    {
+        // Exponential backoff: 1.5s, 3s, 6s … caps IBKR hammering after 1001 bursts.
+        $multiplier = 2 ** max(0, $attempt - 1);
+        usleep($baseDelayMs * $multiplier * 1000);
+    }
+
     private function isRetryableFlexError(string $errorCode, string $errorMessage): bool
     {
+        // Hard stops — retrying makes IBKR return 1025 (rate limit).
+        $nonRetryableCodes = ['1012', '1013', '1015', '1025'];
+        if (in_array($errorCode, $nonRetryableCodes, true)) {
+            return false;
+        }
+
         // 1001 = statement could not be generated at this time (transient IBKR-side load).
         $retryableCodes = ['1001', '1009', '1018', '1019', '1020'];
         if (in_array($errorCode, $retryableCodes, true)) {
@@ -167,6 +180,10 @@ class FlexWebServiceClient
         }
 
         $lower = strtolower($errorMessage);
+
+        if (str_contains($lower, 'too many failed attempts')) {
+            return false;
+        }
 
         return str_contains($lower, 'not ready')
             || str_contains($lower, 'incomplete')

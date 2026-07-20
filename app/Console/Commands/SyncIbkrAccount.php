@@ -56,7 +56,40 @@ class SyncIbkrAccount extends Command
             'snapshot' => $summary['snapshot'],
         ]);
 
+        if (! $summary['success'] && filled($summary['error'])) {
+            $this->renderFlexErrorHint((string) $summary['error']);
+        }
+
         return $summary['success'] ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function renderFlexErrorHint(string $error): void
+    {
+        if (str_contains($error, '(1025)')) {
+            $this->newLine();
+            $this->warn(
+                'IBKR Flex rate limit (1025): too many failed SendRequest attempts. '
+                .'Wait 15–30 minutes before retrying. Verify token + query id in IBKR → Performance & Reports → Flex Queries.',
+            );
+
+            return;
+        }
+
+        if (str_contains($error, '(1001)')) {
+            $this->newLine();
+            $this->warn(
+                'IBKR Flex is temporarily busy (1001). Wait a few minutes, then run sync again — avoid rapid repeated attempts.',
+            );
+
+            return;
+        }
+
+        if (preg_match('/\((1012|1013|1015)\)/', $error) === 1) {
+            $this->newLine();
+            $this->warn(
+                'IBKR Flex configuration error. Check IBKR_FLEX_TOKEN and IBKR_FLEX_QUERY_ID on Forge match an active Flex token + query.',
+            );
+        }
     }
 
     /**

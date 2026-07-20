@@ -176,7 +176,7 @@ return [
             'query_id' => env('IBKR_FLEX_QUERY_ID'),
             'base_url' => env('IBKR_FLEX_BASE_URL', 'https://gdcdyn.interactivebrokers.com/Universal/servlet'),
             'timeout_seconds' => (int) env('IBKR_FLEX_TIMEOUT', 30),
-            'send_request_attempts' => (int) env('IBKR_FLEX_SEND_REQUEST_ATTEMPTS', 5),
+            'send_request_attempts' => (int) env('IBKR_FLEX_SEND_REQUEST_ATTEMPTS', 3),
             'poll_attempts' => (int) env('IBKR_FLEX_POLL_ATTEMPTS', 8),
             'poll_delay_ms' => (int) env('IBKR_FLEX_POLL_DELAY_MS', 1500),
         ],

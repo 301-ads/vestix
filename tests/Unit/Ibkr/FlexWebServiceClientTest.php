@@ -4,6 +4,7 @@ namespace Tests\Unit\Ibkr;
 
 use App\Services\Ibkr\FlexWebServiceClient;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 use Tests\TestCase;
 
 class FlexWebServiceClientTest extends TestCase
@@ -68,5 +69,38 @@ class FlexWebServiceClientTest extends TestCase
 
         $this->assertStringContainsString('EquitySummaryInBase', $xml);
         $this->assertSame(3, $attempt);
+    }
+
+    public function test_send_request_does_not_retry_on_rate_limit_1025(): void
+    {
+        config([
+            'vestix.ibkr.flex.token' => 'token',
+            'vestix.ibkr.flex.query_id' => '123',
+            'vestix.ibkr.flex.base_url' => 'https://flex.test/Universal/servlet',
+            'vestix.ibkr.flex.send_request_attempts' => 5,
+            'vestix.ibkr.flex.poll_delay_ms' => 1,
+        ]);
+
+        $attempt = 0;
+
+        Http::fake([
+            'https://flex.test/Universal/servlet/FlexStatementService.SendRequest*' => function () use (&$attempt) {
+                $attempt++;
+
+                return Http::response(
+                    '<?xml version="1.0"?><FlexStatementResponse><Status>Fail</Status><ErrorCode>1025</ErrorCode><ErrorMessage>Too many failed attempts. Please review your configuration.</ErrorMessage></FlexStatementResponse>',
+                    200,
+                );
+            },
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('1025');
+
+        try {
+            app(FlexWebServiceClient::class)->fetchStatementXml();
+        } finally {
+            $this->assertSame(1, $attempt);
+        }
     }
 }
