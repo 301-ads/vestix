@@ -109,7 +109,10 @@ class FlexStatementParser
 
     private function resolveNetLiquidation(SimpleXMLElement $statement): float
     {
+        $latestEquity = $this->latestEquitySummaryRow($statement);
+
         $paths = [
+            $latestEquity['total'] ?? null,
             $statement->EquitySummaryInBase['total'] ?? null,
             $statement->EquitySummaryInBase['endingValue'] ?? null,
             $statement->ChangeInNAV['endingValue'] ?? null,
@@ -127,10 +130,14 @@ class FlexStatementParser
 
     private function resolveAvailableFunds(SimpleXMLElement $statement, float $fallback): float
     {
+        $latestEquity = $this->latestEquitySummaryRow($statement);
+
         $paths = [
             $statement->EquitySummaryInBase['availableFunds'] ?? null,
             $statement->AccountInformation['availableFunds'] ?? null,
             $statement->CashReport->CashReportCurrency['endingCash'] ?? null,
+            // Activity Flex often omits CashReport; equity summary cash is the next-best proxy.
+            $latestEquity['cash'] ?? null,
         ];
 
         foreach ($paths as $value) {
@@ -152,7 +159,7 @@ class FlexStatementParser
                 $currency = strtoupper((string) ($row['currency'] ?? ''));
                 $level = strtoupper((string) ($row['levelOfDetail'] ?? ''));
 
-                if ($currency === 'BASE' || $level === 'BASE' || $level === 'CURRENCY') {
+                if ($currency === 'BASE' || $level === 'BASE' || $level === 'CURRENCY' || $level === 'BASECURRENCY') {
                     $settled = (string) ($row['endingSettledCash'] ?? '');
 
                     if ($settled !== '') {
@@ -175,7 +182,45 @@ class FlexStatementParser
             return (float) $direct;
         }
 
+        $latestEquity = $this->latestEquitySummaryRow($statement);
+        $cash = (string) ($latestEquity['cash'] ?? '');
+
+        if ($cash !== '') {
+            return (float) $cash;
+        }
+
         return $fallback;
+    }
+
+    /**
+     * Real Activity Flex queries nest daily rows under EquitySummaryInBase.
+     * Prefer the latest reportDate (end of statement period).
+     */
+    private function latestEquitySummaryRow(SimpleXMLElement $statement): ?SimpleXMLElement
+    {
+        $rows = $statement->EquitySummaryInBase->EquitySummaryByReportDateInBase ?? null;
+
+        if (! $rows instanceof SimpleXMLElement) {
+            return null;
+        }
+
+        $latest = null;
+        $latestDate = '';
+
+        foreach ($rows as $row) {
+            $reportDate = (string) ($row['reportDate'] ?? '');
+
+            if ($reportDate === '') {
+                continue;
+            }
+
+            if ($latest === null || $reportDate >= $latestDate) {
+                $latest = $row;
+                $latestDate = $reportDate;
+            }
+        }
+
+        return $latest;
     }
 
     /**

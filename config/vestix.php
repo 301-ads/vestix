@@ -188,6 +188,7 @@ return [
         'cashflow' => [
             'allowlist' => [
                 'Deposits & Withdrawals',
+                'Deposits/Withdrawals', // Activity Flex uses a slash
                 'Deposit',
                 'Withdrawal',
                 'Electronic Fund Transfer',

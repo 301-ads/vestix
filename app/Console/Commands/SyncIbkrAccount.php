@@ -11,7 +11,8 @@ class SyncIbkrAccount extends Command
 {
     protected $signature = 'vestix:sync-ibkr
         {--user= : Limit sync to a single user id}
-        {--details : Show Flex statement dates, balances and cashflow skip reasons}';
+        {--details : Show Flex statement dates, balances and cashflow skip reasons}
+        {--file= : Import a portal-downloaded Flex XML file instead of calling the Web Service}';
 
     protected $description = 'Sync read-only IBKR Flex balances/cashflows and optional Client Portal open orders.';
 
@@ -30,7 +31,28 @@ class SyncIbkrAccount extends Command
             }
         }
 
-        $summary = $syncService->sync($user);
+        $statementXml = null;
+        $file = $this->option('file');
+
+        if (filled($file)) {
+            if (! is_string($file) || ! is_file($file) || ! is_readable($file)) {
+                $this->error("Flex XML file not readable: {$file}");
+
+                return self::FAILURE;
+            }
+
+            $statementXml = file_get_contents($file);
+
+            if ($statementXml === false || trim($statementXml) === '') {
+                $this->error("Flex XML file is empty: {$file}");
+
+                return self::FAILURE;
+            }
+
+            $this->info("Importing Flex XML from {$file} (Web Service bypass).");
+        }
+
+        $summary = $syncService->sync($user, $statementXml);
 
         $this->table(
             ['Metric', 'Value'],

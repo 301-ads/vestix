@@ -46,4 +46,38 @@ class SyncIbkrAccountCommandTest extends TestCase
             ->expectsOutputToContain('imported')
             ->assertSuccessful();
     }
+
+    public function test_file_option_imports_portal_xml_without_web_service(): void
+    {
+        config([
+            'vestix.ibkr.client_portal.enabled' => false,
+            'vestix.ibkr.sync_bankroll_snapshot' => false,
+        ]);
+
+        $user = User::factory()->create([
+            'primary_broker' => Broker::Ibkr,
+            'trading_bankroll' => 1000,
+        ]);
+
+        $path = base_path('tests/Fixtures/ibkr/flex_statement_real_structure.xml');
+
+        Http::fake();
+
+        $this->artisan('vestix:sync-ibkr', [
+            '--file' => $path,
+            '--user' => $user->id,
+            '--details' => true,
+        ])
+            ->expectsOutputToContain('Web Service bypass')
+            ->expectsOutputToContain('$4,555.29')
+            ->assertSuccessful();
+
+        Http::assertNothingSent();
+
+        $user->refresh();
+        $this->assertEquals(4555.29, (float) $user->ibkr_net_liquidation);
+        $this->assertEquals(2723.73, (float) $user->ibkr_settled_cash);
+        $this->assertFalse((bool) $user->ibkr_data_stale);
+        $this->assertSame(2, $user->bankrollCashflows()->count());
+    }
 }

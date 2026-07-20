@@ -33,7 +33,10 @@ class IbkrSyncService
      *     error: string|null
      * }
      */
-    public function sync(?User $onlyUser = null): array
+    /**
+     * @param  string|null  $statementXml  Optional portal-downloaded Flex XML (bypasses Web Service).
+     */
+    public function sync(?User $onlyUser = null, ?string $statementXml = null): array
     {
         $users = $onlyUser !== null
             ? collect([$onlyUser])
@@ -50,7 +53,7 @@ class IbkrSyncService
         $cashflowDetails = [];
 
         try {
-            $xml = $this->flexClient->fetchStatementXml();
+            $xml = $statementXml ?? $this->flexClient->fetchStatementXml();
             $snapshot = $this->parser->parse($xml);
 
             try {

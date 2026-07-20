@@ -80,4 +80,22 @@ XML;
         $this->assertSame('missing_fx_rate_to_base', $result->details[0]['reason']);
         $this->assertSame(0, $user->bankrollCashflows()->count());
     }
+
+    public function test_imports_activity_flex_eur_deposits_slash_type(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+        $xml = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_real_structure.xml'));
+        $snapshot = (new FlexStatementParser)->parse($xml);
+        $result = app(IbkrCashflowImporter::class)->import($user, $snapshot);
+
+        $this->assertSame(2, $result->imported);
+        $this->assertSame(0, $result->skipped);
+
+        $flows = $user->bankrollCashflows()->orderBy('occurred_on')->get();
+        $this->assertCount(2, $flows);
+        $this->assertEquals(3432.90, (float) $flows[0]->amount);
+        $this->assertEquals(1143.90, (float) $flows[1]->amount);
+        $this->assertSame('6319814182', $flows[0]->external_id);
+        $this->assertSame('6328136794', $flows[1]->external_id);
+    }
 }
