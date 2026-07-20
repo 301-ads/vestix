@@ -31,48 +31,66 @@ class FlexWebServiceClient
     {
         $baseUrl = rtrim((string) config('vestix.ibkr.flex.base_url'), '/');
         $url = "{$baseUrl}/FlexStatementService.SendRequest";
+        $attempts = max(1, (int) config('vestix.ibkr.flex.send_request_attempts', 5));
+        $delayMs = max(250, (int) config('vestix.ibkr.flex.poll_delay_ms', 1500));
 
-        try {
-            $response = Http::timeout((int) config('vestix.ibkr.flex.timeout_seconds', 30))
-                ->get($url, [
-                    't' => $token,
-                    'q' => $queryId,
-                    'v' => '3',
-                ]);
-        } catch (ConnectionException $exception) {
-            throw new RuntimeException('IBKR Flex SendRequest connection failed: '.$exception->getMessage(), 0, $exception);
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            try {
+                $response = Http::timeout((int) config('vestix.ibkr.flex.timeout_seconds', 30))
+                    ->get($url, [
+                        't' => $token,
+                        'q' => $queryId,
+                        'v' => '3',
+                    ]);
+            } catch (ConnectionException $exception) {
+                if ($attempt < $attempts) {
+                    usleep($delayMs * 1000);
+
+                    continue;
+                }
+
+                throw new RuntimeException('IBKR Flex SendRequest connection failed: '.$exception->getMessage(), 0, $exception);
+            }
+
+            if (! $response->successful()) {
+                throw new RuntimeException(
+                    'IBKR Flex SendRequest HTTP '.$response->status().': '.$response->body(),
+                );
+            }
+
+            $xml = @simplexml_load_string($response->body());
+
+            if ($xml === false) {
+                throw new RuntimeException('IBKR Flex SendRequest returned invalid XML.');
+            }
+
+            $status = strtolower(trim((string) ($xml->Status ?? '')));
+
+            if ($status !== 'success') {
+                $errorCode = (string) ($xml->ErrorCode ?? '');
+                $errorMessage = (string) ($xml->ErrorMessage ?? $xml->Status ?? 'Unknown error');
+
+                if ($this->isRetryableFlexError($errorCode, $errorMessage) && $attempt < $attempts) {
+                    usleep($delayMs * 1000);
+
+                    continue;
+                }
+
+                throw new RuntimeException(
+                    "IBKR Flex SendRequest failed ({$errorCode}): {$errorMessage}",
+                );
+            }
+
+            $referenceCode = trim((string) ($xml->ReferenceCode ?? ''));
+
+            if ($referenceCode === '') {
+                throw new RuntimeException('IBKR Flex SendRequest succeeded without a ReferenceCode.');
+            }
+
+            return $referenceCode;
         }
 
-        if (! $response->successful()) {
-            throw new RuntimeException(
-                'IBKR Flex SendRequest HTTP '.$response->status().': '.$response->body(),
-            );
-        }
-
-        $xml = @simplexml_load_string($response->body());
-
-        if ($xml === false) {
-            throw new RuntimeException('IBKR Flex SendRequest returned invalid XML.');
-        }
-
-        $status = strtolower(trim((string) ($xml->Status ?? '')));
-
-        if ($status !== 'success') {
-            $errorCode = (string) ($xml->ErrorCode ?? '');
-            $errorMessage = (string) ($xml->ErrorMessage ?? $xml->Status ?? 'Unknown error');
-
-            throw new RuntimeException(
-                "IBKR Flex SendRequest failed ({$errorCode}): {$errorMessage}",
-            );
-        }
-
-        $referenceCode = trim((string) ($xml->ReferenceCode ?? ''));
-
-        if ($referenceCode === '') {
-            throw new RuntimeException('IBKR Flex SendRequest succeeded without a ReferenceCode.');
-        }
-
-        return $referenceCode;
+        throw new RuntimeException('IBKR Flex SendRequest exhausted retry attempts.');
     }
 
     private function getStatement(string $token, string $referenceCode): string
@@ -142,7 +160,8 @@ class FlexWebServiceClient
 
     private function isRetryableFlexError(string $errorCode, string $errorMessage): bool
     {
-        $retryableCodes = ['1018', '1019', '1009', '1020'];
+        // 1001 = statement could not be generated at this time (transient IBKR-side load).
+        $retryableCodes = ['1001', '1009', '1018', '1019', '1020'];
         if (in_array($errorCode, $retryableCodes, true)) {
             return true;
         }
@@ -151,6 +170,7 @@ class FlexWebServiceClient
 
         return str_contains($lower, 'not ready')
             || str_contains($lower, 'incomplete')
-            || str_contains($lower, 'generation in progress');
+            || str_contains($lower, 'generation in progress')
+            || str_contains($lower, 'try again');
     }
 }
