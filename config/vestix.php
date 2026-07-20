@@ -174,7 +174,9 @@ return [
         'flex' => [
             'token' => env('IBKR_FLEX_TOKEN'),
             'query_id' => env('IBKR_FLEX_QUERY_ID'),
-            'base_url' => env('IBKR_FLEX_BASE_URL', 'https://gdcdyn.interactivebrokers.com/Universal/servlet'),
+            // Current IBKR Campus endpoint. Legacy Universal/servlet still works if set explicitly.
+            'base_url' => env('IBKR_FLEX_BASE_URL', 'https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService'),
+            'user_agent' => env('IBKR_FLEX_USER_AGENT', 'Vestix/1.0'),
             'timeout_seconds' => (int) env('IBKR_FLEX_TIMEOUT', 30),
             'send_request_attempts' => (int) env('IBKR_FLEX_SEND_REQUEST_ATTEMPTS', 3),
             'poll_attempts' => (int) env('IBKR_FLEX_POLL_ATTEMPTS', 8),

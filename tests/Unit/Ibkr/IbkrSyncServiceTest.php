@@ -19,7 +19,7 @@ class IbkrSyncServiceTest extends TestCase
         config([
             'vestix.ibkr.flex.token' => 'token',
             'vestix.ibkr.flex.query_id' => '123',
-            'vestix.ibkr.flex.base_url' => 'https://flex.test/Universal/servlet',
+            'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
             'vestix.ibkr.flex.poll_delay_ms' => 1,
             'vestix.ibkr.client_portal.enabled' => true,
             'vestix.ibkr.client_portal.base_url' => 'https://cp.test',
@@ -34,11 +34,11 @@ class IbkrSyncServiceTest extends TestCase
         $statement = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_usd.xml'));
 
         Http::fake([
-            'https://flex.test/Universal/servlet/FlexStatementService.SendRequest*' => Http::response(
+            'https://flex.test/AccountManagement/FlexWebService/SendRequest*' => Http::response(
                 '<?xml version="1.0"?><FlexStatementResponse><Status>Success</Status><ReferenceCode>999</ReferenceCode></FlexStatementResponse>',
                 200,
             ),
-            'https://flex.test/Universal/servlet/FlexStatementService.GetStatement*' => Http::response($statement, 200),
+            'https://flex.test/AccountManagement/FlexWebService/GetStatement*' => Http::response($statement, 200),
             'https://cp.test/v1/api/iserver/account/orders*' => Http::response([
                 'orders' => [
                     [
@@ -91,7 +91,7 @@ class IbkrSyncServiceTest extends TestCase
         config([
             'vestix.ibkr.flex.token' => 'token',
             'vestix.ibkr.flex.query_id' => '123',
-            'vestix.ibkr.flex.base_url' => 'https://flex.test/Universal/servlet',
+            'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
             'vestix.ibkr.stale_after_hours' => 48,
         ]);
 
@@ -103,7 +103,7 @@ class IbkrSyncServiceTest extends TestCase
         ]);
 
         Http::fake([
-            'https://flex.test/Universal/servlet/FlexStatementService.SendRequest*' => Http::response(
+            'https://flex.test/AccountManagement/FlexWebService/SendRequest*' => Http::response(
                 '<?xml version="1.0"?><FlexStatementResponse><Status>Fail</Status><ErrorCode>1015</ErrorCode><ErrorMessage>Token expired</ErrorMessage></FlexStatementResponse>',
                 200,
             ),

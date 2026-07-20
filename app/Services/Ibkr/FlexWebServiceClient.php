@@ -3,11 +3,17 @@
 namespace App\Services\Ibkr;
 
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 /**
  * IBKR Flex Web Service: SendRequest → poll GetStatement → raw XML statement.
+ *
+ * Current endpoints (IBKR Campus):
+ * https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/{SendRequest|GetStatement}
+ *
+ * Legacy Universal/servlet URLs remain supported when IBKR_FLEX_BASE_URL points there.
  */
 class FlexWebServiceClient
 {
@@ -29,19 +35,17 @@ class FlexWebServiceClient
 
     private function sendRequest(string $token, string $queryId): string
     {
-        $baseUrl = rtrim((string) config('vestix.ibkr.flex.base_url'), '/');
-        $url = "{$baseUrl}/FlexStatementService.SendRequest";
+        $url = $this->endpointUrl('SendRequest');
         $attempts = max(1, (int) config('vestix.ibkr.flex.send_request_attempts', 3));
         $delayMs = max(250, (int) config('vestix.ibkr.flex.poll_delay_ms', 1500));
 
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
             try {
-                $response = Http::timeout((int) config('vestix.ibkr.flex.timeout_seconds', 30))
-                    ->get($url, [
-                        't' => $token,
-                        'q' => $queryId,
-                        'v' => '3',
-                    ]);
+                $response = $this->http()->get($url, [
+                    't' => $token,
+                    'q' => $queryId,
+                    'v' => '3',
+                ]);
             } catch (ConnectionException $exception) {
                 if ($attempt < $attempts) {
                     $this->sleepBeforeRetry($delayMs, $attempt);
@@ -95,19 +99,17 @@ class FlexWebServiceClient
 
     private function getStatement(string $token, string $referenceCode): string
     {
-        $baseUrl = rtrim((string) config('vestix.ibkr.flex.base_url'), '/');
-        $url = "{$baseUrl}/FlexStatementService.GetStatement";
+        $url = $this->endpointUrl('GetStatement');
         $attempts = max(1, (int) config('vestix.ibkr.flex.poll_attempts', 8));
         $delayMs = max(250, (int) config('vestix.ibkr.flex.poll_delay_ms', 1500));
 
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
             try {
-                $response = Http::timeout((int) config('vestix.ibkr.flex.timeout_seconds', 30))
-                    ->get($url, [
-                        't' => $token,
-                        'q' => $referenceCode,
-                        'v' => '3',
-                    ]);
+                $response = $this->http()->get($url, [
+                    't' => $token,
+                    'q' => $referenceCode,
+                    'v' => '3',
+                ]);
             } catch (ConnectionException $exception) {
                 throw new RuntimeException('IBKR Flex GetStatement connection failed: '.$exception->getMessage(), 0, $exception);
             }
@@ -156,6 +158,32 @@ class FlexWebServiceClient
         }
 
         throw new RuntimeException('IBKR Flex GetStatement exhausted poll attempts.');
+    }
+
+    private function http(): PendingRequest
+    {
+        // IBKR requires a User-Agent on Flex Web Service requests.
+        return Http::timeout((int) config('vestix.ibkr.flex.timeout_seconds', 30))
+            ->withHeaders([
+                'User-Agent' => (string) config('vestix.ibkr.flex.user_agent', 'Vestix/1.0'),
+                'Accept' => 'application/xml, text/xml, */*',
+            ]);
+    }
+
+    /**
+     * Resolve SendRequest / GetStatement URL for current or legacy Flex base URLs.
+     */
+    private function endpointUrl(string $action): string
+    {
+        $baseUrl = rtrim((string) config('vestix.ibkr.flex.base_url'), '/');
+
+        // Legacy: .../Universal/servlet/FlexStatementService.SendRequest
+        if (str_contains($baseUrl, 'Universal/servlet')) {
+            return "{$baseUrl}/FlexStatementService.{$action}";
+        }
+
+        // Current: .../AccountManagement/FlexWebService/SendRequest
+        return "{$baseUrl}/{$action}";
     }
 
     private function sleepBeforeRetry(int $baseDelayMs, int $attempt): void

@@ -14,6 +14,31 @@ class FlexWebServiceClientTest extends TestCase
         config([
             'vestix.ibkr.flex.token' => 'token',
             'vestix.ibkr.flex.query_id' => '123',
+            'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
+            'vestix.ibkr.flex.poll_delay_ms' => 1,
+        ]);
+
+        $statement = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_usd.xml'));
+
+        Http::fake([
+            'https://flex.test/AccountManagement/FlexWebService/SendRequest*' => Http::response(
+                '<?xml version="1.0"?><FlexStatementResponse><Status>Success</Status><ReferenceCode>999</ReferenceCode></FlexStatementResponse>',
+                200,
+            ),
+            'https://flex.test/AccountManagement/FlexWebService/GetStatement*' => Http::response($statement, 200),
+        ]);
+
+        $xml = app(FlexWebServiceClient::class)->fetchStatementXml();
+
+        $this->assertStringContainsString('EquitySummaryInBase', $xml);
+        Http::assertSent(fn ($request): bool => $request->hasHeader('User-Agent', 'Vestix/1.0'));
+    }
+
+    public function test_supports_legacy_universal_servlet_base_url(): void
+    {
+        config([
+            'vestix.ibkr.flex.token' => 'token',
+            'vestix.ibkr.flex.query_id' => '123',
             'vestix.ibkr.flex.base_url' => 'https://flex.test/Universal/servlet',
             'vestix.ibkr.flex.poll_delay_ms' => 1,
         ]);
@@ -38,7 +63,7 @@ class FlexWebServiceClientTest extends TestCase
         config([
             'vestix.ibkr.flex.token' => 'token',
             'vestix.ibkr.flex.query_id' => '123',
-            'vestix.ibkr.flex.base_url' => 'https://flex.test/Universal/servlet',
+            'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
             'vestix.ibkr.flex.send_request_attempts' => 3,
             'vestix.ibkr.flex.poll_delay_ms' => 1,
         ]);
@@ -47,7 +72,7 @@ class FlexWebServiceClientTest extends TestCase
         $attempt = 0;
 
         Http::fake([
-            'https://flex.test/Universal/servlet/FlexStatementService.SendRequest*' => function () use (&$attempt) {
+            'https://flex.test/AccountManagement/FlexWebService/SendRequest*' => function () use (&$attempt) {
                 $attempt++;
 
                 if ($attempt < 3) {
@@ -62,7 +87,7 @@ class FlexWebServiceClientTest extends TestCase
                     200,
                 );
             },
-            'https://flex.test/Universal/servlet/FlexStatementService.GetStatement*' => Http::response($statement, 200),
+            'https://flex.test/AccountManagement/FlexWebService/GetStatement*' => Http::response($statement, 200),
         ]);
 
         $xml = app(FlexWebServiceClient::class)->fetchStatementXml();
@@ -76,7 +101,7 @@ class FlexWebServiceClientTest extends TestCase
         config([
             'vestix.ibkr.flex.token' => 'token',
             'vestix.ibkr.flex.query_id' => '123',
-            'vestix.ibkr.flex.base_url' => 'https://flex.test/Universal/servlet',
+            'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
             'vestix.ibkr.flex.send_request_attempts' => 5,
             'vestix.ibkr.flex.poll_delay_ms' => 1,
         ]);
@@ -84,7 +109,7 @@ class FlexWebServiceClientTest extends TestCase
         $attempt = 0;
 
         Http::fake([
-            'https://flex.test/Universal/servlet/FlexStatementService.SendRequest*' => function () use (&$attempt) {
+            'https://flex.test/AccountManagement/FlexWebService/SendRequest*' => function () use (&$attempt) {
                 $attempt++;
 
                 return Http::response(

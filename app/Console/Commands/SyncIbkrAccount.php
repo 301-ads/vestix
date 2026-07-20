@@ -90,11 +90,10 @@ class SyncIbkrAccount extends Command
         if (str_contains($error, '(1025)')) {
             $this->newLine();
             $this->warn(
-                'IBKR Flex lockout (1025): too many failed attempts against this token. '
-                .'Waiting alone often is not enough — regenerate the Flex Web Service token in IBKR '
-                .'(Performance & Reports → Flex Queries → Flex Web Service Configuration), '
-                .'update IBKR_FLEX_TOKEN on Forge, confirm IBKR_FLEX_QUERY_ID is the Activity Flex Query ID, '
-                .'then retry once. Also check Flex IP restrictions if enabled.',
+                'IBKR Flex lockout (1025): too many failed attempts / bad endpoint config. '
+                .'Confirm IBKR_FLEX_BASE_URL is https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService '
+                .'(not the legacy Universal/servlet URL), regenerate the Flex Web Service token, '
+                .'clear config cache, leave IP restriction blank (or whitelist the Forge server IP), then retry once.',
             );
 
             return;
