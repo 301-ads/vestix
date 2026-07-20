@@ -5,6 +5,8 @@
     /** @var array{
      *     mode: string,
      *     pie: float,
+     *     pie_total?: float,
+     *     pie_committed?: float,
      *     pie_percent: float,
      *     bankroll: float,
      *     allocations: list<array{
@@ -32,6 +34,8 @@
     $actionable = $actionable ?? false;
     $scouts = $scouts ?? collect();
     $hint = $hint ?? 'Bevestig om quantity en risicobudget op de scouts te zetten. Daarna plaats je per scout je order via Order plaatsen / Order geplaatst.';
+    $pieTotal = (float) ($result['pie_total'] ?? $result['pie']);
+    $pieCommitted = (float) ($result['pie_committed'] ?? 0);
 @endphp
 
 <div class="vestix-smart-allocation">
@@ -39,7 +43,11 @@
         IBKR risicopie:
         <strong>{{ number_format($result['pie_percent'], 2) }}%</strong>
         van ${{ number_format($result['bankroll'], 2) }}
-        = <strong>${{ number_format($result['pie'], 2) }}</strong>
+        = <strong>${{ number_format($pieTotal, 2) }}</strong>
+        @if ($pieCommitted > 0)
+            · al actief: <strong>${{ number_format($pieCommitted, 2) }}</strong>
+            · beschikbaar: <strong>${{ number_format($result['pie'], 2) }}</strong>
+        @endif
         · modus:
         <strong>{{ $result['mode'] === 'equal' ? 'Gelijkmatig' : 'Smart Sizing' }}</strong>
     </p>

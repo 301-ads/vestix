@@ -21,6 +21,12 @@ class SmartAllocationServiceTest extends TestCase
     {
         parent::setUp();
 
+        // Local .env may use IBKR_READER=flex; sizing tests use stub + trading_bankroll.
+        config([
+            'vestix.ibkr.reader' => 'stub',
+            'vestix.ibkr.block_automation_when_stale' => true,
+        ]);
+
         $this->service = app(SmartAllocationService::class);
     }
 
@@ -351,6 +357,77 @@ class SmartAllocationServiceTest extends TestCase
 
         $this->assertTrue($activeList->contains('id', $active->id));
         $this->assertFalse($activeList->contains('id', $cart->id));
+    }
+
+    public function test_allocate_reserves_risk_already_on_active_buy_stops(): void
+    {
+        $user = $this->userWithBankroll(); // pie = $100
+
+        // entry 100, stop = 98 − 2/2 = 97 → $3/share × 10 = $30 planned risk
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'JNJ',
+            'broker_order_status' => BrokerOrderStatus::Pending,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'quantity' => 10,
+            'risk_budget' => 30.00,
+            'market_open_reminder_on' => null,
+        ]);
+
+        $pending = $this->scout($user, 'EMBJ', score: 9, sector: 'XLK');
+
+        $result = $this->service->allocate($user, [$pending], SmartAllocationService::MODE_SMART);
+
+        $this->assertEqualsWithDelta(100.0, $result['pie_total'], 0.01);
+        $this->assertEqualsWithDelta(30.0, $result['pie_committed'], 0.01);
+        $this->assertEqualsWithDelta(70.0, $result['pie'], 0.01);
+        $this->assertCount(1, $result['allocations']);
+        $this->assertEqualsWithDelta(70.0, $result['allocations'][0]['risk_dollars'], 0.1);
+        // Alone with full pie: floor(100/3)=33; with remaining $70: floor(70/3)=23
+        $this->assertSame(23, $result['allocations'][0]['quantity']);
+    }
+
+    public function test_allocate_falls_back_to_risk_budget_when_planned_risk_unavailable(): void
+    {
+        $user = $this->userWithBankroll();
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'NU',
+            'broker_order_status' => BrokerOrderStatus::Pending,
+            'entry_price' => null,
+            'quantity' => null,
+            'risk_budget' => 55.00,
+            'market_open_reminder_on' => null,
+        ]);
+
+        $pending = $this->scout($user, 'EMBJ', score: 9, sector: 'XLK');
+
+        $result = $this->service->allocate($user, [$pending], SmartAllocationService::MODE_EQUAL);
+
+        $this->assertEqualsWithDelta(55.0, $result['pie_committed'], 0.01);
+        $this->assertEqualsWithDelta(45.0, $result['pie'], 0.01);
+        $this->assertEqualsWithDelta(45.0, $result['allocations'][0]['risk_dollars'], 0.1);
+    }
+
+    public function test_allocate_yields_empty_when_active_orders_consume_full_pie(): void
+    {
+        $user = $this->userWithBankroll();
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'JNJ',
+            'broker_order_status' => BrokerOrderStatus::Pending,
+            'entry_price' => null,
+            'risk_budget' => 100.00,
+            'market_open_reminder_on' => null,
+        ]);
+
+        $pending = $this->scout($user, 'EMBJ', score: 9, sector: 'XLK');
+
+        $result = $this->service->allocate($user, [$pending], SmartAllocationService::MODE_SMART);
+
+        $this->assertEqualsWithDelta(0.0, $result['pie'], 0.01);
+        $this->assertSame([], $result['allocations']);
     }
 
     private function userWithBankroll(): User

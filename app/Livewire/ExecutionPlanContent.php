@@ -217,6 +217,8 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
      * @return array{
      *     mode: string,
      *     pie: float,
+     *     pie_total: float,
+     *     pie_committed: float,
      *     pie_percent: float,
      *     bankroll: float,
      *     weights_uniform: bool,
@@ -230,6 +232,8 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
         $empty = [
             'mode' => $this->mode,
             'pie' => 0.0,
+            'pie_total' => 0.0,
+            'pie_committed' => 0.0,
             'pie_percent' => 0.0,
             'bankroll' => 0.0,
             'weights_uniform' => true,

@@ -20,6 +20,16 @@ class SmartBudgetAllocationTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config([
+            'vestix.ibkr.reader' => 'stub',
+            'vestix.ibkr.block_automation_when_stale' => true,
+        ]);
+    }
+
     public function test_allocate_budget_bulk_action_removed_from_radar(): void
     {
         $this->authenticateFilament();
@@ -312,6 +322,49 @@ class SmartBudgetAllocationTest extends TestCase
         $this->assertSame($allocatedQty, (int) $a->quantity);
         $this->assertSame(BrokerOrderStatus::Pending, $a->broker_order_status);
         $this->assertSame(ScoutPipelineStatus::Active, $a->scoutPipelineStatus());
+    }
+
+    public function test_reallocate_after_active_orders_uses_remaining_pie_only(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10000,
+            'default_risk_percent' => 1,
+        ]);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'JNJ',
+            'last_setup_score' => 9,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'quantity' => 10,
+            'risk_budget' => 30.00,
+            'broker_order_status' => BrokerOrderStatus::Pending,
+            'market_open_reminder_on' => null,
+        ]);
+
+        $pending = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'EMBJ',
+            'last_setup_score' => 9,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'sector_etf' => 'XLK',
+            'quantity' => 1,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        Livewire::test(ExecutionPlanContent::class)
+            ->assertSee('al actief')
+            ->assertSee('beschikbaar')
+            ->call('applyAllocation');
+
+        $pending->refresh();
+
+        $this->assertEqualsWithDelta(70.0, (float) $pending->risk_budget, 0.1);
+        $this->assertSame(23, (int) $pending->quantity);
     }
 
     public function test_radar_toggle_adds_scout_to_order_plan(): void

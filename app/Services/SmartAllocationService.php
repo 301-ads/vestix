@@ -49,6 +49,8 @@ class SmartAllocationService
      * @return array{
      *     mode: string,
      *     pie: float,
+     *     pie_total: float,
+     *     pie_committed: float,
      *     pie_percent: float,
      *     bankroll: float,
      *     weights_uniform: bool,
@@ -78,9 +80,11 @@ class SmartAllocationService
         $mode = $mode === self::MODE_EQUAL ? self::MODE_EQUAL : self::MODE_SMART;
         $bankroll = $this->resolveSizingBankroll($user);
         $piePercent = (float) ($user->default_risk_percent ?? 1);
-        $pie = ($bankroll > 0 && $piePercent > 0)
+        $pieTotal = ($bankroll > 0 && $piePercent > 0)
             ? PositionSizing::riskBudgetFromPercent($bankroll, $piePercent)
             : 0.0;
+        $pieCommitted = $this->committedActiveRisk($user);
+        $pie = max(0.0, round($pieTotal - $pieCommitted, 2));
 
         $minScore = (int) config('vestix.smart_sizing.min_score', 5);
         $candidates = [];
@@ -144,7 +148,7 @@ class SmartAllocationService
                     'position_id' => (int) $position->id,
                     'ticker' => $ticker,
                     'reason' => sprintf(
-                        'Risico/aandeel $%s > hele pie $%s — 1 aandeel past niet',
+                        'Risico/aandeel $%s > beschikbare pie $%s — 1 aandeel past niet',
                         number_format($riskPerShare, 2),
                         number_format($pie, 2),
                     ),
@@ -181,6 +185,8 @@ class SmartAllocationService
             return [
                 'mode' => $mode,
                 'pie' => round($pie, 2),
+                'pie_total' => round($pieTotal, 2),
+                'pie_committed' => round($pieCommitted, 2),
                 'pie_percent' => $piePercent,
                 'bankroll' => $bankroll,
                 'weights_uniform' => true,
@@ -251,12 +257,37 @@ class SmartAllocationService
         return [
             'mode' => $mode,
             'pie' => round($pie, 2),
+            'pie_total' => round($pieTotal, 2),
+            'pie_committed' => round($pieCommitted, 2),
             'pie_percent' => $piePercent,
             'bankroll' => $bankroll,
             'weights_uniform' => $this->weightsAreUniform($allocations),
             'allocations' => $allocations,
             'exclusions' => $exclusions,
         ];
+    }
+
+    /**
+     * Risk already reserved by live buy-stops (Actief vandaag).
+     * Uses planned risk from qty × (entry − stop), falling back to stored risk_budget.
+     */
+    public function committedActiveRisk(User $user): float
+    {
+        return round(Position::activeOrderPlanForUser((int) $user->id)->sum(
+            function (Position $position): float {
+                $planned = $position->planned_risk_dollars;
+
+                if ($planned !== null && $planned > 0) {
+                    return (float) $planned;
+                }
+
+                if ($position->risk_budget !== null && (float) $position->risk_budget > 0) {
+                    return (float) $position->risk_budget;
+                }
+
+                return 0.0;
+            },
+        ), 2);
     }
 
     /**
