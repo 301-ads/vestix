@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Tables\Columns\DirectionColumn;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\FilamentPolling;
@@ -47,6 +48,7 @@ class PortfolioTopFlopWidget extends TableWidget
                     TextColumn::make('ticker')
                         ->label('Ticker'),
                 ),
+                DirectionColumn::make(),
                 TextColumn::make('unrealized_pnl_percentage')
                     ->label('P&L (%)')
                     ->numeric(decimalPlaces: 2)
