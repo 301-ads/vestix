@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Broker;
+use App\Enums\TradeDirection;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -15,7 +16,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'email_verified_at', 'is_super_admin', 'is_discoverable', 'telegram_chat_id', 'telegram_link_token', 'default_risk_per_trade', 'trading_bankroll', 'ibkr_net_liquidation', 'ibkr_available_funds', 'ibkr_settled_cash', 'ibkr_base_currency', 'ibkr_open_positions', 'ibkr_open_orders', 'ibkr_last_success_at', 'ibkr_last_attempt_at', 'ibkr_last_error', 'ibkr_data_stale', 'baseline_capital', 'baseline_date', 'default_risk_percent', 'primary_broker', 'is_short_enabled'])]
+#[Fillable(['name', 'email', 'password', 'email_verified_at', 'is_super_admin', 'is_discoverable', 'telegram_chat_id', 'telegram_link_token', 'default_risk_per_trade', 'trading_bankroll', 'ibkr_net_liquidation', 'ibkr_available_funds', 'ibkr_settled_cash', 'ibkr_base_currency', 'ibkr_open_positions', 'ibkr_open_orders', 'ibkr_last_success_at', 'ibkr_last_attempt_at', 'ibkr_last_error', 'ibkr_data_stale', 'baseline_capital', 'baseline_date', 'default_risk_percent', 'default_short_risk_percent', 'primary_broker', 'is_short_enabled'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -117,6 +118,21 @@ class User extends Authenticatable implements FilamentUser
         return (bool) $this->is_short_enabled;
     }
 
+    public function defaultRiskPercentFor(TradeDirection|string|null $direction = null): float
+    {
+        $direction = match (true) {
+            $direction instanceof TradeDirection => $direction,
+            is_string($direction) && $direction === TradeDirection::Short->value => TradeDirection::Short,
+            default => TradeDirection::Long,
+        };
+
+        if ($direction === TradeDirection::Short && $this->canUseShort()) {
+            return (float) ($this->default_short_risk_percent ?? $this->default_risk_percent ?? 1);
+        }
+
+        return (float) ($this->default_risk_percent ?? 1);
+    }
+
     protected function casts(): array
     {
         return [
@@ -138,6 +154,7 @@ class User extends Authenticatable implements FilamentUser
             'baseline_capital' => 'decimal:2',
             'baseline_date' => 'date',
             'default_risk_percent' => 'decimal:2',
+            'default_short_risk_percent' => 'decimal:2',
             'primary_broker' => Broker::class,
         ];
     }

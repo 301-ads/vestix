@@ -244,6 +244,7 @@ return [
 
     'smart_sizing' => [
         'min_score' => (int) env('SMART_SIZING_MIN_SCORE', 5),
+        'min_quantity' => (int) env('SMART_SIZING_MIN_QUANTITY', 2),
         'default_mode' => env('SMART_SIZING_DEFAULT_MODE', 'smart'),
         'sector_penalty_per_extra' => (float) env('SMART_SIZING_SECTOR_PENALTY_PER_EXTRA', 0.20),
         'sector_penalty_cap' => (float) env('SMART_SIZING_SECTOR_PENALTY_CAP', 0.90),

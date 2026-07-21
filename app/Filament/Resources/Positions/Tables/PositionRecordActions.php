@@ -885,7 +885,7 @@ class PositionRecordActions
     {
         $user = auth()->user();
         $bankroll = $user?->trading_bankroll !== null ? (float) $user->trading_bankroll : null;
-        $limitPercent = (float) ($user?->default_risk_percent ?? 1);
+        $limitPercent = (float) ($user?->defaultRiskPercentFor($record->tradeDirection()) ?? 1);
         $riskLimit = PositionSizing::resolveRiskLimitFromProfile($bankroll, $limitPercent);
         $plannedRisk = $record->planned_risk_dollars !== null ? (float) $record->planned_risk_dollars : null;
         $riskPercentOfBankroll = ($plannedRisk !== null && $bankroll !== null && $bankroll > 0)

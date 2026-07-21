@@ -30,6 +30,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
@@ -126,13 +127,23 @@ class EditUserProfile extends EditProfile
                                             ->format('Y-m-d')
                                             ->helperText('Wordt automatisch gezet bij je eerste storting. Snapshots/cashflows vóór deze datum tellen niet mee.'),
                                         ToggleButtons::make('default_risk_percent')
-                                            ->label('Standaard risico-niveau')
+                                            ->label('Long risico-niveau')
                                             ->options(PositionSizing::riskPercentOptions())
                                             ->default('1')
                                             ->formatStateUsing(fn (mixed $state): string => PositionSizing::normalizeRiskPercentOptionKey($state) ?? '1')
                                             ->dehydrateStateUsing(fn (mixed $state): ?float => filled($state) ? (float) $state : null)
                                             ->inline()
                                             ->required(),
+                                        ToggleButtons::make('default_short_risk_percent')
+                                            ->label('Short risico-niveau')
+                                            ->options(PositionSizing::riskPercentOptions())
+                                            ->formatStateUsing(fn (mixed $state): ?string => filled($state)
+                                                ? PositionSizing::normalizeRiskPercentOptionKey($state)
+                                                : null)
+                                            ->dehydrateStateUsing(fn (mixed $state): ?float => filled($state) ? (float) $state : null)
+                                            ->inline()
+                                            ->visible(fn (Get $get): bool => (bool) $get('is_short_enabled'))
+                                            ->helperText('Aparte risicopie voor short setups. Leeg = zelfde als long.'),
                                     ]),
                                 Section::make('Kapitaalbewegingen')
                                     ->compact()

@@ -1370,7 +1370,7 @@ class PositionForm
         }
 
         $bankroll = (float) auth()->user()->trading_bankroll;
-        $limitPercent = (float) (auth()->user()?->default_risk_percent ?? 1);
+        $limitPercent = (float) (auth()->user()?->defaultRiskPercentFor(self::resolveFormDirection($get, $record)) ?? 1);
         $riskLimit = PositionSizing::resolveRiskLimitFromProfile($bankroll, $limitPercent);
 
         if ($riskLimit === null) {
@@ -1403,7 +1403,7 @@ class PositionForm
     private static function resolveRiskGuardState(Get $get, ?Position $record): array
     {
         $bankroll = self::userHasBankroll() ? (float) auth()->user()->trading_bankroll : null;
-        $limitPercent = (float) (auth()->user()?->default_risk_percent ?? 1);
+        $limitPercent = (float) (auth()->user()?->defaultRiskPercentFor(self::resolveFormDirection($get, $record)) ?? 1);
         $riskLimit = PositionSizing::resolveRiskLimitFromProfile($bankroll, $limitPercent);
         $entry = $get('entry_price') ?? $record?->entry_price;
         $quantity = $get('quantity') ?? $record?->quantity;

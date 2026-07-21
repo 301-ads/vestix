@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\IbkrAccountReader;
+use App\Enums\TradeDirection;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\Ibkr\IbkrSyncHealth;
@@ -52,6 +53,10 @@ class SmartAllocationService
      *     pie_total: float,
      *     pie_committed: float,
      *     pie_percent: float,
+     *     pie_breakdown?: array{
+     *         long: array{percent: float, total: float, committed: float, available: float},
+     *         short?: array{percent: float, total: float, committed: float, available: float},
+     *     },
      *     bankroll: float,
      *     weights_uniform: bool,
      *     allocations: list<array{
@@ -79,15 +84,16 @@ class SmartAllocationService
     {
         $mode = $mode === self::MODE_EQUAL ? self::MODE_EQUAL : self::MODE_SMART;
         $bankroll = $this->resolveSizingBankroll($user);
-        $piePercent = (float) ($user->default_risk_percent ?? 1);
-        $pieTotal = ($bankroll > 0 && $piePercent > 0)
-            ? PositionSizing::riskBudgetFromPercent($bankroll, $piePercent)
-            : 0.0;
-        $pieCommitted = $this->committedActiveRisk($user);
-        $pie = max(0.0, round($pieTotal - $pieCommitted, 2));
+        $longPie = $this->resolvePieBucket($user, $bankroll, TradeDirection::Long);
+        $shortPie = $this->resolvePieBucket($user, $bankroll, TradeDirection::Short);
+        $includeShortPie = $user->canUseShort();
 
         $minScore = (int) config('vestix.smart_sizing.min_score', 5);
-        $candidates = [];
+        $minQuantity = $this->minQuantity();
+        $candidatesByDirection = [
+            TradeDirection::Long->value => [],
+            TradeDirection::Short->value => [],
+        ];
         $exclusions = [];
 
         foreach ($positions as $position) {
@@ -99,12 +105,19 @@ class SmartAllocationService
             $entry = $position->entry_price !== null ? (float) $position->entry_price : null;
             $stopLoss = $position->new_sl !== null ? (float) $position->new_sl : null;
             $score = $this->resolveScore($position);
+            $directionKey = $position->isShort()
+                ? TradeDirection::Short->value
+                : TradeDirection::Long->value;
+            $availablePie = $position->isShort() ? $shortPie['available'] : $longPie['available'];
 
             if ($position->isOrderPlanExcludedToday()) {
                 $exclusions[] = [
                     'position_id' => (int) $position->id,
                     'ticker' => $ticker,
-                    'reason' => 'Uitgesloten vandaag (min. 1 aandeel paste niet) — niet opnieuw verdeeld',
+                    'reason' => sprintf(
+                        'Uitgesloten vandaag (min. %d aandelen paste niet) — niet opnieuw verdeeld',
+                        $minQuantity,
+                    ),
                 ];
 
                 continue;
@@ -144,15 +157,18 @@ class SmartAllocationService
                 continue;
             }
 
-            if ($pie > 0 && $riskPerShare > $pie) {
+            $minRiskForLot = $riskPerShare * $minQuantity;
+
+            if ($availablePie > 0 && $minRiskForLot > $availablePie) {
                 $position->markOrderPlanExcludedToday();
                 $exclusions[] = [
                     'position_id' => (int) $position->id,
                     'ticker' => $ticker,
                     'reason' => sprintf(
-                        'Risico/aandeel $%s > beschikbare pie $%s — 1 aandeel past niet',
-                        number_format($riskPerShare, 2),
-                        number_format($pie, 2),
+                        'Min. %d aandelen kost $%s risico > beschikbare pie $%s — past niet',
+                        $minQuantity,
+                        number_format($minRiskForLot, 2),
+                        number_format($availablePie, 2),
                     ),
                 ];
 
@@ -174,7 +190,7 @@ class SmartAllocationService
                 ? strtoupper((string) $position->sector_etf)
                 : null;
 
-            $candidates[] = [
+            $candidatesByDirection[$directionKey][] = [
                 'position' => $position,
                 'ticker' => $ticker,
                 'score' => $score,
@@ -187,38 +203,108 @@ class SmartAllocationService
             ];
         }
 
-        if ($candidates === [] || $pie <= 0) {
-            return [
-                'mode' => $mode,
-                'pie' => round($pie, 2),
-                'pie_total' => round($pieTotal, 2),
-                'pie_committed' => round($pieCommitted, 2),
-                'pie_percent' => $piePercent,
-                'bankroll' => $bankroll,
-                'weights_uniform' => true,
-                'allocations' => [],
-                'exclusions' => $exclusions,
+        $allocations = [];
+
+        foreach ($candidatesByDirection as $directionKey => $candidates) {
+            if ($candidates === []) {
+                continue;
+            }
+
+            $availablePie = $directionKey === TradeDirection::Short->value
+                ? $shortPie['available']
+                : $longPie['available'];
+
+            if ($availablePie <= 0) {
+                continue;
+            }
+
+            $allocations = [
+                ...$allocations,
+                ...$this->allocateWithRedistribution($candidates, $availablePie, $bankroll, $mode, $exclusions),
             ];
         }
 
+        usort($allocations, fn (array $a, array $b): int => $b['weight'] <=> $a['weight']);
+
+        $pieTotal = $longPie['total'] + ($includeShortPie ? $shortPie['total'] : 0.0);
+        $pieCommitted = $longPie['committed'] + ($includeShortPie ? $shortPie['committed'] : 0.0);
+        $pieAvailable = $longPie['available'] + ($includeShortPie ? $shortPie['available'] : 0.0);
+        $pieBreakdown = ['long' => $longPie];
+
+        if ($includeShortPie) {
+            $pieBreakdown['short'] = $shortPie;
+        }
+
+        return [
+            'mode' => $mode,
+            'pie' => round($pieAvailable, 2),
+            'pie_total' => round($pieTotal, 2),
+            'pie_committed' => round($pieCommitted, 2),
+            'pie_percent' => $longPie['percent'],
+            'pie_breakdown' => $pieBreakdown,
+            'bankroll' => $bankroll,
+            'weights_uniform' => $this->weightsAreUniform($allocations),
+            'allocations' => $allocations,
+            'exclusions' => $exclusions,
+        ];
+    }
+
+    /**
+     * @param  list<array{
+     *     position: Position,
+     *     ticker: string,
+     *     score: int,
+     *     entry: float,
+     *     stop_loss: float,
+     *     target_1: float|null,
+     *     reward_risk: float|null,
+     *     sector: string|null,
+     *     risk_per_share: float,
+     * }>  $candidates
+     * @param  list<array{position_id: int, ticker: string, reason: string}>  $exclusions
+     * @return list<array{
+     *     position_id: int,
+     *     ticker: string,
+     *     score: int,
+     *     reward_risk: float|null,
+     *     expected_value: float|null,
+     *     sector: string|null,
+     *     sector_penalty: float,
+     *     weight: float,
+     *     weight_share: float,
+     *     risk_dollars: float,
+     *     risk_percent: float,
+     *     quantity: int,
+     *     investment: float,
+     *     entry: float,
+     *     stop_loss: float,
+     *     target_1: float|null,
+     * }>
+     */
+    private function allocateWithRedistribution(
+        array $candidates,
+        float $pie,
+        float $bankroll,
+        string $mode,
+        array &$exclusions,
+    ): array {
         $working = $candidates;
         $allocations = [];
         $maxRounds = count($working) + 1;
+        $minQuantity = $this->minQuantity();
 
         while ($working !== [] && $maxRounds-- > 0) {
             $round = $this->allocateAmong($working, $pie, $bankroll, $mode);
 
             if ($round === []) {
-                $allocations = [];
-
-                break;
+                return [];
             }
 
             $affordable = [];
             $droppedIds = [];
 
             foreach ($round as $row) {
-                if ($row['quantity'] >= 1) {
+                if ($row['quantity'] >= $minQuantity) {
                     $affordable[] = $row;
 
                     continue;
@@ -239,8 +325,9 @@ class SmartAllocationService
                     'position_id' => $positionId,
                     'ticker' => $row['ticker'],
                     'reason' => sprintf(
-                        'Min. 1 aandeel kost $%s risico; toegekend $%s — budget herverdeeld',
-                        number_format($row['entry'] - $row['stop_loss'], 2),
+                        'Min. %d aandelen kost $%s risico; toegekend $%s — budget herverdeeld',
+                        $minQuantity,
+                        number_format(abs($row['entry'] - $row['stop_loss']) * $minQuantity, 2),
                         number_format($row['risk_dollars'], 2),
                     ),
                 ];
@@ -258,18 +345,25 @@ class SmartAllocationService
             ));
         }
 
-        usort($allocations, fn (array $a, array $b): int => $b['weight'] <=> $a['weight']);
+        return $allocations;
+    }
+
+    /**
+     * @return array{percent: float, total: float, committed: float, available: float}
+     */
+    private function resolvePieBucket(User $user, float $bankroll, TradeDirection $direction): array
+    {
+        $percent = $user->defaultRiskPercentFor($direction);
+        $total = ($bankroll > 0 && $percent > 0)
+            ? PositionSizing::riskBudgetFromPercent($bankroll, $percent)
+            : 0.0;
+        $committed = $this->committedActiveRisk($user, $direction);
 
         return [
-            'mode' => $mode,
-            'pie' => round($pie, 2),
-            'pie_total' => round($pieTotal, 2),
-            'pie_committed' => round($pieCommitted, 2),
-            'pie_percent' => $piePercent,
-            'bankroll' => $bankroll,
-            'weights_uniform' => $this->weightsAreUniform($allocations),
-            'allocations' => $allocations,
-            'exclusions' => $exclusions,
+            'percent' => $percent,
+            'total' => round($total, 2),
+            'committed' => round($committed, 2),
+            'available' => max(0.0, round($total - $committed, 2)),
         ];
     }
 
@@ -277,9 +371,19 @@ class SmartAllocationService
      * Risk already reserved by live buy-stops (Actief vandaag).
      * Uses planned risk from qty × (entry − stop), falling back to stored risk_budget.
      */
-    public function committedActiveRisk(User $user): float
+    public function committedActiveRisk(User $user, ?TradeDirection $direction = null): float
     {
-        return round(Position::activeOrderPlanForUser((int) $user->id)->sum(
+        $positions = Position::activeOrderPlanForUser((int) $user->id);
+
+        if ($direction !== null) {
+            $positions = $positions->filter(
+                fn (Position $position): bool => $direction === TradeDirection::Short
+                    ? $position->isShort()
+                    : ! $position->isShort(),
+            );
+        }
+
+        return round($positions->sum(
             function (Position $position): float {
                 $planned = $position->planned_risk_dollars;
 
@@ -482,6 +586,11 @@ class SmartAllocationService
         }
 
         return (int) $position->evaluateSetupScore()['totalPoints'];
+    }
+
+    private function minQuantity(): int
+    {
+        return max(1, (int) config('vestix.smart_sizing.min_quantity', 2));
     }
 
     private function scorecardDataIncomplete(Position $position): bool

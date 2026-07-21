@@ -36,9 +36,35 @@
     $hint = $hint ?? 'Bevestig om quantity en risicobudget op de scouts te zetten. Daarna plaats je per scout je order via Order plaatsen / Order geplaatst.';
     $pieTotal = (float) ($result['pie_total'] ?? $result['pie']);
     $pieCommitted = (float) ($result['pie_committed'] ?? 0);
+    $pieBreakdown = $result['pie_breakdown'] ?? null;
+    $showSplitPies = is_array($pieBreakdown)
+        && isset($pieBreakdown['short'])
+        && (float) $pieBreakdown['short']['percent'] !== (float) $pieBreakdown['long']['percent'];
 @endphp
 
 <div class="vestix-smart-allocation">
+    @if ($showSplitPies)
+        <p class="vestix-smart-allocation__intro">
+            IBKR risicopie long:
+            <strong>{{ number_format($pieBreakdown['long']['percent'], 2) }}%</strong>
+            = <strong>${{ number_format($pieBreakdown['long']['total'], 2) }}</strong>
+            @if ($pieBreakdown['long']['committed'] > 0)
+                · al actief long: <strong>${{ number_format($pieBreakdown['long']['committed'], 2) }}</strong>
+                · beschikbaar: <strong>${{ number_format($pieBreakdown['long']['available'], 2) }}</strong>
+            @endif
+        </p>
+        <p class="vestix-smart-allocation__intro">
+            IBKR risicopie short:
+            <strong>{{ number_format($pieBreakdown['short']['percent'], 2) }}%</strong>
+            = <strong>${{ number_format($pieBreakdown['short']['total'], 2) }}</strong>
+            @if ($pieBreakdown['short']['committed'] > 0)
+                · al actief short: <strong>${{ number_format($pieBreakdown['short']['committed'], 2) }}</strong>
+                · beschikbaar: <strong>${{ number_format($pieBreakdown['short']['available'], 2) }}</strong>
+            @endif
+            · modus:
+            <strong>{{ $result['mode'] === 'equal' ? 'Gelijkmatig' : 'Smart Sizing' }}</strong>
+        </p>
+    @else
     <p class="vestix-smart-allocation__intro">
         IBKR risicopie:
         <strong>{{ number_format($result['pie_percent'], 2) }}%</strong>
@@ -51,6 +77,7 @@
         · modus:
         <strong>{{ $result['mode'] === 'equal' ? 'Gelijkmatig' : 'Smart Sizing' }}</strong>
     </p>
+    @endif
 
     @if (($result['mode'] ?? '') === 'smart' && ($result['weights_uniform'] ?? false) && count($result['allocations']) >= 2)
         <p class="vestix-smart-allocation__hint">

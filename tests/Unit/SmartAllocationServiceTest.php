@@ -287,7 +287,7 @@ class SmartAllocationServiceTest extends TestCase
         $this->assertContains('SYY', $tickers);
 
         foreach ($result['allocations'] as $allocation) {
-            $this->assertGreaterThanOrEqual(1, $allocation['quantity']);
+            $this->assertGreaterThanOrEqual(2, $allocation['quantity']);
         }
 
         $exclusion = collect($result['exclusions'])->firstWhere('ticker', 'LLY');
@@ -462,6 +462,72 @@ class SmartAllocationServiceTest extends TestCase
         $this->assertSame('COST', $result['allocations'][0]['ticker']);
         $this->assertSame(10, $result['allocations'][0]['score']);
         $this->assertSame([], $result['exclusions']);
+    }
+
+    public function test_short_positions_use_separate_risk_pie(): void
+    {
+        $user = User::factory()->create([
+            'trading_bankroll' => 10000,
+            'default_risk_percent' => 1.5,
+            'default_short_risk_percent' => 1.0,
+            'is_short_enabled' => true,
+        ]);
+
+        $long = $this->scout($user, 'LONG', score: 10, sector: 'XLK');
+        $short = Position::factory()->for($user)->scout()->short()->create([
+            'ticker' => 'SHRT',
+            'last_setup_score' => 10,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 102.00,
+            'latest_atr_14' => 2.00,
+            'sector_etf' => 'XLF',
+            'target_1_rr' => 2.0,
+        ]);
+
+        $result = $this->service->allocate($user, [$long, $short], SmartAllocationService::MODE_EQUAL);
+
+        $this->assertEqualsWithDelta(1.5, $result['pie_breakdown']['long']['percent'], 0.001);
+        $this->assertEqualsWithDelta(1.0, $result['pie_breakdown']['short']['percent'], 0.001);
+        $this->assertEqualsWithDelta(150.0, $result['pie_breakdown']['long']['total'], 0.01);
+        $this->assertEqualsWithDelta(100.0, $result['pie_breakdown']['short']['total'], 0.01);
+        $this->assertCount(2, $result['allocations']);
+
+        $byTicker = collect($result['allocations'])->keyBy('ticker');
+        $this->assertEqualsWithDelta(150.0, $byTicker['LONG']['risk_dollars'], 0.1);
+        $this->assertEqualsWithDelta(100.0, $byTicker['SHRT']['risk_dollars'], 0.1);
+    }
+
+    public function test_excludes_setups_that_cannot_reach_min_quantity_of_two(): void
+    {
+        $user = $this->userWithBankroll(); // pie = $100
+
+        // entry 100, stop ≈ 97 → $3/share; half pie ($50) buys floor(50/3)=16 — OK for EMBJ
+        $cheap = $this->scout($user, 'EMBJ', score: 10, sector: 'XLK');
+
+        // entry 900, stop ≈ 870 → ~$30/share; half pie ($50) buys floor(50/30)=1 < 2 → excluded
+        $expensive = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->scorecardAttributes(10),
+            [
+                'ticker' => 'COST',
+                'last_setup_score' => 10,
+                'entry_price' => 900.00,
+                'latest_sma_20' => 880.00,
+                'latest_atr_14' => 20.00,
+                'sector_etf' => 'XLY',
+                'target_1_rr' => 2.0,
+            ],
+        ));
+
+        $result = $this->service->allocate($user, [$cheap, $expensive], SmartAllocationService::MODE_EQUAL);
+
+        $tickers = collect($result['allocations'])->pluck('ticker')->all();
+        $this->assertContains('EMBJ', $tickers);
+        $this->assertNotContains('COST', $tickers);
+        $this->assertGreaterThanOrEqual(2, $result['allocations'][0]['quantity']);
+
+        $exclusion = collect($result['exclusions'])->firstWhere('ticker', 'COST');
+        $this->assertNotNull($exclusion);
+        $this->assertStringContainsString('Min. 2 aandelen', $exclusion['reason']);
     }
 
     private function userWithBankroll(): User

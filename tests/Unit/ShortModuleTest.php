@@ -184,6 +184,29 @@ class ShortModuleTest extends TestCase
         $this->assertTrue($user->fresh()->canUseShort());
     }
 
+    public function test_default_risk_percent_for_direction(): void
+    {
+        $user = User::factory()->create([
+            'default_risk_percent' => 1.5,
+            'default_short_risk_percent' => 1.0,
+            'is_short_enabled' => true,
+        ]);
+
+        $this->assertEqualsWithDelta(1.5, $user->defaultRiskPercentFor(TradeDirection::Long), 0.001);
+        $this->assertEqualsWithDelta(1.0, $user->defaultRiskPercentFor(TradeDirection::Short), 0.001);
+    }
+
+    public function test_short_risk_percent_falls_back_to_long_when_unset(): void
+    {
+        $user = User::factory()->create([
+            'default_risk_percent' => 1.5,
+            'default_short_risk_percent' => null,
+            'is_short_enabled' => true,
+        ]);
+
+        $this->assertEqualsWithDelta(1.5, $user->defaultRiskPercentFor(TradeDirection::Short), 0.001);
+    }
+
     public function test_position_defaults_to_long_direction(): void
     {
         $position = Position::factory()->create();
