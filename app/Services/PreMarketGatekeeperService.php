@@ -41,7 +41,15 @@ class PreMarketGatekeeperService
         ];
 
         foreach ($positions as $position) {
-            if ($position->signal_high !== null) {
+            if ($position->isShort()) {
+                if ($position->signal_low !== null || $position->entry_price !== null) {
+                    $result = $this->checkShortGapRisk($position);
+                } else {
+                    $summary['skipped']++;
+
+                    continue;
+                }
+            } elseif ($position->signal_high !== null) {
                 $result = $this->checkGapRisk($position);
             } else {
                 $result = $this->checkOpportunity($position);
@@ -62,6 +70,14 @@ class PreMarketGatekeeperService
 
     public function checkPosition(Position $position): ?PremarketScanResult
     {
+        if ($position->isShort()) {
+            if ($position->signal_low !== null || $position->entry_price !== null) {
+                return $this->checkShortGapRisk($position);
+            }
+
+            return null;
+        }
+
         if ($position->signal_high !== null) {
             return $this->checkGapRisk($position);
         }
@@ -80,17 +96,36 @@ class PreMarketGatekeeperService
             ->get();
 
         $executionReady = $scouts
-            ->filter(fn (Position $position): bool => $position->signal_high !== null && $position->entry_price !== null)
+            ->filter(function (Position $position): bool {
+                if ($position->isShort()) {
+                    return ($position->signal_low !== null || $position->entry_price !== null)
+                        && $position->entry_price !== null;
+                }
+
+                return $position->signal_high !== null && $position->entry_price !== null;
+            })
             ->sortBy(fn (Position $position): string => $position->ticker)
             ->values();
 
         $bounceOnly = $scouts
-            ->filter(fn (Position $position): bool => $position->signal_high !== null && $position->entry_price === null)
+            ->filter(function (Position $position): bool {
+                if ($position->isShort()) {
+                    return $position->signal_low !== null && $position->entry_price === null;
+                }
+
+                return $position->signal_high !== null && $position->entry_price === null;
+            })
             ->sortBy(fn (Position $position): string => $position->ticker)
             ->values();
 
         $opportunity = $scouts
-            ->filter(fn (Position $position): bool => $position->signal_high === null)
+            ->filter(function (Position $position): bool {
+                if ($position->isShort()) {
+                    return $position->signal_low === null && $position->entry_price === null;
+                }
+
+                return $position->signal_high === null;
+            })
             ->sortBy(fn (Position $position): string => $position->ticker)
             ->values();
 
@@ -106,6 +141,10 @@ class PreMarketGatekeeperService
 
     public function willFetchQuote(Position $position): bool
     {
+        if ($position->isShort()) {
+            return $position->signal_low !== null || $position->entry_price !== null;
+        }
+
         if ($position->signal_high !== null) {
             return true;
         }
@@ -142,6 +181,37 @@ class PreMarketGatekeeperService
         }
 
         $this->persistResult($position, $premarketPrice, PremarketScanResult::Ok, $bounceHigh, $gapPct);
+
+        return PremarketScanResult::Ok;
+    }
+
+    /**
+     * Short setups invalidate when premarket rallies above the sell-stop / signal low.
+     */
+    public function checkShortGapRisk(Position $position): PremarketScanResult
+    {
+        $reference = $position->entry_price !== null
+            ? (float) $position->entry_price
+            : (float) $position->signal_low;
+        $threshold = (float) config('vestix.premarket.gap_up_threshold_pct', 1.0);
+        $premarketPrice = $this->fetchPremarketPrice($position);
+
+        if ($premarketPrice === null || $reference <= 0) {
+            $this->persistResult($position, null, PremarketScanResult::Unavailable, null, null);
+
+            return PremarketScanResult::Unavailable;
+        }
+
+        $gapPct = (($premarketPrice - $reference) / $reference) * 100;
+
+        if ($gapPct > $threshold) {
+            $this->persistResult($position, $premarketPrice, PremarketScanResult::GapRisk, $reference, $gapPct);
+            $this->notifyShortInvalidation($position, $premarketPrice, $reference, $gapPct);
+
+            return PremarketScanResult::GapRisk;
+        }
+
+        $this->persistResult($position, $premarketPrice, PremarketScanResult::Ok, $reference, $gapPct);
 
         return PremarketScanResult::Ok;
     }
@@ -226,6 +296,46 @@ class PreMarketGatekeeperService
             'premarket_distance_pct' => $distancePct,
             'premarket_checked_at' => now(),
         ]);
+    }
+
+    private function notifyShortInvalidation(
+        Position $position,
+        float $premarketPrice,
+        float $sellStop,
+        float $gapPct,
+    ): void {
+        $owner = $position->user;
+
+        if ($owner === null) {
+            return;
+        }
+
+        $this->alertDispatcher->dispatchNow(
+            $owner->id,
+            $position->id,
+            AlertEventType::PremarketGapRisk,
+            [
+                'premarket_price' => $premarketPrice,
+                'bounce_high' => $sellStop,
+                'gap_pct' => $gapPct,
+            ],
+        );
+
+        $scoutUrl = ScoutResource::getUrl('edit', ['record' => $position]);
+
+        FilamentNotifier::send(
+            title: "Short geïnvalideerd: {$position->ticker}",
+            body: sprintf(
+                'SHORT setup %s: pre-market $%s ligt %.2f%% boven Sell-Stop $%s — thesis gebroken. %s',
+                $position->ticker,
+                number_format($premarketPrice, 2),
+                $gapPct,
+                number_format($sellStop, 2),
+                $scoutUrl,
+            ),
+            status: 'danger',
+            recipients: $owner,
+        );
     }
 
     private function notifyGapRisk(

@@ -15,6 +15,28 @@ class EquityCurveChart extends ApexChartWidget
 
     protected int|string|array $columnSpan = 'full';
 
+    /**
+     * @var array<string, string>
+     */
+    protected $listeners = [
+        'coach-direction-updated' => 'onCoachDirectionUpdated',
+    ];
+
+    public string $directionFilter = 'all';
+
+    public function mount(): void
+    {
+        $this->directionFilter = (string) session('vestix.coach_direction_filter', 'all');
+
+        parent::mount();
+    }
+
+    public function onCoachDirectionUpdated(string $filter): void
+    {
+        $this->directionFilter = $filter;
+        $this->updateOptions();
+    }
+
     public static function canView(): bool
     {
         $userId = auth()->id();
@@ -26,8 +48,9 @@ class EquityCurveChart extends ApexChartWidget
     protected function getOptions(): array
     {
         $userId = auth()->id();
+        $direction = StrategyAnalyticsService::resolveDirectionFilter($this->directionFilter);
         $curve = $userId
-            ? app(StrategyAnalyticsService::class)->equityCurve($userId)
+            ? app(StrategyAnalyticsService::class)->equityCurve($userId, $direction)
             : [];
 
         return [

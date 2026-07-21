@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Positions\Pages;
 
 use App\Enums\Broker;
 use App\Enums\PositionVisibility;
+use App\Enums\TradeDirection;
 use App\Events\SquadRadarTargetPosted;
 use App\Filament\Resources\Positions\Schemas\PositionForm;
 use App\Filament\Resources\Scouts\ScoutResource;
@@ -12,6 +13,7 @@ use App\Services\SquadContext;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Schemas\Schema;
+use Illuminate\Validation\ValidationException;
 
 class CreateScout extends CreateRecord
 {
@@ -45,6 +47,17 @@ class CreateScout extends CreateRecord
         $data['status'] = 'scout';
         $data['user_id'] = auth()->id();
         $data['broker'] = auth()->user()?->primary_broker?->value ?? Broker::Revolut->value;
+
+        $direction = TradeDirection::tryFrom((string) ($data['direction'] ?? ''))
+            ?? TradeDirection::Long;
+
+        if ($direction === TradeDirection::Short && ! auth()->user()?->canUseShort()) {
+            throw ValidationException::withMessages([
+                'direction' => 'Short-selling is niet geactiveerd in je profiel.',
+            ]);
+        }
+
+        $data['direction'] = $direction->value;
 
         $visibility = PositionVisibility::tryFrom((string) ($data['visibility'] ?? ''))
             ?? PositionVisibility::Private;

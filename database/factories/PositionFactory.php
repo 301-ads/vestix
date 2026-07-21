@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\BrokerOrderStatus;
 use App\Enums\PositionVisibility;
+use App\Enums\TradeDirection;
 use App\Models\Position;
 use App\Models\StrategyTag;
 use App\Models\User;
@@ -35,6 +36,7 @@ class PositionFactory extends Factory
             'bounce_volume_above_average' => false,
             'visibility' => PositionVisibility::Private,
             'status' => 'open',
+            'direction' => TradeDirection::Long,
             'is_legacy' => false,
             'initial_sl_placed_at' => now(),
         ];
@@ -78,6 +80,13 @@ class PositionFactory extends Factory
             'initial_sl_placed_at' => null,
             'signal_high' => null,
             'signal_low' => null,
+        ]);
+    }
+
+    public function short(): static
+    {
+        return $this->state(fn (): array => [
+            'direction' => TradeDirection::Short,
         ]);
     }
 

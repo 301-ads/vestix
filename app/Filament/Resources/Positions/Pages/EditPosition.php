@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Positions\Pages;
 
 use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
+use App\Enums\TradeDirection;
 use App\Events\SquadRadarTargetPosted;
 use App\Filament\Concerns\PollsPositionMarketData;
 use App\Filament\Resources\Positions\PositionResource;
@@ -27,6 +28,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\HtmlString;
+use Illuminate\Validation\ValidationException;
 
 class EditPosition extends EditRecord
 {
@@ -155,6 +157,7 @@ class EditPosition extends EditRecord
             'status' => $record->status,
             'pipelineStatus' => $record->status === 'scout' ? $record->scoutPipelineStatus() : null,
             'iconUrl' => $record->asset?->icon_url,
+            'direction' => $record->tradeDirection(),
         ])->render());
     }
 
@@ -194,6 +197,17 @@ class EditPosition extends EditRecord
         unset($data['asset_earnings_date_override'], $data['asset_earnings_hour_override']);
 
         if (($this->getRecord()->status ?? null) === 'scout') {
+            $direction = TradeDirection::tryFrom((string) ($data['direction'] ?? $this->getRecord()->direction?->value ?? ''))
+                ?? TradeDirection::Long;
+
+            if ($direction === TradeDirection::Short && ! auth()->user()?->canUseShort()) {
+                throw ValidationException::withMessages([
+                    'direction' => 'Short-selling is niet geactiveerd in je profiel.',
+                ]);
+            }
+
+            $data['direction'] = $direction->value;
+
             $visibility = PositionVisibility::tryFrom((string) ($data['visibility'] ?? ''))
                 ?? PositionVisibility::Private;
 

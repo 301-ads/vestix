@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Positions\Tables;
 
 use App\Enums\ScoutPipelineStatus;
 use App\Filament\Resources\Scouts\ScoutResource;
+use App\Filament\Tables\Columns\DirectionColumn;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\FilamentPolling;
@@ -48,6 +49,7 @@ class ScoutsTable
                             return $class !== null ? ['class' => $class] : [];
                         }),
                 ),
+                DirectionColumn::make(),
                 TextColumn::make('pipeline_status')
                     ->label('Status')
                     ->badge()

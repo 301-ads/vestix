@@ -23,7 +23,11 @@
 
                         <div class="vestix-action-todo__content">
                             <p class="vestix-action-todo__ticker">
-                                {{ $position->ticker }} — Beoordeel open buy-stop
+                                <span class="vestix-action-todo__ticker-name">{{ $position->ticker }}</span>
+                                @if (auth()->user()?->canUseShort())
+                                    <x-filament.positions.direction-badge :direction="$position->tradeDirection()" />
+                                @endif
+                                <span class="vestix-action-todo__ticker-suffix">— Beoordeel open buy-stop</span>
                             </p>
                             <p class="vestix-action-todo__instruction">{{ $this->formatInstruction($position) }}</p>
                             @if ($hint = $this->formatValidationHintHtml($position))

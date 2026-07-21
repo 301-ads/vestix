@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\AlphaTrackerChart;
 use App\Filament\Widgets\AlphaTrackerStatsWidget;
+use App\Filament\Widgets\DirectionPnlSplitWidget;
 use App\Filament\Widgets\PerformanceComingSoonWidget;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Grid;
@@ -34,6 +35,7 @@ class Prestaties extends Page
     {
         return [
             AlphaTrackerStatsWidget::class,
+            DirectionPnlSplitWidget::class,
             AlphaTrackerChart::class,
             PerformanceComingSoonWidget::class,
         ];

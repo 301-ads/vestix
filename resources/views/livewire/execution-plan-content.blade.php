@@ -99,6 +99,7 @@
                                         <a href="{{ $editUrl }}" class="vestix-smart-allocation__ticker-link">
                                             {{ $active->ticker }}
                                         </a>
+                                        <x-filament.positions.direction-badge :direction="$active->tradeDirection()" />
                                     </td>
                                     <td>
                                         {{ $active->last_setup_score !== null ? $active->last_setup_score : '—' }}

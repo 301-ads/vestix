@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Positions\Pages;
 
+use App\Enums\TradeDirection;
 use App\Filament\Concerns\PollsTickerMarketData;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Models\Position;
@@ -69,7 +70,11 @@ class CreatePosition extends CreateRecord
      */
     protected function mutateTickerMarketDataFill(array $fill, array $data): array
     {
-        $sl = Position::computeNewSl($data['latest_sma_20'], $data['latest_atr_14']);
+        $sl = Position::computeNewSl(
+            $data['latest_sma_20'],
+            $data['latest_atr_14'],
+            $data['direction'] ?? TradeDirection::Long,
+        );
 
         if ($sl !== null) {
             $fill['current_sl'] = $sl;
@@ -83,11 +88,13 @@ class CreatePosition extends CreateRecord
         $data['status'] = 'open';
         $data['user_id'] = auth()->id();
         $data['visibility'] = 'private';
+        $data['direction'] = TradeDirection::Long->value;
 
         if (blank($data['current_sl'] ?? null)) {
             $data['current_sl'] = Position::computeNewSl(
                 $data['latest_sma_20'] ?? null,
                 $data['latest_atr_14'] ?? null,
+                TradeDirection::Long,
             );
         }
 

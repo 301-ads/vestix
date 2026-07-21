@@ -1221,10 +1221,27 @@
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__ticker {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.375rem;
     font-size: 0.9375rem;
     font-weight: 700;
     color: var(--gray-950);
     line-height: 1.25;
+}
+
+.vestix-dashboard .vestix-actions-widget .vestix-action-todo__ticker .ticker-direction-badge {
+    margin-left: 0;
+}
+
+.vestix-smart-allocation__ticker .ticker-direction-badge,
+.vestix-smart-allocation__ticker-link + .ticker-direction-badge {
+    margin-left: 0.375rem;
+}
+
+.vestix-dashboard .vestix-actions-widget .vestix-action-todo__ticker-suffix {
+    font-weight: 700;
 }
 
 .dark .vestix-dashboard .vestix-actions-widget .vestix-action-todo__ticker {
@@ -1506,6 +1523,201 @@
 
 .dark .vestix-broker-order-ticket__intro {
     color: var(--gray-400);
+}
+
+.vestix-broker-order-ticket--short .vestix-broker-order-ticket__warning {
+    margin: 0 0 0.75rem;
+    padding: 0.75rem 0.875rem;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--danger-500) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger-500) 45%, transparent);
+}
+
+.vestix-broker-order-ticket__warning-text {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--danger-600);
+}
+
+.dark .vestix-broker-order-ticket__warning-text {
+    color: var(--danger-400);
+}
+
+.vestix-broker-order-ticket__row--short .vestix-broker-order-ticket__value {
+    color: var(--danger-600);
+    font-weight: 700;
+}
+
+.dark .vestix-broker-order-ticket__row--short .vestix-broker-order-ticket__value {
+    color: var(--danger-400);
+}
+
+.ticker-direction-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.375rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    vertical-align: middle;
+}
+
+.ticker-direction-badge--long {
+    color: var(--success-700);
+    background: color-mix(in srgb, var(--success-500) 16%, transparent);
+}
+
+.ticker-direction-badge--short {
+    color: var(--danger-700);
+    background: color-mix(in srgb, var(--danger-500) 18%, transparent);
+}
+
+.dark .ticker-direction-badge--long {
+    color: var(--success-400);
+}
+
+.dark .ticker-direction-badge--short {
+    color: var(--danger-400);
+}
+
+.vestix-direction-cell {
+    white-space: nowrap;
+    text-align: center;
+}
+
+.vestix-direction-field.fi-fo-field-has-inline-label {
+    width: fit-content;
+    max-width: 100%;
+}
+
+@media (min-width: 640px) {
+    .vestix-direction-field.fi-fo-field-has-inline-label {
+        align-items: center;
+        grid-template-columns: auto auto;
+        column-gap: 0.75rem;
+    }
+
+    .vestix-direction-field.fi-fo-toggle-buttons-wrp.fi-fo-field-has-inline-label .fi-fo-field-label-col,
+    .vestix-direction-field.fi-fo-field-has-inline-label .fi-fo-field-label-col {
+        align-items: center;
+        padding-top: 0;
+    }
+
+    .vestix-direction-field.fi-fo-field-has-inline-label .fi-fo-field-content-col {
+        grid-column: auto;
+    }
+}
+
+.vestix-direction-segment--filter {
+    margin-bottom: 1rem;
+    padding: 0.25rem;
+    border-radius: 0.625rem;
+    background: color-mix(in srgb, var(--gray-500) 10%, transparent);
+}
+
+.vestix-direction-segment.fi-fo-toggle-buttons.fi-inline {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 0.625rem;
+    background: color-mix(in srgb, var(--gray-500) 10%, transparent);
+}
+
+.vestix-direction-segment.fi-fo-toggle-buttons .fi-fo-toggle-buttons-btn-ctn > .fi-btn {
+    border: 0;
+    border-radius: 0.5rem;
+    padding: 0.4rem 1rem;
+    min-height: unset;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--gray-600);
+    background: transparent;
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+}
+
+.vestix-direction-segment.fi-fo-toggle-buttons .fi-fo-toggle-buttons-btn-ctn > .fi-btn:hover,
+.vestix-direction-segment.fi-fo-toggle-buttons .fi-fo-toggle-buttons-btn-ctn > .fi-btn:focus-visible {
+    background: color-mix(in srgb, var(--gray-500) 8%, transparent);
+}
+
+.vestix-direction-segment.fi-fo-toggle-buttons .fi-fo-toggle-buttons-btn-ctn > input[value='long']:checked + .fi-btn {
+    color: var(--success-800);
+    background: color-mix(in srgb, var(--success-500) 22%, white);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+.vestix-direction-segment.fi-fo-toggle-buttons .fi-fo-toggle-buttons-btn-ctn > input[value='short']:checked + .fi-btn {
+    color: var(--danger-800);
+    background: color-mix(in srgb, var(--danger-500) 20%, white);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+.vestix-direction-segment__btn {
+    border: 0;
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--gray-600);
+    background: transparent;
+    cursor: pointer;
+}
+
+.vestix-direction-segment__btn--active {
+    color: var(--gray-950);
+    background: white;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+.vestix-direction-segment__btn--active.vestix-direction-segment__btn--long {
+    color: var(--success-800);
+    background: color-mix(in srgb, var(--success-500) 22%, white);
+}
+
+.vestix-direction-segment__btn--active.vestix-direction-segment__btn--short {
+    color: var(--danger-800);
+    background: color-mix(in srgb, var(--danger-500) 20%, white);
+}
+
+.dark .vestix-direction-segment__btn {
+    color: var(--gray-400);
+}
+
+.dark .vestix-direction-segment__btn--active {
+    color: white;
+    background: var(--gray-800);
+}
+
+.dark .vestix-direction-segment__btn--active.vestix-direction-segment__btn--long {
+    color: var(--success-300);
+    background: color-mix(in srgb, var(--success-500) 24%, var(--gray-900));
+}
+
+.dark .vestix-direction-segment__btn--active.vestix-direction-segment__btn--short {
+    color: var(--danger-300);
+    background: color-mix(in srgb, var(--danger-500) 22%, var(--gray-900));
+}
+
+.dark .vestix-direction-segment.fi-fo-toggle-buttons .fi-fo-toggle-buttons-btn-ctn > .fi-btn {
+    color: var(--gray-400);
+}
+
+.dark .vestix-direction-segment.fi-fo-toggle-buttons .fi-fo-toggle-buttons-btn-ctn > input[value='long']:checked + .fi-btn {
+    color: var(--success-300);
+    background: color-mix(in srgb, var(--success-500) 24%, var(--gray-900));
+}
+
+.dark .vestix-direction-segment.fi-fo-toggle-buttons .fi-fo-toggle-buttons-btn-ctn > input[value='short']:checked + .fi-btn {
+    color: var(--danger-300);
+    background: color-mix(in srgb, var(--danger-500) 22%, var(--gray-900));
 }
 
 .vestix-smart-allocation {

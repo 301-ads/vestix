@@ -159,15 +159,69 @@ class BrokerOrderTicket
     {
         $quantity = (float) ($position->quantity ?? 0);
         $entry = (float) ($position->entry_price ?? 0);
-        $limitPrice = StopLimitBuffer::limitPrice($entry);
+        $limitPrice = StopLimitBuffer::limitPriceForDirection($entry, $position->tradeDirection());
         $stopLoss = (float) ($position->new_sl ?? 0);
         $target1 = (float) ($position->plannedBracketTarget1Price() ?? 0);
         $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
         $tpQty = (float) ($position->target_1_quantity ?? 0);
+        $isShort = $position->isShort();
+
+        if ($isShort) {
+            return [
+                'title' => "IBKR Bracket Order — {$position->ticker} [SHORT]",
+                'intro' => 'LET OP: SHORT POSITIE. Gebruik SELL STOP LIMIT voor de instap. Time in Force = GTC; vink Take Profit (BUY LIMIT) en Stop Loss (BUY STOP) aan.',
+                'warning' => 'LET OP: SHORT POSITIE. Gebruik SELL STOP LIMIT voor de instap.',
+                'is_short' => true,
+                'rows' => [
+                    [
+                        'label' => 'Order type',
+                        'value' => 'SELL STOP LIMIT',
+                        'tone' => 'short',
+                    ],
+                    [
+                        'label' => 'Aantal (Quantity)',
+                        'value' => self::formatQuantity($quantity),
+                        'copy_value' => self::formatCopyQuantity($quantity),
+                    ],
+                    [
+                        'label' => 'Prijs (Sell-Stop)',
+                        'value' => self::formatMoney($entry),
+                        'copy_value' => self::formatCopyMoney($entry),
+                        'accent' => true,
+                    ],
+                    [
+                        'label' => 'Limit Prijs (Min Verkoop)',
+                        'value' => self::formatMoney($limitPrice),
+                        'copy_value' => self::formatCopyMoney($limitPrice),
+                        'accent' => true,
+                    ],
+                    [
+                        'label' => 'Take Profit (BUY LIMIT)',
+                        'value' => self::formatMoney($target1),
+                        'copy_value' => self::formatCopyMoney($target1),
+                        'hint' => sprintf(
+                            'TradingView zet TP standaard op 100%%. Plaats eerst de bracket; wijzig daarna het TP-aantal naar %s (%d%%) om te schalen. Verlaag vervolgens de SL-qty naar het restant.',
+                            self::formatQuantity($tpQty),
+                            $fractionPercent,
+                        ),
+                    ],
+                    [
+                        'label' => 'Stop Loss (BUY STOP)',
+                        'value' => self::formatMoney($stopLoss),
+                        'copy_value' => self::formatCopyMoney($stopLoss),
+                    ],
+                ],
+                'difference_label' => null,
+                'confirmation' => 'Heb je de SHORT bracket order (SELL STOP LIMIT) in TradingView/IBKR verzonden?',
+                'submit_label' => 'Order geplaatst',
+            ];
+        }
 
         return [
             'title' => "IBKR Bracket Order — {$position->ticker}",
             'intro' => 'Neem dit exact over in TradingView: Order Type = STOP LIMIT (Kopen), Time in Force = GTC, vink Take Profit en Stop Loss aan.',
+            'warning' => null,
+            'is_short' => false,
             'rows' => [
                 [
                     'label' => 'Order type',

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TradeDirection;
 use App\Models\Position;
 use App\Models\StrategyTag;
 use Illuminate\Support\Collection;
@@ -18,25 +19,30 @@ class StrategyAnalyticsService
     /**
      * @return Collection<int, Position>
      */
-    public function closedTradesForUser(int $userId): Collection
+    public function closedTradesForUser(int $userId, ?TradeDirection $direction = null): Collection
     {
-        return Position::query()
+        $query = Position::query()
             ->closed()
             ->nonLegacy()
             ->forUser($userId)
             ->with('strategyTag')
-            ->orderBy('closed_at')
-            ->get();
+            ->orderBy('closed_at');
+
+        if ($direction !== null) {
+            $query->where('direction', $direction->value);
+        }
+
+        return $query->get();
     }
 
-    public function hasEnoughTrades(int $userId): bool
+    public function hasEnoughTrades(int $userId, ?TradeDirection $direction = null): bool
     {
-        return $this->closedTradesForUser($userId)->count() >= $this->minTradesForCoach();
+        return $this->closedTradesForUser($userId, $direction)->count() >= $this->minTradesForCoach();
     }
 
-    public function tradesUntilCoach(int $userId): int
+    public function tradesUntilCoach(int $userId, ?TradeDirection $direction = null): int
     {
-        $count = $this->closedTradesForUser($userId)->count();
+        $count = $this->closedTradesForUser($userId, $direction)->count();
 
         return max(0, $this->minTradesForCoach() - $count);
     }
@@ -44,12 +50,12 @@ class StrategyAnalyticsService
     /**
      * @return array<int, array{date: string, cumulative_roi: float}>
      */
-    public function equityCurve(int $userId): array
+    public function equityCurve(int $userId, ?TradeDirection $direction = null): array
     {
         $curve = [];
         $cumulative = 0.0;
 
-        foreach ($this->closedTradesForUser($userId) as $position) {
+        foreach ($this->closedTradesForUser($userId, $direction) as $position) {
             $cumulative += $position->unrealized_pnl_percentage;
             $curve[] = [
                 'date' => $position->closed_at?->format('Y-m-d') ?? '',
@@ -70,9 +76,9 @@ class StrategyAnalyticsService
      *     max_drawdown: float,
      * }
      */
-    public function overallStats(int $userId): array
+    public function overallStats(int $userId, ?TradeDirection $direction = null): array
     {
-        $trades = $this->closedTradesForUser($userId);
+        $trades = $this->closedTradesForUser($userId, $direction);
         $count = $trades->count();
 
         if ($count === 0) {
@@ -104,7 +110,35 @@ class StrategyAnalyticsService
             'avg_win' => round($avgWin, 2),
             'avg_loss' => round($avgLoss, 2),
             'expectancy' => round(($winRate * $avgWin) - ($lossRate * $avgLoss), 2),
-            'max_drawdown' => $this->maxDrawdown($userId),
+            'max_drawdown' => $this->maxDrawdown($userId, $direction),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     total: float,
+     *     long: float,
+     *     short: float,
+     *     trade_count: int,
+     * }
+     */
+    public function pnlSplitByDirection(int $userId): array
+    {
+        $trades = $this->closedTradesForUser($userId);
+
+        $long = (float) $trades
+            ->filter(fn (Position $p): bool => $p->isLong())
+            ->sum(fn (Position $p): float => $p->unrealized_pnl);
+
+        $short = (float) $trades
+            ->filter(fn (Position $p): bool => $p->isShort())
+            ->sum(fn (Position $p): float => $p->unrealized_pnl);
+
+        return [
+            'total' => round($long + $short, 2),
+            'long' => round($long, 2),
+            'short' => round($short, 2),
+            'trade_count' => $trades->count(),
         ];
     }
 
@@ -117,9 +151,9 @@ class StrategyAnalyticsService
      *     expectancy: float,
      * }>
      */
-    public function statsPerTag(int $userId): array
+    public function statsPerTag(int $userId, ?TradeDirection $direction = null): array
     {
-        $trades = $this->closedTradesForUser($userId)->filter(
+        $trades = $this->closedTradesForUser($userId, $direction)->filter(
             fn (Position $p): bool => $p->strategy_tag_id !== null,
         );
 
@@ -159,9 +193,9 @@ class StrategyAnalyticsService
     /**
      * @return array{best: ?array, worst: ?array}
      */
-    public function coachInsight(int $userId): array
+    public function coachInsight(int $userId, ?TradeDirection $direction = null): array
     {
-        $perTag = $this->statsPerTag($userId);
+        $perTag = $this->statsPerTag($userId, $direction);
 
         if (count($perTag) < 2) {
             return ['best' => $perTag[0] ?? null, 'worst' => null];
@@ -175,9 +209,9 @@ class StrategyAnalyticsService
         ];
     }
 
-    public function maxDrawdown(int $userId): float
+    public function maxDrawdown(int $userId, ?TradeDirection $direction = null): float
     {
-        $curve = $this->equityCurve($userId);
+        $curve = $this->equityCurve($userId, $direction);
 
         if (count($curve) < 2) {
             return 0.0;
@@ -195,9 +229,9 @@ class StrategyAnalyticsService
         return round($maxDrawdown, 2);
     }
 
-    public function profitFactor(int $userId): ?float
+    public function profitFactor(int $userId, ?TradeDirection $direction = null): ?float
     {
-        $trades = $this->closedTradesForUser($userId);
+        $trades = $this->closedTradesForUser($userId, $direction);
 
         if ($trades->isEmpty()) {
             return null;
@@ -224,9 +258,9 @@ class StrategyAnalyticsService
      *     ticker: string,
      * }|null
      */
-    public function biggestLoss(int $userId): ?array
+    public function biggestLoss(int $userId, ?TradeDirection $direction = null): ?array
     {
-        $trades = $this->closedTradesForUser($userId);
+        $trades = $this->closedTradesForUser($userId, $direction);
 
         if ($trades->isEmpty()) {
             return null;
@@ -260,9 +294,9 @@ class StrategyAnalyticsService
      *     miss_rate: float,
      * }
      */
-    public function freerideHitRate(int $userId): array
+    public function freerideHitRate(int $userId, ?TradeDirection $direction = null): array
     {
-        $trades = $this->closedTradesForUser($userId);
+        $trades = $this->closedTradesForUser($userId, $direction);
         $total = $trades->count();
 
         if ($total === 0) {
@@ -306,9 +340,9 @@ class StrategyAnalyticsService
      *     avg_flat_target_r: float,
      * }
      */
-    public function runnerPerformance(int $userId): array
+    public function runnerPerformance(int $userId, ?TradeDirection $direction = null): array
     {
-        $scaledOut = $this->closedTradesForUser($userId)->filter(
+        $scaledOut = $this->closedTradesForUser($userId, $direction)->filter(
             fn (Position $p): bool => $p->hasScaledOut(),
         );
 
@@ -358,5 +392,14 @@ class StrategyAnalyticsService
                 ? round(array_sum($flatRs) / count($flatRs), 2)
                 : 0.0,
         ];
+    }
+
+    public static function resolveDirectionFilter(?string $filter): ?TradeDirection
+    {
+        return match ($filter) {
+            TradeDirection::Long->value => TradeDirection::Long,
+            TradeDirection::Short->value => TradeDirection::Short,
+            default => null,
+        };
     }
 }

@@ -33,7 +33,12 @@
                         </div>
 
                         <div class="vestix-action-todo__content">
-                            <p class="vestix-action-todo__ticker">{{ $position->ticker }}</p>
+                            <p class="vestix-action-todo__ticker">
+                                <span class="vestix-action-todo__ticker-name">{{ $position->ticker }}</span>
+                                @if (auth()->user()?->canUseShort())
+                                    <x-filament.positions.direction-badge :direction="$position->tradeDirection()" />
+                                @endif
+                            </p>
                             <p class="vestix-action-todo__instruction">{!! $this->formatInstructionHtml($position) !!}</p>
                         </div>
 

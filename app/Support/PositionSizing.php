@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\TradeDirection;
+
 class PositionSizing
 {
     /**
@@ -35,15 +37,56 @@ class PositionSizing
         return $bankroll * ($percent / 100);
     }
 
-    public static function quantityFromRiskBudget(float $riskBudget, float $entry, ?float $stopLoss): ?int
-    {
-        if ($stopLoss === null || $riskBudget <= 0) {
+    public static function riskPerShare(
+        float $entry,
+        ?float $stopLoss,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): ?float {
+        if ($stopLoss === null) {
             return null;
         }
 
-        $riskPerShare = round($entry - $stopLoss, 2);
+        $direction = self::normalizeDirection($direction);
 
-        if ($riskPerShare <= 0) {
+        $risk = $direction === TradeDirection::Short
+            ? round($stopLoss - $entry, 2)
+            : round($entry - $stopLoss, 2);
+
+        if ($risk <= 0) {
+            return null;
+        }
+
+        return $risk;
+    }
+
+    public static function targetPrice(
+        float $entry,
+        float $riskPerShare,
+        float $rewardRisk,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): float {
+        $direction = self::normalizeDirection($direction);
+
+        if ($direction === TradeDirection::Short) {
+            return round($entry - ($rewardRisk * $riskPerShare), 2);
+        }
+
+        return round($entry + ($rewardRisk * $riskPerShare), 2);
+    }
+
+    public static function quantityFromRiskBudget(
+        float $riskBudget,
+        float $entry,
+        ?float $stopLoss,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): ?int {
+        if ($riskBudget <= 0) {
+            return null;
+        }
+
+        $riskPerShare = self::riskPerShare($entry, $stopLoss, $direction);
+
+        if ($riskPerShare === null) {
             return null;
         }
 
@@ -66,15 +109,19 @@ class PositionSizing
         return intdiv($investmentCents, $entryCents);
     }
 
-    public static function plannedRiskTotal(int $quantity, float $entry, ?float $stopLoss): ?float
-    {
-        if ($stopLoss === null || $quantity < 1) {
+    public static function plannedRiskTotal(
+        int $quantity,
+        float $entry,
+        ?float $stopLoss,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): ?float {
+        if ($quantity < 1) {
             return null;
         }
 
-        $riskPerShare = round($entry - $stopLoss, 2);
+        $riskPerShare = self::riskPerShare($entry, $stopLoss, $direction);
 
-        if ($riskPerShare <= 0) {
+        if ($riskPerShare === null) {
             return null;
         }
 
@@ -124,5 +171,18 @@ class PositionSizing
     public static function overLimitByPercentPoints(float $plannedRiskPercent, float $limitPercent): float
     {
         return max(0.0, $plannedRiskPercent - $limitPercent);
+    }
+
+    private static function normalizeDirection(TradeDirection|string|null $direction): TradeDirection
+    {
+        if ($direction instanceof TradeDirection) {
+            return $direction;
+        }
+
+        if (is_string($direction) && $direction === TradeDirection::Short->value) {
+            return TradeDirection::Short;
+        }
+
+        return TradeDirection::Long;
     }
 }

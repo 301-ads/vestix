@@ -130,13 +130,15 @@ class SmartAllocationService
                 continue;
             }
 
-            $riskPerShare = round($entry - $stopLoss, 2);
+            $riskPerShare = PositionSizing::riskPerShare($entry, $stopLoss, $position->tradeDirection());
 
-            if ($riskPerShare <= 0) {
+            if ($riskPerShare === null) {
                 $exclusions[] = [
                     'position_id' => (int) $position->id,
                     'ticker' => $ticker,
-                    'reason' => 'Stop-loss ligt op of boven entry',
+                    'reason' => $position->isShort()
+                        ? 'Stop-loss ligt op of onder entry'
+                        : 'Stop-loss ligt op of boven entry',
                 ];
 
                 continue;
@@ -160,8 +162,12 @@ class SmartAllocationService
             $target1 = $position->plannedBracketTarget1Price();
             $rewardRisk = null;
 
-            if ($target1 !== null && $target1 > $entry) {
-                $rewardRisk = ($target1 - $entry) / $riskPerShare;
+            if ($target1 !== null) {
+                if ($position->isShort() && $target1 < $entry) {
+                    $rewardRisk = ($entry - $target1) / $riskPerShare;
+                } elseif (! $position->isShort() && $target1 > $entry) {
+                    $rewardRisk = ($target1 - $entry) / $riskPerShare;
+                }
             }
 
             $sector = filled($position->sector_etf)
@@ -377,7 +383,12 @@ class SmartAllocationService
         foreach ($weighted as $row) {
             $share = $row['weight'] / $totalWeight;
             $riskDollars = min($pie * $share, $pie);
-            $quantity = PositionSizing::quantityFromRiskBudget($riskDollars, $row['entry'], $row['stop_loss']) ?? 0;
+            $quantity = PositionSizing::quantityFromRiskBudget(
+                $riskDollars,
+                $row['entry'],
+                $row['stop_loss'],
+                $row['position']->tradeDirection(),
+            ) ?? 0;
             $investment = $quantity * $row['entry'];
             $riskPercent = $bankroll > 0
                 ? PositionSizing::riskAsPercentOfBankroll($riskDollars, $bankroll)

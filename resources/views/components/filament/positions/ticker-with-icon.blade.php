@@ -3,12 +3,26 @@
     'iconUrl' => null,
     'statusDotColor' => null,
     'statusDotLabel' => null,
+    'direction' => null,
+    'showDirectionBadge' => false,
 ])
 
 @php
+    use App\Enums\TradeDirection;
+
     $letter = strtoupper(substr((string) $ticker, 0, 1));
     $hue = abs(crc32((string) $ticker)) % 360;
     $hasStatusDot = filled($statusDotColor) && filled($statusDotLabel);
+
+    $directionEnum = null;
+
+    if ($showDirectionBadge) {
+        $directionEnum = $direction instanceof TradeDirection
+            ? $direction
+            : TradeDirection::tryFrom((string) ($direction ?? ''));
+
+        $directionEnum ??= TradeDirection::Long;
+    }
 @endphp
 
 <span {{ $attributes->class(['ticker-with-icon']) }}>
@@ -43,4 +57,8 @@
     </span>
 
     <span class="ticker-with-icon__label font-bold">{{ $ticker }}</span>
+
+    @if ($showDirectionBadge && $directionEnum)
+        <x-filament.positions.direction-badge :direction="$directionEnum" />
+    @endif
 </span>

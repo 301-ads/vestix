@@ -110,6 +110,9 @@
                                 @else
                                     {{ $row['ticker'] }}
                                 @endif
+                                @if ($position)
+                                    <x-filament.positions.direction-badge :direction="$position->tradeDirection()" />
+                                @endif
                             </td>
                             <td>{{ $row['score'] }}</td>
                             <td>

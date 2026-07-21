@@ -161,6 +161,10 @@ class EditUserProfile extends EditProfile
                                             ->inline()
                                             ->required()
                                             ->helperText('Nieuwe scouts krijgen deze broker. Bestaande posities behouden hun oorspronkelijke tag. Revolut toont bevestigingsflows; IBKR gebruikt bracket orders; Geen/handmatig toont Limit Sell-instructies.'),
+                                        Toggle::make('is_short_enabled')
+                                            ->label('Activeer Short-Selling')
+                                            ->helperText('Alleen voor goedgekeurde margin-accounts. Zet dit uit als je broker shorts niet toestaat — de Short-optie verdwijnt dan uit Scout toevoegen.')
+                                            ->inline(false),
                                     ]),
                             ]),
                         Tab::make('Telegram & Alerts')

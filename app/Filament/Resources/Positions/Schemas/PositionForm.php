@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Positions\Schemas;
 
 use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
+use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Models\Position;
@@ -28,6 +29,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Callout;
@@ -207,6 +209,7 @@ class PositionForm
             ->compact()
             ->divided()
             ->schema([
+                self::directionToggleField(),
                 Grid::make(3)
                     ->schema([
                         self::tickerField(),
@@ -233,7 +236,9 @@ class PositionForm
                 Grid::make(2)
                     ->schema([
                         TextInput::make('entry_price')
-                            ->label('Geplande entry')
+                            ->label(fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
+                                ? 'Geplande entry (Sell-Stop)'
+                                : 'Geplande entry')
                             ->numeric()
                             ->prefix('$')
                             ->minValue(0.01)
@@ -246,9 +251,52 @@ class PositionForm
                     ]),
                 self::bankrollSetupCallout($isScoutForm),
                 self::earningsSmartAlert(),
+                self::shortEarningsWarningCallout(),
                 Grid::make(3)
                     ->schema(self::buyStopFields()),
             ]);
+    }
+
+    private static function directionToggleField(): ToggleButtons
+    {
+        return ToggleButtons::make('direction')
+            ->label('Richting')
+            ->options([
+                TradeDirection::Long->value => 'LONG',
+                TradeDirection::Short->value => 'SHORT',
+            ])
+            ->default(TradeDirection::Long->value)
+            ->inline()
+            ->inlineLabel()
+            ->live()
+            ->visible(fn (): bool => (bool) auth()->user()?->canUseShort())
+            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncEntryStopFromSignal($set, $get, $record))
+            ->dehydrated(fn (): bool => true)
+            ->extraFieldWrapperAttributes(['class' => 'vestix-direction-field'])
+            ->extraAttributes(['class' => 'vestix-direction-segment'])
+            ->columnSpanFull();
+    }
+
+    private static function shortEarningsWarningCallout(): Callout
+    {
+        return Callout::make('LET OP: SHORT binnen 14 dagen van earnings')
+            ->danger()
+            ->icon('heroicon-o-exclamation-triangle')
+            ->description('Short nooit een aandeel dat binnen 14 dagen met kwartaalcijfers komt. Een positieve verrassing is dodelijk — opslaan mag, maar heroverweeg deze setup.')
+            ->visible(function (Get $get, ?Position $record): bool {
+                if (self::resolveFormDirection($get, $record) !== TradeDirection::Short) {
+                    return false;
+                }
+
+                if ($record === null) {
+                    return false;
+                }
+
+                $record->loadMissing('asset');
+
+                return EarningsExitDisplay::isWithinAlertWindow($record);
+            })
+            ->columnSpanFull();
     }
 
     private static function scoutMarktdataSection(): Section
@@ -996,31 +1044,67 @@ class PositionForm
                 ->prefix('$')
                 ->minValue(0.01)
                 ->rules(['nullable', 'numeric', 'min:0.01'])
-                ->helperText('Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D).')
-                ->live(onBlur: true),
+                ->helperText(fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
+                    ? 'Laagste punt van de rode afwijzingskaars (TradingView, 1D). Drijft de Sell-Stop.'
+                    : 'Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D).')
+                ->live(onBlur: true)
+                ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncEntryStopFromSignal($set, $get, $record))
+                ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncEntryStopFromSignal($set, $get, $record)),
             TextInput::make('signal_high')
                 ->label('High (Signaalkaars)')
                 ->numeric()
                 ->prefix('$')
                 ->minValue(0.01)
                 ->rules(['nullable', 'numeric', 'min:0.01'])
-                ->helperText('Optioneel tot bounce-dag. Hoogste punt van de bounce-dagkaars (TradingView, 1D).')
+                ->helperText(fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
+                    ? 'Hoogste punt / plafond van de afwijzingskaars (TradingView, 1D).'
+                    : 'Optioneel tot bounce-dag. Hoogste punt van de bounce-dagkaars (TradingView, 1D).')
                 ->live(onBlur: true)
-                ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record))
-                ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncBuyStopFromInputs($set, $get, $record)),
+                ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncEntryStopFromSignal($set, $get, $record))
+                ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncEntryStopFromSignal($set, $get, $record)),
             Placeholder::make('advised_entry_display')
-                ->label('Geadviseerde Buy-Stop')
-                ->content(fn (Get $get, ?Position $record): string => self::formatAdvisedBuyStopDisplay($get, $record))
+                ->label(fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
+                    ? 'Geadviseerde Sell-Stop'
+                    : 'Geadviseerde Buy-Stop')
+                ->content(fn (Get $get, ?Position $record): string => self::formatAdvisedEntryStopDisplay($get, $record))
                 ->extraEntryWrapperAttributes(fn (Get $get, ?Position $record): array => [
-                    'class' => 'scout-telemetry-readonly scout-advised-buy-stop'.(blank($get('signal_high') ?? $record?->signal_high)
+                    'class' => 'scout-telemetry-readonly scout-advised-buy-stop'.(self::advisedEntryStopPending($get, $record)
                         ? ' scout-advised-buy-stop--pending'
                         : ''),
                 ]),
         ];
     }
 
-    private static function formatAdvisedBuyStopDisplay(Get $get, ?Position $record): string
+    private static function advisedEntryStopPending(Get $get, ?Position $record): bool
     {
+        if (self::resolveFormDirection($get, $record) === TradeDirection::Short) {
+            return blank($get('signal_low') ?? $record?->signal_low);
+        }
+
+        return blank($get('signal_high') ?? $record?->signal_high);
+    }
+
+    private static function formatAdvisedEntryStopDisplay(Get $get, ?Position $record): string
+    {
+        $direction = self::resolveFormDirection($get, $record);
+
+        if ($direction === TradeDirection::Short) {
+            if (blank($get('signal_low') ?? $record?->signal_low)) {
+                return 'Vul Low in om Sell-Stop te berekenen';
+            }
+
+            $sellStop = Position::computeSellStop(
+                $get('signal_low') ?? $record?->signal_low,
+                $get('latest_atr_14') ?? $record?->latest_atr_14,
+            );
+
+            if ($sellStop === null) {
+                return '—';
+            }
+
+            return '$'.number_format($sellStop, 2, ',', '.');
+        }
+
         if (blank($get('signal_high') ?? $record?->signal_high)) {
             return 'Vul High in om Buy-Stop te berekenen';
         }
@@ -1035,6 +1119,12 @@ class PositionForm
         }
 
         return '$'.number_format($buyStop, 2, ',', '.');
+    }
+
+    /** @deprecated Use formatAdvisedEntryStopDisplay() */
+    private static function formatAdvisedBuyStopDisplay(Get $get, ?Position $record): string
+    {
+        return self::formatAdvisedEntryStopDisplay($get, $record);
     }
 
     private static function scoutAutoComputedTextInput(TextInput $field): TextInput
@@ -1315,7 +1405,12 @@ class PositionForm
         $overByPercentPoints = null;
 
         if ($entry !== null && $entry !== '' && $quantity !== null && $quantity !== '' && $stopLoss !== null) {
-            $plannedRisk = PositionSizing::plannedRiskTotal((int) floor((float) $quantity), (float) $entry, $stopLoss);
+            $plannedRisk = PositionSizing::plannedRiskTotal(
+                (int) floor((float) $quantity),
+                (float) $entry,
+                $stopLoss,
+                self::resolveFormDirection($get, $record),
+            );
         }
 
         if ($plannedRisk !== null && $bankroll !== null) {
@@ -1341,6 +1436,29 @@ class PositionForm
 
     private static function syncBuyStopFromInputs(Set $set, Get $get, ?Position $record): void
     {
+        self::syncEntryStopFromSignal($set, $get, $record);
+    }
+
+    private static function syncEntryStopFromSignal(Set $set, Get $get, ?Position $record): void
+    {
+        $direction = self::resolveFormDirection($get, $record);
+
+        if ($direction === TradeDirection::Short) {
+            $sellStop = Position::computeSellStop(
+                $get('signal_low') ?? $record?->signal_low,
+                $get('latest_atr_14') ?? $record?->latest_atr_14,
+            );
+
+            if ($sellStop === null) {
+                return;
+            }
+
+            $set('entry_price', $sellStop);
+            self::syncPlannedQuantityFromInvestment($set, $get, $record);
+
+            return;
+        }
+
         $buyStop = Position::computeBuyStop(
             $get('signal_high') ?? $record?->signal_high,
             $get('latest_atr_14') ?? $record?->latest_atr_14,
@@ -1352,6 +1470,13 @@ class PositionForm
 
         $set('entry_price', $buyStop);
         self::syncPlannedQuantityFromInvestment($set, $get, $record);
+    }
+
+    private static function resolveFormDirection(Get $get, ?Position $record): TradeDirection
+    {
+        $raw = $get('direction') ?? $record?->direction?->value ?? TradeDirection::Long->value;
+
+        return TradeDirection::tryFrom((string) $raw) ?? TradeDirection::Long;
     }
 
     /**
@@ -1721,8 +1846,13 @@ class PositionForm
         }
 
         $price = (float) $price;
-        $pnl = ($price - $entry) * $quantity;
-        $pnlPercentage = (($price - $entry) / $entry) * 100;
+        $direction = self::resolveFormDirection($get, $record);
+        $pnl = $direction === TradeDirection::Short
+            ? ($entry - $price) * $quantity
+            : ($price - $entry) * $quantity;
+        $pnlPercentage = $direction === TradeDirection::Short
+            ? (($entry - $price) / $entry) * 100
+            : (($price - $entry) / $entry) * 100;
 
         return [
             'pnl' => $pnl,
@@ -1755,6 +1885,7 @@ class PositionForm
             'scout_rsi' => $get('scout_rsi') ?? $record?->scout_rsi,
             'prior_day_low' => $get('prior_day_low') ?? $record?->prior_day_low,
             'current_sl' => $get('current_sl') ?? $record?->current_sl,
+            'direction' => self::resolveFormDirection($get, $record)->value,
         ];
     }
 
@@ -2097,6 +2228,7 @@ class PositionForm
         return StopLossProtocol::resolveForIndicators(
             $get('latest_sma_20') ?? $record?->latest_sma_20,
             $get('latest_atr_14') ?? $record?->latest_atr_14,
+            self::resolveFormDirection($get, $record),
         );
     }
 

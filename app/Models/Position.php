@@ -9,9 +9,11 @@ use App\Enums\ExecutionDigestStatus;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
 use App\Enums\ScoutPipelineStatus;
+use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Services\AssetSyncService;
 use App\Support\EarningsExitSchedule;
+use App\Support\PositionSizing;
 use App\Support\ScoutSetupScorecard;
 use App\Support\StopLossProtocol;
 use App\Support\UsMarketSession;
@@ -97,7 +99,23 @@ class Position extends Model
             'buy_stop_review_required_on' => 'date',
             'buy_stop_review_setup_score' => 'integer',
             'is_legacy' => 'boolean',
+            'direction' => TradeDirection::class,
         ];
+    }
+
+    public function tradeDirection(): TradeDirection
+    {
+        return $this->direction ?? TradeDirection::Long;
+    }
+
+    public function isShort(): bool
+    {
+        return $this->tradeDirection()->isShort();
+    }
+
+    public function isLong(): bool
+    {
+        return $this->tradeDirection()->isLong();
     }
 
     protected static function booted(): void
@@ -541,7 +559,7 @@ class Position extends Model
         ?float $target1Rr = null,
         ?float $firstTrancheFraction = null,
     ): void {
-        $sl = self::computeNewSl($this->latest_sma_20, $this->latest_atr_14);
+        $sl = self::computeNewSl($this->latest_sma_20, $this->latest_atr_14, $this->tradeDirection());
 
         if ($sl === null) {
             throw new InvalidArgumentException('Marktdata ontbreekt — kan geen stop-loss berekenen.');
@@ -584,11 +602,20 @@ class Position extends Model
 
     public function isAutoRunnerBypass(): bool
     {
-        return $this->status === 'open'
-            && ! $this->hasScaledOut()
-            && $this->entry_price !== null
-            && $this->current_sl !== null
-            && (float) $this->current_sl >= (float) $this->entry_price;
+        if (
+            $this->status !== 'open'
+            || $this->hasScaledOut()
+            || $this->entry_price === null
+            || $this->current_sl === null
+        ) {
+            return false;
+        }
+
+        if ($this->isShort()) {
+            return (float) $this->current_sl <= (float) $this->entry_price;
+        }
+
+        return (float) $this->current_sl >= (float) $this->entry_price;
     }
 
     public function effectiveBroker(): Broker
@@ -765,13 +792,22 @@ class Position extends Model
             return null;
         }
 
-        $riskPerShare = (float) $this->entry_price - (float) $initialSl;
+        $riskPerShare = PositionSizing::riskPerShare(
+            (float) $this->entry_price,
+            (float) $initialSl,
+            $this->tradeDirection(),
+        );
 
-        if ($riskPerShare <= 0) {
+        if ($riskPerShare === null) {
             return null;
         }
 
-        return round((float) $this->entry_price + ($this->effective_target_1_rr * $riskPerShare), 2);
+        return PositionSizing::targetPrice(
+            (float) $this->entry_price,
+            $riskPerShare,
+            $this->effective_target_1_rr,
+            $this->tradeDirection(),
+        );
     }
 
     /**
@@ -787,13 +823,22 @@ class Position extends Model
             return null;
         }
 
-        $riskPerShare = (float) $this->entry_price - (float) $this->new_sl;
+        $riskPerShare = PositionSizing::riskPerShare(
+            (float) $this->entry_price,
+            (float) $this->new_sl,
+            $this->tradeDirection(),
+        );
 
-        if ($riskPerShare <= 0) {
+        if ($riskPerShare === null) {
             return null;
         }
 
-        return round((float) $this->entry_price + ($this->effective_target_1_rr * $riskPerShare), 2);
+        return PositionSizing::targetPrice(
+            (float) $this->entry_price,
+            $riskPerShare,
+            $this->effective_target_1_rr,
+            $this->tradeDirection(),
+        );
     }
 
     public function hasCompleteBracketPlan(): bool
@@ -826,7 +871,11 @@ class Position extends Model
             return null;
         }
 
-        return round($qty * ($target - (float) $this->entry_price), 2);
+        $perShare = $this->isShort()
+            ? ((float) $this->entry_price - $target)
+            : ($target - (float) $this->entry_price);
+
+        return round($qty * $perShare, 2);
     }
 
     public function getRemainingQuantityAttribute(): ?float
@@ -917,7 +966,9 @@ class Position extends Model
         $totalRisk = $riskPerShare * (float) $position->quantity;
         $remainingQty = $position->remaining_quantity ?? (float) $position->quantity;
         $realized = $position->stored_realized_pnl;
-        $runnerPnl = $remainingQty * ((float) $exitPrice - (float) $position->entry_price);
+        $runnerPnl = $position->isShort()
+            ? $remainingQty * ((float) $position->entry_price - (float) $exitPrice)
+            : $remainingQty * ((float) $exitPrice - (float) $position->entry_price);
         $totalPnl = $realized + $runnerPnl;
 
         return round($totalPnl / $totalRisk, 4);
@@ -1029,7 +1080,21 @@ class Position extends Model
             ->where('status', 'open')
             ->whereNotNull('latest_close_price')
             ->whereNotNull('current_sl')
-            ->whereColumn('latest_close_price', '<=', 'current_sl');
+            ->where(function (Builder $query): void {
+                $query
+                    ->where(function (Builder $long): void {
+                        $long
+                            ->where(fn (Builder $direction): Builder => $direction
+                                ->whereNull('direction')
+                                ->orWhere('direction', TradeDirection::Long->value))
+                            ->whereColumn('latest_close_price', '<=', 'current_sl');
+                    })
+                    ->orWhere(function (Builder $short): void {
+                        $short
+                            ->where('direction', TradeDirection::Short->value)
+                            ->whereColumn('latest_close_price', '>=', 'current_sl');
+                    });
+            });
     }
 
     public function scopeRequiresSlUpdate(Builder $query): Builder
@@ -1041,8 +1106,23 @@ class Position extends Model
             ->whereNotNull('latest_sma_20')
             ->whereNotNull('latest_atr_14')
             ->whereNotNull('current_sl')
-            ->whereColumn('latest_close_price', '>=', 'current_sl')
-            ->whereRaw('ROUND(latest_sma_20 - (latest_atr_14 / 2), 2) > current_sl');
+            ->where(function (Builder $query): void {
+                $query
+                    ->where(function (Builder $long): void {
+                        $long
+                            ->where(fn (Builder $direction): Builder => $direction
+                                ->whereNull('direction')
+                                ->orWhere('direction', TradeDirection::Long->value))
+                            ->whereColumn('latest_close_price', '>=', 'current_sl')
+                            ->whereRaw('ROUND(latest_sma_20 - (latest_atr_14 / 2), 2) > current_sl');
+                    })
+                    ->orWhere(function (Builder $short): void {
+                        $short
+                            ->where('direction', TradeDirection::Short->value)
+                            ->whereColumn('latest_close_price', '<=', 'current_sl')
+                            ->whereRaw('ROUND(latest_sma_20 + (latest_atr_14 / 2), 2) < current_sl');
+                    });
+            });
     }
 
     public const PRIMARY_ACTION_TARGET_1 = 'TARGET_1';
@@ -1197,9 +1277,12 @@ class Position extends Model
         });
     }
 
-    public static function computeNewSl(mixed $sma, mixed $atr): ?float
-    {
-        return StopLossProtocol::computeStandard($sma, $atr);
+    public static function computeNewSl(
+        mixed $sma,
+        mixed $atr,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): ?float {
+        return StopLossProtocol::computeStandard($sma, $atr, $direction);
     }
 
     public static function computeBuyStop(mixed $high, mixed $atr): ?float
@@ -1218,6 +1301,22 @@ class Position extends Model
         return round($high + (0.10 * $atr), 2);
     }
 
+    public static function computeSellStop(mixed $low, mixed $atr): ?float
+    {
+        if ($low === null || $atr === null || $low === '' || $atr === '') {
+            return null;
+        }
+
+        $low = (float) $low;
+        $atr = (float) $atr;
+
+        if ($low <= 0 || $atr <= 0) {
+            return null;
+        }
+
+        return round(max(0.01, $low - (0.10 * $atr)), 2);
+    }
+
     public static function resolveActionCommand(
         mixed $close,
         mixed $currentSl,
@@ -1233,19 +1332,31 @@ class Position extends Model
             return 'AWAITING DATA';
         }
 
-        if ((float) $close <= (float) $currentSl) {
+        $direction = $position?->tradeDirection() ?? TradeDirection::Long;
+        $close = (float) $close;
+        $currentSl = (float) $currentSl;
+
+        if ($direction === TradeDirection::Short) {
+            if ($close >= $currentSl) {
+                return 'STOPPED OUT';
+            }
+        } elseif ($close <= $currentSl) {
             return 'STOPPED OUT';
         }
 
         $newSl = $position !== null
             ? StopLossProtocol::resolve($position)
-            : StopLossProtocol::resolveForIndicators($sma, $atr);
+            : StopLossProtocol::resolveForIndicators($sma, $atr, $direction);
 
-        if ($newSl && $newSl > (float) $currentSl) {
-            return 'UPDATE';
+        if ($newSl === null) {
+            return 'HOLD';
         }
 
-        return 'HOLD';
+        if ($direction === TradeDirection::Short) {
+            return $newSl < $currentSl ? 'UPDATE' : 'HOLD';
+        }
+
+        return $newSl > $currentSl ? 'UPDATE' : 'HOLD';
     }
 
     public function getNewSlAttribute(): ?float
@@ -1283,7 +1394,11 @@ class Position extends Model
             return null;
         }
 
-        return (float) $this->entry_price - $this->new_sl;
+        return PositionSizing::riskPerShare(
+            (float) $this->entry_price,
+            (float) $this->new_sl,
+            $this->tradeDirection(),
+        );
     }
 
     public function getPlannedRiskPercentageAttribute(): ?float
@@ -1340,11 +1455,17 @@ class Position extends Model
             return 0;
         }
 
-        if ((float) $this->current_sl > (float) $this->entry_price) {
+        $riskPerShare = PositionSizing::riskPerShare(
+            (float) $this->entry_price,
+            (float) $this->current_sl,
+            $this->tradeDirection(),
+        );
+
+        if ($riskPerShare === null) {
             return 0;
         }
 
-        return ((float) $this->entry_price - (float) $this->current_sl) * (float) $this->remaining_quantity;
+        return $riskPerShare * (float) $this->remaining_quantity;
     }
 
     public function getLockedInProfitDollarsAttribute(): float
@@ -1356,7 +1477,11 @@ class Position extends Model
         $lockedFromStop = 0.0;
 
         if ($this->entry_price !== null && $this->current_sl !== null && $this->remaining_quantity !== null) {
-            if ((float) $this->current_sl > (float) $this->entry_price) {
+            if ($this->isShort()) {
+                if ((float) $this->current_sl < (float) $this->entry_price) {
+                    $lockedFromStop = ((float) $this->entry_price - (float) $this->current_sl) * (float) $this->remaining_quantity;
+                }
+            } elseif ((float) $this->current_sl > (float) $this->entry_price) {
                 $lockedFromStop = ((float) $this->current_sl - (float) $this->entry_price) * (float) $this->remaining_quantity;
             }
         }
@@ -1382,7 +1507,9 @@ class Position extends Model
             return false;
         }
 
-        $bufferPercentage = (((float) $close - (float) $stopLoss) / (float) $close) * 100;
+        $bufferPercentage = $this->isShort()
+            ? (((float) $stopLoss - (float) $close) / (float) $close) * 100
+            : (((float) $close - (float) $stopLoss) / (float) $close) * 100;
 
         return $bufferPercentage >= 0 && $bufferPercentage < $threshold;
     }
@@ -1398,8 +1525,23 @@ class Position extends Model
             ->whereNotNull('latest_close_price')
             ->whereNotNull('current_sl')
             ->where('latest_close_price', '>', 0)
-            ->whereRaw('(CAST(latest_close_price AS REAL) - CAST(current_sl AS REAL)) / CAST(latest_close_price AS REAL) * 100 >= 0')
-            ->whereRaw('(CAST(latest_close_price AS REAL) - CAST(current_sl AS REAL)) / CAST(latest_close_price AS REAL) * 100 < ?', [$threshold]);
+            ->where(function (Builder $query) use ($threshold): void {
+                $query
+                    ->where(function (Builder $long) use ($threshold): void {
+                        $long
+                            ->where(fn (Builder $direction): Builder => $direction
+                                ->whereNull('direction')
+                                ->orWhere('direction', TradeDirection::Long->value))
+                            ->whereRaw('(CAST(latest_close_price AS REAL) - CAST(current_sl AS REAL)) / CAST(latest_close_price AS REAL) * 100 >= 0')
+                            ->whereRaw('(CAST(latest_close_price AS REAL) - CAST(current_sl AS REAL)) / CAST(latest_close_price AS REAL) * 100 < ?', [$threshold]);
+                    })
+                    ->orWhere(function (Builder $short) use ($threshold): void {
+                        $short
+                            ->where('direction', TradeDirection::Short->value)
+                            ->whereRaw('(CAST(current_sl AS REAL) - CAST(latest_close_price AS REAL)) / CAST(latest_close_price AS REAL) * 100 >= 0')
+                            ->whereRaw('(CAST(current_sl AS REAL) - CAST(latest_close_price AS REAL)) / CAST(latest_close_price AS REAL) * 100 < ?', [$threshold]);
+                    });
+            });
     }
 
     public function getCurrentValueAttribute(): float
@@ -1424,9 +1566,11 @@ class Position extends Model
             return 0;
         }
 
-        return $this->current_value
-            - ((float) $this->remaining_quantity * (float) $this->entry_price)
-            + $this->stored_realized_pnl;
+        $markToMarket = $this->isShort()
+            ? (((float) $this->remaining_quantity * (float) $this->entry_price) - $this->current_value)
+            : ($this->current_value - ((float) $this->remaining_quantity * (float) $this->entry_price));
+
+        return $markToMarket + $this->stored_realized_pnl;
     }
 
     public function getUnrealizedPnlPercentageAttribute(): float

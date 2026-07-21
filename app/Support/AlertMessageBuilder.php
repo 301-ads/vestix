@@ -322,21 +322,25 @@ class AlertMessageBuilder
     private static function safeOrderPlanBlock(Position $position): array
     {
         $entry = (float) ($position->entry_price ?? 0);
-        $limitPrice = StopLimitBuffer::limitPrice($entry);
+        $limitPrice = StopLimitBuffer::limitPriceForDirection($entry, $position->tradeDirection());
         $quantity = (float) ($position->quantity ?? 0);
         $stopLoss = (float) ($position->new_sl ?? 0);
         $target1 = (float) ($position->plannedBracketTarget1Price() ?? 0);
         $riskDollars = $position->planned_risk_dollars;
+        $isShort = $position->isShort();
 
         $lines = [
             sprintf(
-                '<b>$%s</b>%s',
+                '<b>$%s</b>%s%s',
                 e($position->ticker),
+                $isShort ? ' <b>[SHORT]</b>' : ' <b>[LONG]</b>',
                 $riskDollars !== null
                     ? sprintf(' (Risico: $%s)', number_format((float) $riskDollars, 2))
                     : '',
             ),
-            'Type: STOP LIMIT (Kopen)',
+            $isShort
+                ? '⚠️ SHORT — Type: SELL STOP LIMIT'
+                : 'Type: STOP LIMIT (Kopen)',
         ];
 
         if ($quantity > 0) {
@@ -347,16 +351,24 @@ class AlertMessageBuilder
         }
 
         if ($entry > 0) {
-            $lines[] = sprintf('Buy-Stop: $%s', number_format($entry, 2));
-            $lines[] = sprintf('Limit Prijs: $%s', number_format($limitPrice, 2));
+            $lines[] = $isShort
+                ? sprintf('Sell-Stop: $%s', number_format($entry, 2))
+                : sprintf('Buy-Stop: $%s', number_format($entry, 2));
+            $lines[] = $isShort
+                ? sprintf('Limit Prijs (Min Verkoop): $%s', number_format($limitPrice, 2))
+                : sprintf('Limit Prijs: $%s', number_format($limitPrice, 2));
         }
 
         if ($stopLoss > 0) {
-            $lines[] = sprintf('Stop-Loss: $%s', number_format($stopLoss, 2));
+            $lines[] = $isShort
+                ? sprintf('Stop-Loss (BUY STOP): $%s', number_format($stopLoss, 2))
+                : sprintf('Stop-Loss: $%s', number_format($stopLoss, 2));
         }
 
         if ($target1 > 0) {
-            $lines[] = sprintf('Take Profit: $%s', number_format($target1, 2));
+            $lines[] = $isShort
+                ? sprintf('Take Profit (BUY LIMIT): $%s', number_format($target1, 2))
+                : sprintf('Take Profit: $%s', number_format($target1, 2));
         }
 
         return $lines;

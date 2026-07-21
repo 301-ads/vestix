@@ -12,6 +12,25 @@ class StrategyCoachStatsWidget extends StatsOverviewWidget
 
     protected int|string|array $columnSpan = 'full';
 
+    /**
+     * @var array<string, string>
+     */
+    protected $listeners = [
+        'coach-direction-updated' => 'onCoachDirectionUpdated',
+    ];
+
+    public string $directionFilter = 'all';
+
+    public function mount(): void
+    {
+        $this->directionFilter = (string) session('vestix.coach_direction_filter', 'all');
+    }
+
+    public function onCoachDirectionUpdated(string $filter): void
+    {
+        $this->directionFilter = $filter;
+    }
+
     protected function getStats(): array
     {
         $userId = auth()->id();
@@ -21,21 +40,27 @@ class StrategyCoachStatsWidget extends StatsOverviewWidget
         }
 
         $analytics = app(StrategyAnalyticsService::class);
+        $direction = StrategyAnalyticsService::resolveDirectionFilter($this->directionFilter);
 
-        if (! $analytics->hasEnoughTrades($userId)) {
-            $remaining = $analytics->tradesUntilCoach($userId);
+        if (! $analytics->hasEnoughTrades($userId, $direction)) {
+            $remaining = $analytics->tradesUntilCoach($userId, $direction);
             $minimum = $analytics->minTradesForCoach();
+            $scope = match ($direction?->value) {
+                'long' => 'longs',
+                'short' => 'shorts',
+                default => 'trades',
+            };
 
             return [
-                Stat::make('Strategy Coach', "Nog {$remaining} trades")
+                Stat::make('Strategy Coach', "Nog {$remaining} {$scope}")
                     ->description("Tot je edge zichtbaar wordt (min. {$minimum} gesloten trades)")
                     ->color('gray'),
             ];
         }
 
-        $stats = $analytics->overallStats($userId);
-        $insight = $analytics->coachInsight($userId);
-        $runner = $analytics->runnerPerformance($userId);
+        $stats = $analytics->overallStats($userId, $direction);
+        $insight = $analytics->coachInsight($userId, $direction);
+        $runner = $analytics->runnerPerformance($userId, $direction);
 
         $coachText = 'Analyseer je tags om je edge te vinden.';
 

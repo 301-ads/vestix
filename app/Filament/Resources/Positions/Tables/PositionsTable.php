@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Positions\Tables;
 
 use App\Filament\Resources\Positions\Pages\ListPositions;
+use App\Filament\Tables\Columns\DirectionColumn;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\FilamentPolling;
@@ -57,6 +58,7 @@ class PositionsTable
                         ->toggleable()
                         ->width('4rem'),
                 ),
+                DirectionColumn::make(),
                 TextColumn::make('quantity')
                     ->label('Aantal')
                     ->numeric(decimalPlaces: 0, maxDecimalPlaces: 6)

@@ -37,6 +37,8 @@
         :icon-url="$iconUrl"
         :status-dot-color="$statusDotColor"
         :status-dot-label="$statusDotLabel"
+        :direction="$direction ?? null"
+        :show-direction-badge="true"
     />
 
     @if (! $isScout)

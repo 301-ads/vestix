@@ -4,7 +4,16 @@
     /** @var array{title: string, intro?: string|null, rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>, difference_label: string|null, confirmation: string, submit_label: string} $ticket */
 @endphp
 
-<div class="vestix-broker-order-ticket">
+<div @class([
+    'vestix-broker-order-ticket',
+    'vestix-broker-order-ticket--short' => ($ticket['is_short'] ?? false),
+])>
+    @if (filled($ticket['warning'] ?? null))
+        <section class="vestix-broker-order-ticket__warning" role="alert">
+            <p class="vestix-broker-order-ticket__warning-text">{{ $ticket['warning'] }}</p>
+        </section>
+    @endif
+
     @if (filled($ticket['intro'] ?? null))
         <section class="vestix-broker-order-ticket__section">
             <p class="vestix-broker-order-ticket__intro">{{ $ticket['intro'] }}</p>
@@ -21,6 +30,7 @@
                     'vestix-broker-order-ticket__row--accent' => $row['accent'] ?? false,
                     'vestix-broker-order-ticket__row--old' => ($row['tone'] ?? null) === 'old',
                     'vestix-broker-order-ticket__row--new' => ($row['tone'] ?? null) === 'new',
+                    'vestix-broker-order-ticket__row--short' => ($row['tone'] ?? null) === 'short',
                 ])>
                     <dt class="vestix-broker-order-ticket__label">{{ $row['label'] }}</dt>
                     <dd class="vestix-broker-order-ticket__value-ctn">

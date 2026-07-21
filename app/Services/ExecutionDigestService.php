@@ -215,9 +215,21 @@ class ExecutionDigestService
             ];
         }
 
-        $limitPrice = StopLimitBuffer::limitPrice($entry);
+        $limitPrice = StopLimitBuffer::limitPriceForDirection($entry, $position->tradeDirection());
 
-        if ($price > $limitPrice) {
+        if ($position->isShort()) {
+            if ($price < $limitPrice) {
+                return [
+                    'status' => ExecutionDigestStatus::CancelledGapUp,
+                    'reason' => sprintf(
+                        'opende op $%s. Je Sell Stop-Limit was $%s. Order is veilig genegeerd door IBKR. Verwijder deze uit TradingView.',
+                        number_format($price, 2),
+                        number_format($limitPrice, 2),
+                    ),
+                    'price' => $price,
+                ];
+            }
+        } elseif ($price > $limitPrice) {
             return [
                 'status' => ExecutionDigestStatus::CancelledGapUp,
                 'reason' => sprintf(
@@ -231,7 +243,19 @@ class ExecutionDigestService
 
         $sma20 = $position->latest_sma_20 !== null ? (float) $position->latest_sma_20 : null;
 
-        if ($sma20 !== null && $sma20 > 0 && $price < $sma20) {
+        if ($position->isShort()) {
+            if ($sma20 !== null && $sma20 > 0 && $price > $sma20) {
+                return [
+                    'status' => ExecutionDigestStatus::CancelledTrendBreak,
+                    'reason' => sprintf(
+                        'Open/live $%s boven SMA 20 $%s — short-trend gebroken',
+                        number_format($price, 2),
+                        number_format($sma20, 2),
+                    ),
+                    'price' => $price,
+                ];
+            }
+        } elseif ($sma20 !== null && $sma20 > 0 && $price < $sma20) {
             return [
                 'status' => ExecutionDigestStatus::CancelledTrendBreak,
                 'reason' => sprintf(
@@ -243,7 +267,7 @@ class ExecutionDigestService
             ];
         }
 
-        if ($sma20 === null || $sma20 <= 0) {
+        if (! $position->isShort() && ($sma20 === null || $sma20 <= 0)) {
             $priorLow = $position->prior_day_low !== null ? (float) $position->prior_day_low : null;
 
             if ($priorLow !== null && $priorLow > 0 && $price < $priorLow) {
@@ -261,11 +285,17 @@ class ExecutionDigestService
 
         return [
             'status' => ExecutionDigestStatus::Safe,
-            'reason' => sprintf(
-                'Open/live $%s ≤ limit $%s — Stop-Limit actief of onder trigger',
-                number_format($price, 2),
-                number_format($limitPrice, 2),
-            ),
+            'reason' => $position->isShort()
+                ? sprintf(
+                    'Open/live $%s ≥ limit $%s — Sell Stop-Limit actief of boven trigger',
+                    number_format($price, 2),
+                    number_format($limitPrice, 2),
+                )
+                : sprintf(
+                    'Open/live $%s ≤ limit $%s — Stop-Limit actief of onder trigger',
+                    number_format($price, 2),
+                    number_format($limitPrice, 2),
+                ),
             'price' => $price,
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Models\Position;
 
@@ -36,7 +37,13 @@ class StopLossProtocol
             return false;
         }
 
-        return (float) $rsi >= self::rsiThreshold();
+        $rsi = (float) $rsi;
+
+        if ($position->isShort()) {
+            return $rsi <= (100 - self::rsiThreshold());
+        }
+
+        return $rsi >= self::rsiThreshold();
     }
 
     public static function isPreEarningsEscalated(Position $position): bool
@@ -56,6 +63,10 @@ class StopLossProtocol
 
         if ($extensionPct === null) {
             return false;
+        }
+
+        if ($position->isShort()) {
+            return $extensionPct < -self::smaExtensionPct();
         }
 
         return $extensionPct > self::smaExtensionPct();
@@ -97,10 +108,19 @@ class StopLossProtocol
         return round((((float) $close - $sma) / $sma) * 100, 2);
     }
 
-    public static function computeStandard(mixed $sma, mixed $atr): ?float
-    {
+    public static function computeStandard(
+        mixed $sma,
+        mixed $atr,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): ?float {
         if ($sma === null || $atr === null || $sma === '' || $atr === '') {
             return null;
+        }
+
+        $direction = self::normalizeDirection($direction);
+
+        if ($direction === TradeDirection::Short) {
+            return round((float) $sma + ((float) $atr / 2), 2);
         }
 
         return round((float) $sma - ((float) $atr / 2), 2);
@@ -109,7 +129,7 @@ class StopLossProtocol
     public static function computeAggressive(Position $position): ?float
     {
         return match (self::aggressiveMethod()) {
-            'prior_day_low' => self::computeAggressivePriorDayLow($position),
+            'prior_day_low' => self::computeAggressivePriorDayExtreme($position),
             default => self::computeEscalatedAtr($position),
         };
     }
@@ -123,12 +143,22 @@ class StopLossProtocol
             return null;
         }
 
-        return round((float) $close - (self::overboughtAtrMultiplier() * (float) $atr), 2);
+        $offset = self::overboughtAtrMultiplier() * (float) $atr;
+
+        if ($position->isShort()) {
+            return round((float) $close + $offset, 2);
+        }
+
+        return round((float) $close - $offset, 2);
     }
 
     public static function resolve(Position $position): ?float
     {
-        $standard = self::computeStandard($position->latest_sma_20, $position->latest_atr_14);
+        $standard = self::computeStandard(
+            $position->latest_sma_20,
+            $position->latest_atr_14,
+            $position->tradeDirection(),
+        );
         $mode = self::activeMode($position);
 
         if ($mode === TrailingStopMode::Standard) {
@@ -138,20 +168,24 @@ class StopLossProtocol
         $overboughtAtr = self::computeOverboughtAtr($position);
 
         if ($mode === TrailingStopMode::AggressiveOverbought) {
-            return self::maxWithStandard($overboughtAtr, $standard);
+            return self::preferTighterStop($overboughtAtr, $standard, $position->tradeDirection());
         }
 
         $escalated = self::computeAggressive($position);
 
-        return self::maxWithStandard(
-            self::maxNullable($escalated, $overboughtAtr),
+        return self::preferTighterStop(
+            self::preferTighterStop($escalated, $overboughtAtr, $position->tradeDirection()),
             $standard,
+            $position->tradeDirection(),
         );
     }
 
-    public static function resolveForIndicators(mixed $sma, mixed $atr): ?float
-    {
-        return self::computeStandard($sma, $atr);
+    public static function resolveForIndicators(
+        mixed $sma,
+        mixed $atr,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): ?float {
+        return self::computeStandard($sma, $atr, $direction);
     }
 
     /**
@@ -246,11 +280,29 @@ class StopLossProtocol
             return null;
         }
 
-        return round((float) $close - (self::atrMultiplier() * (float) $atr), 2);
+        $offset = self::atrMultiplier() * (float) $atr;
+
+        if ($position->isShort()) {
+            return round((float) $close + $offset, 2);
+        }
+
+        return round((float) $close - $offset, 2);
     }
 
-    private static function computeAggressivePriorDayLow(Position $position): ?float
+    private static function computeAggressivePriorDayExtreme(Position $position): ?float
     {
+        if ($position->isShort()) {
+            $priorDayHigh = $position->signal_high ?? $position->prior_day_low;
+
+            if ($priorDayHigh === null || $priorDayHigh === '') {
+                return null;
+            }
+
+            $bufferFactor = 1 + (self::priorDayBufferPct() / 100);
+
+            return round((float) $priorDayHigh * $bufferFactor, 2);
+        }
+
         $priorDayLow = $position->prior_day_low;
 
         if ($priorDayLow === null || $priorDayLow === '') {
@@ -262,8 +314,11 @@ class StopLossProtocol
         return round((float) $priorDayLow * $bufferFactor, 2);
     }
 
-    private static function maxWithStandard(?float $candidate, ?float $standard): ?float
-    {
+    private static function preferTighterStop(
+        ?float $candidate,
+        ?float $standard,
+        TradeDirection $direction,
+    ): ?float {
         if ($candidate === null) {
             return $standard;
         }
@@ -272,19 +327,21 @@ class StopLossProtocol
             return $candidate;
         }
 
-        return max($candidate, $standard);
+        return $direction === TradeDirection::Short
+            ? min($candidate, $standard)
+            : max($candidate, $standard);
     }
 
-    private static function maxNullable(?float $a, ?float $b): ?float
+    private static function normalizeDirection(TradeDirection|string|null $direction): TradeDirection
     {
-        if ($a === null) {
-            return $b;
+        if ($direction instanceof TradeDirection) {
+            return $direction;
         }
 
-        if ($b === null) {
-            return $a;
+        if (is_string($direction) && $direction === TradeDirection::Short->value) {
+            return TradeDirection::Short;
         }
 
-        return max($a, $b);
+        return TradeDirection::Long;
     }
 }

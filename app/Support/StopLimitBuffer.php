@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\TradeDirection;
+
 class StopLimitBuffer
 {
     public static function bufferFor(float $stopPrice): float
@@ -36,10 +38,26 @@ class StopLimitBuffer
 
     public static function limitPrice(float $stopPrice): float
     {
+        return self::limitPriceForDirection($stopPrice, TradeDirection::Long);
+    }
+
+    public static function limitPriceForDirection(
+        float $stopPrice,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): float {
         if ($stopPrice <= 0) {
             return 0.0;
         }
 
-        return round($stopPrice + self::bufferFor($stopPrice), 2);
+        $buffer = self::bufferFor($stopPrice);
+        $direction = $direction instanceof TradeDirection
+            ? $direction
+            : ($direction === TradeDirection::Short->value ? TradeDirection::Short : TradeDirection::Long);
+
+        if ($direction === TradeDirection::Short) {
+            return round(max(0.01, $stopPrice - $buffer), 2);
+        }
+
+        return round($stopPrice + $buffer, 2);
     }
 }
