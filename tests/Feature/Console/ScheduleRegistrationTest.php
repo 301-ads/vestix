@@ -51,13 +51,13 @@ class ScheduleRegistrationTest extends TestCase
         $this->assertTrue($event->timezone === 'Europe/Amsterdam' || $event->timezone?->getName() === 'Europe/Amsterdam');
     }
 
-    public function test_ibkr_sync_scheduled_weekdays_after_us_close(): void
+    public function test_ibkr_sync_scheduled_weekdays_morning_after_statement(): void
     {
         $event = collect(Schedule::events())
             ->first(fn ($scheduledEvent): bool => str_contains((string) $scheduledEvent->command, 'vestix:sync-ibkr'));
 
         $this->assertNotNull($event);
-        $this->assertSame('45 22 * * 1-5', $event->expression);
+        $this->assertSame('0 8 * * 1-5', $event->expression);
         $this->assertTrue($event->timezone === 'Europe/Amsterdam' || $event->timezone?->getName() === 'Europe/Amsterdam');
     }
 }
