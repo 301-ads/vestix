@@ -45,6 +45,8 @@ return [
 
     'strategy_coach' => [
         'min_closed_trades' => (int) env('STRATEGY_COACH_MIN_TRADES', 20),
+        // Local-only preview of unlocked edge stats (never active outside local).
+        'demo_preview' => (bool) env('STRATEGY_COACH_DEMO_PREVIEW', true),
     ],
 
     'portfolio_coach' => [

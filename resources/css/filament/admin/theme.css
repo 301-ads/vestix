@@ -4881,7 +4881,25 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0;
+}
+
+.vestix-coach-edge-section {
+    margin-top: 0.25rem;
+}
+
+.vestix-coach-edge-section .fi-section-content.fi-sc-has-gap,
+.vestix-coach-edge-section .fi-sc.fi-sc-has-gap {
+    gap: 0.5rem;
+}
+
+.vestix-coach-edge-section .fi-wi-stats-overview,
+.vestix-coach-edge-section .fi-wi-widget {
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    padding-inline: 0;
+    margin-top: 0;
 }
 
 .vestix-coach-edge__heading {

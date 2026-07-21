@@ -1,5 +1,4 @@
 <div class="vestix-coach-edge">
-    <h3 class="vestix-coach-edge__heading">Edge-analyse</h3>
     <div class="vestix-direction-segment vestix-direction-segment--filter" role="tablist" aria-label="Richting filter">
         @foreach ([
             'all' => ['label' => 'Alles', 'tone' => 'neutral'],

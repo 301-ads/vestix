@@ -857,6 +857,17 @@ class PositionForm
     private static function schildStatusFields(): array
     {
         return [
+            Placeholder::make('sector_etf_telemetry')
+                ->label('Sector ETF')
+                ->content(fn (Get $get, ?Position $record): HtmlString => new HtmlString(
+                    view('filament.positions.sector-etf-telemetry', [
+                        'etf' => $get('sector_etf_override')
+                            ?? $record?->sector_etf_override
+                            ?? $get('sector_etf')
+                            ?? $record?->sector_etf,
+                        'trendPositive' => $get('sector_trend_positive') ?? $record?->sector_trend_positive,
+                    ])->render(),
+                )),
             Placeholder::make('rsi_telemetry')
                 ->label('RSI (14)')
                 ->content(fn (Get $get, ?Position $record): HtmlString => new HtmlString(

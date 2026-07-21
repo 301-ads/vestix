@@ -3,11 +3,14 @@
 namespace App\Filament\Widgets;
 
 use App\Services\StrategyAnalyticsService;
+use App\Support\StrategyCoachDemoPreview;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class StrategyCoachStatsWidget extends StatsOverviewWidget
 {
+    protected static bool $isLazy = false;
+
     protected ?string $pollingInterval = null;
 
     protected int|string|array $columnSpan = 'full';
@@ -39,6 +42,10 @@ class StrategyCoachStatsWidget extends StatsOverviewWidget
             return [];
         }
 
+        if (StrategyCoachDemoPreview::enabled()) {
+            return $this->demoStats();
+        }
+
         $analytics = app(StrategyAnalyticsService::class);
         $direction = StrategyAnalyticsService::resolveDirectionFilter($this->directionFilter);
 
@@ -52,7 +59,7 @@ class StrategyCoachStatsWidget extends StatsOverviewWidget
             };
 
             return [
-                Stat::make('Strategy Coach', "Nog {$remaining} {$scope}")
+                Stat::make('Edge-analyse', "Nog {$remaining} {$scope}")
                     ->description("Tot je edge zichtbaar wordt (min. {$minimum} gesloten trades)")
                     ->color('gray'),
             ];
@@ -74,28 +81,80 @@ class StrategyCoachStatsWidget extends StatsOverviewWidget
             );
         }
 
+        return $this->buildStats(
+            totalTrades: (string) $stats['total_trades'],
+            winRate: number_format($stats['win_rate'], 1).'%',
+            expectancy: number_format($stats['expectancy'], 2).'%',
+            expectancyPositive: $stats['expectancy'] >= 0,
+            runnerValue: $runner['scaled_out_trades'] > 0
+                ? number_format($runner['runner_beat_target_rate'], 0).'% beat Target 1'
+                : '—',
+            runnerDescription: $runner['scaled_out_trades'] > 0
+                ? sprintf(
+                    'Gem. +%sR boven flat %.1fR (%d scale-outs)',
+                    number_format($runner['avg_runner_uplift_r'], 2),
+                    $runner['avg_flat_target_r'],
+                    $runner['scaled_out_trades'],
+                )
+                : 'Nog geen scale-out trades',
+            runnerPositive: $runner['avg_runner_uplift_r'] > 0,
+            maxDrawdown: number_format($stats['max_drawdown'], 2).'%',
+            coachText: $coachText,
+        );
+    }
+
+    /**
+     * @return array<int, Stat>
+     */
+    private function demoStats(): array
+    {
+        $demo = StrategyCoachDemoPreview::stats();
+
+        return $this->buildStats(
+            totalTrades: (string) $demo['total_trades'],
+            winRate: number_format($demo['win_rate'], 1).'%',
+            expectancy: number_format($demo['expectancy'], 2).'%',
+            expectancyPositive: true,
+            runnerValue: number_format($demo['runner_beat_target_rate'], 0).'% beat Target 1',
+            runnerDescription: sprintf(
+                'Gem. +%sR boven flat %.1fR (%d scale-outs) · demo',
+                number_format($demo['avg_runner_uplift_r'], 2),
+                $demo['avg_flat_target_r'],
+                $demo['scaled_out_trades'],
+            ),
+            runnerPositive: true,
+            maxDrawdown: number_format($demo['max_drawdown'], 2).'%',
+            coachText: $demo['coach_text'],
+        );
+    }
+
+    /**
+     * @return array<int, Stat>
+     */
+    private function buildStats(
+        string $totalTrades,
+        string $winRate,
+        string $expectancy,
+        bool $expectancyPositive,
+        string $runnerValue,
+        string $runnerDescription,
+        bool $runnerPositive,
+        string $maxDrawdown,
+        string $coachText,
+    ): array {
         return [
-            Stat::make('Gesloten trades', (string) $stats['total_trades'])
+            Stat::make('Gesloten trades', $totalTrades)
                 ->description('Totaal in journal'),
-            Stat::make('Win rate', number_format($stats['win_rate'], 1).'%')
+            Stat::make('Win rate', $winRate)
                 ->description('Overall hit rate')
                 ->color('success'),
-            Stat::make('Expectancy', number_format($stats['expectancy'], 2).'%')
+            Stat::make('Expectancy', $expectancy)
                 ->description('(WinRate × AvgWin) − (LossRate × AvgLoss)')
-                ->color($stats['expectancy'] >= 0 ? 'success' : 'danger'),
-            Stat::make('Runner rendement', $runner['scaled_out_trades'] > 0
-                ? number_format($runner['runner_beat_target_rate'], 0).'% beat Target 1'
-                : '—')
-                ->description($runner['scaled_out_trades'] > 0
-                    ? sprintf(
-                        'Gem. +%sR boven flat %.1fR (%d scale-outs)',
-                        number_format($runner['avg_runner_uplift_r'], 2),
-                        $runner['avg_flat_target_r'],
-                        $runner['scaled_out_trades'],
-                    )
-                    : 'Nog geen scale-out trades')
-                ->color($runner['avg_runner_uplift_r'] > 0 ? 'success' : 'gray'),
-            Stat::make('Max drawdown', number_format($stats['max_drawdown'], 2).'%')
+                ->color($expectancyPositive ? 'success' : 'danger'),
+            Stat::make('Runner rendement', $runnerValue)
+                ->description($runnerDescription)
+                ->color($runnerPositive ? 'success' : 'gray'),
+            Stat::make('Max drawdown', $maxDrawdown)
                 ->description($coachText)
                 ->color('warning'),
         ];

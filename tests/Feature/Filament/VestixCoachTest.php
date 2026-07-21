@@ -27,6 +27,24 @@ class VestixCoachTest extends TestCase
             ->assertSee('Shorts');
     }
 
+    public function test_local_demo_preview_shows_fake_edge_stats(): void
+    {
+        $this->authenticateFilament();
+
+        config([
+            'vestix.strategy_coach.demo_preview' => true,
+            'vestix.strategy_coach.force_demo_in_tests' => true,
+        ]);
+
+        Livewire::test(StrategyCoach::class)
+            ->assertSee('lokale demo-data');
+
+        Livewire::test(\App\Filament\Widgets\StrategyCoachStatsWidget::class)
+            ->assertSee('24')
+            ->assertSee('62.5%')
+            ->assertSee('1.85%');
+    }
+
     public function test_portfolio_coach_widget_shows_sector_concentration(): void
     {
         $user = $this->authenticateFilament();

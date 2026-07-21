@@ -3,10 +3,13 @@
 namespace App\Filament\Widgets;
 
 use App\Services\StrategyAnalyticsService;
+use App\Support\StrategyCoachDemoPreview;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
 class EquityCurveChart extends ApexChartWidget
 {
+    protected static bool $isLazy = false;
+
     protected static ?string $chartId = 'strategyEquityCurve';
 
     protected static ?string $heading = 'Equity Curve';
@@ -39,6 +42,10 @@ class EquityCurveChart extends ApexChartWidget
 
     public static function canView(): bool
     {
+        if (StrategyCoachDemoPreview::enabled()) {
+            return true;
+        }
+
         $userId = auth()->id();
 
         return $userId !== null
@@ -49,9 +56,11 @@ class EquityCurveChart extends ApexChartWidget
     {
         $userId = auth()->id();
         $direction = StrategyAnalyticsService::resolveDirectionFilter($this->directionFilter);
-        $curve = $userId
-            ? app(StrategyAnalyticsService::class)->equityCurve($userId, $direction)
-            : [];
+        $curve = StrategyCoachDemoPreview::enabled()
+            ? StrategyCoachDemoPreview::equityCurve()
+            : ($userId
+                ? app(StrategyAnalyticsService::class)->equityCurve($userId, $direction)
+                : []);
 
         return [
             'chart' => [

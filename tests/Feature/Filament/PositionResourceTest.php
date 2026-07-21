@@ -370,6 +370,22 @@ class PositionResourceTest extends TestCase
             ]);
     }
 
+    public function test_edit_page_shows_sector_etf_in_schild_status(): void
+    {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
+            'sector_etf' => 'XLF',
+            'sector_trend_positive' => true,
+        ]);
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertOk()
+            ->assertSee('Schild status')
+            ->assertSee('Sector ETF')
+            ->assertSee('XLF')
+            ->assertSee('Meewind');
+    }
+
     public function test_create_position_persists_trade_journal(): void
     {
         $user = $this->authenticateFilament();
