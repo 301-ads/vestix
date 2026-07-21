@@ -69,7 +69,9 @@ class WebPushSender
             }
 
             if ($report->isSubscriptionExpired()) {
-                PushSubscription::query()->where('endpoint', $endpoint)->delete();
+                PushSubscription::query()
+                    ->where('endpoint_hash', PushSubscription::hashEndpoint($endpoint))
+                    ->delete();
 
                 continue;
             }

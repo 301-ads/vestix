@@ -37,9 +37,10 @@ class WebPushSubscriptionController extends Controller
         $user = $request->user();
 
         PushSubscription::query()->updateOrCreate(
-            ['endpoint' => $data['endpoint']],
+            ['endpoint_hash' => PushSubscription::hashEndpoint($data['endpoint'])],
             [
                 'user_id' => $user->id,
+                'endpoint' => $data['endpoint'],
                 'public_key' => $data['keys']['p256dh'],
                 'auth_token' => $data['keys']['auth'],
                 'content_encoding' => $data['contentEncoding'] ?? 'aes128gcm',
@@ -62,7 +63,7 @@ class WebPushSubscriptionController extends Controller
         $user = $request->user();
 
         $user->pushSubscriptions()
-            ->where('endpoint', $data['endpoint'])
+            ->where('endpoint_hash', PushSubscription::hashEndpoint($data['endpoint']))
             ->delete();
 
         return response()->json(['ok' => true]);
