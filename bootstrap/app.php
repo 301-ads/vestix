@@ -18,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->redirectGuestsTo(fn (): string => route('filament.admin.auth.login'));
+
         $middleware->validateCsrfTokens(except: [
             'telegram/webhook/*',
         ]);

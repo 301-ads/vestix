@@ -134,19 +134,37 @@ class EditUserProfileTest extends TestCase
             ->call('save')
             ->assertHasNoFormErrors();
 
-        $preference = $user->fresh()->alertPreferences()->where('channel_type', 'telegram')->first();
+        $expected = [
+            AlertEventType::StoppedOut->value,
+            AlertEventType::PremarketGapRisk->value,
+            AlertEventType::SquadCopyAlert->value,
+        ];
 
-        $this->assertNotNull($preference);
-        $this->assertSame(
-            [
-                AlertEventType::StoppedOut->value,
-                AlertEventType::PremarketGapRisk->value,
-                AlertEventType::SquadCopyAlert->value,
-            ],
-            $preference->active_events,
-        );
-        $this->assertSame('20:30', $preference->daily_digest_time);
-        $this->assertNotContains(AlertEventType::DailyDigest->value, $preference->active_events);
+        foreach (['telegram', 'webpush'] as $channel) {
+            $preference = $user->fresh()->alertPreferences()->where('channel_type', $channel)->first();
+
+            $this->assertNotNull($preference, "Missing preference for {$channel}");
+            $this->assertSame($expected, $preference->active_events);
+            $this->assertSame('20:30', $preference->daily_digest_time);
+            $this->assertNotContains(AlertEventType::DailyDigest->value, $preference->active_events);
+        }
+    }
+
+    public function test_profile_shows_push_notifications_section(): void
+    {
+        config([
+            'services.webpush.subject' => 'mailto:test@vestix.test',
+            'services.webpush.public_key' => 'BBLcZE3DkZ1llsZ8lKPk1XGIp_NO_s0etD_ib5As_z9drjc6AR2Ls3Rt4QWTvwqEPcB0yzWFTE3VM6n5ci9vrrI',
+            'services.webpush.private_key' => 'o5Aba0KZpcB5BeT0Hlsc_UEXxW7f-DmOBK05sZmz4Oc',
+        ]);
+
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        Livewire::test(EditUserProfile::class)
+            ->assertOk()
+            ->assertSee('Push-notificaties')
+            ->assertSee('Zet push aan');
     }
 
     public function test_profile_shows_ibkr_sync_status_when_synced(): void

@@ -48,6 +48,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(UserAlertPreference::class);
     }
 
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
     public function bankrollSnapshots(): HasMany
     {
         return $this->hasMany(BankrollSnapshot::class);
@@ -106,6 +111,11 @@ class User extends Authenticatable implements FilamentUser
     public function hasTelegramConnection(): bool
     {
         return filled($this->telegram_chat_id);
+    }
+
+    public function hasPushSubscription(): bool
+    {
+        return $this->pushSubscriptions()->exists();
     }
 
     public function usesRevolutWorkflow(): bool

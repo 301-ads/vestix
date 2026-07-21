@@ -18,6 +18,7 @@ use App\Services\Ibkr\FlexIbkrAccountReader;
 use App\Services\Ibkr\StubIbkrAccountReader;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse as RegistrationResponseContract;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -49,6 +50,9 @@ class AppServiceProvider extends ServiceProvider
         if (str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
+
+        // ~30 days — matches SESSION_LIFETIME and PWA “stay logged in” expectation.
+        Auth::guard('web')->setRememberDuration(60 * 24 * 30);
 
         Gate::policy(Position::class, PositionPolicy::class);
         Gate::policy(Squad::class, SquadPolicy::class);

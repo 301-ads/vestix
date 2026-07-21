@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\AlertChannelType;
 use App\Enums\AlertEventType;
 use App\Enums\BankrollCashflowType;
 use App\Enums\Broker;
@@ -11,6 +12,7 @@ use App\Services\BankrollCashflowService;
 use App\Services\BankrollSnapshotService;
 use App\Services\Ibkr\IbkrSyncHealth;
 use App\Services\TelegramLinkService;
+use App\Services\WebPushSender;
 use App\Support\PositionSizing;
 use App\Support\TelegramNotifier;
 use Filament\Actions\Action;
@@ -213,6 +215,45 @@ class EditUserProfile extends EditProfile
                                                     ->verticalAlignment(VerticalAlignment::Center),
                                             ]),
                                     ]),
+                                Section::make('Push-notificaties')
+                                    ->compact()
+                                    ->description('Native meldingen op je Mac- of iPhone-app (PWA). Werkt alleen na toestemming in die app.')
+                                    ->extraAttributes(['class' => 'vestix-profile-webpush-section'])
+                                    ->schema([
+                                        Grid::make(['default' => 1, 'md' => 2])
+                                            ->schema([
+                                                Placeholder::make('webpush_status')
+                                                    ->hiddenLabel()
+                                                    ->inlineLabel(false)
+                                                    ->content(function (): HtmlString {
+                                                        $user = $this->getUser();
+                                                        $configured = app(WebPushSender::class)->isConfigured();
+
+                                                        if (! $configured) {
+                                                            return new HtmlString(
+                                                                '<span class="text-warning-600 dark:text-warning-400">Niet geconfigureerd</span> — VAPID-keys ontbreken op de server.'
+                                                            );
+                                                        }
+
+                                                        if ($user->hasPushSubscription()) {
+                                                            return new HtmlString(
+                                                                '<span class="text-success-600 dark:text-success-400">Aan</span> — dit account ontvangt push-alerts op gekoppelde apparaten.'
+                                                            );
+                                                        }
+
+                                                        return new HtmlString(
+                                                            'Uit. Open Vestix als geïnstalleerde app en klik op <strong>Zet push aan</strong>.'
+                                                        );
+                                                    }),
+                                                Actions::make([
+                                                    $this->enableWebPushAction(),
+                                                    $this->disableWebPushAction(),
+                                                    $this->testWebPushAction(),
+                                                ])
+                                                    ->alignment(Alignment::Start)
+                                                    ->verticalAlignment(VerticalAlignment::Center),
+                                            ]),
+                                    ]),
                                 Section::make('Alert voorkeuren')
                                     ->compact()
                                     ->description('Kies welke Set & Forget meldingen je ontvangt.')
@@ -233,7 +274,7 @@ class EditUserProfile extends EditProfile
                                                     ->seconds(false)
                                                     ->default('21:45')
                                                     ->afterStateHydrated(function (TimePicker $component): void {
-                                                        $preference = $this->getTelegramAlertPreference();
+                                                        $preference = $this->getPrimaryAlertPreference();
 
                                                         if ($preference?->daily_digest_time) {
                                                             $component->state($preference->daily_digest_time);
@@ -287,7 +328,7 @@ class EditUserProfile extends EditProfile
             ->columns(1)
             ->afterStateHydrated(function (CheckboxList $component) use ($categoryKeys): void {
                 UserAlertPreference::ensureDefaultsForUser($this->getUser());
-                $activeEvents = $this->getTelegramAlertPreference()?->active_events ?? AlertEventType::defaults();
+                $activeEvents = $this->getPrimaryAlertPreference()?->active_events ?? AlertEventType::defaults();
                 $component->state(array_values(array_intersect($activeEvents, $categoryKeys)));
             });
     }
@@ -295,17 +336,21 @@ class EditUserProfile extends EditProfile
     private function hasAlertEvent(AlertEventType $event): bool
     {
         UserAlertPreference::ensureDefaultsForUser($this->getUser());
-        $activeEvents = $this->getTelegramAlertPreference()?->active_events ?? AlertEventType::defaults();
+        $activeEvents = $this->getPrimaryAlertPreference()?->active_events ?? AlertEventType::defaults();
 
         return in_array($event->value, $activeEvents, true);
     }
 
-    private function getTelegramAlertPreference(): ?UserAlertPreference
+    private function getPrimaryAlertPreference(): ?UserAlertPreference
     {
         return $this->getUser()
             ->alertPreferences()
-            ->where('channel_type', 'telegram')
-            ->first();
+            ->where('channel_type', AlertChannelType::Telegram)
+            ->first()
+            ?? $this->getUser()
+                ->alertPreferences()
+                ->where('channel_type', '!=', AlertChannelType::Email)
+                ->first();
     }
 
     /**
@@ -340,14 +385,18 @@ class EditUserProfile extends EditProfile
         if ($hasAlertData) {
             UserAlertPreference::ensureDefaultsForUser($this->getUser());
 
-            $preference = $this->getTelegramAlertPreference();
+            $activeEvents = $this->mergeAlertEvents($data);
+            $digestTime = $data['daily_digest_time'] ?? '21:45:00';
 
-            if ($preference) {
-                $preference->update([
-                    'active_events' => $this->mergeAlertEvents($data),
-                    'daily_digest_time' => $data['daily_digest_time'] ?? '21:45:00',
-                ]);
-            }
+            $this->getUser()
+                ->alertPreferences()
+                ->where('channel_type', '!=', AlertChannelType::Email)
+                ->each(function (UserAlertPreference $preference) use ($activeEvents, $digestTime): void {
+                    $preference->update([
+                        'active_events' => $activeEvents,
+                        'daily_digest_time' => $digestTime,
+                    ]);
+                });
 
             unset(
                 $data['alert_events_order'],
@@ -596,6 +645,81 @@ class EditUserProfile extends EditProfile
                 Notification::make()
                     ->title('Telegram mislukt')
                     ->body('Controleer je koppeling of vraag de beheerder om de bot-configuratie te controleren.')
+                    ->warning()
+                    ->send();
+            });
+    }
+
+    protected function enableWebPushAction(): Action
+    {
+        return Action::make('enable_webpush')
+            ->label('Zet push aan')
+            ->icon('heroicon-o-bell-alert')
+            ->color('primary')
+            ->visible(fn (): bool => app(WebPushSender::class)->isConfigured()
+                && ! $this->getUser()->hasPushSubscription())
+            ->action(function (): void {
+                $this->js(<<<'JS'
+                    (async () => {
+                        try {
+                            if (!window.vestixWebPush?.isSupported?.()) {
+                                throw new Error('Push wordt niet ondersteund in deze browser. Gebruik de geïnstalleerde Vestix-app.');
+                            }
+
+                            await window.vestixWebPush.subscribe();
+                            window.location.reload();
+                        } catch (error) {
+                            alert(error?.message || 'Push inschakelen mislukt.');
+                        }
+                    })();
+                JS);
+            });
+    }
+
+    protected function disableWebPushAction(): Action
+    {
+        return Action::make('disable_webpush')
+            ->label('Zet push uit')
+            ->color('danger')
+            ->visible(fn (): bool => $this->getUser()->hasPushSubscription())
+            ->requiresConfirmation()
+            ->modalHeading('Push-notificaties uitzetten?')
+            ->modalDescription('Je ontvangt geen Vestix-alerts meer als native push op dit account.')
+            ->action(function (): void {
+                $this->getUser()->pushSubscriptions()->delete();
+
+                $this->js(<<<'JS'
+                    window.vestixWebPush?.unsubscribe?.().catch(() => {});
+                JS);
+
+                Notification::make()
+                    ->title('Push uitgeschakeld')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    protected function testWebPushAction(): Action
+    {
+        return Action::make('test_webpush')
+            ->label('Test push')
+            ->color('gray')
+            ->visible(fn (): bool => $this->getUser()->hasPushSubscription())
+            ->action(function (WebPushSender $sender): void {
+                $user = $this->getUser();
+
+                if ($sender->sendToUser($user, 'Vestix test', 'Push-notificaties werken op dit apparaat.')) {
+                    Notification::make()
+                        ->title('Testbericht verstuurd')
+                        ->success()
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Push mislukt')
+                    ->body('Controleer toestemming in je browser/app of de VAPID-configuratie.')
                     ->warning()
                     ->send();
             });

@@ -4,6 +4,7 @@ namespace App\Alerts;
 
 use App\Alerts\Channels\EmailAlertChannel;
 use App\Alerts\Channels\TelegramAlertChannel;
+use App\Alerts\Channels\WebPushAlertChannel;
 use App\Contracts\AlertChannelInterface;
 use App\Enums\AlertChannelType;
 use App\Enums\AlertEventType;
@@ -27,6 +28,7 @@ class AlertDispatcher
         $this->channels = [
             AlertChannelType::Telegram->value => new TelegramAlertChannel,
             AlertChannelType::Email->value => new EmailAlertChannel,
+            AlertChannelType::WebPush->value => new WebPushAlertChannel,
         ];
     }
 

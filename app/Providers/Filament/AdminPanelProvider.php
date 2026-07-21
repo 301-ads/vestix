@@ -97,6 +97,7 @@ class AdminPanelProvider extends PanelProvider
                             ->label('Doorgaan met Google')
                             ->icon('fab-google'),
                     ])
+                    ->rememberLogin(true)
                     ->registration(true)
                     ->userModelClass(User::class)
                     ->createUserUsing(function (
@@ -190,6 +191,10 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn (): string => view('filament.hooks.pwa-pull-to-refresh')->render(),
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.hooks.pwa-webpush')->render(),
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,

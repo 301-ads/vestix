@@ -8,6 +8,7 @@ use App\Filament\Pages\RegisterSquad;
 use App\Mail\NewUserRegisteredMail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Socialite\Facades\Socialite;
@@ -79,10 +80,12 @@ class GoogleOAuthTest extends TestCase
         ]));
 
         $this->get('/admin/oauth/callback/google?code=fake-code')
-            ->assertRedirect(RegisterSquad::getUrl());
+            ->assertRedirect(RegisterSquad::getUrl())
+            ->assertCookie(Auth::guard('web')->getRecallerName());
 
         $this->assertAuthenticatedAs($user);
         $this->assertSame(1, User::query()->where('email', 'existing@vestix.test')->count());
+        $this->assertNotNull($user->fresh()->remember_token);
     }
 
     public function test_google_registration_dispatches_user_account_created_event(): void
