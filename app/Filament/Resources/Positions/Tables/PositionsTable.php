@@ -25,7 +25,11 @@ class PositionsTable
 {
     private static function blendedClosedPnlSql(): string
     {
-        return 'COALESCE(realized_pnl, 0) + (exit_price - entry_price) * (quantity - COALESCE(scaled_out_quantity, 0))';
+        $runnerQty = '(quantity - COALESCE(scaled_out_quantity, 0))';
+        $longLeg = "(exit_price - entry_price) * {$runnerQty}";
+        $shortLeg = "(entry_price - exit_price) * {$runnerQty}";
+
+        return 'COALESCE(realized_pnl, 0) + CASE WHEN direction = \'short\' THEN '.$shortLeg.' ELSE '.$longLeg.' END';
     }
 
     private static function blendedClosedPnlPctSql(): string
@@ -35,7 +39,16 @@ class PositionsTable
 
     private static function blendedOpenPnlSql(): string
     {
-        return 'COALESCE(realized_pnl, 0) + (latest_close_price - entry_price) * (quantity - COALESCE(scaled_out_quantity, 0))';
+        $runnerQty = '(quantity - COALESCE(scaled_out_quantity, 0))';
+        $longLeg = "(latest_close_price - entry_price) * {$runnerQty}";
+        $shortLeg = "(entry_price - latest_close_price) * {$runnerQty}";
+
+        return 'COALESCE(realized_pnl, 0) + CASE WHEN direction = \'short\' THEN '.$shortLeg.' ELSE '.$longLeg.' END';
+    }
+
+    private static function blendedOpenPnlPctSql(): string
+    {
+        return '('.self::blendedOpenPnlSql().') / NULLIF(entry_price * quantity, 0) * 100';
     }
 
     public static function configure(Table $table): Table
@@ -106,7 +119,7 @@ class PositionsTable
                     ->suffix('%')
                     ->color(fn ($state) => ($state ?? 0) >= 0 ? 'success' : 'danger')
                     ->sortable(query: function ($query, string $direction): void {
-                        $query->orderByRaw("CASE WHEN status = 'closed' THEN ".self::blendedClosedPnlPctSql()." ELSE ((latest_close_price - entry_price) / NULLIF(entry_price, 0)) * 100 END {$direction}");
+                        $query->orderByRaw("CASE WHEN status = 'closed' THEN ".self::blendedClosedPnlPctSql().' ELSE '.self::blendedOpenPnlPctSql()." END {$direction}");
                     })
                     ->tooltip(fn (Position $record): ?string => $record->status === 'closed'
                         ? null

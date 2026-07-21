@@ -32,11 +32,12 @@ class PortfolioExposureWidget extends StatsOverviewWidget
 
         $openPositions = Position::open()->nonLegacy()->forUser($userId)->get();
 
-        $totalInvested = $openPositions->sum(fn (Position $position) => $position->investment);
-        $totalValue = $openPositions->sum(fn (Position $position) => $position->current_value);
+        $totalInvested = $openPositions->sum(fn (Position $position) => $position->portfolio_cost_basis);
+        $totalValue = $openPositions->sum(fn (Position $position) => $position->portfolio_equity_value);
         $totalRealized = $openPositions->sum(fn (Position $position) => $position->stored_realized_pnl);
         $totalPnl = $openPositions->sum(fn (Position $position) => $position->unrealized_pnl);
-        $totalPnlPct = $totalInvested > 0 ? ($totalPnl / $totalInvested) * 100 : 0;
+        $pnlBase = $openPositions->sum(fn (Position $position) => $position->portfolio_exposure_notional);
+        $totalPnlPct = $pnlBase > 0 ? ($totalPnl / $pnlBase) * 100 : 0;
         $totalLockedInProfit = $openPositions->sum(fn (Position $position) => $position->locked_in_profit_dollars);
         $totalCapitalRisk = $openPositions->sum(fn (Position $position) => $position->capital_risk_dollars);
         $openCount = $openPositions->count();

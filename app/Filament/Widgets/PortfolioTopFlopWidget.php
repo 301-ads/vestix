@@ -42,7 +42,7 @@ class PortfolioTopFlopWidget extends TableWidget
                 ->forUser(auth()->id())
                 ->with('asset')
                 ->whereNotNull('latest_close_price')
-                ->orderByRaw('((latest_close_price - entry_price) / NULLIF(entry_price, 0)) * 100 DESC'))
+                ->orderByRaw('CASE WHEN direction = \'short\' THEN ((entry_price - latest_close_price) / NULLIF(entry_price, 0)) * 100 ELSE ((latest_close_price - entry_price) / NULLIF(entry_price, 0)) * 100 END DESC'))
             ->columns([
                 TickerColumn::wrap(
                     TextColumn::make('ticker')

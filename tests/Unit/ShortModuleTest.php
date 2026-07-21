@@ -214,4 +214,111 @@ class ShortModuleTest extends TestCase
         $this->assertTrue($position->isLong());
         $this->assertSame(TradeDirection::Long, $position->tradeDirection());
     }
+
+    public function test_short_open_at_entry_does_not_inflate_portfolio_equity(): void
+    {
+        $position = Position::factory()->short()->create([
+            'status' => 'open',
+            'entry_price' => 21.61,
+            'quantity' => 77,
+            'current_sl' => 22.13,
+            'latest_close_price' => 21.61,
+            'initial_sl_placed_at' => now(),
+        ]);
+
+        $this->assertEqualsWithDelta(0.0, $position->portfolio_cost_basis, 0.01);
+        $this->assertEqualsWithDelta(0.0, $position->portfolio_equity_value, 0.01);
+        $this->assertEqualsWithDelta(0.0, $position->unrealized_pnl, 0.01);
+        $this->assertEqualsWithDelta(1663.97, $position->portfolio_exposure_notional, 0.01);
+        $this->assertEqualsWithDelta(1663.97, $position->investment, 0.01);
+    }
+
+    public function test_short_portfolio_equity_equals_mtm_when_price_falls(): void
+    {
+        $position = Position::factory()->short()->create([
+            'status' => 'open',
+            'entry_price' => 100.00,
+            'quantity' => 10,
+            'current_sl' => 103.00,
+            'latest_close_price' => 95.00,
+            'initial_sl_placed_at' => now(),
+        ]);
+
+        $this->assertEqualsWithDelta(50.0, $position->portfolio_equity_value, 0.01);
+        $this->assertEqualsWithDelta(50.0, $position->unrealized_pnl, 0.01);
+        $this->assertEqualsWithDelta(0.0, $position->portfolio_cost_basis, 0.01);
+    }
+
+    public function test_short_scale_out_realizes_profit_when_buy_back_below_entry(): void
+    {
+        $position = Position::factory()->short()->create([
+            'status' => 'open',
+            'entry_price' => 21.61,
+            'quantity' => 77,
+            'current_sl' => 22.13,
+            'latest_close_price' => 20.57,
+            'initial_sl_placed_at' => now(),
+        ]);
+
+        $position->scaleOut(20.57, 38);
+
+        $position->refresh();
+
+        $this->assertTrue($position->hasScaledOut());
+        $this->assertEqualsWithDelta(39.52, (float) $position->realized_pnl, 0.01);
+        $this->assertEqualsWithDelta(21.61, (float) $position->current_sl, 0.01);
+        $this->assertNotNull($position->freeride_secured_at);
+    }
+
+    public function test_long_scale_out_unchanged(): void
+    {
+        $position = Position::factory()->create([
+            'status' => 'open',
+            'direction' => TradeDirection::Long,
+            'entry_price' => 10.00,
+            'quantity' => 100,
+            'current_sl' => 9.50,
+            'latest_close_price' => 12.00,
+            'initial_sl_placed_at' => now(),
+        ]);
+
+        $position->scaleOut(12.00, 50);
+
+        $position->refresh();
+
+        $this->assertEqualsWithDelta(100.0, (float) $position->realized_pnl, 0.01);
+        $this->assertEqualsWithDelta(10.0, (float) $position->current_sl, 0.01);
+    }
+
+    public function test_mixed_portfolio_aggregates_exclude_short_notional_from_inleg(): void
+    {
+        $user = User::factory()->create();
+
+        $long = Position::factory()->for($user)->create([
+            'status' => 'open',
+            'direction' => TradeDirection::Long,
+            'entry_price' => 50.00,
+            'quantity' => 10,
+            'current_sl' => 48.00,
+            'latest_close_price' => 55.00,
+            'initial_sl_placed_at' => now(),
+        ]);
+
+        $short = Position::factory()->for($user)->short()->create([
+            'status' => 'open',
+            'entry_price' => 100.00,
+            'quantity' => 5,
+            'current_sl' => 103.00,
+            'latest_close_price' => 100.00,
+            'initial_sl_placed_at' => now(),
+        ]);
+
+        $open = collect([$long, $short]);
+
+        $this->assertEqualsWithDelta(500.0, $open->sum(fn (Position $p) => $p->portfolio_cost_basis), 0.01);
+        $this->assertEqualsWithDelta(550.0, $open->sum(fn (Position $p) => $p->portfolio_equity_value), 0.01);
+        $this->assertEqualsWithDelta(50.0, $open->sum(fn (Position $p) => $p->unrealized_pnl), 0.01);
+        // Long mark $550 + short notional $500
+        $this->assertEqualsWithDelta(1050.0, $open->sum(fn (Position $p) => $p->portfolio_exposure_notional), 0.01);
+    }
 }

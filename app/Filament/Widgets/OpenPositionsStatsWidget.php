@@ -72,7 +72,7 @@ class OpenPositionsStatsWidget extends StatsOverviewWidget
         }
 
         $totalRisk = $openPositions->sum(fn (Position $position) => $position->capital_risk_dollars);
-        $totalValue = $openPositions->sum(fn (Position $position) => $position->current_value);
+        $totalValue = $openPositions->sum(fn (Position $position) => $position->portfolio_exposure_notional);
         $riskPct = $totalValue > 0 ? ($totalRisk / $totalValue) * 100 : 0;
         $lockedProfit = $openPositions->sum(fn (Position $position) => $position->locked_in_profit_dollars);
         $winners = $openPositions->filter(fn (Position $position) => $position->unrealized_pnl >= 0)->count();

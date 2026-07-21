@@ -721,7 +721,10 @@ class Position extends Model
             throw new InvalidArgumentException('Ongeldige verkoophoeveelheid.');
         }
 
-        $realizedPnl = round($quantityToSell * ($fillPrice - (float) $this->entry_price), 2);
+        $entry = (float) $this->entry_price;
+        $realizedPnl = $this->isShort()
+            ? round($quantityToSell * ($entry - $fillPrice), 2)
+            : round($quantityToSell * ($fillPrice - $entry), 2);
 
         $data = [
             'scaled_out_price' => $fillPrice,
@@ -731,7 +734,11 @@ class Position extends Model
         ];
 
         if (config('vestix.scale_out.move_stop_to_breakeven', true)) {
-            $data['current_sl'] = max((float) ($this->current_sl ?? 0), (float) $this->entry_price);
+            $currentSl = (float) ($this->current_sl ?? 0);
+
+            $data['current_sl'] = $this->isShort()
+                ? ($currentSl > 0 ? min($currentSl, $entry) : $entry)
+                : max($currentSl, $entry);
             $data['freeride_secured_at'] = now();
         }
 
@@ -1554,6 +1561,65 @@ class Position extends Model
         }
 
         return $price * $qty;
+    }
+
+    /**
+     * Cash-style cost basis for portfolio cards: longs only.
+     * Shorts contribute 0 — opening a short is not cash deployed as "inleg".
+     */
+    public function getPortfolioCostBasisAttribute(): float
+    {
+        if ($this->status !== 'open' || $this->isShort()) {
+            return 0;
+        }
+
+        if ($this->entry_price === null || $this->remaining_quantity === null) {
+            return 0;
+        }
+
+        return (float) $this->entry_price * (float) $this->remaining_quantity;
+    }
+
+    /**
+     * Equity contribution of an open position to portfolio "Huidige Waarde".
+     * Long: mark × remaining. Short: MTM only ((entry − mark) × remaining) so entry adds 0.
+     */
+    public function getPortfolioEquityValueAttribute(): float
+    {
+        if ($this->status !== 'open') {
+            return 0;
+        }
+
+        if ($this->isShort()) {
+            if ($this->entry_price === null || $this->valuation_price === null || $this->remaining_quantity === null) {
+                return 0;
+            }
+
+            return ((float) $this->entry_price - (float) $this->valuation_price)
+                * (float) $this->remaining_quantity;
+        }
+
+        return $this->current_value;
+    }
+
+    /**
+     * Exposure base for risk % (long mark value + short notional).
+     */
+    public function getPortfolioExposureNotionalAttribute(): float
+    {
+        if ($this->status !== 'open') {
+            return 0;
+        }
+
+        if ($this->isShort()) {
+            if ($this->entry_price === null || $this->remaining_quantity === null) {
+                return 0;
+            }
+
+            return abs((float) $this->entry_price * (float) $this->remaining_quantity);
+        }
+
+        return $this->current_value;
     }
 
     public function getUnrealizedPnlAttribute(): float
