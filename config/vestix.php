@@ -129,8 +129,14 @@ return [
         'max_points' => 10,
         'sma_slope_lookback_days' => (int) env('SNIPER_SMA_SLOPE_LOOKBACK_DAYS', 10),
         'sma_slope_min_pct' => (float) env('SNIPER_SMA_SLOPE_MIN_PCT', 0.0),
-        // Groene bounce net onder SMA 20: voordeel van de twijfel (geen hard fail).
+        // Groene bounce net onder SMA 20: voordeel van de twijfel (geen hard fail). Long only.
         'trampoline_near_miss_pct' => (float) env('SNIPER_TRAMPOLINE_NEAR_MISS_PCT', 0.25),
+        // Short Route 1: SMA vandaag < 5d < 10d verplicht.
+        'waterfall_required' => filter_var(env('SNIPER_WATERFALL_REQUIRED', true), FILTER_VALIDATE_BOOL),
+        // Short Route 1: upper wick (High − Open) ≥ ratio × candle body.
+        'upper_wick_min_body_ratio' => (float) env('SNIPER_UPPER_WICK_MIN_BODY_RATIO', 1.5),
+        // Minimum body floor as % of close so dojis cannot pass the wick check.
+        'upper_wick_body_floor_pct' => (float) env('SNIPER_UPPER_WICK_BODY_FLOOR_PCT', 0.1),
     ],
 
     'premarket' => [

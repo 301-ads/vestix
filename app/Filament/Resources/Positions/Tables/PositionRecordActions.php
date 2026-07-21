@@ -268,7 +268,7 @@ class PositionRecordActions
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && $record->scoutPipelineStatus() !== ScoutPipelineStatus::Active)
-            ->disabled(fn (Position $record): bool => ! $record->hasCompleteBracketPlan())
+            ->disabled(fn (Position $record): bool => ! $record->canMarkBuyStopPlaced())
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
             ->requiresConfirmation(fn (Position $record): bool => $record->usesIbkrWorkflow())
             ->modalHeading(fn (Position $record): string => $record->usesIbkrWorkflow()
@@ -293,6 +293,20 @@ class PositionRecordActions
                 : 'Bevestigen')
             ->modalCancelActionLabel('Annuleren')
             ->action(function (Position $record): void {
+                if (! $record->canMarkBuyStopPlaced()) {
+                    $reasons = $record->shortSniperHardFailReasons();
+
+                    FilamentNotifier::send(
+                        title: 'Order geblokkeerd',
+                        body: $reasons !== []
+                            ? implode(' · ', $reasons)
+                            : 'Vul eerst entry, aantal en marktdata in of haal data op.',
+                        status: 'danger',
+                    );
+
+                    return;
+                }
+
                 $record->update([
                     'broker_order_status' => BrokerOrderStatus::Pending,
                     'market_open_reminder_on' => null,
@@ -318,6 +332,12 @@ class PositionRecordActions
     {
         if (! $record->hasCompleteBracketPlan()) {
             return 'Vul eerst entry, aantal en marktdata in of haal data op';
+        }
+
+        $hardFails = $record->shortSniperHardFailReasons();
+
+        if ($hardFails !== []) {
+            return 'Sniper-veto: '.implode(' · ', $hardFails);
         }
 
         return $record->usesIbkrWorkflow()

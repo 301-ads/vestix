@@ -766,6 +766,91 @@ class ScoutWatchlistTest extends TestCase
         $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
     }
 
+    public function test_short_mark_buy_stop_placed_disabled_when_sniper_hard_fails(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update(['is_short_enabled' => true, 'primary_broker' => Broker::Ibkr]);
+
+        $scout = Position::factory()->for($user)->scout()->short()->create([
+            'ticker' => 'BAD',
+            'broker' => Broker::Ibkr,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'entry_price' => 100.00,
+            'quantity' => 50,
+            'latest_atr_14' => 2.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00, // breaks waterfall
+            'sma_20_ten_days_ago' => 105.00,
+            'latest_sma_50' => 110.00,
+            'signal_high' => 101.50,
+            'latest_open_price' => 99.80,
+            'latest_close_price' => 99.20,
+            'scout_rsi' => 45.00,
+            'sector_etf' => 'XLY',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.50,
+            'relative_volume' => 1.20,
+        ]);
+
+        $this->assertTrue($scout->hasCompleteBracketPlan());
+        $this->assertTrue($scout->isBlockedByShortSniperHardFails());
+        $this->assertFalse($scout->canMarkBuyStopPlaced());
+
+        $ticket = BrokerOrderTicket::forIbkrBracket($scout);
+        $this->assertTrue($ticket['show_sniper_vision_coming_soon']);
+        $this->assertNotEmpty($ticket['sniper_hard_fails']);
+        $this->assertContains('SMA-waterval ontbreekt — geen glijbaan (chop-risico)', $ticket['sniper_hard_fails']);
+
+        Livewire::test(ListScouts::class)
+            ->assertTableActionVisible('mark_buy_stop_placed', $scout)
+            ->assertTableActionDisabled('mark_buy_stop_placed', $scout);
+    }
+
+    public function test_short_mark_buy_stop_placed_enabled_when_route_one_passes(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update(['is_short_enabled' => true, 'primary_broker' => Broker::Ibkr]);
+
+        $scout = Position::factory()->for($user)->scout()->short()->create([
+            'ticker' => 'SNPR',
+            'broker' => Broker::Ibkr,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'entry_price' => 935.00,
+            'quantity' => 40,
+            'latest_atr_14' => 8.00,
+            'latest_sma_20' => 939.52,
+            'sma_20_five_days_ago' => 950.00,
+            'sma_20_ten_days_ago' => 960.67,
+            'latest_sma_50' => 976.24,
+            'signal_high' => 945.00,
+            'latest_open_price' => 938.75,
+            'latest_close_price' => 935.80,
+            'scout_rsi' => 45.64,
+            'sector_etf' => 'XLY',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.13,
+            'relative_volume' => 0.95,
+        ]);
+
+        $this->assertTrue($scout->hasCompleteBracketPlan());
+        $this->assertSame([], $scout->shortSniperHardFailReasons());
+        $this->assertTrue($scout->canMarkBuyStopPlaced());
+
+        $ticket = BrokerOrderTicket::forIbkrBracket($scout);
+        $this->assertTrue($ticket['show_sniper_vision_coming_soon']);
+        $this->assertSame([], $ticket['sniper_hard_fails']);
+        $this->assertStringContainsString('SHORT', $ticket['title']);
+
+        Livewire::test(ListScouts::class)
+            ->assertTableActionVisible('mark_buy_stop_placed', $scout)
+            ->assertTableActionEnabled('mark_buy_stop_placed', $scout)
+            ->callTableAction('mark_buy_stop_placed', $scout);
+
+        $scout->refresh();
+
+        $this->assertSame(BrokerOrderStatus::Pending, $scout->broker_order_status);
+    }
+
     public function test_scout_broker_workflow_follows_profile_primary_broker(): void
     {
         $user = $this->authenticateFilament();

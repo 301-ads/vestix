@@ -630,27 +630,17 @@ class ScoutSetupScorecardTest extends TestCase
 
     public function test_short_setup_scores_well_when_price_is_below_sma_with_headwind(): void
     {
-        $result = ScoutSetupScorecard::evaluate([
-            'direction' => 'short',
-            'signal_high' => 945.00,
-            'latest_open_price' => 938.75,
-            'latest_close_price' => 935.80,
-            'latest_sma_20' => 939.52,
-            'sma_20_ten_days_ago' => 960.67,
-            'latest_sma_50' => 976.24,
-            'scout_rsi' => 45.64,
-            'relative_volume' => 0.95,
-            'sector_etf' => 'XLY',
-            'sector_trend_positive' => false,
-            'pre_bounce_extension_atr' => 2.13,
-        ]);
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs());
 
         $this->assertSame(10, $result['totalPoints']);
         $this->assertSame('A', $result['grade']);
         $this->assertSame([], $result['hardFailReasons']);
         $this->assertSame(2, $result['criteria'][0]['points']);
+        $this->assertSame(2, $result['criteria'][1]['points']);
         $this->assertSame(2, $result['criteria'][4]['points']);
         $this->assertStringContainsString('Tegenwind', $result['criteria'][4]['detail']);
+        $this->assertStringContainsString('Rejection', $result['criteria'][0]['detail']);
+        $this->assertStringContainsString('Glijbaan', $result['criteria'][1]['detail']);
     }
 
     public function test_short_close_above_sma_is_hard_fail_for_long_logic_but_not_for_short(): void
@@ -660,12 +650,9 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_close_price' => 99.00,
         ]));
 
-        $shortResult = ScoutSetupScorecard::evaluate(array_merge($this->baseInputs([
+        $shortResult = ScoutSetupScorecard::evaluate($this->baseShortInputs([
             'latest_open_price' => 101.00,
             'latest_close_price' => 99.00,
-        ]), [
-            'direction' => 'short',
-            'sector_trend_positive' => false,
         ]));
 
         $this->assertContains('Close onder SMA 20 — trampoline gebroken', $longResult['hardFailReasons']);
@@ -674,20 +661,124 @@ class ScoutSetupScorecardTest extends TestCase
 
     public function test_short_red_candle_scores_volume_point(): void
     {
-        $result = ScoutSetupScorecard::evaluate([
-            'direction' => 'short',
-            'latest_open_price' => 938.75,
-            'latest_close_price' => 935.80,
-            'latest_sma_20' => 939.52,
-            'sma_20_ten_days_ago' => 960.67,
-            'latest_sma_50' => 976.24,
-            'scout_rsi' => 45.64,
-            'sector_etf' => 'XLY',
-            'sector_trend_positive' => false,
-            'pre_bounce_extension_atr' => 2.13,
-        ]);
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs());
 
         $this->assertSame(1, $result['criteria'][3]['points']);
         $this->assertStringContainsString('rode kaars', strtolower($result['criteria'][3]['detail']));
+    }
+
+    public function test_short_waterfall_requires_today_lt_five_lt_ten(): void
+    {
+        $pass = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 102.00,
+            'sma_20_ten_days_ago' => 105.00,
+            'latest_sma_50' => 110.00,
+            'signal_high' => 101.00,
+            'latest_open_price' => 99.50,
+            'latest_close_price' => 99.00,
+        ]));
+
+        $fail = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00, // breaks today < 5d
+            'sma_20_ten_days_ago' => 105.00,
+            'latest_sma_50' => 110.00,
+            'signal_high' => 101.00,
+            'latest_open_price' => 99.50,
+            'latest_close_price' => 99.00,
+        ]));
+
+        $this->assertSame([], $pass['hardFailReasons']);
+        $this->assertSame(2, $pass['criteria'][1]['points']);
+        $this->assertContains('SMA-waterval ontbreekt — geen glijbaan (chop-risico)', $fail['hardFailReasons']);
+        $this->assertSame(0, $fail['criteria'][1]['points']);
+        $this->assertSame('NO TRADE', $fail['grade']);
+    }
+
+    public function test_short_missing_five_day_sma_is_hard_fail(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'sma_20_five_days_ago' => null,
+        ]));
+
+        $this->assertContains('Haal marktdata op voor 5-daagse SMA-waterval', $result['hardFailReasons']);
+        $this->assertSame('NO TRADE', $result['grade']);
+    }
+
+    public function test_short_rejection_requires_high_to_tag_sma_ceiling(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'signal_high' => 938.00, // below SMA 939.52
+            'latest_open_price' => 937.00,
+            'latest_close_price' => 935.80,
+        ]));
+
+        $this->assertContains('Geen SMA-afwijzing — High raakt plafond niet', $result['hardFailReasons']);
+        $this->assertSame(0, $result['criteria'][0]['points']);
+    }
+
+    public function test_short_rejection_requires_sufficient_upper_wick(): void
+    {
+        // High tags SMA, red close under SMA, but tiny upper wick.
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'signal_high' => 939.60,
+            'latest_open_price' => 939.50,
+            'latest_close_price' => 935.80,
+        ]));
+
+        $this->assertContains('Upper wick te kort — geen institutionele afstraffing', $result['hardFailReasons']);
+        $this->assertSame(0, $result['criteria'][0]['points']);
+    }
+
+    public function test_short_near_miss_above_sma_no_longer_escapes_hard_fail(): void
+    {
+        // Red candle ~0.18% above SMA — previously near-miss could pass.
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'signal_high' => 1173.00,
+            'latest_open_price' => 1172.00,
+            'latest_close_price' => 1173.00,
+            'latest_sma_20' => 1171.25,
+            'sma_20_five_days_ago' => 1180.00,
+            'sma_20_ten_days_ago' => 1190.00,
+            'latest_sma_50' => 1200.00,
+        ]));
+
+        $this->assertContains('Close boven SMA 20 — geen short-trampoline', $result['hardFailReasons']);
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertSame(0, $result['criteria'][0]['points']);
+    }
+
+    public function test_short_earnings_within_window_still_hard_fails(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'days_until_earnings' => 8,
+        ]));
+
+        $this->assertContains('Earnings over 8 dagen — te weinig runway voor entry', $result['hardFailReasons']);
+        $this->assertSame('NO TRADE', $result['grade']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function baseShortInputs(array $overrides = []): array
+    {
+        return array_merge([
+            'direction' => 'short',
+            'signal_high' => 945.00,
+            'latest_open_price' => 938.75,
+            'latest_close_price' => 935.80,
+            'latest_sma_20' => 939.52,
+            'sma_20_five_days_ago' => 950.00,
+            'sma_20_ten_days_ago' => 960.67,
+            'latest_sma_50' => 976.24,
+            'scout_rsi' => 45.64,
+            'relative_volume' => 0.95,
+            'sector_etf' => 'XLY',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.13,
+        ], $overrides);
     }
 }

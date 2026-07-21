@@ -169,54 +169,55 @@ class ScoutSetupScorecard
         $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
 
         if ($sma === null || $sma <= 0) {
-            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Data ontbreekt');
+            return self::criterion('trampoline', 'SMA-afwijzing', 0, 2, 'fail', 'Data ontbreekt');
         }
 
         if ($close === null) {
-            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Wacht op slotkoers (Close)');
+            return self::criterion('trampoline', 'SMA-afwijzing', 0, 2, 'fail', 'Wacht op slotkoers (Close)');
         }
 
         if ($close > $sma) {
-            if (self::isTrampolineNearMissShort($inputs)) {
-                $abovePct = (($close - $sma) / $sma) * 100;
+            return self::criterion('trampoline', 'SMA-afwijzing', 0, 2, 'fail', 'Close boven SMA 20 — geen short-trampoline');
+        }
 
-                return self::criterion(
-                    'trampoline',
-                    'Trampoline-afstand',
-                    2,
-                    2,
-                    'pass',
-                    sprintf('Voordeel van de twijfel — close %.2f%% boven SMA 20', $abovePct),
-                );
-            }
+        $rejectionFail = self::shortRejectionFailReason($inputs);
 
-            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Close boven SMA 20 — geen short-trampoline');
+        if ($rejectionFail !== null) {
+            return self::criterion('trampoline', 'SMA-afwijzing', 0, 2, 'fail', $rejectionFail);
         }
 
         $distance = (($sma - $close) / $sma) * 100;
-        $rejectionBounce = self::isRejectionBounceShort($inputs, $sma);
 
         if ($distance <= 1.5) {
-            $detail = $rejectionBounce
-                ? sprintf('Rejection — High boven SMA, Close afgewezen (%.2f%% onder SMA)', $distance)
-                : sprintf('%.2f%% onder SMA — perfecte short-landing', $distance);
-
-            return self::criterion('trampoline', 'Trampoline-afstand', 2, 2, 'pass', $detail);
+            return self::criterion(
+                'trampoline',
+                'SMA-afwijzing',
+                2,
+                2,
+                'pass',
+                sprintf('Rejection + lange lont — Close %.2f%% onder SMA', $distance),
+            );
         }
 
         if ($distance <= 3.0) {
-            $detail = $rejectionBounce
-                ? sprintf('Rejection — High boven SMA, Close afgewezen (%.2f%% onder SMA)', $distance)
-                : sprintf('%.2f%% onder SMA — suboptimaal', $distance);
-
-            return self::criterion('trampoline', 'Trampoline-afstand', 1, 2, 'warn', $detail);
+            return self::criterion(
+                'trampoline',
+                'SMA-afwijzing',
+                1,
+                2,
+                'warn',
+                sprintf('Rejection bevestigd maar %.2f%% onder SMA — suboptimaal', $distance),
+            );
         }
 
-        $detail = $rejectionBounce
-            ? sprintf('Rejection maar te ver onder SMA (%.2f%%)', $distance)
-            : sprintf('%.2f%% onder SMA — te ver weg', $distance);
-
-        return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', $detail);
+        return self::criterion(
+            'trampoline',
+            'SMA-afwijzing',
+            0,
+            2,
+            'fail',
+            sprintf('Rejection maar te ver onder SMA (%.2f%%)', $distance),
+        );
     }
 
     /**
@@ -278,50 +279,28 @@ class ScoutSetupScorecard
      */
     private static function scoreSmaDirectionShort(array $inputs): array
     {
+        $waterfallFail = self::shortWaterfallFailReason($inputs);
+
+        if ($waterfallFail !== null) {
+            return self::criterion('sma_direction', 'SMA-waterval', 0, 2, 'fail', $waterfallFail);
+        }
+
         $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
-        $lookbackDays = self::smaSlopeLookbackDays();
+        $fiveDaysAgo = self::toFloat($inputs['sma_20_five_days_ago'] ?? null);
         $tenDaysAgo = self::toFloat($inputs['sma_20_ten_days_ago'] ?? null);
-        $sma50 = self::toFloat($inputs['latest_sma_50'] ?? null);
-        $minSlopePct = self::smaSlopeMinPct();
-
-        if ($latest === null || $tenDaysAgo === null || $sma50 === null) {
-            $detail = match (true) {
-                $latest !== null && $tenDaysAgo === null => sprintf('Haal marktdata op voor %d-daagse SMA-helling', $lookbackDays),
-                $latest !== null && $sma50 === null => 'Haal marktdata op voor SMA 50',
-                default => 'Data ontbreekt',
-            };
-
-            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', $detail);
-        }
-
-        if ($latest >= $sma50) {
-            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', 'SMA 20 boven SMA 50 — geen bearish trendstructuur');
-        }
-
-        if ($tenDaysAgo <= 0) {
-            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', 'Data ontbreekt');
-        }
-
-        $deltaPct = (($latest - $tenDaysAgo) / $tenDaysAgo) * 100;
-
-        if ($deltaPct > -$minSlopePct) {
-            return self::criterion(
-                'sma_direction',
-                'SMA trend (20/50)',
-                0,
-                2,
-                'fail',
-                sprintf('Stijgende SMA over %d dagen — Δ %.2f%%', $lookbackDays, $deltaPct),
-            );
-        }
 
         return self::criterion(
             'sma_direction',
-            'SMA trend (20/50)',
+            'SMA-waterval',
             2,
             2,
             'pass',
-            sprintf('Dalende trend %.2f%% over %dd + SMA 20 < SMA 50', $deltaPct, $lookbackDays),
+            sprintf(
+                'Glijbaan bevestigd — SMA 20 %.2f < 5d %.2f < 10d %.2f + SMA 20 < SMA 50',
+                $latest,
+                $fiveDaysAgo,
+                $tenDaysAgo,
+            ),
         );
     }
 
@@ -593,8 +572,24 @@ class ScoutSetupScorecard
         $close = self::resolveClosePrice($inputs);
         $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
 
-        if ($close !== null && $sma !== null && $close > $sma && ! self::isTrampolineNearMissShort($inputs)) {
+        // Close above SMA is always a veto for shorts — no near-miss escape.
+        if ($close !== null && $sma !== null && $close > $sma) {
             $reasons[] = 'Close boven SMA 20 — geen short-trampoline';
+        }
+
+        $waterfallFail = self::shortWaterfallFailReason($inputs);
+
+        if ($waterfallFail !== null) {
+            $reasons[] = $waterfallFail;
+        }
+
+        // Only evaluate rejection when close is not already above SMA (separate veto).
+        if ($close === null || $sma === null || $close <= $sma) {
+            $rejectionFail = self::shortRejectionFailReason($inputs);
+
+            if ($rejectionFail !== null) {
+                $reasons[] = $rejectionFail;
+            }
         }
 
         if ($open !== null && $close !== null && self::isRisingRocket($inputs, $open, $close)) {
@@ -602,6 +597,105 @@ class ScoutSetupScorecard
         }
 
         return array_merge($reasons, self::resolveEarningsHardFail($inputs));
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    public static function shortWaterfallFailReason(array $inputs): ?string
+    {
+        if (! self::waterfallRequired()) {
+            return null;
+        }
+
+        $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
+        $fiveDaysAgo = self::toFloat($inputs['sma_20_five_days_ago'] ?? null);
+        $tenDaysAgo = self::toFloat($inputs['sma_20_ten_days_ago'] ?? null);
+        $sma50 = self::toFloat($inputs['latest_sma_50'] ?? null);
+
+        if ($latest === null || $fiveDaysAgo === null || $tenDaysAgo === null || $sma50 === null) {
+            return match (true) {
+                $latest !== null && $fiveDaysAgo === null => 'Haal marktdata op voor 5-daagse SMA-waterval',
+                $latest !== null && $tenDaysAgo === null => 'Haal marktdata op voor 10-daagse SMA-waterval',
+                $latest !== null && $sma50 === null => 'Haal marktdata op voor SMA 50',
+                default => 'SMA-waterval data ontbreekt',
+            };
+        }
+
+        if ($latest >= $sma50) {
+            return 'SMA 20 boven SMA 50 — geen bearish trendstructuur';
+        }
+
+        if (! ($latest < $fiveDaysAgo && $fiveDaysAgo < $tenDaysAgo)) {
+            return 'SMA-waterval ontbreekt — geen glijbaan (chop-risico)';
+        }
+
+        return null;
+    }
+
+    /**
+     * Short plafond + rode kaars + upper-wick rejection.
+     *
+     * @param  array<string, mixed>  $inputs
+     */
+    public static function shortRejectionFailReason(array $inputs): ?string
+    {
+        $high = self::toFloat($inputs['signal_high'] ?? null);
+        $open = self::resolveOpenPrice($inputs);
+        $close = self::resolveClosePrice($inputs);
+        $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
+
+        if ($high === null || $open === null || $close === null || $sma === null || $sma <= 0) {
+            return match (true) {
+                $high === null => 'Signal High ontbreekt voor SMA-afwijzing',
+                $open === null => 'Openingskoers ontbreekt voor wick-check',
+                $close === null => 'Slotkoers ontbreekt voor SMA-afwijzing',
+                default => 'SMA data ontbreekt voor afwijzing',
+            };
+        }
+
+        if ($high < $sma || $close >= $sma) {
+            return 'Geen SMA-afwijzing — High raakt plafond niet';
+        }
+
+        if ($close >= $open) {
+            return 'Geen rode rejection-kaars — Close moet onder Open';
+        }
+
+        if (! self::hasSufficientUpperWickShort($high, $open, $close)) {
+            return 'Upper wick te kort — geen institutionele afstraffing';
+        }
+
+        return null;
+    }
+
+    public static function hasSufficientUpperWickShort(float $high, float $open, float $close): bool
+    {
+        $body = abs($open - $close);
+        $bodyFloor = max($body, abs($close) * (self::upperWickBodyFloorPct() / 100));
+
+        if ($bodyFloor <= 0) {
+            return false;
+        }
+
+        $upperWick = $high - $open;
+
+        return $upperWick >= self::upperWickMinBodyRatio() * $bodyFloor;
+    }
+
+    public static function waterfallRequired(): bool
+    {
+        return (bool) config('vestix.sniper_scorecard.waterfall_required', true);
+    }
+
+    public static function upperWickMinBodyRatio(): float
+    {
+        return (float) config('vestix.sniper_scorecard.upper_wick_min_body_ratio', 1.5);
+    }
+
+    public static function upperWickBodyFloorPct(): float
+    {
+        return (float) config('vestix.sniper_scorecard.upper_wick_body_floor_pct', 0.1);
     }
 
     /**
@@ -714,7 +808,7 @@ class ScoutSetupScorecard
 
         return $high !== null
             && $close !== null
-            && $high > $sma
+            && $high >= $sma
             && $close < $sma;
     }
 
@@ -751,11 +845,6 @@ CASE
     WHEN direction = 'short'
         AND latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL
         AND latest_close_price > latest_sma_20
-        AND NOT (
-            latest_open_price IS NOT NULL
-            AND latest_close_price < latest_open_price
-            AND latest_close_price <= latest_sma_20 * (2 - {$nearMissFactor})
-        )
         THEN 5
     WHEN (direction IS NULL OR direction = 'long')
         AND latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL

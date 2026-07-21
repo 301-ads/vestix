@@ -1,7 +1,7 @@
 @php
     use Illuminate\View\ComponentAttributeBag;
 
-    /** @var array{title: string, intro?: string|null, rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>, difference_label: string|null, confirmation: string, submit_label: string} $ticket */
+    /** @var array{title: string, intro?: string|null, rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>, difference_label: string|null, confirmation: string, submit_label: string, is_short?: bool, warning?: string|null, sniper_hard_fails?: list<string>, show_sniper_vision_coming_soon?: bool} $ticket */
 @endphp
 
 <div @class([
@@ -11,6 +11,17 @@
     @if (filled($ticket['warning'] ?? null))
         <section class="vestix-broker-order-ticket__warning" role="alert">
             <p class="vestix-broker-order-ticket__warning-text">{{ $ticket['warning'] }}</p>
+        </section>
+    @endif
+
+    @if (($ticket['sniper_hard_fails'] ?? []) !== [])
+        <section class="vestix-broker-order-ticket__sniper-veto" role="alert">
+            <h3 class="vestix-broker-order-ticket__sniper-veto-heading">Sniper-veto — Order geblokkeerd</h3>
+            <ul class="vestix-broker-order-ticket__sniper-veto-list">
+                @foreach ($ticket['sniper_hard_fails'] as $reason)
+                    <li>{{ $reason }}</li>
+                @endforeach
+            </ul>
         </section>
     @endif
 
@@ -74,6 +85,21 @@
             @endforeach
         </dl>
     </section>
+
+    @if ($ticket['show_sniper_vision_coming_soon'] ?? false)
+        <section class="vestix-broker-order-ticket__sniper-vision" aria-disabled="true">
+            <div class="vestix-broker-order-ticket__sniper-vision-header">
+                <h3 class="vestix-broker-order-ticket__heading">Sniper Vision</h3>
+                <span class="vestix-broker-order-ticket__coming-soon">Coming soon</span>
+            </div>
+            <p class="vestix-broker-order-ticket__sniper-vision-copy">
+                Upload later een TradingView-screenshot voor de AI-eindcheck (eigen Gemini-key). Route 1 filtert nu al op data.
+            </p>
+            <div class="vestix-broker-order-ticket__sniper-vision-dropzone">
+                TradingView-screenshot — binnenkort beschikbaar
+            </div>
+        </section>
+    @endif
 
     <section class="vestix-broker-order-ticket__section">
         <h3 class="vestix-broker-order-ticket__heading">Bevestiging</h3>

@@ -167,11 +167,15 @@ class BrokerOrderTicket
         $isShort = $position->isShort();
 
         if ($isShort) {
+            $hardFailReasons = $position->shortSniperHardFailReasons();
+
             return [
                 'title' => "IBKR Bracket Order — {$position->ticker} [SHORT]",
                 'intro' => 'LET OP: SHORT POSITIE. Gebruik SELL STOP LIMIT voor de instap. Time in Force = GTC; vink Take Profit (BUY LIMIT) en Stop Loss (BUY STOP) aan.',
                 'warning' => 'LET OP: SHORT POSITIE. Gebruik SELL STOP LIMIT voor de instap.',
                 'is_short' => true,
+                'sniper_hard_fails' => $hardFailReasons,
+                'show_sniper_vision_coming_soon' => true,
                 'rows' => [
                     [
                         'label' => 'Order type',
@@ -222,6 +226,8 @@ class BrokerOrderTicket
             'intro' => 'Neem dit exact over in TradingView: Order Type = STOP LIMIT (Kopen), Time in Force = GTC, vink Take Profit en Stop Loss aan.',
             'warning' => null,
             'is_short' => false,
+            'sniper_hard_fails' => [],
+            'show_sniper_vision_coming_soon' => false,
             'rows' => [
                 [
                     'label' => 'Order type',

@@ -857,6 +857,31 @@ class Position extends Model
             && $this->plannedBracketTarget1Price() !== null;
     }
 
+    /**
+     * Short Route 1 vetoes that must block "Order plaatsen".
+     *
+     * @return array<int, string>
+     */
+    public function shortSniperHardFailReasons(): array
+    {
+        if (! $this->isShort()) {
+            return [];
+        }
+
+        return $this->evaluateSetupScore()['hardFailReasons'];
+    }
+
+    public function isBlockedByShortSniperHardFails(): bool
+    {
+        return $this->shortSniperHardFailReasons() !== [];
+    }
+
+    public function canMarkBuyStopPlaced(): bool
+    {
+        return $this->hasCompleteBracketPlan()
+            && ! $this->isBlockedByShortSniperHardFails();
+    }
+
     public function getTarget1QuantityAttribute(): ?float
     {
         if ($this->quantity === null) {
