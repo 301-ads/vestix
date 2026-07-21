@@ -627,4 +627,67 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame('A++', $result['grade']);
         $this->assertSame('A++ SETUP', $result['gradeLabel']);
     }
+
+    public function test_short_setup_scores_well_when_price_is_below_sma_with_headwind(): void
+    {
+        $result = ScoutSetupScorecard::evaluate([
+            'direction' => 'short',
+            'signal_high' => 945.00,
+            'latest_open_price' => 938.75,
+            'latest_close_price' => 935.80,
+            'latest_sma_20' => 939.52,
+            'sma_20_ten_days_ago' => 960.67,
+            'latest_sma_50' => 976.24,
+            'scout_rsi' => 45.64,
+            'relative_volume' => 0.95,
+            'sector_etf' => 'XLY',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.13,
+        ]);
+
+        $this->assertSame(10, $result['totalPoints']);
+        $this->assertSame('A', $result['grade']);
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame(2, $result['criteria'][0]['points']);
+        $this->assertSame(2, $result['criteria'][4]['points']);
+        $this->assertStringContainsString('Tegenwind', $result['criteria'][4]['detail']);
+    }
+
+    public function test_short_close_above_sma_is_hard_fail_for_long_logic_but_not_for_short(): void
+    {
+        $longResult = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'latest_open_price' => 101.00,
+            'latest_close_price' => 99.00,
+        ]));
+
+        $shortResult = ScoutSetupScorecard::evaluate(array_merge($this->baseInputs([
+            'latest_open_price' => 101.00,
+            'latest_close_price' => 99.00,
+        ]), [
+            'direction' => 'short',
+            'sector_trend_positive' => false,
+        ]));
+
+        $this->assertContains('Close onder SMA 20 — trampoline gebroken', $longResult['hardFailReasons']);
+        $this->assertSame([], $shortResult['hardFailReasons']);
+    }
+
+    public function test_short_red_candle_scores_volume_point(): void
+    {
+        $result = ScoutSetupScorecard::evaluate([
+            'direction' => 'short',
+            'latest_open_price' => 938.75,
+            'latest_close_price' => 935.80,
+            'latest_sma_20' => 939.52,
+            'sma_20_ten_days_ago' => 960.67,
+            'latest_sma_50' => 976.24,
+            'scout_rsi' => 45.64,
+            'sector_etf' => 'XLY',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.13,
+        ]);
+
+        $this->assertSame(1, $result['criteria'][3]['points']);
+        $this->assertStringContainsString('rode kaars', strtolower($result['criteria'][3]['detail']));
+    }
 }

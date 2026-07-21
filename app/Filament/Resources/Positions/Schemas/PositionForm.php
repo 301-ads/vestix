@@ -1193,11 +1193,20 @@ class PositionForm
 
         $sectorLabel = $etf === ''
             ? 'Sector: — (wacht op data)'
-            : ($sectorPositive
-                ? "Sector ({$etf}): Trend Positief"
-                : "Sector ({$etf}): Tegenwind");
+            : (self::resolveFormDirection($get, $record) === TradeDirection::Short
+                ? ($sectorPositive
+                    ? "Sector ({$etf}): Meewind"
+                    : "Sector ({$etf}): Tegenwind")
+                : ($sectorPositive
+                    ? "Sector ({$etf}): Trend Positief"
+                    : "Sector ({$etf}): Tegenwind"));
 
-        $sectorTone = $etf === '' ? 'muted' : ($sectorPositive ? 'success' : 'danger');
+        $sectorTone = $etf === ''
+            ? 'muted'
+            : match (self::resolveFormDirection($get, $record) === TradeDirection::Short) {
+                true => $sectorPositive ? 'danger' : 'success',
+                false => $sectorPositive ? 'success' : 'danger',
+            };
 
         $extension = $get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr;
         $extensionThreshold = PreBounceExtensionCalculator::extensionThreshold();
@@ -2516,7 +2525,9 @@ class PositionForm
     private static function scorecardInputs(Get $get, ?Position $record): array
     {
         return [
+            'direction' => self::resolveFormDirection($get, $record)->value,
             'signal_low' => $get('signal_low') ?? $record?->signal_low,
+            'signal_high' => $get('signal_high') ?? $record?->signal_high,
             'latest_open_price' => $get('latest_open_price') ?? $record?->latest_open_price,
             'latest_close_price' => $get('latest_close_price') ?? $record?->latest_close_price,
             'latest_sma_20' => $get('latest_sma_20') ?? $record?->latest_sma_20,

@@ -547,7 +547,9 @@ class PositionRecordActions
     private static function algorithmicScorecardInputs(Position $record): array
     {
         return [
+            'direction' => $record->tradeDirection(),
             'signal_low' => $record->signal_low,
+            'signal_high' => $record->signal_high,
             'latest_open_price' => $record->latest_open_price,
             'latest_close_price' => $record->latest_close_price,
             'latest_sma_20' => $record->latest_sma_20,

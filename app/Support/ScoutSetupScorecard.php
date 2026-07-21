@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\TradeDirection;
+
 class ScoutSetupScorecard
 {
     public static function maxPoints(): int
@@ -11,7 +13,9 @@ class ScoutSetupScorecard
 
     /**
      * @param  array{
+     *     direction?: TradeDirection|string|null,
      *     signal_low?: float|null,
+     *     signal_high?: float|null,
      *     latest_open_price?: float|null,
      *     latest_close_price?: float|null,
      *     latest_sma_20?: float|null,
@@ -46,14 +50,23 @@ class ScoutSetupScorecard
      */
     public static function evaluate(array $inputs): array
     {
-        $criteria = [
-            self::scoreTrampoline($inputs),
-            self::scoreSmaDirection($inputs),
-            self::scoreRsi($inputs),
-            self::scoreVolume($inputs),
-            self::scoreSector($inputs),
-            self::scoreExtension($inputs),
-        ];
+        $criteria = self::isShort($inputs)
+            ? [
+                self::scoreTrampolineShort($inputs),
+                self::scoreSmaDirectionShort($inputs),
+                self::scoreRsi($inputs),
+                self::scoreVolumeShort($inputs),
+                self::scoreSectorShort($inputs),
+                self::scoreExtension($inputs),
+            ]
+            : [
+                self::scoreTrampoline($inputs),
+                self::scoreSmaDirection($inputs),
+                self::scoreRsi($inputs),
+                self::scoreVolume($inputs),
+                self::scoreSector($inputs),
+                self::scoreExtension($inputs),
+            ];
 
         $totalPoints = array_sum(array_column($criteria, 'points'));
         $maxPoints = array_sum(array_column($criteria, 'maxPoints'));
@@ -70,6 +83,20 @@ class ScoutSetupScorecard
             'hardFailReasons' => $hardFailReasons,
             'criteria' => $criteria,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function isShort(array $inputs): bool
+    {
+        $direction = $inputs['direction'] ?? TradeDirection::Long;
+
+        if ($direction instanceof TradeDirection) {
+            return $direction->isShort();
+        }
+
+        return TradeDirection::tryFrom((string) $direction) === TradeDirection::Short;
     }
 
     /**
@@ -136,6 +163,66 @@ class ScoutSetupScorecard
      * @param  array<string, mixed>  $inputs
      * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
      */
+    private static function scoreTrampolineShort(array $inputs): array
+    {
+        $close = self::resolveClosePrice($inputs);
+        $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
+
+        if ($sma === null || $sma <= 0) {
+            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Data ontbreekt');
+        }
+
+        if ($close === null) {
+            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Wacht op slotkoers (Close)');
+        }
+
+        if ($close > $sma) {
+            if (self::isTrampolineNearMissShort($inputs)) {
+                $abovePct = (($close - $sma) / $sma) * 100;
+
+                return self::criterion(
+                    'trampoline',
+                    'Trampoline-afstand',
+                    2,
+                    2,
+                    'pass',
+                    sprintf('Voordeel van de twijfel — close %.2f%% boven SMA 20', $abovePct),
+                );
+            }
+
+            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Close boven SMA 20 — geen short-trampoline');
+        }
+
+        $distance = (($sma - $close) / $sma) * 100;
+        $rejectionBounce = self::isRejectionBounceShort($inputs, $sma);
+
+        if ($distance <= 1.5) {
+            $detail = $rejectionBounce
+                ? sprintf('Rejection — High boven SMA, Close afgewezen (%.2f%% onder SMA)', $distance)
+                : sprintf('%.2f%% onder SMA — perfecte short-landing', $distance);
+
+            return self::criterion('trampoline', 'Trampoline-afstand', 2, 2, 'pass', $detail);
+        }
+
+        if ($distance <= 3.0) {
+            $detail = $rejectionBounce
+                ? sprintf('Rejection — High boven SMA, Close afgewezen (%.2f%% onder SMA)', $distance)
+                : sprintf('%.2f%% onder SMA — suboptimaal', $distance);
+
+            return self::criterion('trampoline', 'Trampoline-afstand', 1, 2, 'warn', $detail);
+        }
+
+        $detail = $rejectionBounce
+            ? sprintf('Rejection maar te ver onder SMA (%.2f%%)', $distance)
+            : sprintf('%.2f%% onder SMA — te ver weg', $distance);
+
+        return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', $detail);
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
     private static function scoreSmaDirection(array $inputs): array
     {
         $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
@@ -189,12 +276,81 @@ class ScoutSetupScorecard
      * @param  array<string, mixed>  $inputs
      * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
      */
+    private static function scoreSmaDirectionShort(array $inputs): array
+    {
+        $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
+        $lookbackDays = self::smaSlopeLookbackDays();
+        $tenDaysAgo = self::toFloat($inputs['sma_20_ten_days_ago'] ?? null);
+        $sma50 = self::toFloat($inputs['latest_sma_50'] ?? null);
+        $minSlopePct = self::smaSlopeMinPct();
+
+        if ($latest === null || $tenDaysAgo === null || $sma50 === null) {
+            $detail = match (true) {
+                $latest !== null && $tenDaysAgo === null => sprintf('Haal marktdata op voor %d-daagse SMA-helling', $lookbackDays),
+                $latest !== null && $sma50 === null => 'Haal marktdata op voor SMA 50',
+                default => 'Data ontbreekt',
+            };
+
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', $detail);
+        }
+
+        if ($latest >= $sma50) {
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', 'SMA 20 boven SMA 50 — geen bearish trendstructuur');
+        }
+
+        if ($tenDaysAgo <= 0) {
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', 'Data ontbreekt');
+        }
+
+        $deltaPct = (($latest - $tenDaysAgo) / $tenDaysAgo) * 100;
+
+        if ($deltaPct > -$minSlopePct) {
+            return self::criterion(
+                'sma_direction',
+                'SMA trend (20/50)',
+                0,
+                2,
+                'fail',
+                sprintf('Stijgende SMA over %d dagen — Δ %.2f%%', $lookbackDays, $deltaPct),
+            );
+        }
+
+        return self::criterion(
+            'sma_direction',
+            'SMA trend (20/50)',
+            2,
+            2,
+            'pass',
+            sprintf('Dalende trend %.2f%% over %dd + SMA 20 < SMA 50', $deltaPct, $lookbackDays),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
     private static function scoreRsi(array $inputs): array
     {
         $rsi = self::toFloat($inputs['scout_rsi'] ?? null);
 
         if ($rsi === null) {
             return self::criterion('rsi', 'RSI sweet spot', 0, 2, 'fail', 'Data ontbreekt');
+        }
+
+        if (self::isShort($inputs)) {
+            if ($rsi < 30) {
+                return self::criterion('rsi', 'RSI sweet spot', 0, 2, 'fail', sprintf('RSI %.1f — oversold (<30)', $rsi));
+            }
+
+            if ($rsi >= 40 && $rsi <= 55) {
+                return self::criterion('rsi', 'RSI sweet spot', 2, 2, 'pass', sprintf('RSI %.1f — ultieme cooldown zone', $rsi));
+            }
+
+            if ($rsi > 55 && $rsi <= 65) {
+                return self::criterion('rsi', 'RSI sweet spot', 1, 2, 'warn', sprintf('RSI %.1f — nog momentum', $rsi));
+            }
+
+            return self::criterion('rsi', 'RSI sweet spot', 0, 2, 'fail', sprintf('RSI %.1f — buiten sweet spot', $rsi));
         }
 
         if ($rsi > 70) {
@@ -252,6 +408,42 @@ class ScoutSetupScorecard
      * @param  array<string, mixed>  $inputs
      * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
      */
+    private static function scoreVolumeShort(array $inputs): array
+    {
+        $rvol = self::toFloat(RelativeVolumeCalculator::normalizeRatio($inputs['relative_volume'] ?? null));
+        $open = self::resolveOpenPrice($inputs);
+        $close = self::resolveClosePrice($inputs);
+
+        if ($open === null || $close === null) {
+            return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Open/slotkoers ontbreekt voor volume-check');
+        }
+
+        if (self::isRisingRocket($inputs, $open, $close)) {
+            return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Stijgende raket: hoog volume maar slotkoers boven openingskoers');
+        }
+
+        if ($close <= $open) {
+            $rvolLabel = RelativeVolumeCalculator::formatPercent($rvol) ?? '—';
+
+            return self::criterion(
+                'volume',
+                'Volume-overtuiging',
+                1,
+                1,
+                'pass',
+                $rvol !== null
+                    ? sprintf('RVol %s — geen institutionele koop (rode kaars)', $rvolLabel)
+                    : 'Rode kaars — geen institutionele koop',
+            );
+        }
+
+        return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'warn', 'Groene kaars — geen volume-bevestiging voor short');
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
     private static function scoreSector(array $inputs): array
     {
         $etf = $inputs['sector_etf'] ?? null;
@@ -279,6 +471,40 @@ class ScoutSetupScorecard
             2,
             'fail',
             sprintf('Tegenwind (%s < SMA 50)', strtoupper($etf)),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array{key: string, label: string, points: int, maxPoints: int, status: string, detail: string}
+     */
+    private static function scoreSectorShort(array $inputs): array
+    {
+        $etf = $inputs['sector_etf'] ?? null;
+        $trendPositive = (bool) ($inputs['sector_trend_positive'] ?? false);
+
+        if (! is_string($etf) || trim($etf) === '') {
+            return self::criterion('sector', 'Sector-synchronisatie', 0, 2, 'fail', 'Sector ETF ontbreekt — haal marktdata op');
+        }
+
+        if (! $trendPositive) {
+            return self::criterion(
+                'sector',
+                'Sector-synchronisatie',
+                2,
+                2,
+                'pass',
+                sprintf('Sector Tegenwind: bearish (%s < SMA 50)', strtoupper($etf)),
+            );
+        }
+
+        return self::criterion(
+            'sector',
+            'Sector-synchronisatie',
+            0,
+            2,
+            'fail',
+            sprintf('Meewind (%s > SMA 50)', strtoupper($etf)),
         );
     }
 
@@ -322,6 +548,10 @@ class ScoutSetupScorecard
      */
     private static function resolveHardFailReasons(array $inputs): array
     {
+        if (self::isShort($inputs)) {
+            return self::resolveHardFailReasonsShort($inputs);
+        }
+
         $reasons = [];
 
         $rsi = self::toFloat($inputs['scout_rsi'] ?? null);
@@ -342,19 +572,59 @@ class ScoutSetupScorecard
             $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
         }
 
+        return array_merge($reasons, self::resolveEarningsHardFail($inputs));
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array<int, string>
+     */
+    private static function resolveHardFailReasonsShort(array $inputs): array
+    {
+        $reasons = [];
+
+        $rsi = self::toFloat($inputs['scout_rsi'] ?? null);
+
+        if ($rsi !== null && $rsi < 30) {
+            $reasons[] = 'RSI oversold (<30) — geen A-setup mogelijk';
+        }
+
+        $open = self::resolveOpenPrice($inputs);
+        $close = self::resolveClosePrice($inputs);
+        $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
+
+        if ($close !== null && $sma !== null && $close > $sma && ! self::isTrampolineNearMissShort($inputs)) {
+            $reasons[] = 'Close boven SMA 20 — geen short-trampoline';
+        }
+
+        if ($open !== null && $close !== null && self::isRisingRocket($inputs, $open, $close)) {
+            $reasons[] = 'Stijgende raket — hoog volume maar slotkoers boven openingskoers';
+        }
+
+        return array_merge($reasons, self::resolveEarningsHardFail($inputs));
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array<int, string>
+     */
+    private static function resolveEarningsHardFail(array $inputs): array
+    {
         $daysUntil = array_key_exists('days_until_earnings', $inputs)
             ? $inputs['days_until_earnings']
             : null;
 
-        if ($daysUntil !== null) {
-            $windowDays = (int) config('vestix.pre_earnings_trailing.window_days', EarningsExitDisplay::ALERT_WINDOW_DAYS);
-
-            if ($daysUntil >= 0 && $daysUntil <= $windowDays) {
-                $reasons[] = "Earnings over {$daysUntil} dagen — te weinig runway voor entry";
-            }
+        if ($daysUntil === null) {
+            return [];
         }
 
-        return $reasons;
+        $windowDays = (int) config('vestix.pre_earnings_trailing.window_days', EarningsExitDisplay::ALERT_WINDOW_DAYS);
+
+        if ($daysUntil >= 0 && $daysUntil <= $windowDays) {
+            return ["Earnings over {$daysUntil} dagen — te weinig runway voor entry"];
+        }
+
+        return [];
     }
 
     /**
@@ -386,6 +656,35 @@ class ScoutSetupScorecard
         return $belowPct <= $threshold;
     }
 
+    /**
+     * Red candle that closes only a fraction above SMA 20 — benefit of the doubt for shorts.
+     *
+     * @param  array<string, mixed>  $inputs
+     */
+    public static function isTrampolineNearMissShort(array $inputs): bool
+    {
+        $close = self::resolveClosePrice($inputs);
+        $open = self::resolveOpenPrice($inputs);
+        $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
+        $threshold = self::trampolineNearMissPct();
+
+        if ($close === null || $sma === null || $sma <= 0 || $threshold <= 0) {
+            return false;
+        }
+
+        if ($close <= $sma) {
+            return false;
+        }
+
+        if ($open === null || $close >= $open) {
+            return false;
+        }
+
+        $abovePct = (($close - $sma) / $sma) * 100;
+
+        return $abovePct <= $threshold;
+    }
+
     public static function trampolineNearMissPct(): float
     {
         return (float) config('vestix.sniper_scorecard.trampoline_near_miss_pct', 0.25);
@@ -403,6 +702,20 @@ class ScoutSetupScorecard
             && $close !== null
             && $low < $sma
             && $close > $sma;
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function isRejectionBounceShort(array $inputs, float $sma): bool
+    {
+        $high = self::toFloat($inputs['signal_high'] ?? null);
+        $close = self::resolveClosePrice($inputs);
+
+        return $high !== null
+            && $close !== null
+            && $high > $sma
+            && $close < $sma;
     }
 
     /**
@@ -433,8 +746,19 @@ class ScoutSetupScorecard
         return <<<SQL
 CASE
     WHEN (signal_low IS NULL AND latest_close_price IS NULL) OR latest_sma_20 IS NULL OR scout_rsi IS NULL THEN 6
-    WHEN scout_rsi > 70 THEN 5
-    WHEN latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL
+    WHEN direction = 'short' AND scout_rsi < 30 THEN 5
+    WHEN scout_rsi > 70 AND (direction IS NULL OR direction = 'long') THEN 5
+    WHEN direction = 'short'
+        AND latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL
+        AND latest_close_price > latest_sma_20
+        AND NOT (
+            latest_open_price IS NOT NULL
+            AND latest_close_price < latest_open_price
+            AND latest_close_price <= latest_sma_20 * (2 - {$nearMissFactor})
+        )
+        THEN 5
+    WHEN (direction IS NULL OR direction = 'long')
+        AND latest_close_price IS NOT NULL AND latest_sma_20 IS NOT NULL
         AND latest_close_price < latest_sma_20
         AND NOT (
             latest_open_price IS NOT NULL
@@ -442,7 +766,8 @@ CASE
             AND latest_close_price >= latest_sma_20 * {$nearMissFactor}
         )
         THEN 5
-    WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price THEN 5
+    WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price AND (direction IS NULL OR direction = 'long') THEN 5
+    WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price > latest_open_price AND direction = 'short' THEN 5
     WHEN last_setup_score = {$maxPoints} AND trader_promoted_a_plus = 1 THEN 1
     WHEN last_setup_score >= {$maxPoints} - 1 THEN 2
     WHEN last_setup_score >= 8 AND trader_promoted_a = 1 THEN 2
@@ -538,5 +863,17 @@ SQL;
         }
 
         return $volume > $volumeSma20;
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function isRisingRocket(array $inputs, float $open, float $close): bool
+    {
+        if ($close <= $open) {
+            return false;
+        }
+
+        return self::isFallingKnife($inputs, $close, $open);
     }
 }

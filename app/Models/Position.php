@@ -1639,7 +1639,9 @@ class Position extends Model
     public function evaluateSetupScore(?array $overrides = null): array
     {
         $inputs = [
+            'direction' => $overrides['direction'] ?? $this->tradeDirection(),
             'signal_low' => $overrides['signal_low'] ?? $this->signal_low,
+            'signal_high' => $overrides['signal_high'] ?? $this->signal_high,
             'latest_open_price' => $overrides['latest_open_price'] ?? $this->latest_open_price,
             'latest_close_price' => $overrides['latest_close_price'] ?? $this->latest_close_price,
             'latest_sma_20' => $overrides['latest_sma_20'] ?? $this->latest_sma_20,
