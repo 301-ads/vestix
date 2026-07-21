@@ -1,7 +1,5 @@
 @php
     use App\Enums\ScoutPipelineStatus;
-    use Filament\Support\View\Components\BadgeComponent;
-    use Illuminate\View\ComponentAttributeBag;
 
     $isScout = $status === 'scout'
         && isset($pipelineStatus)
@@ -18,20 +16,14 @@
             ScoutPipelineStatus::ReviewRequired => ['warning', 'Review'],
         };
     } else {
-        $badgeColor = match ($status) {
-            'open' => 'success',
-            'scout' => 'info',
-            default => 'gray',
-        };
-        $badgeLabel = match ($status) {
-            'open' => 'Open',
-            'scout' => 'Scout',
-            default => 'Gesloten',
+        [$statusDotColor, $statusDotLabel] = match ($status) {
+            'open' => ['success', 'Open'],
+            default => ['gray', 'Gesloten'],
         };
     }
 @endphp
 
-<span class="position-edit-heading inline-flex items-center gap-5">
+<span class="position-edit-heading inline-flex items-center gap-3">
     <x-filament.positions.ticker-with-icon
         :ticker="$title"
         :icon-url="$iconUrl"
@@ -40,12 +32,4 @@
         :direction="$direction ?? null"
         :show-direction-badge="true"
     />
-
-    @if (! $isScout)
-        <span {{ (new ComponentAttributeBag)->color(BadgeComponent::class, $badgeColor)->class(['fi-badge', 'fi-size-sm']) }}>
-            <span class="fi-badge-label-ctn">
-                <span class="fi-badge-label">{{ $badgeLabel }}</span>
-            </span>
-        </span>
-    @endif
 </span>
