@@ -216,21 +216,21 @@ class PositionForm
                         self::plannedInvestmentField($isScoutForm),
                         self::scoutAutoComputedTextInput(
                             TextInput::make('quantity')
-                            ->label('Gepland aantal')
-                            ->numeric()
-                            ->inputMode('decimal')
-                            ->step('any')
-                            ->minValue(0.000001)
-                            ->readOnly()
-                            ->helperText('Auto-berekend uit totale inleg ÷ entry')
-                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace(',', '.', $state) : null)
-                            ->rules(['nullable', 'numeric', 'min:0.000001'])
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record))
-                            ->afterStateHydrated(function (Set $set, Get $get, ?Position $record): void {
-                                self::syncTotalInvestmentField($set, $get, $record);
-                                self::hydratePlannedInvestmentField($set, $get, $record);
-                            }),
+                                ->label('Gepland aantal')
+                                ->numeric()
+                                ->inputMode('decimal')
+                                ->step('any')
+                                ->minValue(0.000001)
+                                ->readOnly()
+                                ->helperText('Auto-berekend uit totale inleg ÷ entry')
+                                ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace(',', '.', $state) : null)
+                                ->rules(['nullable', 'numeric', 'min:0.000001'])
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTotalInvestmentField($set, $get, $record))
+                                ->afterStateHydrated(function (Set $set, Get $get, ?Position $record): void {
+                                    self::syncTotalInvestmentField($set, $get, $record);
+                                    self::hydratePlannedInvestmentField($set, $get, $record);
+                                }),
                         ),
                     ]),
                 Grid::make(2)
@@ -1185,7 +1185,7 @@ class PositionForm
         $rvolFloat = RelativeVolumeCalculator::normalizeRatio($rvol);
 
         $volumeLabel = $rvolFloat === null
-            ? 'RVol: — (wacht op data)'
+            ? 'RVol: — (wacht op data — geen institutionele bevestiging)'
             : sprintf('RVol: %s (%s)', RelativeVolumeCalculator::formatPercent($rvolFloat), match (true) {
                 $rvolFloat >= $rvolThreshold => 'Geldstroom actief',
                 $rvolFloat < 1.0 => 'Zwak',

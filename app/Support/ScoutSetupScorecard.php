@@ -366,7 +366,16 @@ class ScoutSetupScorecard
         }
 
         if ($close >= $open) {
-            $rvolLabel = RelativeVolumeCalculator::formatPercent($rvol) ?? '—';
+            if ($rvol === null) {
+                return self::criterion(
+                    'volume',
+                    'Volume-overtuiging',
+                    0,
+                    1,
+                    'warn',
+                    'RVol ontbreekt — wacht op data (geen institutionele bevestiging)',
+                );
+            }
 
             return self::criterion(
                 'volume',
@@ -374,9 +383,10 @@ class ScoutSetupScorecard
                 1,
                 1,
                 'pass',
-                $rvol !== null
-                    ? sprintf('RVol %s — geen institutionele dump (groene kaars)', $rvolLabel)
-                    : 'Groene kaars — geen institutionele dump',
+                sprintf(
+                    'RVol %s — geen institutionele dump (groene kaars)',
+                    RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
+                ),
             );
         }
 
@@ -402,7 +412,16 @@ class ScoutSetupScorecard
         }
 
         if ($close <= $open) {
-            $rvolLabel = RelativeVolumeCalculator::formatPercent($rvol) ?? '—';
+            if ($rvol === null) {
+                return self::criterion(
+                    'volume',
+                    'Volume-overtuiging',
+                    0,
+                    1,
+                    'warn',
+                    'RVol ontbreekt — wacht op data (geen institutionele bevestiging)',
+                );
+            }
 
             return self::criterion(
                 'volume',
@@ -410,9 +429,10 @@ class ScoutSetupScorecard
                 1,
                 1,
                 'pass',
-                $rvol !== null
-                    ? sprintf('RVol %s — geen institutionele koop (rode kaars)', $rvolLabel)
-                    : 'Rode kaars — geen institutionele koop',
+                sprintf(
+                    'RVol %s — geen institutionele koop (rode kaars)',
+                    RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
+                ),
             );
         }
 

@@ -386,6 +386,25 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertStringContainsString('geen institutionele dump', $result['criteria'][3]['detail']);
     }
 
+    public function test_volume_score_green_candle_without_rvol_scores_zero(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'bounce_volume_above_average' => false,
+            'relative_volume' => null,
+            'bounce_day_volume' => null,
+            'volume_sma_20' => null,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][3]['points']);
+        $this->assertSame('warn', $result['criteria'][3]['status']);
+        $this->assertStringContainsString('wacht op data', $result['criteria'][3]['detail']);
+        $this->assertSame(9, $result['totalPoints']);
+        $this->assertSame('A', $result['grade']);
+    }
+
     public function test_volume_score_green_candle_with_low_rvol_passes(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
@@ -499,8 +518,8 @@ class ScoutSetupScorecardTest extends TestCase
             'pre_bounce_extension_atr' => null,
         ]);
 
-        $this->assertSame(5, $result['totalPoints']);
-        $this->assertSame('C', $result['grade']);
+        $this->assertSame(4, $result['totalPoints']);
+        $this->assertSame('NO TRADE', $result['grade']);
         $this->assertSame([], $result['hardFailReasons']);
     }
 
@@ -665,6 +684,21 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame(1, $result['criteria'][3]['points']);
         $this->assertStringContainsString('rode kaars', strtolower($result['criteria'][3]['detail']));
+    }
+
+    public function test_short_red_candle_without_rvol_scores_zero(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'relative_volume' => null,
+            'bounce_volume_above_average' => false,
+            'bounce_day_volume' => null,
+            'volume_sma_20' => null,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][3]['points']);
+        $this->assertSame('warn', $result['criteria'][3]['status']);
+        $this->assertStringContainsString('wacht op data', $result['criteria'][3]['detail']);
+        $this->assertLessThanOrEqual(9, $result['totalPoints']);
     }
 
     public function test_short_waterfall_requires_today_lt_five_lt_ten(): void
