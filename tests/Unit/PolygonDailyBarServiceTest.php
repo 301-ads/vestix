@@ -23,6 +23,29 @@ class PolygonDailyBarServiceTest extends TestCase
         $this->assertFalse(PolygonDailyBarService::isBounceDay(101.0, 103.0, 100.0));
     }
 
+    public function test_is_rejection_day_when_high_tags_sma_and_close_below(): void
+    {
+        $this->assertTrue(PolygonDailyBarService::isRejectionDay(100.0, 98.0, 100.0));
+        $this->assertTrue(PolygonDailyBarService::isRejectionDay(101.0, 99.0, 100.0));
+    }
+
+    public function test_is_not_rejection_day_when_close_stays_above_sma(): void
+    {
+        $this->assertFalse(PolygonDailyBarService::isRejectionDay(101.0, 100.5, 100.0));
+    }
+
+    public function test_is_not_rejection_day_when_high_misses_sma(): void
+    {
+        $this->assertFalse(PolygonDailyBarService::isRejectionDay(99.0, 98.0, 100.0));
+    }
+
+    public function test_volume_signal_day_covers_bounce_and_rejection(): void
+    {
+        $this->assertTrue(PolygonDailyBarService::isVolumeSignalDay(101.0, 99.0, 100.5, 100.0));
+        $this->assertTrue(PolygonDailyBarService::isVolumeSignalDay(101.0, 98.0, 99.0, 100.0));
+        $this->assertFalse(PolygonDailyBarService::isVolumeSignalDay(99.0, 98.0, 98.5, 100.0));
+    }
+
     public function test_fetch_recent_bars_calculates_adv30_from_prior_sessions(): void
     {
         config([

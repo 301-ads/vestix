@@ -87,12 +87,17 @@ class RelativeVolumeCalculator
             ? (int) round(array_sum(array_column($adv30Bars, 'volume')) / count($adv30Bars))
             : null;
 
-        $isBounceDay = PolygonDailyBarService::isBounceDay($today['low'], $today['close'], $sma20);
+        $isVolumeSignalDay = PolygonDailyBarService::isVolumeSignalDay(
+            $today['high'],
+            $today['low'],
+            $today['close'],
+            $sma20,
+        );
         $bounceVolumeAboveAverage = $existingVolumeConfirmed ?? false;
         $relativeVolume = null;
         $bounceDayVolume = null;
 
-        if ($isBounceDay) {
+        if ($isVolumeSignalDay) {
             $bounceDayVolume = (int) round($today['volume']);
 
             if ($volumeSma20 !== null && $volumeSma20 > 0) {

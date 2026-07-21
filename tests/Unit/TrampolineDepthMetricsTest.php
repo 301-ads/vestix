@@ -31,6 +31,35 @@ class TrampolineDepthMetricsTest extends TestCase
         $this->assertFalse($result['bounce_volume_above_average']);
     }
 
+    public function test_rvol_calculated_on_short_rejection_day(): void
+    {
+        $bars = $this->rejectionBarsPayload(
+            todayVolume: 1_500_000,
+            priorVolumes: array_fill(0, 20, 1_000_000),
+        );
+
+        $result = RelativeVolumeCalculator::resolve($bars, 100.0, null);
+
+        $this->assertEquals(1.50, $result['relative_volume']);
+        $this->assertTrue($result['bounce_volume_above_average']);
+        $this->assertEquals(1_500_000, $result['bounce_day_volume']);
+    }
+
+    public function test_rvol_stays_null_when_day_is_neither_bounce_nor_rejection(): void
+    {
+        $bars = $this->barsPayload(todayVolume: 2_000_000, priorVolumes: array_fill(0, 20, 1_000_000));
+        // Force a non-signal day: high and low both above SMA, close above SMA.
+        $bars['today']['high'] = 104.0;
+        $bars['today']['low'] = 101.0;
+        $bars['today']['close'] = 103.0;
+        $bars['bars'][array_key_last($bars['bars'])] = $bars['today'];
+
+        $result = RelativeVolumeCalculator::resolve($bars, 100.0, null);
+
+        $this->assertNull($result['relative_volume']);
+        $this->assertNull($result['bounce_day_volume']);
+    }
+
     public function test_formats_rvol_as_percentage(): void
     {
         $this->assertSame('88%', RelativeVolumeCalculator::formatPercent(0.88));
@@ -179,5 +208,31 @@ class TrampolineDepthMetricsTest extends TestCase
             'today' => $bars[array_key_last($bars)],
             'bars' => $bars,
         ];
+    }
+
+    /**
+     * Short rejection candle: high tags/pierces SMA 20, close finishes below.
+     *
+     * @param  array<int, int>  $priorVolumes
+     * @return array{
+     *     today: array{open: float, high: float, low: float, close: float, volume: float},
+     *     bars: array<int, array{open: float, high: float, low: float, close: float, volume: float, date: string}>,
+     * }
+     */
+    private function rejectionBarsPayload(int $todayVolume, array $priorVolumes): array
+    {
+        $payload = $this->barsPayload($todayVolume, $priorVolumes);
+        $today = [
+            'open' => 100.5,
+            'high' => 101.0,
+            'low' => 98.0,
+            'close' => 99.0,
+            'volume' => (float) $todayVolume,
+            'date' => '2026-07-01',
+        ];
+        $payload['today'] = $today;
+        $payload['bars'][array_key_last($payload['bars'])] = $today;
+
+        return $payload;
     }
 }

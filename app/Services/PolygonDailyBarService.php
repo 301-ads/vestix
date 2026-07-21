@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\DailyBarProvider;
 use App\Support\PolygonRateLimiter;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +14,7 @@ class PolygonDailyBarService implements DailyBarProvider
     public function __construct(
         private readonly PolygonRateLimiter $rateLimiter,
     ) {}
+
     /**
      * @return array{
      *     today: array{open: float, high: float, low: float, close: float, volume: float},
@@ -117,8 +119,26 @@ class PolygonDailyBarService implements DailyBarProvider
     }
 
     /**
-     * @return \Illuminate\Http\Client\Response|null
+     * Short rejection day: high tags or pierces SMA 20, close finishes below.
      */
+    public static function isRejectionDay(float $high, float $close, float $sma20): bool
+    {
+        return $high >= $sma20 && $close < $sma20;
+    }
+
+    /**
+     * Day that warrants RVol capture: long bounce or short rejection.
+     */
+    public static function isVolumeSignalDay(
+        float $high,
+        float $low,
+        float $close,
+        float $sma20,
+    ): bool {
+        return self::isBounceDay($low, $close, $sma20)
+            || self::isRejectionDay($high, $close, $sma20);
+    }
+
     private function requestDailyBars(
         string $baseUrl,
         string $ticker,
@@ -126,7 +146,7 @@ class PolygonDailyBarService implements DailyBarProvider
         Carbon $to,
         string $apiKey,
         int $limit,
-    ): ?\Illuminate\Http\Client\Response {
+    ): ?Response {
         for ($attempt = 0; $attempt < 2; $attempt++) {
             $this->rateLimiter->waitBeforeRequest();
 
