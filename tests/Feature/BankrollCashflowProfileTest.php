@@ -54,7 +54,9 @@ class BankrollCashflowProfileTest extends TestCase
             ->assertSee('3,428.40')
             ->assertSee('1,143.90')
             ->assertSee('Wijzig')
-            ->assertSee('Verwijder');
+            ->assertSee('Verwijder')
+            ->assertSee('Handmatig openingsaldo', escape: false)
+            ->assertSee('IBKR deposit', escape: false);
     }
 
     public function test_profile_can_delete_cashflow_via_table_action(): void

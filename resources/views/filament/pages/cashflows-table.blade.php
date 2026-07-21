@@ -31,16 +31,30 @@
                             $isDeposit = $cashflow->type === BankrollCashflowType::Deposit;
                             $sign = $isDeposit ? '+' : '−';
                             $isIbkr = $cashflow->source === 'ibkr';
+                            $hasNote = filled($cashflow->note);
                         @endphp
                         <tr>
                             <td>{{ $cashflow->occurred_on->format('d-m-Y') }}</td>
                             <td>{{ $cashflow->type->label() }}</td>
-                            <td @class([
-                                'vestix-cashflows__amount',
-                                'vestix-cashflows__amount--deposit' => $isDeposit,
-                                'vestix-cashflows__amount--withdrawal' => ! $isDeposit,
-                            ])>
-                                {{ $sign }}${{ number_format((float) $cashflow->amount, 2, '.', ',') }}
+                            <td>
+                                <span
+                                    @class([
+                                        'vestix-cashflows__amount',
+                                        'vestix-cashflows__amount--deposit' => $isDeposit,
+                                        'vestix-cashflows__amount--withdrawal' => ! $isDeposit,
+                                        'vestix-cashflows__amount--has-note' => $hasNote,
+                                    ])
+                                    @if ($hasNote)
+                                        x-data
+                                        x-tooltip="{
+                                            content: @js($cashflow->note),
+                                            theme: $store.theme,
+                                            trigger: 'mouseenter',
+                                        }"
+                                    @endif
+                                >
+                                    {{ $sign }}${{ number_format((float) $cashflow->amount, 2, '.', ',') }}
+                                </span>
                             </td>
                             <td>
                                 <span @class([
@@ -74,11 +88,6 @@
                                 </div>
                             </td>
                         </tr>
-                        @if (filled($cashflow->note))
-                            <tr class="vestix-cashflows__note-row">
-                                <td colspan="5">{{ $cashflow->note }}</td>
-                            </tr>
-                        @endif
                     @endforeach
                 </tbody>
             </table>

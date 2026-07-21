@@ -4439,8 +4439,7 @@
     background: rgb(31 41 55);
 }
 
-.vestix-cashflows__table tbody tr:last-child td,
-.vestix-cashflows__table tbody tr.vestix-cashflows__note-row:last-child td {
+.vestix-cashflows__table tbody tr:last-child td {
     border-bottom: 0;
 }
 
@@ -4460,6 +4459,11 @@
 
 .dark .vestix-cashflows__amount--withdrawal {
     color: rgb(248 113 113);
+}
+
+.vestix-cashflows__amount--has-note {
+    cursor: help;
+    border-bottom: 1px dotted currentColor;
 }
 
 .vestix-cashflows__source {
@@ -4545,18 +4549,6 @@
 
 .dark .vestix-cashflows__action-btn--danger:hover {
     background: rgb(69 10 10 / 0.4);
-}
-
-.vestix-cashflows__note-row td {
-    padding-top: 0;
-    padding-bottom: 0.625rem;
-    font-size: 0.75rem;
-    color: rgb(107 114 128);
-    white-space: normal;
-}
-
-.dark .vestix-cashflows__note-row td {
-    color: rgb(156 163 175);
 }
 
 .vestix-profile-page .vestix-cashflows-toolbar {
