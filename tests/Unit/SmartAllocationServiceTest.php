@@ -100,9 +100,12 @@ class SmartAllocationServiceTest extends TestCase
         ], SmartAllocationService::MODE_SMART);
 
         $twoByTicker = collect($two['allocations'])->keyBy('ticker');
-        $this->assertEqualsWithDelta(0.20, $twoByTicker['A1']['sector_penalty'], 0.001);
-        $this->assertEqualsWithDelta(0.20, $twoByTicker['A2']['sector_penalty'], 0.001);
+        // Soft-exclude keeps one XLV scout (A1 by ticker tie-break); no peer penalty left.
+        $this->assertArrayHasKey('A1', $twoByTicker->all());
+        $this->assertArrayNotHasKey('A2', $twoByTicker->all());
+        $this->assertEqualsWithDelta(0.0, $twoByTicker['A1']['sector_penalty'], 0.001);
         $this->assertEqualsWithDelta(0.0, $twoByTicker['B1']['sector_penalty'], 0.001);
+        $this->assertSame('A2', $two['exclusions'][0]['ticker']);
 
         $three = $this->service->allocate($user, [
             $this->scout($user, 'C1', score: 8, sector: 'XLV'),
@@ -110,9 +113,64 @@ class SmartAllocationServiceTest extends TestCase
             $this->scout($user, 'C3', score: 8, sector: 'XLV'),
         ], SmartAllocationService::MODE_SMART);
 
-        foreach ($three['allocations'] as $allocation) {
-            $this->assertEqualsWithDelta(0.40, $allocation['sector_penalty'], 0.001);
-        }
+        $this->assertCount(1, $three['allocations']);
+        $this->assertSame('C1', $three['allocations'][0]['ticker']);
+        $this->assertEqualsWithDelta(0.0, $three['allocations'][0]['sector_penalty'], 0.001);
+        $this->assertCount(2, $three['exclusions']);
+    }
+
+    public function test_open_risk_on_excludes_order_plan_scouts_in_same_sector(): void
+    {
+        $user = $this->userWithBankroll();
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'BAC',
+            'status' => 'open',
+            'sector_etf' => 'XLF',
+            'entry_price' => 100.00,
+            'current_sl' => 95.00,
+            'quantity' => 10,
+            'latest_close_price' => 100.00,
+        ]);
+
+        $sfnc = $this->scout($user, 'SFNC', score: 9, sector: 'XLF');
+        $tfc = $this->scout($user, 'TFC', score: 8, sector: 'XLF');
+        $aapl = $this->scout($user, 'AAPL', score: 8, sector: 'XLK');
+
+        $result = $this->service->allocate($user, [$sfnc, $tfc, $aapl], SmartAllocationService::MODE_SMART);
+
+        $tickers = collect($result['allocations'])->pluck('ticker')->all();
+        $this->assertSame(['AAPL'], $tickers);
+        $excluded = collect($result['exclusions'])->pluck('ticker')->sort()->values()->all();
+        $this->assertSame(['SFNC', 'TFC'], $excluded);
+        $this->assertStringContainsString('BAC', collect($result['exclusions'])->first()['reason']);
+    }
+
+    public function test_open_risk_on_seeds_sector_penalty_when_slot_allows(): void
+    {
+        config(['vestix.portfolio_coach.max_risk_on_per_sector' => 2]);
+
+        $user = $this->userWithBankroll();
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'BAC',
+            'status' => 'open',
+            'sector_etf' => 'XLF',
+            'entry_price' => 100.00,
+            'current_sl' => 95.00,
+            'quantity' => 10,
+            'latest_close_price' => 100.00,
+        ]);
+
+        $sfnc = $this->scout($user, 'SFNC', score: 8, sector: 'XLF');
+        $aapl = $this->scout($user, 'AAPL', score: 8, sector: 'XLK');
+
+        $result = $this->service->allocate($user, [$sfnc, $aapl], SmartAllocationService::MODE_SMART);
+        $byTicker = collect($result['allocations'])->keyBy('ticker');
+
+        $this->assertArrayHasKey('SFNC', $byTicker->all());
+        $this->assertEqualsWithDelta(0.20, $byTicker['SFNC']['sector_penalty'], 0.001);
+        $this->assertEqualsWithDelta(0.0, $byTicker['AAPL']['sector_penalty'], 0.001);
     }
 
     public function test_excludes_score_below_min(): void
@@ -193,7 +251,7 @@ class SmartAllocationServiceTest extends TestCase
     {
         $user = $this->userWithBankroll();
         $coo = $this->scout($user, 'COO', score: 10, sector: 'XLV');
-        $rprx = $this->scout($user, 'RPRX', score: 10, sector: 'XLV');
+        $rprx = $this->scout($user, 'RPRX', score: 10, sector: 'XLK');
 
         $smart = $this->service->allocate($user, [$coo, $rprx], SmartAllocationService::MODE_SMART);
         $equal = $this->service->allocate($user, [$coo, $rprx], SmartAllocationService::MODE_EQUAL);
@@ -274,7 +332,7 @@ class SmartAllocationServiceTest extends TestCase
             'entry_price' => 82.91,
             'latest_sma_20' => 82.09,
             'latest_atr_14' => 1.77,
-            'sector_etf' => 'XLP',
+            'sector_etf' => 'XLY',
             'target_1_rr' => 2.0,
         ]);
 

@@ -114,10 +114,20 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
         $service = app(SmartAllocationService::class);
         $result = $service->allocate($user, $scouts, $this->mode);
 
+        $sectorExclusions = collect($result['exclusions'])
+            ->filter(fn (array $exclusion): bool => str_contains($exclusion['reason'], 'correlatie')
+                || str_contains($exclusion['reason'], 'max ')
+                || str_contains($exclusion['reason'], 'Sector '))
+            ->values();
+
         if ($result['allocations'] === []) {
+            $body = $sectorExclusions->isNotEmpty()
+                ? 'Alle scouts uitgesloten (sector-correlatie of andere criteria).'
+                : 'Geen scout voldeed aan de criteria (score, entry/SL, IBKR bankroll).';
+
             FilamentNotifier::send(
                 title: 'Geen allocaties',
-                body: 'Geen scout voldeed aan de criteria (score, entry/SL, IBKR bankroll).',
+                body: $body,
                 status: 'warning',
             );
 
@@ -126,13 +136,29 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
 
         $updated = $service->applyToPositions($scouts, $result['allocations']);
 
-        FilamentNotifier::send(
-            title: 'Budget verdeeld',
-            body: sprintf(
-                '%d scout(s) bijgewerkt. Plaats daarna per scout je order via Order Ticket.',
-                $updated,
-            ),
-        );
+        if ($sectorExclusions->isNotEmpty()) {
+            $summary = $sectorExclusions
+                ->map(fn (array $ex): string => $ex['ticker'])
+                ->implode(', ');
+
+            FilamentNotifier::send(
+                title: 'Budget verdeeld met uitsluitingen',
+                body: sprintf(
+                    '%d scout(s) bijgewerkt. Uitgesloten wegens sector: %s.',
+                    $updated,
+                    $summary,
+                ),
+                status: 'warning',
+            );
+        } else {
+            FilamentNotifier::send(
+                title: 'Budget verdeeld',
+                body: sprintf(
+                    '%d scout(s) bijgewerkt. Plaats daarna per scout je order via Order Ticket.',
+                    $updated,
+                ),
+            );
+        }
 
         $this->dispatch('order-plan-updated');
     }

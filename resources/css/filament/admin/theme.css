@@ -4775,3 +4775,122 @@
 .vestix-profile-page .vestix-profile-alert-category .fi-fo-checkbox-list-options {
     justify-items: start;
 }
+
+/* Vestix Portfolio Coach */
+.vestix-portfolio-coach {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.vestix-portfolio-coach__strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    color: rgb(75 85 99);
+}
+
+.dark .vestix-portfolio-coach__strip {
+    color: rgb(156 163 175);
+}
+
+.vestix-portfolio-coach__strip-item strong {
+    color: rgb(17 24 39);
+    font-weight: 600;
+}
+
+.dark .vestix-portfolio-coach__strip-item strong {
+    color: rgb(243 244 246);
+}
+
+.vestix-portfolio-coach__insights {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.vestix-portfolio-coach__insight {
+    border-radius: 0.5rem;
+    border: 1px solid rgb(229 231 235);
+    padding: 0.75rem 1rem;
+    background: rgb(249 250 251);
+}
+
+.dark .vestix-portfolio-coach__insight {
+    border-color: rgb(55 65 81);
+    background: rgb(31 41 55 / 0.5);
+}
+
+.vestix-portfolio-coach__insight--warning {
+    border-color: rgb(253 230 138);
+    background: rgb(255 251 235);
+}
+
+.dark .vestix-portfolio-coach__insight--warning {
+    border-color: rgb(146 64 14 / 0.5);
+    background: rgb(69 26 3 / 0.35);
+}
+
+.vestix-portfolio-coach__insight--success {
+    border-color: rgb(167 243 208);
+    background: rgb(236 253 245);
+}
+
+.dark .vestix-portfolio-coach__insight--success {
+    border-color: rgb(6 95 70 / 0.5);
+    background: rgb(6 78 59 / 0.3);
+}
+
+.vestix-portfolio-coach__insight--info {
+    border-color: rgb(191 219 254);
+    background: rgb(239 246 255);
+}
+
+.dark .vestix-portfolio-coach__insight--info {
+    border-color: rgb(30 64 175 / 0.45);
+    background: rgb(30 58 138 / 0.3);
+}
+
+.vestix-portfolio-coach__insight-title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgb(17 24 39);
+}
+
+.dark .vestix-portfolio-coach__insight-title {
+    color: rgb(243 244 246);
+}
+
+.vestix-portfolio-coach__insight-body {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    color: rgb(75 85 99);
+    line-height: 1.4;
+}
+
+.dark .vestix-portfolio-coach__insight-body {
+    color: rgb(156 163 175);
+}
+
+.vestix-coach-edge {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.vestix-coach-edge__heading {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgb(17 24 39);
+}
+
+.dark .vestix-coach-edge__heading {
+    color: rgb(243 244 246);
+}

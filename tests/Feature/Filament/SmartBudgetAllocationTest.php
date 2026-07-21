@@ -367,6 +367,72 @@ class SmartBudgetAllocationTest extends TestCase
         $this->assertSame(23, (int) $pending->quantity);
     }
 
+    public function test_apply_excludes_scouts_when_open_risk_on_in_same_sector(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10000,
+            'default_risk_percent' => 1,
+        ]);
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'BAC',
+            'status' => 'open',
+            'sector_etf' => 'XLF',
+            'entry_price' => 100.00,
+            'current_sl' => 95.00,
+            'quantity' => 10,
+            'latest_close_price' => 102.00,
+        ]);
+
+        $sfnc = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'SFNC',
+            'last_setup_score' => 9,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'sector_etf' => 'XLF',
+            'quantity' => 5,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        $tfc = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'TFC',
+            'last_setup_score' => 8,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'sector_etf' => 'XLF',
+            'quantity' => 5,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        $aapl = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'AAPL',
+            'last_setup_score' => 8,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'sector_etf' => 'XLK',
+            'quantity' => 5,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        Livewire::test(ExecutionPlanContent::class)
+            ->assertSee('correlatierisico')
+            ->assertSee('SFNC')
+            ->assertSee('TFC')
+            ->call('applyAllocation');
+
+        $this->assertTrue($sfnc->fresh()->isOrderPlanExcludedToday());
+        $this->assertTrue($tfc->fresh()->isOrderPlanExcludedToday());
+        $this->assertNotNull($aapl->fresh()->risk_budget);
+        $this->assertFalse($aapl->fresh()->isOrderPlanExcludedToday());
+    }
+
     public function test_radar_toggle_adds_scout_to_order_plan(): void
     {
         $user = $this->authenticateFilament();

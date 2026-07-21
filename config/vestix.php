@@ -47,6 +47,12 @@ return [
         'min_closed_trades' => (int) env('STRATEGY_COACH_MIN_TRADES', 20),
     ],
 
+    'portfolio_coach' => [
+        'max_risk_on_per_sector' => (int) env('PORTFOLIO_COACH_MAX_RISK_ON_PER_SECTOR', 1),
+        'long_heavy_threshold' => (float) env('PORTFOLIO_COACH_LONG_HEAVY_THRESHOLD', 0.80),
+        'short_heavy_threshold' => (float) env('PORTFOLIO_COACH_SHORT_HEAVY_THRESHOLD', 0.80),
+    ],
+
     'scale_out' => [
         'target_1_rr' => (float) env('SCALE_OUT_TARGET_1_RR', 2.0),
         'first_tranche_fraction' => (float) env('SCALE_OUT_FIRST_TRANCHE_FRACTION', 0.5),

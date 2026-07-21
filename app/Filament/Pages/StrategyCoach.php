@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Enums\TradeDirection;
 use App\Filament\Widgets\EquityCurveChart;
+use App\Filament\Widgets\PortfolioCoachInsightsWidget;
 use App\Filament\Widgets\StrategyCoachStatsWidget;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Grid;
@@ -16,9 +17,9 @@ class StrategyCoach extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAcademicCap;
 
-    protected static ?string $navigationLabel = 'Trampoline Coach';
+    protected static ?string $navigationLabel = 'Vestix Coach';
 
-    protected static ?string $title = 'Trampoline Coach';
+    protected static ?string $title = 'Vestix Coach';
 
     protected static ?string $slug = 'strategy-coach';
 
@@ -58,6 +59,7 @@ class StrategyCoach extends Page
     public function getWidgets(): array
     {
         return [
+            PortfolioCoachInsightsWidget::class,
             StrategyCoachStatsWidget::class,
             EquityCurveChart::class,
         ];
@@ -67,12 +69,19 @@ class StrategyCoach extends Page
     {
         return $schema
             ->components([
+                Grid::make($this->getColumns())
+                    ->schema(fn (): array => $this->getWidgetsSchemaComponents([
+                        PortfolioCoachInsightsWidget::class,
+                    ])),
                 View::make('filament.pages.strategy-coach-direction-filter')
                     ->viewData(fn (): array => [
                         'directionFilter' => $this->directionFilter,
                     ]),
                 Grid::make($this->getColumns())
-                    ->schema(fn (): array => $this->getWidgetsSchemaComponents($this->getWidgets())),
+                    ->schema(fn (): array => $this->getWidgetsSchemaComponents([
+                        StrategyCoachStatsWidget::class,
+                        EquityCurveChart::class,
+                    ])),
             ]);
     }
 }

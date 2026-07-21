@@ -19,6 +19,7 @@ class SmartAllocationService
     public function __construct(
         private readonly IbkrAccountReader $ibkrAccountReader,
         private readonly IbkrSyncHealth $ibkrSyncHealth,
+        private readonly PortfolioRiskCoachService $portfolioRiskCoach,
     ) {}
 
     /**
@@ -95,6 +96,15 @@ class SmartAllocationService
             TradeDirection::Short->value => [],
         ];
         $exclusions = [];
+        $sectorExclusions = $this->portfolioRiskCoach->evaluateOrderPlanExclusions($user, $positions);
+        $sectorExcludedIds = [];
+
+        foreach ($sectorExclusions as $sectorExclusion) {
+            $exclusions[] = $sectorExclusion;
+            $sectorExcludedIds[(int) $sectorExclusion['position_id']] = true;
+        }
+
+        $openRiskOnSectorCounts = $this->portfolioRiskCoach->openRiskOnSectorCounts($user);
 
         foreach ($positions as $position) {
             if (! $position instanceof Position) {
@@ -109,6 +119,10 @@ class SmartAllocationService
                 ? TradeDirection::Short->value
                 : TradeDirection::Long->value;
             $availablePie = $position->isShort() ? $shortPie['available'] : $longPie['available'];
+
+            if (isset($sectorExcludedIds[(int) $position->id])) {
+                continue;
+            }
 
             if ($position->isOrderPlanExcludedToday()) {
                 $exclusions[] = [
@@ -220,7 +234,14 @@ class SmartAllocationService
 
             $allocations = [
                 ...$allocations,
-                ...$this->allocateWithRedistribution($candidates, $availablePie, $bankroll, $mode, $exclusions),
+                ...$this->allocateWithRedistribution(
+                    $candidates,
+                    $availablePie,
+                    $bankroll,
+                    $mode,
+                    $exclusions,
+                    $openRiskOnSectorCounts,
+                ),
             ];
         }
 
@@ -262,6 +283,7 @@ class SmartAllocationService
      *     risk_per_share: float,
      * }>  $candidates
      * @param  list<array{position_id: int, ticker: string, reason: string}>  $exclusions
+     * @param  array<string, int>  $openRiskOnSectorCounts
      * @return list<array{
      *     position_id: int,
      *     ticker: string,
@@ -287,6 +309,7 @@ class SmartAllocationService
         float $bankroll,
         string $mode,
         array &$exclusions,
+        array $openRiskOnSectorCounts = [],
     ): array {
         $working = $candidates;
         $allocations = [];
@@ -294,7 +317,7 @@ class SmartAllocationService
         $minQuantity = $this->minQuantity();
 
         while ($working !== [] && $maxRounds-- > 0) {
-            $round = $this->allocateAmong($working, $pie, $bankroll, $mode);
+            $round = $this->allocateAmong($working, $pie, $bankroll, $mode, $openRiskOnSectorCounts);
 
             if ($round === []) {
                 return [];
@@ -412,6 +435,7 @@ class SmartAllocationService
      *     sector: string|null,
      *     risk_per_share: float,
      * }>  $candidates
+     * @param  array<string, int>  $openRiskOnSectorCounts
      * @return list<array{
      *     position_id: int,
      *     ticker: string,
@@ -431,9 +455,14 @@ class SmartAllocationService
      *     target_1: float|null,
      * }>
      */
-    private function allocateAmong(array $candidates, float $pie, float $bankroll, string $mode): array
-    {
-        $sectorCounts = [];
+    private function allocateAmong(
+        array $candidates,
+        float $pie,
+        float $bankroll,
+        string $mode,
+        array $openRiskOnSectorCounts = [],
+    ): array {
+        $sectorCounts = $openRiskOnSectorCounts;
 
         foreach ($candidates as $candidate) {
             if ($candidate['sector'] === null) {
