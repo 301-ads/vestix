@@ -1614,6 +1614,11 @@
 }
 
 .vestix-direction-segment--filter {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    width: fit-content;
+    max-width: 100%;
     margin-bottom: 1rem;
     padding: 0.25rem;
     border-radius: 0.625rem;
