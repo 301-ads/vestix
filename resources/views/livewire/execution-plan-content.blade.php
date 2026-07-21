@@ -102,7 +102,7 @@
                                         <x-filament.positions.direction-badge :direction="$active->tradeDirection()" />
                                     </td>
                                     <td>
-                                        {{ $active->last_setup_score !== null ? $active->last_setup_score : '—' }}
+                                        {{ $active->evaluateSetupScore()['totalPoints'] }}
                                     </td>
                                     <td>
                                         {{ $qty !== null && $qty > 0 ? number_format($qty, 0) : '—' }}

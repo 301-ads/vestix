@@ -244,7 +244,6 @@ class SmartAllocationServiceTest extends TestCase
             'entry_price' => 245.40,
             'latest_sma_20' => 240.00,
             'latest_atr_14' => 4.00,
-            'signal_low' => 236.80,
             'sector_etf' => 'XLF',
             'target_1_rr' => 2.0,
         ]);
@@ -255,7 +254,6 @@ class SmartAllocationServiceTest extends TestCase
             'entry_price' => 1192.89,
             'latest_sma_20' => 1171.00,
             'latest_atr_14' => 20.00,
-            'signal_low' => 1141.20,
             'sector_etf' => 'XLV',
             'target_1_rr' => 2.0,
         ]);
@@ -266,7 +264,6 @@ class SmartAllocationServiceTest extends TestCase
             'entry_price' => 19.14,
             'latest_sma_20' => 18.50,
             'latest_atr_14' => 0.40,
-            'signal_low' => 18.50,
             'sector_etf' => 'XLP',
             'target_1_rr' => 2.0,
         ]);
@@ -277,7 +274,6 @@ class SmartAllocationServiceTest extends TestCase
             'entry_price' => 82.91,
             'latest_sma_20' => 82.09,
             'latest_atr_14' => 1.77,
-            'signal_low' => 80.50,
             'sector_etf' => 'XLP',
             'target_1_rr' => 2.0,
         ]);
@@ -375,7 +371,15 @@ class SmartAllocationServiceTest extends TestCase
             'market_open_reminder_on' => null,
         ]);
 
-        $pending = $this->scout($user, 'EMBJ', score: 9, sector: 'XLK');
+        $pending = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'EMBJ',
+            'last_setup_score' => 9,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 98.00,
+            'latest_atr_14' => 2.00,
+            'sector_etf' => 'XLK',
+            'target_1_rr' => 2.0,
+        ]);
 
         $result = $this->service->allocate($user, [$pending], SmartAllocationService::MODE_SMART);
 
@@ -430,6 +434,36 @@ class SmartAllocationServiceTest extends TestCase
         $this->assertSame([], $result['allocations']);
     }
 
+    public function test_uses_live_scorecard_instead_of_stale_last_setup_score(): void
+    {
+        $user = $this->userWithBankroll();
+
+        $position = Position::factory()->for($user)->scout()->short()->create([
+            'ticker' => 'COST',
+            'last_setup_score' => 3,
+            'entry_price' => 929.94,
+            'latest_atr_14' => 20.72,
+            'latest_sma_20' => 939.52,
+            'sector_etf' => 'XLY',
+            'target_1_rr' => 2.0,
+            'signal_high' => 945.00,
+            'latest_open_price' => 938.75,
+            'latest_close_price' => 935.80,
+            'sma_20_ten_days_ago' => 960.67,
+            'latest_sma_50' => 976.24,
+            'scout_rsi' => 45.64,
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.13,
+        ]);
+
+        $result = $this->service->allocate($user, [$position], SmartAllocationService::MODE_SMART);
+
+        $this->assertCount(1, $result['allocations']);
+        $this->assertSame('COST', $result['allocations'][0]['ticker']);
+        $this->assertSame(10, $result['allocations'][0]['score']);
+        $this->assertSame([], $result['exclusions']);
+    }
+
     private function userWithBankroll(): User
     {
         return User::factory()->create([
@@ -445,15 +479,73 @@ class SmartAllocationServiceTest extends TestCase
         ?string $sector,
         float $target1Rr = 2.0,
     ): Position {
-        return Position::factory()->for($user)->scout()->create([
-            'ticker' => $ticker,
-            'last_setup_score' => $score,
-            'entry_price' => 100.00,
-            'latest_sma_20' => 98.00,
-            'latest_atr_14' => 2.00,
-            'sector_etf' => $sector,
-            'target_1_rr' => $target1Rr,
-            'quantity' => 10,
-        ]);
+        return Position::factory()->for($user)->scout()->create(array_merge(
+            $this->scorecardAttributes($score),
+            [
+                'ticker' => $ticker,
+                'last_setup_score' => $score,
+                'entry_price' => 100.00,
+                'latest_atr_14' => 2.00,
+                'sector_etf' => $sector,
+                'target_1_rr' => $target1Rr,
+                'quantity' => 10,
+            ],
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function scorecardAttributes(int $score): array
+    {
+        if ($score < 5) {
+            return [];
+        }
+
+        $base = [
+            'signal_low' => 101.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
+        ];
+
+        return match (true) {
+            $score >= 10 => $base,
+            $score === 9 => array_merge($base, ['pre_bounce_extension_atr' => 1.0]),
+            $score === 8 => array_merge($base, [
+                'pre_bounce_extension_atr' => 1.0,
+                'scout_rsi' => 60.00,
+            ]),
+            $score === 7 => array_merge($base, [
+                'sector_trend_positive' => false,
+                'pre_bounce_extension_atr' => 1.0,
+            ]),
+            default => [
+                'signal_low' => 100.50,
+                'latest_open_price' => 102.00,
+                'latest_close_price' => 100.50,
+                'latest_sma_20' => 100.00,
+                'sma_20_five_days_ago' => 99.50,
+                'sma_20_ten_days_ago' => 98.00,
+                'latest_sma_50' => 98.00,
+                'scout_rsi' => 50.00,
+                'bounce_volume_above_average' => false,
+                'relative_volume' => 0.82,
+                'bounce_day_volume' => 6_000_000,
+                'volume_sma_20' => 10_000_000,
+                'sector_trend_positive' => false,
+                'pre_bounce_extension_atr' => 1.0,
+            ],
+        };
     }
 }

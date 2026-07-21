@@ -477,10 +477,22 @@ class SmartAllocationService
 
     private function resolveScore(Position $position): int
     {
-        if ($position->last_setup_score !== null) {
-            return (int) $position->last_setup_score;
+        if ($this->scorecardDataIncomplete($position)) {
+            return (int) ($position->last_setup_score ?? 0);
         }
 
         return (int) $position->evaluateSetupScore()['totalPoints'];
+    }
+
+    private function scorecardDataIncomplete(Position $position): bool
+    {
+        $hasSignalAnchor = $position->isShort()
+            ? $position->signal_high !== null
+            : $position->signal_low !== null;
+
+        return ! $hasSignalAnchor
+            || $position->latest_sma_20 === null
+            || $position->scout_rsi === null
+            || $position->latest_close_price === null;
     }
 }
