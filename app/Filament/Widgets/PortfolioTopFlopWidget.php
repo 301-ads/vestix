@@ -48,7 +48,8 @@ class PortfolioTopFlopWidget extends TableWidget
                     TextColumn::make('ticker')
                         ->label('Ticker'),
                 ),
-                DirectionColumn::make(),
+                DirectionColumn::make()
+                    ->sortable(false),
                 TextColumn::make('unrealized_pnl_percentage')
                     ->label('P&L (%)')
                     ->numeric(decimalPlaces: 2)
