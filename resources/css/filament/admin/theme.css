@@ -1297,8 +1297,13 @@
 }
 
 /* Keep last dashboard widgets (and their action buttons) above the iOS home indicator. */
+.fi-page.vestix-dashboard .fi-page-header-main-ctn,
 .fi-page.vestix-dashboard .fi-page-content {
-    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.fi-page.vestix-dashboard .fi-main {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todos-empty {
@@ -4631,12 +4636,13 @@
 /* -------------------------------------------------------------------------- */
 
 /*
- * pulltorefreshjs sets touch-action: pan-down on `.ptr--top`, which blocks
- * scrolling toward the bottom of the page when that class sticks. Keep full
- * vertical panning; JS still claims the pull gesture via preventDefault.
+ * Never allow pulltorefreshjs' pan-down-only touch-action to trap iOS scrolling.
+ * Vertical panning must always remain available in the PWA shell.
  */
-.fi-body.ptr--top {
-    touch-action: pan-x pan-y pinch-zoom;
+.fi-body,
+.fi-body.ptr--top,
+.ptr--top {
+    touch-action: pan-x pan-y pinch-zoom !important;
 }
 
 .fi-body .ptr--ptr {

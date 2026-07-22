@@ -32,18 +32,10 @@ function maxScrollTop() {
     return scrollRoots().reduce((max, el) => Math.max(max, el.scrollTop || 0), window.scrollY || 0);
 }
 
-/**
- * Allow a couple of pixels of bounce/residue so iOS does not miss the gesture
- * when scrollTop is not exactly zero after rubber-banding.
- */
 function isPageAtTop() {
     return maxScrollTop() <= SCROLL_TOP_TOLERANCE;
 }
 
-/**
- * Nested scroll areas (tables, modals) should keep their own scroll instead of
- * triggering a full page refresh while they are scrolled.
- */
 function hasScrolledOverflowAncestor(target) {
     let node = target instanceof Element ? target : null;
 
@@ -79,51 +71,31 @@ function shouldPullToRefresh() {
     return true;
 }
 
+function clearPtrTopClass() {
+    document.body?.classList.remove('ptr--top');
+}
+
 /**
- * pulltorefreshjs only listens to window scroll to toggle `.ptr--top`.
- * When Filament scrolls `.fi-layout`, that class would stick and
- * `touch-action: pan-down` would block scrolling further down the page.
+ * Completely tear down pull-to-refresh while the user is browsing mid-page.
+ * This avoids pulltorefreshjs calling preventDefault / applying pan-down
+ * touch-action that can trap iOS scrolling before the bottom buttons.
  */
-function syncPtrTopClass() {
-    const main = document.body;
-
-    if (!(main instanceof HTMLElement)) {
-        return;
-    }
-
-    main.classList.toggle('ptr--top', shouldPullToRefresh());
-}
-
-function bindScrollSync() {
-    if (scrollSyncBound) {
-        syncPtrTopClass();
-
-        return;
-    }
-
-    scrollSyncBound = true;
-
-    const options = { passive: true };
-
-    window.addEventListener('scroll', syncPtrTopClass, options);
-    scrollRoots().forEach((el) => {
-        el.addEventListener('scroll', syncPtrTopClass, options);
-    });
-
-    syncPtrTopClass();
-}
-
-function initPullToRefresh() {
-    if (!isStandalonePwa()) {
-        return;
-    }
-
+function disablePullToRefresh() {
     if (ptrInstance) {
         ptrInstance.destroy();
         ptrInstance = null;
     }
 
-    // Ensure touchmove can call preventDefault immediately when pulling.
+    // Ensure no leftover global handlers from the library remain active.
+    PullToRefresh.destroyAll();
+    clearPtrTopClass();
+}
+
+function enablePullToRefresh() {
+    if (ptrInstance || !shouldPullToRefresh()) {
+        return;
+    }
+
     PullToRefresh.setPassiveMode(false);
 
     ptrInstance = PullToRefresh.init({
@@ -132,21 +104,84 @@ function initPullToRefresh() {
         instructionsPullToRefresh: 'Trek om te vernieuwen',
         instructionsReleaseToRefresh: 'Laat los om te scannen',
         instructionsRefreshing: 'Vestix radar updaten...',
-        // Start resisting on the first pull pixel so iOS cannot steal the gesture.
         distIgnore: 0,
         distThreshold: 55,
         distMax: 80,
         distReload: 50,
         shouldPullToRefresh,
+        // Strip the library's pan-down touch-action rule that blocks scrolling down.
+        getStyles() {
+            return `
+.__PREFIX__ptr {
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  font-size: 0.85em;
+  font-weight: bold;
+  top: 0;
+  height: 0;
+  transition: height 0.3s, min-height 0.3s;
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  align-content: stretch;
+}
+.__PREFIX__box {
+  padding: 10px;
+  flex-basis: 100%;
+}
+.__PREFIX__pull {
+  transition: none;
+}
+.__PREFIX__text {
+  margin-top: .33em;
+}
+.__PREFIX__icon {
+  transition: transform .3s;
+}
+.__PREFIX__top {
+  touch-action: pan-x pan-y pinch-zoom;
+}
+.__PREFIX__release .__PREFIX__icon {
+  transform: rotate(180deg);
+}
+`;
+        },
         onRefresh: () => window.location.reload(),
     });
+}
 
-    bindScrollSync();
+function syncPullToRefreshForScrollPosition() {
+    if (shouldPullToRefresh()) {
+        enablePullToRefresh();
+    } else {
+        disablePullToRefresh();
+    }
+}
+
+function bindScrollSync() {
+    if (scrollSyncBound) {
+        syncPullToRefreshForScrollPosition();
+
+        return;
+    }
+
+    scrollSyncBound = true;
+
+    const options = { passive: true };
+    const onScroll = () => syncPullToRefreshForScrollPosition();
+
+    window.addEventListener('scroll', onScroll, options);
+    scrollRoots().forEach((el) => {
+        el.addEventListener('scroll', onScroll, options);
+    });
+
+    syncPullToRefreshForScrollPosition();
 }
 
 function trackTouchTarget(event) {
     lastTouchTarget = event.target instanceof Element ? event.target : null;
-    syncPtrTopClass();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -157,5 +192,5 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('touchstart', trackTouchTarget, { capture: true, passive: true });
     document.addEventListener('pointerdown', trackTouchTarget, { capture: true, passive: true });
 
-    initPullToRefresh();
+    bindScrollSync();
 });
