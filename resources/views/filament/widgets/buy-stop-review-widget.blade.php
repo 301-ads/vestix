@@ -35,7 +35,7 @@
                             @endif
                         </div>
 
-                        <div class="vestix-action-todo__action flex flex-wrap justify-end gap-2">
+                        <div class="vestix-action-todo__action vestix-action-todo__actions" wire:key="buy-stop-review-{{ $position->getKey() }}">
                             @foreach ($this->actionsForPosition($position) as $action)
                                 {{ $action }}
                             @endforeach
