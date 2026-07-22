@@ -1297,13 +1297,8 @@
 }
 
 /* Keep last dashboard widgets (and their action buttons) above the iOS home indicator. */
-.fi-page.vestix-dashboard .fi-page-header-main-ctn,
-.fi-page.vestix-dashboard .fi-page-content {
-    padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
-}
-
-.fi-page.vestix-dashboard .fi-main {
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+.fi-body .fi-main:has(.vestix-dashboard) {
+    padding-bottom: calc(3rem + env(safe-area-inset-bottom, 0px));
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todos-empty {

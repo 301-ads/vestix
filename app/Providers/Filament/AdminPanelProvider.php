@@ -167,7 +167,9 @@ class AdminPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::HEAD_START,
-                fn (): string => '<link rel="apple-touch-icon" sizes="180x180" href="'.asset('images/apple-touch-icon.png').'">'."\n".'<link rel="manifest" href="'.asset('manifest.json').'">'
+                fn (): string => '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'."\n"
+                    .'<link rel="apple-touch-icon" sizes="180x180" href="'.asset('images/apple-touch-icon.png').'">'."\n"
+                    .'<link rel="manifest" href="'.asset('manifest.json').'">'
             )
             ->renderHook(
                 PanelsRenderHook::PAGE_HEADER_ACTIONS_BEFORE,
