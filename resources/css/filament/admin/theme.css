@@ -1282,7 +1282,6 @@
 
 @media (min-width: 640px) {
     .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions {
-        flex: 1 1 auto;
         flex-direction: row;
         flex-wrap: wrap;
         align-items: center;
