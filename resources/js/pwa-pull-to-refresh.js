@@ -9,12 +9,27 @@ function isStandalonePwa() {
     );
 }
 
-function pageScrollTop() {
-    return Math.max(
-        window.scrollY || 0,
-        document.documentElement?.scrollTop || 0,
-        document.body?.scrollTop || 0,
-    );
+/**
+ * Filament's shell often scrolls `.fi-layout` (overflow-x: clip forces overflow-y),
+ * while window.scrollY stays 0. Check every plausible scroll root.
+ *
+ * @returns {HTMLElement[]}
+ */
+function scrollRoots() {
+    const roots = [
+        document.scrollingElement,
+        document.documentElement,
+        document.body,
+        document.querySelector('.fi-layout'),
+        document.querySelector('.fi-main-ctn'),
+        document.querySelector('.fi-main'),
+    ].filter((el) => el instanceof HTMLElement);
+
+    return [...new Set(roots)];
+}
+
+function maxScrollTop() {
+    return scrollRoots().reduce((max, el) => Math.max(max, el.scrollTop || 0), window.scrollY || 0);
 }
 
 /**
@@ -22,7 +37,7 @@ function pageScrollTop() {
  * when scrollTop is not exactly zero after rubber-banding.
  */
 function isPageAtTop() {
-    return pageScrollTop() <= SCROLL_TOP_TOLERANCE;
+    return maxScrollTop() <= SCROLL_TOP_TOLERANCE;
 }
 
 /**
@@ -50,6 +65,7 @@ function hasScrolledOverflowAncestor(target) {
 
 let lastTouchTarget = null;
 let ptrInstance = null;
+let scrollSyncBound = false;
 
 function shouldPullToRefresh() {
     if (!isPageAtTop()) {
@@ -61,6 +77,40 @@ function shouldPullToRefresh() {
     }
 
     return true;
+}
+
+/**
+ * pulltorefreshjs only listens to window scroll to toggle `.ptr--top`.
+ * When Filament scrolls `.fi-layout`, that class would stick and
+ * `touch-action: pan-down` would block scrolling further down the page.
+ */
+function syncPtrTopClass() {
+    const main = document.body;
+
+    if (!(main instanceof HTMLElement)) {
+        return;
+    }
+
+    main.classList.toggle('ptr--top', shouldPullToRefresh());
+}
+
+function bindScrollSync() {
+    if (scrollSyncBound) {
+        syncPtrTopClass();
+
+        return;
+    }
+
+    scrollSyncBound = true;
+
+    const options = { passive: true };
+
+    window.addEventListener('scroll', syncPtrTopClass, options);
+    scrollRoots().forEach((el) => {
+        el.addEventListener('scroll', syncPtrTopClass, options);
+    });
+
+    syncPtrTopClass();
 }
 
 function initPullToRefresh() {
@@ -90,10 +140,13 @@ function initPullToRefresh() {
         shouldPullToRefresh,
         onRefresh: () => window.location.reload(),
     });
+
+    bindScrollSync();
 }
 
 function trackTouchTarget(event) {
     lastTouchTarget = event.target instanceof Element ? event.target : null;
+    syncPtrTopClass();
 }
 
 document.addEventListener('DOMContentLoaded', () => {

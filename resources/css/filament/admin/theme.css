@@ -1267,7 +1267,8 @@
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions {
     display: flex;
-    flex: 1 1 100%;
+    flex: 0 0 auto;
+    width: 100%;
     flex-direction: column;
     align-items: stretch;
     gap: 0.5rem;
@@ -1277,6 +1278,7 @@
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions .fi-ac-btn-action,
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions .fi-btn {
     width: 100%;
+    max-width: 100%;
     justify-content: center;
 }
 
@@ -1292,6 +1294,11 @@
     .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions .fi-btn {
         width: auto;
     }
+}
+
+/* Keep last dashboard widgets (and their action buttons) above the iOS home indicator. */
+.fi-page.vestix-dashboard .fi-page-content {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todos-empty {
@@ -4624,11 +4631,12 @@
 /* -------------------------------------------------------------------------- */
 
 /*
- * When the page is at the top, stop iOS rubber-banding from stealing the
- * pull gesture before pulltorefreshjs can call preventDefault.
+ * pulltorefreshjs sets touch-action: pan-down on `.ptr--top`, which blocks
+ * scrolling toward the bottom of the page when that class sticks. Keep full
+ * vertical panning; JS still claims the pull gesture via preventDefault.
  */
 .fi-body.ptr--top {
-    overscroll-behavior-y: none;
+    touch-action: pan-x pan-y pinch-zoom;
 }
 
 .fi-body .ptr--ptr {
