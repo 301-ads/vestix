@@ -4623,10 +4623,19 @@
 /* PWA pull-to-refresh                                                        */
 /* -------------------------------------------------------------------------- */
 
+/*
+ * When the page is at the top, stop iOS rubber-banding from stealing the
+ * pull gesture before pulltorefreshjs can call preventDefault.
+ */
+.fi-body.ptr--top {
+    overscroll-behavior-y: none;
+}
+
 .fi-body .ptr--ptr {
     background-color: var(--vestix-bg);
     box-shadow: inset 0 -1px 0 var(--vestix-border);
     font-family: inherit;
+    z-index: 40;
 }
 
 .fi-body .ptr--text,
