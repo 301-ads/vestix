@@ -10,8 +10,8 @@ enum TradeDirection: string
     public function label(): string
     {
         return match ($this) {
-            self::Long => 'LONG',
-            self::Short => 'SHORT',
+            self::Long => 'Long',
+            self::Short => 'Short',
         };
     }
 

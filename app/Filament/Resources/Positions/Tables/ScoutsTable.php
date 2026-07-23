@@ -100,15 +100,15 @@ class ScoutsTable
                     ->visible(! $squadMode),
                 TextColumn::make('setup_grade')
                     ->label('Setup Grade')
-                    ->state(fn (Position $record): ?string => SetupGradeDisplay::label($record))
+                    ->state(fn (Position $record): ?string => SetupGradeDisplay::score($record))
                     ->description(fn (Position $record): ?string => SetupGradeDisplay::description($record))
-                    ->badge()
                     ->alignStart()
                     ->color(fn (Position $record): string => SetupGradeDisplay::color($record))
+                    ->tooltip(fn (Position $record): ?string => SetupGradeDisplay::tooltip($record))
                     ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->extraHeaderAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->placeholder('—')
-                    ->width('6.5rem')
+                    ->width('5rem')
                     ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBySetupGrade($direction)),
                 TextColumn::make('sector_etf')
                     ->label('Sector')

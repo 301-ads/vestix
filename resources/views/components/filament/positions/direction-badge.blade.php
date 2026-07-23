@@ -14,9 +14,9 @@
 
 <span
     @class([
-        'ticker-direction-badge',
-        'ticker-direction-badge--long' => $directionEnum->isLong(),
-        'ticker-direction-badge--short' => $directionEnum->isShort(),
+        'ticker-direction-label',
+        'ticker-direction-label--long' => $directionEnum->isLong(),
+        'ticker-direction-label--short' => $directionEnum->isShort(),
     ])
     title="{{ $directionEnum->label() }}"
 >{{ $directionEnum->label() }}</span>

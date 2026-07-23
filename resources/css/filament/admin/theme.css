@@ -1228,12 +1228,12 @@
     line-height: 1.25;
 }
 
-.vestix-dashboard .vestix-actions-widget .vestix-action-todo__ticker .ticker-direction-badge {
-    margin-left: 0;
+.vestix-dashboard .vestix-actions-widget .vestix-action-todo__ticker .ticker-direction-icon {
+    margin-left: 0.375rem;
 }
 
-.vestix-smart-allocation__ticker .ticker-direction-badge,
-.vestix-smart-allocation__ticker-link + .ticker-direction-badge {
+.vestix-smart-allocation__ticker .ticker-direction-label,
+.vestix-smart-allocation__ticker-link + .ticker-direction-label {
     margin-left: 0.375rem;
 }
 
@@ -1676,40 +1676,75 @@
     color: var(--danger-400);
 }
 
-.ticker-direction-badge {
+.ticker-direction-label {
     display: inline-flex;
     align-items: center;
     margin-left: 0.375rem;
-    padding: 0.05rem 0.35rem;
-    border-radius: 0.25rem;
-    font-size: 0.625rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     line-height: 1.2;
     vertical-align: middle;
 }
 
-.ticker-direction-badge--long {
-    color: var(--success-700);
-    background: color-mix(in srgb, var(--success-500) 16%, transparent);
+.ticker-direction-label--long {
+    color: var(--info-600, #2563eb);
 }
 
-.ticker-direction-badge--short {
-    color: var(--danger-700);
-    background: color-mix(in srgb, var(--danger-500) 18%, transparent);
+.ticker-direction-label--short {
+    color: var(--danger-600, #dc2626);
 }
 
-.dark .ticker-direction-badge--long {
-    color: var(--success-400);
+.dark .ticker-direction-label--long {
+    color: var(--info-400, #60a5fa);
 }
 
-.dark .ticker-direction-badge--short {
+.dark .ticker-direction-label--short {
     color: var(--danger-400);
+}
+
+.ticker-direction-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-left: 0.375rem;
+    border-radius: 9999px;
+    vertical-align: middle;
+}
+
+.ticker-direction-icon--long {
+    color: #fff;
+    background: var(--info-500, #3b82f6);
+}
+
+.ticker-direction-icon--short {
+    color: #fff;
+    background: var(--danger-500, #ef4444);
+}
+
+.ticker-direction-icon__arrow {
+    width: 0.5rem;
+    height: 0.5rem;
+}
+
+.dark .ticker-direction-icon--long {
+    background: var(--info-400, #60a5fa);
+}
+
+.dark .ticker-direction-icon--short {
+    background: var(--danger-400);
 }
 
 .vestix-direction-cell {
     white-space: nowrap;
     text-align: center;
+}
+
+.vestix-direction-cell .ticker-direction-label {
+    margin-left: 0;
 }
 
 .vestix-direction-field.fi-fo-field-has-inline-label {
@@ -2479,6 +2514,11 @@
     width: auto !important;
     max-width: 100%;
     justify-content: flex-start;
+}
+
+.vestix-setup-grade-cell .fi-ta-text-item {
+    font-weight: 600;
+    letter-spacing: 0.01em;
 }
 
 .vestix-setup-grade-cell .fi-badge,

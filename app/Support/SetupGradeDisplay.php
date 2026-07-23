@@ -7,7 +7,7 @@ use App\Models\Position;
 class SetupGradeDisplay
 {
     /**
-     * @return array{grade: string, gradeLabel: string, hardFailReasons: array<int, string>}|null
+     * @return array{totalPoints: int, maxPoints: int, grade: string, gradeLabel: string, hardFailReasons: array<int, string>}|null
      */
     public static function resolveScore(Position $record): ?array
     {
@@ -25,6 +25,22 @@ class SetupGradeDisplay
     public static function label(Position $record): ?string
     {
         return self::resolveScore($record)['gradeLabel'] ?? null;
+    }
+
+    public static function score(Position $record): ?string
+    {
+        $score = self::resolveScore($record);
+
+        if ($score === null) {
+            return null;
+        }
+
+        return $score['totalPoints'].'/'.$score['maxPoints'];
+    }
+
+    public static function tooltip(Position $record): ?string
+    {
+        return self::label($record);
     }
 
     public static function color(Position $record): string

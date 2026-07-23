@@ -68,14 +68,14 @@ class SetupRadarWidget extends TableWidget
                 ),
                 TextColumn::make('setup_grade')
                     ->label('Setup Grade')
-                    ->state(fn (Position $record): ?string => SetupGradeDisplay::label($record))
-                    ->badge()
+                    ->state(fn (Position $record): ?string => SetupGradeDisplay::score($record))
                     ->alignStart()
                     ->color(fn (Position $record): string => SetupGradeDisplay::color($record))
+                    ->tooltip(fn (Position $record): ?string => SetupGradeDisplay::tooltip($record))
                     ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->extraHeaderAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->placeholder('—')
-                    ->width('6.5rem'),
+                    ->width('5rem'),
                 TextColumn::make('latest_close_price')
                     ->label('Close')
                     ->money('usd')

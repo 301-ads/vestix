@@ -5,6 +5,7 @@
     'statusDotLabel' => null,
     'direction' => null,
     'showDirectionBadge' => false,
+    'showDirectionIcon' => false,
 ])
 
 @php
@@ -16,7 +17,7 @@
 
     $directionEnum = null;
 
-    if ($showDirectionBadge) {
+    if ($showDirectionBadge || $showDirectionIcon) {
         $directionEnum = $direction instanceof TradeDirection
             ? $direction
             : TradeDirection::tryFrom((string) ($direction ?? ''));
@@ -58,7 +59,9 @@
 
     <span class="ticker-with-icon__label font-bold">{{ $ticker }}</span>
 
-    @if ($showDirectionBadge && $directionEnum)
+    @if ($showDirectionIcon && $directionEnum && auth()->user()?->canUseShort())
+        <x-filament.positions.direction-icon :direction="$directionEnum" />
+    @elseif ($showDirectionBadge && $directionEnum)
         <x-filament.positions.direction-badge :direction="$directionEnum" />
     @endif
 </span>
