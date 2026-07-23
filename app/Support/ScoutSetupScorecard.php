@@ -674,8 +674,12 @@ class ScoutSetupScorecard
             };
         }
 
-        if ($high < $sma || $close >= $sma) {
+        if ($high < $sma) {
             return 'Geen SMA-afwijzing — High raakt plafond niet';
+        }
+
+        if ($close >= $sma) {
+            return 'Geen SMA-afwijzing — Close moet onder SMA 20';
         }
 
         if ($close >= $open) {

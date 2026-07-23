@@ -752,6 +752,25 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame(0, $result['criteria'][0]['points']);
     }
 
+    public function test_short_rejection_requires_close_below_sma(): void
+    {
+        // High tags SMA, but close sits on/above SMA — distinct message from high-miss.
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'signal_high' => 6.20,
+            'latest_open_price' => 5.90,
+            'latest_close_price' => 5.92,
+            'latest_sma_20' => 5.92,
+            'sma_20_five_days_ago' => 6.36,
+            'sma_20_ten_days_ago' => 6.81,
+            'latest_sma_50' => 7.11,
+        ]));
+
+        $this->assertContains('Geen SMA-afwijzing — Close moet onder SMA 20', $result['hardFailReasons']);
+        $this->assertNotContains('Geen SMA-afwijzing — High raakt plafond niet', $result['hardFailReasons']);
+        $this->assertSame(0, $result['criteria'][0]['points']);
+        $this->assertSame('NO TRADE', $result['grade']);
+    }
+
     public function test_short_rejection_requires_sufficient_upper_wick(): void
     {
         // High tags SMA, red close under SMA, but tiny upper wick.
