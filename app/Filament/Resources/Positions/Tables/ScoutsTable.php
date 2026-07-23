@@ -15,7 +15,6 @@ use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
-use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -92,15 +91,34 @@ class ScoutsTable
                     ->html()
                     ->extraCellAttributes(['class' => 'vestix-spotted-by-cell'])
                     ->visible($squadMode),
+                TextColumn::make('setup_grade')
+                    ->label('Setup Grade')
+                    ->state(fn (Position $record): ?string => SetupGradeDisplay::label($record))
+                    ->description(fn (Position $record): ?string => SetupGradeDisplay::description($record))
+                    ->badge()
+                    ->alignStart()
+                    ->color(fn (Position $record): string => SetupGradeDisplay::color($record))
+                    ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-setup-grade-cell'])
+                    ->placeholder('—')
+                    ->width('6.5rem')
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBySetupGrade($direction)),
                 TextColumn::make('entry_price')
                     ->label('Entry')
                     ->money('usd')
-                    ->placeholder('—')
-                    ->sortable()
-                    ->width('5.5rem'),
-                TextColumn::make('new_sl')
-                    ->label('Stop-Loss')
-                    ->money('usd')
+                    ->description(function (Position $record): ?HtmlString {
+                        $label = ScoutRadarFilters::entryDistanceLabel($record);
+
+                        if ($label === null) {
+                            return null;
+                        }
+
+                        $class = ScoutRadarFilters::entryDistanceColor($record) === 'success'
+                            ? 'text-success-600 dark:text-success-400'
+                            : 'text-gray-500 dark:text-gray-400';
+
+                        return new HtmlString('<span class="'.$class.'">'.e($label).'</span>');
+                    })
                     ->placeholder('—')
                     ->sortable()
                     ->width('5.5rem'),
@@ -115,25 +133,6 @@ class ScoutsTable
                         ? '$'.number_format($record->planned_risk_dollars, 2)
                         : null)
                     ->visible(! $squadMode),
-                TextColumn::make('setup_grade')
-                    ->label('Setup Grade')
-                    ->state(fn (Position $record): ?string => SetupGradeDisplay::label($record))
-                    ->description(fn (Position $record): ?string => SetupGradeDisplay::description($record))
-                    ->badge()
-                    ->alignStart()
-                    ->color(fn (Position $record): string => SetupGradeDisplay::color($record))
-                    ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
-                    ->extraHeaderAttributes(['class' => 'vestix-setup-grade-cell'])
-                    ->placeholder('—')
-                    ->width('6.5rem')
-                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBySetupGrade($direction)),
-                ColumnGroup::make(PositionsTable::schildGroupLabel())
-                    ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])
-                    ->columns([
-                        PositionsTable::schildColumn('latest_close_price', 'Close', '7rem'),
-                        PositionsTable::schildColumn('latest_sma_20', 'SMA', '7rem'),
-                        PositionsTable::schildColumn('latest_atr_14', 'ATR', '6.25rem'),
-                    ]),
             ])
             ->recordActions([
                 PositionRecordActions::markBuyStopPlaced(),

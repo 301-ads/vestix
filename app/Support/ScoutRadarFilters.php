@@ -131,15 +131,45 @@ class ScoutRadarFilters
         };
     }
 
-    private static function isReadyForExecution(Position $scout): bool
+    /**
+     * Absolute distance from latest close to planned entry, as a percentage of entry.
+     */
+    public static function entryDistancePercent(Position $scout): ?float
     {
         if ($scout->entry_price === null || $scout->latest_close_price === null || (float) $scout->entry_price <= 0) {
-            return false;
+            return null;
         }
 
-        $distance = abs((float) $scout->latest_close_price - (float) $scout->entry_price) / (float) $scout->entry_price;
+        return (abs((float) $scout->latest_close_price - (float) $scout->entry_price) / (float) $scout->entry_price) * 100;
+    }
 
-        if ($distance > 0.01) {
+    public static function entryDistanceLabel(Position $scout): ?string
+    {
+        $percent = self::entryDistancePercent($scout);
+
+        if ($percent === null) {
+            return null;
+        }
+
+        return '−'.number_format($percent, 2).'%';
+    }
+
+    public static function entryDistanceColor(Position $scout): string
+    {
+        $percent = self::entryDistancePercent($scout);
+
+        if ($percent === null) {
+            return 'gray';
+        }
+
+        return $percent <= 1.0 ? 'success' : 'gray';
+    }
+
+    private static function isReadyForExecution(Position $scout): bool
+    {
+        $distance = self::entryDistancePercent($scout);
+
+        if ($distance === null || $distance > 1.0) {
             return false;
         }
 

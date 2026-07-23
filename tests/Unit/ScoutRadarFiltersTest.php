@@ -107,6 +107,36 @@ class ScoutRadarFiltersTest extends TestCase
         $this->assertSame('gray', ScoutRadarFilters::riskColor(null));
     }
 
+    public function test_entry_distance_percent_and_label(): void
+    {
+        $near = Position::factory()->scout()->create([
+            'entry_price' => 100.00,
+            'latest_close_price' => 100.50,
+        ]);
+
+        $far = Position::factory()->scout()->create([
+            'entry_price' => 100.00,
+            'latest_close_price' => 90.00,
+        ]);
+
+        $missing = Position::factory()->scout()->create([
+            'entry_price' => 100.00,
+            'latest_close_price' => null,
+        ]);
+
+        $this->assertEqualsWithDelta(0.5, ScoutRadarFilters::entryDistancePercent($near), 0.001);
+        $this->assertSame('−0.50%', ScoutRadarFilters::entryDistanceLabel($near));
+        $this->assertSame('success', ScoutRadarFilters::entryDistanceColor($near));
+
+        $this->assertEqualsWithDelta(10.0, ScoutRadarFilters::entryDistancePercent($far), 0.001);
+        $this->assertSame('−10.00%', ScoutRadarFilters::entryDistanceLabel($far));
+        $this->assertSame('gray', ScoutRadarFilters::entryDistanceColor($far));
+
+        $this->assertNull(ScoutRadarFilters::entryDistancePercent($missing));
+        $this->assertNull(ScoutRadarFilters::entryDistanceLabel($missing));
+        $this->assertSame('gray', ScoutRadarFilters::entryDistanceColor($missing));
+    }
+
     public function test_track_labels_from_premarket_scan(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-24 10:00:00', 'America/New_York'));
