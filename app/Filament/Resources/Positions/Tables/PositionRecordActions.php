@@ -69,10 +69,12 @@ class PositionRecordActions
     public static function refreshSignalCandle(): Action
     {
         return Action::make('refresh_signal_candle')
-            ->label('Signaalkaars vernieuwen')
-            ->tooltip('Haal de nieuwste bounce/rejection-dagkaars op en herschrijf Low/High + entry')
+            ->label('Signaal')
+            ->tooltip('Signaalkaars vernieuwen: nieuwste bounce/rejection → Low/High + entry')
             ->icon('heroicon-o-arrow-path')
             ->color('warning')
+            ->outlined()
+            ->extraAttributes(['class' => 'vestix-sync-btn'])
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && (auth()->user()?->can('update', $record) ?? false))
