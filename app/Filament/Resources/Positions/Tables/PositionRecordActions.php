@@ -102,6 +102,7 @@ class PositionRecordActions
                 if ($record->status === 'scout') {
                     $scorecard = $record->evaluateSetupScore();
                     $record->update(['last_setup_score' => $scorecard['totalPoints']]);
+                    $record->refresh();
                 }
 
                 FilamentNotifier::send(
@@ -111,12 +112,34 @@ class PositionRecordActions
                         : "{$record->ticker}: signaalkaars vernieuwd.",
                 );
 
-                if (is_object($livewire) && method_exists($livewire, 'fillForm')) {
-                    $livewire->fillForm();
-                }
-
-                if (is_object($livewire) && method_exists($livewire, 'dispatch')) {
-                    $livewire->dispatch('$refresh');
+                if (is_object($livewire) && method_exists($livewire, 'refreshFormData')) {
+                    $livewire->refreshFormData([
+                        'signal_low',
+                        'signal_high',
+                        'signal_bar_date',
+                        'detected_signal_bar_date',
+                        'entry_price',
+                        'quantity',
+                        'latest_open_price',
+                        'latest_close_price',
+                        'latest_sma_20',
+                        'sma_20_five_days_ago',
+                        'sma_20_ten_days_ago',
+                        'latest_sma_50',
+                        'latest_atr_14',
+                        'scout_rsi',
+                        'bounce_volume_above_average',
+                        'bounce_day_volume',
+                        'avg_volume_30d',
+                        'relative_volume',
+                        'volume_sma_20',
+                        'sector_etf',
+                        'sector_close',
+                        'sector_sma_50',
+                        'sector_trend_positive',
+                        'pre_bounce_extension_atr',
+                        'last_setup_score',
+                    ]);
                 }
             });
     }
