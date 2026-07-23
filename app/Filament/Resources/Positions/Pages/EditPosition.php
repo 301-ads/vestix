@@ -99,6 +99,7 @@ class EditPosition extends EditRecord
 
         $actions = [
             PositionRecordActions::fetchMarketData(syncButtonStyle: true),
+            PositionRecordActions::refreshSignalCandle(),
         ];
 
         if ($record->requiresEarningsExit()) {

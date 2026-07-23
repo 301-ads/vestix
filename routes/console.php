@@ -17,6 +17,12 @@ Schedule::command('vestix:fetch-data')
     ->dailyAt('22:30')
     ->timezone('Europe/Amsterdam');
 
+// Ochtend scout-sync: verse EOD-bars + signaalkaars meeschuiven vóór Order Plan / premarket (14:30).
+Schedule::command('vestix:fetch-data --scouts-only')
+    ->weekdays()
+    ->dailyAt('08:00')
+    ->timezone('Europe/Amsterdam');
+
 // Intraday live koersen: elk uur op :05 ET (niet op :00 — voorkomt race met schedule:run).
 // Venster-check via when() i.p.v. between(); between() + hourly() sloeg op productie soms runs over.
 Schedule::command('vestix:watch-target-prices')

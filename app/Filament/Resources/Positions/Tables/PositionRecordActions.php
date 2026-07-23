@@ -8,6 +8,7 @@ use App\Events\PositionLiquidated;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
+use App\Services\MarketDataFetcher;
 use App\Services\SquadContext;
 use App\Support\BrokerOrderTicket;
 use App\Support\ChartScreenshotUpload;
@@ -63,6 +64,59 @@ class PositionRecordActions
         }
 
         return $action;
+    }
+
+    public static function refreshSignalCandle(): Action
+    {
+        return Action::make('refresh_signal_candle')
+            ->label('Signaalkaars vernieuwen')
+            ->tooltip('Haal de nieuwste bounce/rejection-dagkaars op en herschrijf Low/High + entry')
+            ->icon('heroicon-o-arrow-path')
+            ->color('warning')
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->isOwnedBy(auth()->user())
+                && (auth()->user()?->can('update', $record) ?? false))
+            ->disabled(fn (Position $record): bool => MarketDataFreshness::isPositionSyncInProgress($record->id)
+                || MarketDataFreshness::isSyncInProgress())
+            ->requiresConfirmation()
+            ->modalHeading('Signaalkaars vernieuwen?')
+            ->modalDescription('Low/High en entry worden overschreven met de nieuwste bounce- of rejection-kaars uit de marktdata. Gebruik dit voor Order Plan-setups die vastzitten op een oude kaars.')
+            ->modalSubmitActionLabel('Vernieuwen')
+            ->action(function (Position $record, $livewire): void {
+                $success = app(MarketDataFetcher::class)->refreshSignalCandle($record);
+
+                if (! $success) {
+                    FilamentNotifier::send(
+                        'Signaalkaars niet bijgewerkt',
+                        "Geen bruikbare bounce/rejection-kaars gevonden voor {$record->ticker}.",
+                        'warning',
+                    );
+
+                    return;
+                }
+
+                $record->refresh();
+
+                if ($record->status === 'scout') {
+                    $scorecard = $record->evaluateSetupScore();
+                    $record->update(['last_setup_score' => $scorecard['totalPoints']]);
+                }
+
+                FilamentNotifier::send(
+                    'Signaalkaars bijgewerkt',
+                    $record->signal_bar_date !== null
+                        ? "{$record->ticker}: signaal van {$record->signal_bar_date->toDateString()}."
+                        : "{$record->ticker}: signaalkaars vernieuwd.",
+                );
+
+                if (is_object($livewire) && method_exists($livewire, 'fillForm')) {
+                    $livewire->fillForm();
+                }
+
+                if (is_object($livewire) && method_exists($livewire, 'dispatch')) {
+                    $livewire->dispatch('$refresh');
+                }
+            });
     }
 
     public static function activateScout(bool $iconButton = true): Action

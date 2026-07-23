@@ -55,6 +55,8 @@ class Position extends Model
             'prior_day_low' => 'decimal:2',
             'signal_high' => 'decimal:2',
             'signal_low' => 'decimal:2',
+            'signal_bar_date' => 'date',
+            'detected_signal_bar_date' => 'date',
             'scout_rsi' => 'decimal:2',
             'bounce_volume_above_average' => 'boolean',
             'relative_volume' => 'decimal:2',
@@ -323,6 +325,54 @@ class Position extends Model
             'market_open_reminder_on' => null,
             'order_plan_excluded_on' => null,
         ]);
+    }
+
+    /**
+     * Order Plan / pending broker orders: do not silently overwrite signal candle.
+     */
+    public function isSignalCandleAutoRefreshLocked(): bool
+    {
+        if ($this->status !== 'scout') {
+            return true;
+        }
+
+        return $this->market_open_reminder_on !== null
+            || $this->broker_order_status === BrokerOrderStatus::Pending;
+    }
+
+    public function signalCandleIsStale(): bool
+    {
+        if ($this->status !== 'scout' || $this->detected_signal_bar_date === null) {
+            return false;
+        }
+
+        if ($this->signal_bar_date === null) {
+            return true;
+        }
+
+        return $this->detected_signal_bar_date->toDateString() > $this->signal_bar_date->toDateString();
+    }
+
+    public function signalCandleStaleLabel(): ?string
+    {
+        if (! $this->signalCandleIsStale()) {
+            return null;
+        }
+
+        if ($this->signal_bar_date === null) {
+            return ($this->signal_low === null && $this->signal_high === null)
+                ? 'Signaal ontbreekt'
+                : 'Signaal verouderd';
+        }
+
+        $days = (int) $this->signal_bar_date
+            ->diffInDays($this->detected_signal_bar_date ?? now('America/New_York'));
+
+        if ($days <= 0) {
+            return 'Signaal verouderd';
+        }
+
+        return "Signaal {$days}d";
     }
 
     public function isOrderPlanExcludedToday(?Carbon $today = null): bool

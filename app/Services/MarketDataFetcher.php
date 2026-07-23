@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\DailyBarProvider;
 use App\Models\Position;
 use App\Support\ScoutSetupScorecard;
+use App\Support\SignalCandleResolver;
 use App\Support\TechnicalIndicators;
 use App\Support\TrampolineDepthMetrics;
 use Illuminate\Support\Facades\Cache;
@@ -40,6 +41,8 @@ class MarketDataFetcher
      *     sector_sma_50?: float|null,
      *     sector_trend_positive?: bool,
      *     pre_bounce_extension_atr?: float|null,
+     *     latest_bounce_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
+     *     latest_rejection_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
      * }|null
      */
     public function fetchForTicker(
@@ -70,8 +73,11 @@ class MarketDataFetcher
         return $payload;
     }
 
-    public function syncPosition(Position $position, bool $withDelays = true): bool
-    {
+    public function syncPosition(
+        Position $position,
+        bool $withDelays = true,
+        bool $forceSignalRefresh = false,
+    ): bool {
         $data = $this->fetchForTicker(
             $position->ticker,
             $withDelays,
@@ -83,9 +89,102 @@ class MarketDataFetcher
             return false;
         }
 
+        $bounceBar = $data['latest_bounce_bar'] ?? null;
+        $rejectionBar = $data['latest_rejection_bar'] ?? null;
+        unset($data['latest_bounce_bar'], $data['latest_rejection_bar']);
+
+        if ($position->status === 'scout') {
+            $signalBar = $position->isShort()
+                ? (is_array($rejectionBar) ? $rejectionBar : null)
+                : (is_array($bounceBar) ? $bounceBar : null);
+
+            if ($signalBar !== null) {
+                $data['detected_signal_bar_date'] = $signalBar['date'];
+            }
+
+            if ($this->shouldApplySignalCandle($position, $signalBar, $forceSignalRefresh)) {
+                $signalAttributes = $this->buildSignalCandleAttributes(
+                    $position,
+                    $signalBar,
+                    isset($data['latest_atr_14']) ? (float) $data['latest_atr_14'] : null,
+                );
+
+                if ($signalAttributes !== null) {
+                    $data = array_merge($data, $signalAttributes);
+                }
+            }
+        }
+
         $position->update($data);
 
         return true;
+    }
+
+    /**
+     * Force-apply the latest bounce/rejection candle onto a scout (Order Plan override).
+     */
+    public function refreshSignalCandle(Position $position): bool
+    {
+        if ($position->status !== 'scout') {
+            return false;
+        }
+
+        return $this->syncPosition($position, withDelays: false, forceSignalRefresh: true);
+    }
+
+    /**
+     * @param  array{date: string, open: float, high: float, low: float, close: float, volume: float}|null  $signalBar
+     */
+    private function shouldApplySignalCandle(
+        Position $position,
+        ?array $signalBar,
+        bool $forceSignalRefresh,
+    ): bool {
+        if ($signalBar === null) {
+            return false;
+        }
+
+        if ($forceSignalRefresh) {
+            return true;
+        }
+
+        if ($position->isSignalCandleAutoRefreshLocked()) {
+            return false;
+        }
+
+        if ($position->signal_bar_date === null) {
+            return $position->signal_low === null && $position->signal_high === null;
+        }
+
+        return $signalBar['date'] > $position->signal_bar_date->toDateString();
+    }
+
+    /**
+     * @param  array{date: string, open: float, high: float, low: float, close: float, volume: float}  $signalBar
+     * @return array{signal_low: float, signal_high: float, signal_bar_date: string, entry_price?: float}|null
+     */
+    private function buildSignalCandleAttributes(
+        Position $position,
+        array $signalBar,
+        ?float $atr,
+    ): ?array {
+        $atr ??= $position->latest_atr_14 !== null ? (float) $position->latest_atr_14 : null;
+
+        $attributes = [
+            'signal_low' => round((float) $signalBar['low'], 2),
+            'signal_high' => round((float) $signalBar['high'], 2),
+            'signal_bar_date' => $signalBar['date'],
+        ];
+
+        $entry = $position->isShort()
+            ? Position::computeSellStop($attributes['signal_low'], $atr)
+            : Position::computeBuyStop($attributes['signal_high'], $atr);
+
+        if ($entry !== null) {
+            $attributes['entry_price'] = $entry;
+        }
+
+        return $attributes;
     }
 
     public function backfillRecentClosePrices(Position $position): bool
@@ -145,6 +244,8 @@ class MarketDataFetcher
      *     bounce_volume_above_average?: bool,
      *     bounce_day_volume?: int|null,
      *     avg_volume_30d?: int|null,
+     *     latest_bounce_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
+     *     latest_rejection_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
      * }|null
      */
     private function fetchFromAlphaVantage(
@@ -230,6 +331,12 @@ class MarketDataFetcher
 
         if ($volumeData !== null) {
             $payload = array_merge($payload, $volumeData);
+        }
+
+        if ($bars !== null) {
+            $signalBars = SignalCandleResolver::resolveFromBars($bars['bars']);
+            $payload['latest_bounce_bar'] = $signalBars['latest_bounce_bar'];
+            $payload['latest_rejection_bar'] = $signalBars['latest_rejection_bar'];
         }
 
         return $payload;

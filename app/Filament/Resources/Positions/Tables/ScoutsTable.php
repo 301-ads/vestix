@@ -118,6 +118,7 @@ class ScoutsTable
                 TextColumn::make('setup_grade')
                     ->label('Setup Grade')
                     ->state(fn (Position $record): ?string => SetupGradeDisplay::label($record))
+                    ->description(fn (Position $record): ?string => SetupGradeDisplay::description($record))
                     ->badge()
                     ->alignStart()
                     ->color(fn (Position $record): string => SetupGradeDisplay::color($record))
@@ -148,6 +149,7 @@ class ScoutsTable
                 ActionGroup::make([
                     PositionRecordActions::shareSetup(),
                     PositionRecordActions::fetchMarketData(),
+                    PositionRecordActions::refreshSignalCandle(),
                     EditAction::make()
                         ->url(fn (Position $record): string => $resourceClass::getUrl('edit', ['record' => $record]))
                         ->visible(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false),

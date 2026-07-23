@@ -466,6 +466,8 @@ class PortfolioRiskCoachService
 
     private function resolveScoutScore(Position $position): int
     {
-        return (int) ($position->last_setup_score ?? 0);
+        $scorecard = $position->evaluateSetupScore();
+
+        return (int) ($scorecard['totalPoints'] ?? $position->last_setup_score ?? 0);
     }
 }

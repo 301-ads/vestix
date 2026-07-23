@@ -22,6 +22,7 @@ use App\Support\ScaleOutDisplay;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SlPriceProximity;
 use App\Support\StopLossProtocol;
+use App\Support\UsMarketSession;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -1044,11 +1045,12 @@ class PositionForm
     }
 
     /**
-     * @return array<int, TextInput|Placeholder>
+     * @return array<int, TextInput|Placeholder|Hidden>
      */
     private static function buyStopFields(): array
     {
         return [
+            Hidden::make('signal_bar_date'),
             TextInput::make('signal_low')
                 ->label('Low (Signaalkaars)')
                 ->numeric()
@@ -1059,7 +1061,10 @@ class PositionForm
                     ? 'Laagste punt van de rode afwijzingskaars (TradingView, 1D). Drijft de Sell-Stop.'
                     : 'Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D).')
                 ->live(onBlur: true)
-                ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncEntryStopFromSignal($set, $get, $record))
+                ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
+                    self::touchSignalBarDate($set, $get, $record);
+                    self::syncEntryStopFromSignal($set, $get, $record);
+                })
                 ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncEntryStopFromSignal($set, $get, $record)),
             TextInput::make('signal_high')
                 ->label('High (Signaalkaars)')
@@ -1071,7 +1076,10 @@ class PositionForm
                     ? 'Hoogste punt / plafond van de afwijzingskaars (TradingView, 1D).'
                     : 'Optioneel tot bounce-dag. Hoogste punt van de bounce-dagkaars (TradingView, 1D).')
                 ->live(onBlur: true)
-                ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncEntryStopFromSignal($set, $get, $record))
+                ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
+                    self::touchSignalBarDate($set, $get, $record);
+                    self::syncEntryStopFromSignal($set, $get, $record);
+                })
                 ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncEntryStopFromSignal($set, $get, $record)),
             Placeholder::make('advised_entry_display')
                 ->label(fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
@@ -1459,13 +1467,30 @@ class PositionForm
         self::syncEntryStopFromSignal($set, $get, $record);
     }
 
+    private static function touchSignalBarDate(Set $set, Get $get, ?Position $record): void
+    {
+        $signalLow = $get('signal_low') ?? $record?->signal_low;
+        $signalHigh = $get('signal_high') ?? $record?->signal_high;
+
+        if (blank($signalLow) && blank($signalHigh)) {
+            return;
+        }
+
+        $set(
+            'signal_bar_date',
+            UsMarketSession::expectedLastCompletedSessionDate()->toDateString(),
+        );
+    }
+
     private static function syncEntryStopFromSignal(Set $set, Get $get, ?Position $record): void
     {
         $direction = self::resolveFormDirection($get, $record);
+        $signalLow = $get('signal_low') ?? $record?->signal_low;
+        $signalHigh = $get('signal_high') ?? $record?->signal_high;
 
         if ($direction === TradeDirection::Short) {
             $sellStop = Position::computeSellStop(
-                $get('signal_low') ?? $record?->signal_low,
+                $signalLow,
                 $get('latest_atr_14') ?? $record?->latest_atr_14,
             );
 
@@ -1480,7 +1505,7 @@ class PositionForm
         }
 
         $buyStop = Position::computeBuyStop(
-            $get('signal_high') ?? $record?->signal_high,
+            $signalHigh,
             $get('latest_atr_14') ?? $record?->latest_atr_14,
         );
 

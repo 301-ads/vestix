@@ -47,4 +47,9 @@ class SetupGradeDisplay
             default => 'danger',
         };
     }
+
+    public static function description(Position $record): ?string
+    {
+        return $record->signalCandleStaleLabel();
+    }
 }

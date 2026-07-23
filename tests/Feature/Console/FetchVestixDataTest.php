@@ -475,6 +475,24 @@ class FetchVestixDataTest extends TestCase
         $this->assertNotNull($scout->buy_stop_review_setup_grade);
     }
 
+    public function test_command_scouts_only_skips_open_positions(): void
+    {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+        ]);
+
+        Position::factory()->create([
+            'ticker' => 'OPEN',
+            'status' => 'open',
+            'current_sl' => 74.50,
+        ]);
+
+        $this->artisan('vestix:fetch-data', ['--scouts-only' => true])
+            ->expectsOutput('Geen open posities of scouts gevonden. Engine gaat weer in slaapstand.')
+            ->assertSuccessful();
+    }
+
     public function test_command_does_not_flag_scout_only_pipeline(): void
     {
         config(['vestix.polygon.api_key' => null]);

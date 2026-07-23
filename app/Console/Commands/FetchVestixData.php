@@ -22,7 +22,8 @@ class FetchVestixData extends Command
     protected $signature = 'vestix:fetch-data
                             {--user-id= : Gebruiker die een voltooiingsmelding ontvangt}
                             {--position-id= : Sync alleen deze scout of positie}
-                            {--ticker= : Haal marktdata op voor een ticker (create-formulier)}';
+                            {--ticker= : Haal marktdata op voor een ticker (create-formulier)}
+                            {--scouts-only : Sync alleen scouts (ochtend signaalkaars-refresh)}';
 
     protected $description = 'Haalt EOD slotkoersen, SMA20, volume en indicatoren op voor open posities en scouts.';
 
@@ -33,9 +34,16 @@ class FetchVestixData extends Command
         $positionId = $this->option('position-id') ? (int) $this->option('position-id') : null;
         $ticker = $this->option('ticker') ? strtoupper(trim((string) $this->option('ticker'))) : null;
         $userId = $this->option('user-id') ? (int) $this->option('user-id') : null;
+        $scoutsOnly = (bool) $this->option('scouts-only');
 
         if ($positionId !== null && $ticker !== null) {
             $this->error('Geef --position-id of --ticker, niet beide.');
+
+            return self::FAILURE;
+        }
+
+        if ($scoutsOnly && ($positionId !== null || $ticker !== null)) {
+            $this->error('--scouts-only kan niet gecombineerd worden met --position-id of --ticker.');
 
             return self::FAILURE;
         }
@@ -66,9 +74,13 @@ class FetchVestixData extends Command
                 return $this->runTickerFetch($marketDataFetcher, $ticker, $userId);
             }
 
-            $this->info('Sniper Engine gestart: API data ophalen...');
+            $this->info($scoutsOnly
+                ? 'Sniper Engine (scouts): API data + signaalkaars ophalen...'
+                : 'Sniper Engine gestart: API data ophalen...');
 
-            $positions = Position::tracked()->get();
+            $positions = $scoutsOnly
+                ? Position::scout()->get()
+                : Position::tracked()->get();
 
             return $this->runBulkSync($marketDataFetcher, $scoutSetupAlertService, $positions, $userId);
         } finally {

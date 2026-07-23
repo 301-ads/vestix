@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\DailyBarProvider;
 use App\Contracts\QuoteProvider;
 use App\Support\ScoutSetupScorecard;
+use App\Support\SignalCandleResolver;
 use App\Support\TechnicalIndicators;
 use App\Support\TrampolineDepthMetrics;
 use App\Support\UsMarketSession;
@@ -43,6 +44,8 @@ class PolygonMarketDataService
      *     sector_sma_50?: float|null,
      *     sector_trend_positive?: bool,
      *     pre_bounce_extension_atr?: float|null,
+     *     latest_bounce_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
+     *     latest_rejection_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
      * }|null
      */
     public function fetchForTicker(
@@ -120,6 +123,10 @@ class PolygonMarketDataService
         if ($volumeData !== null) {
             $payload = array_merge($payload, $volumeData);
         }
+
+        $signalBars = SignalCandleResolver::resolveFromBars($bars['bars']);
+        $payload['latest_bounce_bar'] = $signalBars['latest_bounce_bar'];
+        $payload['latest_rejection_bar'] = $signalBars['latest_rejection_bar'];
 
         return $payload;
     }
