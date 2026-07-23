@@ -171,7 +171,7 @@ class BrokerOrderTicket
 
             return [
                 'title' => "IBKR Bracket Order — {$position->ticker} [SHORT]",
-                'intro' => 'LET OP: SHORT POSITIE. Gebruik SELL STOP LIMIT voor de instap. Time in Force = GTC; vink Take Profit (BUY LIMIT) en Stop Loss (BUY STOP) aan.',
+                'intro' => null,
                 'warning' => 'LET OP: SHORT POSITIE. Gebruik SELL STOP LIMIT voor de instap.',
                 'is_short' => true,
                 'sniper_hard_fails' => $hardFailReasons,
@@ -181,6 +181,10 @@ class BrokerOrderTicket
                         'label' => 'Order type',
                         'value' => 'SELL STOP LIMIT',
                         'tone' => 'short',
+                    ],
+                    [
+                        'label' => 'Time in Force',
+                        'value' => 'Good Till Cancel',
                     ],
                     [
                         'label' => 'Aantal (Quantity)',
@@ -204,7 +208,7 @@ class BrokerOrderTicket
                         'value' => self::formatMoney($target1),
                         'copy_value' => self::formatCopyMoney($target1),
                         'hint' => sprintf(
-                            'TradingView zet TP standaard op 100%%. Plaats eerst de bracket; wijzig daarna het TP-aantal naar %s (%d%%) om te schalen. Verlaag vervolgens de SL-qty naar het restant.',
+                            'TradingView zet TP standaard op 100%%. Plaats eerst de bracket; wijzig daarna het TP-aantal naar %s (%d%%) om te schalen.',
                             self::formatQuantity($tpQty),
                             $fractionPercent,
                         ),
@@ -223,7 +227,7 @@ class BrokerOrderTicket
 
         return [
             'title' => "IBKR Bracket Order — {$position->ticker}",
-            'intro' => 'Neem dit exact over in TradingView: Order Type = STOP LIMIT (Kopen), Time in Force = GTC, vink Take Profit en Stop Loss aan.',
+            'intro' => 'Neem dit exact over in TradingView: vink Take Profit en Stop Loss aan.',
             'warning' => null,
             'is_short' => false,
             'sniper_hard_fails' => [],
@@ -232,6 +236,10 @@ class BrokerOrderTicket
                 [
                     'label' => 'Order type',
                     'value' => 'STOP LIMIT (Kopen)',
+                ],
+                [
+                    'label' => 'Time in Force',
+                    'value' => 'Good Till Cancel',
                 ],
                 [
                     'label' => 'Aantal (Quantity)',
@@ -255,7 +263,7 @@ class BrokerOrderTicket
                     'value' => self::formatMoney($target1),
                     'copy_value' => self::formatCopyMoney($target1),
                     'hint' => sprintf(
-                        'TradingView zet TP standaard op 100%%. Plaats eerst de bracket; wijzig daarna het TP-aantal naar %s (%d%%) om te schalen. Verlaag vervolgens de SL-qty naar het restant.',
+                        'TradingView zet TP standaard op 100%%. Plaats eerst de bracket; wijzig daarna het TP-aantal naar %s (%d%%) om te schalen.',
                         self::formatQuantity($tpQty),
                         $fractionPercent,
                     ),

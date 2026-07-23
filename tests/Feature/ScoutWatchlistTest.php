@@ -750,10 +750,11 @@ class ScoutWatchlistTest extends TestCase
 
         $this->assertSame('IBKR Bracket Order — COO', $ticket['title']);
         $this->assertSame('STOP LIMIT (Kopen)', $ticket['rows'][0]['value']);
-        $this->assertSame('Limit Prijs (Max Inkoop)', $ticket['rows'][3]['label']);
-        $this->assertSame('$71.95', $ticket['rows'][3]['value']);
+        $this->assertSame('Good Till Cancel', $ticket['rows'][1]['value']);
+        $this->assertSame('Limit Prijs (Max Inkoop)', $ticket['rows'][4]['label']);
+        $this->assertSame('$71.95', $ticket['rows'][4]['value']);
         $this->assertNotNull($ticket['intro']);
-        $this->assertStringContainsString('GTC', $ticket['intro']);
+        $this->assertStringContainsString('TradingView', $ticket['intro']);
 
         Livewire::test(ListScouts::class)
             ->assertTableActionVisible('mark_buy_stop_placed', $scout)

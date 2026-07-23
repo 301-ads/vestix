@@ -128,13 +128,16 @@ class ShortModuleTest extends TestCase
         $ticket = BrokerOrderTicket::forIbkrBracket($position);
 
         $this->assertTrue($ticket['is_short']);
+        $this->assertNull($ticket['intro']);
         $this->assertStringContainsString('SHORT', (string) $ticket['warning']);
         $this->assertSame('SELL STOP LIMIT', $ticket['rows'][0]['value']);
-        $this->assertSame('Prijs (Sell-Stop)', $ticket['rows'][2]['label']);
-        $this->assertSame('Limit Prijs (Min Verkoop)', $ticket['rows'][3]['label']);
-        $this->assertSame('Take Profit (BUY LIMIT)', $ticket['rows'][4]['label']);
-        $this->assertSame('Stop Loss (BUY STOP)', $ticket['rows'][5]['label']);
-        $this->assertLessThan(50.0, (float) str_replace(['$', ','], '', $ticket['rows'][3]['value']));
+        $this->assertSame('Time in Force', $ticket['rows'][1]['label']);
+        $this->assertSame('Good Till Cancel', $ticket['rows'][1]['value']);
+        $this->assertSame('Prijs (Sell-Stop)', $ticket['rows'][3]['label']);
+        $this->assertSame('Limit Prijs (Min Verkoop)', $ticket['rows'][4]['label']);
+        $this->assertSame('Take Profit (BUY LIMIT)', $ticket['rows'][5]['label']);
+        $this->assertSame('Stop Loss (BUY STOP)', $ticket['rows'][6]['label']);
+        $this->assertLessThan(50.0, (float) str_replace(['$', ','], '', $ticket['rows'][4]['value']));
     }
 
     public function test_analytics_split_by_direction(): void
