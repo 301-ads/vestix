@@ -6,6 +6,7 @@ use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\FilamentPolling;
+use App\Support\FreerideDisplay;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -57,6 +58,16 @@ class PortfolioTopFlopWidget extends TableWidget
                     ->label('P&L ($)')
                     ->formatStateUsing(fn ($state): string => ($state >= 0 ? '+' : '-').'$'.number_format(abs((float) $state), 2))
                     ->color(fn ($state) => ($state ?? 0) >= 0 ? 'success' : 'danger'),
+                TextColumn::make('runner_gap')
+                    ->label('Runner')
+                    ->state(fn (Position $record): ?array => FreerideDisplay::gapForPosition($record))
+                    ->formatStateUsing(fn (?array $state): string => FreerideDisplay::compactLabel($state))
+                    ->color(fn (?array $state): string => $state === null ? 'success' : 'gray')
+                    ->alignStart()
+                    ->width('4.5rem')
+                    ->tooltip(fn (Position $record): string => FreerideDisplay::compactTooltip(
+                        FreerideDisplay::gapForPosition($record),
+                    )),
                 TextColumn::make('locked_in_profit_dollars')
                     ->label('Locked')
                     ->badge()
