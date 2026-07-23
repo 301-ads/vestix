@@ -17,6 +17,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\HtmlString;
 
 class SetupRadarWidget extends TableWidget
 {
@@ -68,14 +69,13 @@ class SetupRadarWidget extends TableWidget
                 ),
                 TextColumn::make('setup_grade')
                     ->label('Setup Grade')
-                    ->state(fn (Position $record): ?string => SetupGradeDisplay::score($record))
+                    ->state(fn (Position $record): ?HtmlString => SetupGradeDisplay::html($record))
+                    ->html()
                     ->alignStart()
-                    ->color(fn (Position $record): string => SetupGradeDisplay::color($record))
-                    ->tooltip(fn (Position $record): ?string => SetupGradeDisplay::tooltip($record))
                     ->extraCellAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->extraHeaderAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->placeholder('—')
-                    ->width('5rem'),
+                    ->width('6.5rem'),
                 TextColumn::make('latest_close_price')
                     ->label('Close')
                     ->money('usd')

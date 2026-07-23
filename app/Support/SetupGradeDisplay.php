@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Position;
+use Illuminate\Support\HtmlString;
 
 class SetupGradeDisplay
 {
@@ -38,6 +39,22 @@ class SetupGradeDisplay
         return $score['totalPoints'].'/'.$score['maxPoints'];
     }
 
+    public static function gradeLetter(Position $record): ?string
+    {
+        $score = self::resolveScore($record);
+
+        if ($score === null) {
+            return null;
+        }
+
+        return match ($score['grade']) {
+            'A++', 'A' => 'A',
+            'B' => 'B',
+            'C' => 'C',
+            default => 'N',
+        };
+    }
+
     public static function tooltip(Position $record): ?string
     {
         return self::label($record);
@@ -67,5 +84,23 @@ class SetupGradeDisplay
     public static function description(Position $record): ?string
     {
         return $record->signalCandleStaleLabel();
+    }
+
+    public static function html(Position $record): ?HtmlString
+    {
+        $score = self::score($record);
+        $gradeLetter = self::gradeLetter($record);
+
+        if ($score === null || $gradeLetter === null) {
+            return null;
+        }
+
+        return new HtmlString(view('components.filament.positions.setup-grade', [
+            'score' => $score,
+            'gradeLetter' => $gradeLetter,
+            'color' => self::color($record),
+            'gradeLabel' => self::label($record),
+            'staleLabel' => self::description($record),
+        ])->render());
     }
 }
