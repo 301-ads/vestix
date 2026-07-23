@@ -60,9 +60,12 @@ class PortfolioTopFlopWidget extends TableWidget
                     ->color(fn ($state) => ($state ?? 0) >= 0 ? 'success' : 'danger'),
                 TextColumn::make('runner_gap')
                     ->label('Runner')
-                    ->state(fn (Position $record): ?array => FreerideDisplay::gapForPosition($record))
-                    ->formatStateUsing(fn (?array $state): string => FreerideDisplay::compactLabel($state))
-                    ->color(fn (?array $state): string => $state === null ? 'success' : 'gray')
+                    ->state(fn (Position $record): string => FreerideDisplay::compactLabel(
+                        FreerideDisplay::gapForPosition($record),
+                    ))
+                    ->color(fn (Position $record): string => FreerideDisplay::gapForPosition($record) === null
+                        ? 'success'
+                        : 'gray')
                     ->alignStart()
                     ->width('4.5rem')
                     ->tooltip(fn (Position $record): string => FreerideDisplay::compactTooltip(
