@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
+use App\Enums\TradeDirection;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\SmartAllocationService;
@@ -171,6 +172,72 @@ class SmartAllocationServiceTest extends TestCase
         $this->assertArrayHasKey('SFNC', $byTicker->all());
         $this->assertEqualsWithDelta(0.20, $byTicker['SFNC']['sector_penalty'], 0.001);
         $this->assertEqualsWithDelta(0.0, $byTicker['AAPL']['sector_penalty'], 0.001);
+    }
+
+    public function test_open_short_risk_on_does_not_seed_penalty_on_long_scout_same_sector(): void
+    {
+        config(['vestix.portfolio_coach.max_risk_on_per_sector' => 2]);
+
+        $user = $this->userWithBankroll();
+        $user->update(['is_short_enabled' => true]);
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'PONY',
+            'status' => 'open',
+            'direction' => TradeDirection::Short,
+            'sector_etf' => 'XLK',
+            'entry_price' => 100.00,
+            'current_sl' => 105.00,
+            'quantity' => 10,
+            'latest_close_price' => 100.00,
+        ]);
+
+        $embj = $this->scout($user, 'EMBJ', score: 8, sector: 'XLK');
+        $aapl = $this->scout($user, 'AAPL', score: 8, sector: 'XLF');
+
+        $result = $this->service->allocate($user, [$embj, $aapl], SmartAllocationService::MODE_SMART);
+        $byTicker = collect($result['allocations'])->keyBy('ticker');
+
+        $this->assertArrayHasKey('EMBJ', $byTicker->all());
+        $this->assertEqualsWithDelta(0.0, $byTicker['EMBJ']['sector_penalty'], 0.001);
+        $this->assertEqualsWithDelta(0.0, $byTicker['AAPL']['sector_penalty'], 0.001);
+    }
+
+    public function test_open_long_allows_short_scout_same_sector_in_allocation(): void
+    {
+        $user = $this->userWithBankroll();
+        $user->update([
+            'is_short_enabled' => true,
+            'default_short_risk_percent' => 1.0,
+        ]);
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'EMBJ',
+            'status' => 'open',
+            'direction' => TradeDirection::Long,
+            'sector_etf' => 'XLK',
+            'entry_price' => 100.00,
+            'current_sl' => 95.00,
+            'quantity' => 10,
+            'latest_close_price' => 100.00,
+        ]);
+
+        $pony = Position::factory()->for($user)->scout()->short()->create([
+            'ticker' => 'PONY',
+            'last_setup_score' => 8,
+            'entry_price' => 100.00,
+            'latest_sma_20' => 102.00,
+            'latest_atr_14' => 2.00,
+            'sector_etf' => 'XLK',
+            'target_1_rr' => 2.0,
+            'quantity' => 10,
+        ]);
+
+        $result = $this->service->allocate($user, [$pony], SmartAllocationService::MODE_SMART);
+
+        $this->assertCount(1, $result['allocations']);
+        $this->assertSame('PONY', $result['allocations'][0]['ticker']);
+        $this->assertSame([], $result['exclusions']);
     }
 
     public function test_excludes_score_below_min(): void
@@ -507,11 +574,15 @@ class SmartAllocationServiceTest extends TestCase
             'signal_high' => 945.00,
             'latest_open_price' => 938.75,
             'latest_close_price' => 935.80,
+            'sma_20_five_days_ago' => 950.00,
             'sma_20_ten_days_ago' => 960.67,
             'latest_sma_50' => 976.24,
             'scout_rsi' => 45.64,
             'sector_trend_positive' => false,
             'pre_bounce_extension_atr' => 2.13,
+            'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
         ]);
 
         $result = $this->service->allocate($user, [$position], SmartAllocationService::MODE_SMART);

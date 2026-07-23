@@ -35,7 +35,7 @@ class PortfolioRiskCoachServiceTest extends TestCase
         $this->assertFalse($scout->fresh()->isOrderPlanExcludedToday());
     }
 
-    public function test_risk_on_open_excludes_all_scouts_in_same_sector(): void
+    public function test_risk_on_open_excludes_all_scouts_in_same_sector_and_direction(): void
     {
         $user = User::factory()->create();
 
@@ -49,9 +49,37 @@ class PortfolioRiskCoachServiceTest extends TestCase
         $tickers = collect($exclusions)->pluck('ticker')->sort()->values()->all();
         $this->assertSame(['SFNC', 'TFC'], $tickers);
         $this->assertStringContainsString('XLF', $exclusions[0]['reason']);
+        $this->assertStringContainsString('long', $exclusions[0]['reason']);
         $this->assertStringContainsString('BAC', $exclusions[0]['reason']);
         $this->assertTrue($sfnc->fresh()->isOrderPlanExcludedToday());
         $this->assertTrue($tfc->fresh()->isOrderPlanExcludedToday());
+    }
+
+    public function test_open_long_does_not_block_short_scout_same_sector(): void
+    {
+        $user = User::factory()->create(['is_short_enabled' => true]);
+
+        $this->openPosition($user, 'EMBJ', 'XLK', riskOn: true, direction: TradeDirection::Long);
+        $pony = $this->orderPlanScout($user, 'PONY', 'XLK', score: 9, direction: TradeDirection::Short);
+
+        $exclusions = $this->service->evaluateOrderPlanExclusions($user, [$pony]);
+
+        $this->assertSame([], $exclusions);
+        $this->assertFalse($pony->fresh()->isOrderPlanExcludedToday());
+    }
+
+    public function test_open_long_still_blocks_long_scout_same_sector(): void
+    {
+        $user = User::factory()->create();
+
+        $this->openPosition($user, 'EMBJ', 'XLK', riskOn: true, direction: TradeDirection::Long);
+        $other = $this->orderPlanScout($user, 'AAPL', 'XLK', score: 8, direction: TradeDirection::Long);
+
+        $exclusions = $this->service->evaluateOrderPlanExclusions($user, [$other]);
+
+        $this->assertCount(1, $exclusions);
+        $this->assertSame('AAPL', $exclusions[0]['ticker']);
+        $this->assertStringContainsString('long', $exclusions[0]['reason']);
     }
 
     public function test_two_scouts_same_sector_keeps_highest_score_when_slot_free(): void
@@ -70,6 +98,21 @@ class PortfolioRiskCoachServiceTest extends TestCase
         $this->assertFalse($sfnc->fresh()->isOrderPlanExcludedToday());
         $this->assertFalse($other->fresh()->isOrderPlanExcludedToday());
         $this->assertTrue($tfc->fresh()->isOrderPlanExcludedToday());
+    }
+
+    public function test_two_short_scouts_same_sector_keeps_highest_score(): void
+    {
+        $user = User::factory()->create(['is_short_enabled' => true]);
+
+        $better = $this->orderPlanScout($user, 'PONY', 'XLK', score: 9, direction: TradeDirection::Short);
+        $worse = $this->orderPlanScout($user, 'AMD', 'XLK', score: 7, direction: TradeDirection::Short);
+
+        $exclusions = $this->service->evaluateOrderPlanExclusions($user, [$better, $worse]);
+
+        $this->assertCount(1, $exclusions);
+        $this->assertSame('AMD', $exclusions[0]['ticker']);
+        $this->assertStringContainsString('short', $exclusions[0]['reason']);
+        $this->assertFalse($better->fresh()->isOrderPlanExcludedToday());
     }
 
     public function test_long_heavy_insight_when_mostly_long(): void
@@ -99,10 +142,11 @@ class PortfolioRiskCoachServiceTest extends TestCase
 
         $this->assertNotNull($concentration);
         $this->assertStringContainsString('XLF', $concentration['title']);
+        $this->assertStringContainsString('long', $concentration['title']);
         $this->assertStringContainsString('BAC', $concentration['body']);
     }
 
-    public function test_sector_exposure_splits_risk_on_and_locked(): void
+    public function test_sector_exposure_splits_risk_on_and_locked_by_direction(): void
     {
         $user = User::factory()->create();
         $this->openPosition($user, 'BAC', 'XLF', riskOn: false);
@@ -110,10 +154,11 @@ class PortfolioRiskCoachServiceTest extends TestCase
 
         $exposure = $this->service->sectorExposure($user);
 
-        $this->assertSame(1, $exposure['XLF']['risk_on_count']);
-        $this->assertSame(1, $exposure['XLF']['locked_count']);
-        $this->assertSame(['JPM'], $exposure['XLF']['risk_on']);
-        $this->assertSame(['BAC'], $exposure['XLF']['locked']);
+        $this->assertSame(1, $exposure['XLF']['long']['risk_on_count']);
+        $this->assertSame(1, $exposure['XLF']['long']['locked_count']);
+        $this->assertSame(['JPM'], $exposure['XLF']['long']['risk_on']);
+        $this->assertSame(['BAC'], $exposure['XLF']['long']['locked']);
+        $this->assertSame(0, $exposure['XLF']['short']['risk_on_count']);
     }
 
     private function openPosition(
@@ -145,10 +190,12 @@ class PortfolioRiskCoachServiceTest extends TestCase
         string $ticker,
         string $sector,
         int $score,
+        TradeDirection $direction = TradeDirection::Long,
     ): Position {
         return Position::factory()->for($user)->scout()->create([
             'ticker' => $ticker,
             'sector_etf' => $sector,
+            'direction' => $direction,
             'last_setup_score' => $score,
             'entry_price' => 100.00,
             'market_open_reminder_on' => now()->toDateString(),

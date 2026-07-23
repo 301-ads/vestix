@@ -5,6 +5,7 @@ namespace Tests\Feature\Filament;
 use App\Enums\TradeDirection;
 use App\Filament\Pages\StrategyCoach;
 use App\Filament\Widgets\PortfolioCoachInsightsWidget;
+use App\Filament\Widgets\StrategyCoachStatsWidget;
 use App\Models\Position;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -39,7 +40,7 @@ class VestixCoachTest extends TestCase
         Livewire::test(StrategyCoach::class)
             ->assertSee('lokale demo-data');
 
-        Livewire::test(\App\Filament\Widgets\StrategyCoachStatsWidget::class)
+        Livewire::test(StrategyCoachStatsWidget::class)
             ->assertSee('24')
             ->assertSee('62.5%')
             ->assertSee('1.85%');
@@ -61,7 +62,7 @@ class VestixCoachTest extends TestCase
         ]);
 
         Livewire::test(PortfolioCoachInsightsWidget::class)
-            ->assertSee('Sector XLF vol')
+            ->assertSee('Sector XLF long vol')
             ->assertSee('BAC')
             ->assertSee('risk-on');
     }

@@ -14,16 +14,23 @@
                         ({{ (int) round($balance['long_pct'] * 100) }}% / {{ (int) round($balance['short_pct'] * 100) }}%)
                     </span>
                     @foreach ($exposure as $sector => $row)
-                        <span class="vestix-portfolio-coach__strip-item">
-                            <strong>{{ $sector }}</strong>:
-                            @if ($row['risk_on_count'] > 0)
-                                {{ implode(', ', $row['risk_on']) }} risk-on
-                            @endif
-                            @if ($row['locked_count'] > 0)
-                                @if ($row['risk_on_count'] > 0) · @endif
-                                {{ implode(', ', $row['locked']) }} locked
-                            @endif
-                        </span>
+                        @php
+                            $parts = [];
+                            foreach (['long', 'short'] as $direction) {
+                                $bucket = $row[$direction];
+                                if ($bucket['risk_on_count'] > 0) {
+                                    $parts[] = implode(', ', $bucket['risk_on']).' '.$direction.' risk-on';
+                                }
+                                if ($bucket['locked_count'] > 0) {
+                                    $parts[] = implode(', ', $bucket['locked']).' '.$direction.' locked';
+                                }
+                            }
+                        @endphp
+                        @if ($parts !== [])
+                            <span class="vestix-portfolio-coach__strip-item">
+                                <strong>{{ $sector }}</strong>: {{ implode(' · ', $parts) }}
+                            </span>
+                        @endif
                     @endforeach
                 </div>
             @endif

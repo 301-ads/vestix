@@ -57,10 +57,8 @@ class PortfolioCoachInsightsWidget extends Widget
     /**
      * @return array<string, array{
      *     sector: string,
-     *     risk_on: list<string>,
-     *     locked: list<string>,
-     *     risk_on_count: int,
-     *     locked_count: int,
+     *     long: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
+     *     short: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
      * }>
      */
     public function getSectorExposure(): array

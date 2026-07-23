@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TradeDirection;
 use App\Models\Position;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -27,12 +28,28 @@ class PortfolioRiskCoachService
     }
 
     /**
-     * @return array<string, array{
-     *     sector: string,
+     * @return array{
      *     risk_on: list<string>,
      *     locked: list<string>,
      *     risk_on_count: int,
      *     locked_count: int,
+     * }
+     */
+    private function emptyDirectionBucket(): array
+    {
+        return [
+            'risk_on' => [],
+            'locked' => [],
+            'risk_on_count' => 0,
+            'locked_count' => 0,
+        ];
+    }
+
+    /**
+     * @return array<string, array{
+     *     sector: string,
+     *     long: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
+     *     short: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
      * }>
      */
     public function sectorExposure(User $user): array
@@ -49,21 +66,22 @@ class PortfolioRiskCoachService
             if (! isset($exposure[$sector])) {
                 $exposure[$sector] = [
                     'sector' => $sector,
-                    'risk_on' => [],
-                    'locked' => [],
-                    'risk_on_count' => 0,
-                    'locked_count' => 0,
+                    'long' => $this->emptyDirectionBucket(),
+                    'short' => $this->emptyDirectionBucket(),
                 ];
             }
 
+            $directionKey = $position->isShort()
+                ? TradeDirection::Short->value
+                : TradeDirection::Long->value;
             $ticker = strtoupper((string) $position->ticker);
 
             if ($this->isRiskOn($position)) {
-                $exposure[$sector]['risk_on'][] = $ticker;
-                $exposure[$sector]['risk_on_count']++;
+                $exposure[$sector][$directionKey]['risk_on'][] = $ticker;
+                $exposure[$sector][$directionKey]['risk_on_count']++;
             } else {
-                $exposure[$sector]['locked'][] = $ticker;
-                $exposure[$sector]['locked_count']++;
+                $exposure[$sector][$directionKey]['locked'][] = $ticker;
+                $exposure[$sector][$directionKey]['locked_count']++;
             }
         }
 
@@ -73,7 +91,52 @@ class PortfolioRiskCoachService
     }
 
     /**
-     * Open risk-on count per sector ETF (for allocation seeding / limits).
+     * Open risk-on count per sector ETF, split by direction.
+     *
+     * @return array<string, array{long: int, short: int}>
+     */
+    public function openRiskOnSectorDirectionCounts(User $user): array
+    {
+        $counts = [];
+
+        foreach ($this->sectorExposure($user) as $sector => $row) {
+            $long = $row['long']['risk_on_count'];
+            $short = $row['short']['risk_on_count'];
+
+            if ($long > 0 || $short > 0) {
+                $counts[$sector] = [
+                    'long' => $long,
+                    'short' => $short,
+                ];
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Flat risk-on counts for one direction (allocation seeding).
+     *
+     * @return array<string, int>
+     */
+    public function openRiskOnSectorCountsForDirection(User $user, TradeDirection $direction): array
+    {
+        $directionKey = $direction->value;
+        $counts = [];
+
+        foreach ($this->openRiskOnSectorDirectionCounts($user) as $sector => $row) {
+            $count = $row[$directionKey] ?? 0;
+
+            if ($count > 0) {
+                $counts[$sector] = $count;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @deprecated Use openRiskOnSectorDirectionCounts / openRiskOnSectorCountsForDirection
      *
      * @return array<string, int>
      */
@@ -81,9 +144,11 @@ class PortfolioRiskCoachService
     {
         $counts = [];
 
-        foreach ($this->sectorExposure($user) as $sector => $row) {
-            if ($row['risk_on_count'] > 0) {
-                $counts[$sector] = $row['risk_on_count'];
+        foreach ($this->openRiskOnSectorDirectionCounts($user) as $sector => $row) {
+            $total = $row['long'] + $row['short'];
+
+            if ($total > 0) {
+                $counts[$sector] = $total;
             }
         }
 
@@ -129,22 +194,29 @@ class PortfolioRiskCoachService
         $open = $this->openPositions($user);
 
         foreach ($exposure as $sector => $row) {
-            if ($row['risk_on_count'] < $maxRiskOn) {
-                continue;
-            }
+            foreach ([TradeDirection::Long->value, TradeDirection::Short->value] as $directionKey) {
+                $bucket = $row[$directionKey];
 
-            $tickers = implode(', ', $row['risk_on']);
-            $insights[] = [
-                'type' => 'sector_concentration',
-                'severity' => 'warning',
-                'title' => "Sector {$sector} vol",
-                'body' => sprintf(
-                    'Je hebt %d risk-on positie(s) in %s (%s). Voeg geen nieuwe setups in deze sector toe.',
-                    $row['risk_on_count'],
-                    $sector,
-                    $tickers,
-                ),
-            ];
+                if ($bucket['risk_on_count'] < $maxRiskOn) {
+                    continue;
+                }
+
+                $directionLabel = $directionKey === TradeDirection::Short->value ? 'short' : 'long';
+                $tickers = implode(', ', $bucket['risk_on']);
+                $insights[] = [
+                    'type' => 'sector_concentration',
+                    'severity' => 'warning',
+                    'title' => "Sector {$sector} {$directionLabel} vol",
+                    'body' => sprintf(
+                        'Je hebt %d risk-on %s in %s (%s). Voeg geen nieuwe %s-setups in deze sector toe.',
+                        $bucket['risk_on_count'],
+                        $directionLabel,
+                        $sector,
+                        $tickers,
+                        $directionLabel,
+                    ),
+                ];
+            }
         }
 
         $longHeavy = (float) config('vestix.portfolio_coach.long_heavy_threshold', 0.80);
@@ -228,7 +300,7 @@ class PortfolioRiskCoachService
     }
 
     /**
-     * Soft-exclude Order Plan scouts that would breach sector risk-on limits.
+     * Soft-exclude Order Plan scouts that would breach sector+direction risk-on limits.
      * Marks excluded scouts via order_plan_excluded_on.
      *
      * @param  Collection<int, Position>|iterable<Position>  $scouts
@@ -237,11 +309,11 @@ class PortfolioRiskCoachService
     public function evaluateOrderPlanExclusions(User $user, iterable $scouts): array
     {
         $maxRiskOn = $this->maxRiskOnPerSector();
-        $openRiskOn = $this->openRiskOnSectorCounts($user);
+        $openRiskOn = $this->openRiskOnSectorDirectionCounts($user);
         $openExposure = $this->sectorExposure($user);
 
-        /** @var array<string, list<Position>> $bySector */
-        $bySector = [];
+        /** @var array<string, list<Position>> $bySectorDirection */
+        $bySectorDirection = [];
 
         foreach ($scouts as $scout) {
             if (! $scout instanceof Position) {
@@ -254,13 +326,19 @@ class PortfolioRiskCoachService
                 continue;
             }
 
-            $bySector[$sector][] = $scout;
+            $directionKey = $scout->isShort()
+                ? TradeDirection::Short->value
+                : TradeDirection::Long->value;
+            $bucketKey = "{$sector}:{$directionKey}";
+            $bySectorDirection[$bucketKey][] = $scout;
         }
 
         $exclusions = [];
 
-        foreach ($bySector as $sector => $sectorScouts) {
-            $openCount = $openRiskOn[$sector] ?? 0;
+        foreach ($bySectorDirection as $bucketKey => $sectorScouts) {
+            [$sector, $directionKey] = explode(':', $bucketKey, 2);
+            $directionLabel = $directionKey === TradeDirection::Short->value ? 'short' : 'long';
+            $openCount = $openRiskOn[$sector][$directionKey] ?? 0;
             $remainingSlots = max(0, $maxRiskOn - $openCount);
 
             usort(
@@ -277,7 +355,7 @@ class PortfolioRiskCoachService
             );
 
             if ($remainingSlots === 0) {
-                $openTickers = $openExposure[$sector]['risk_on'] ?? [];
+                $openTickers = $openExposure[$sector][$directionKey]['risk_on'] ?? [];
                 $openLabel = $openTickers !== []
                     ? implode(', ', $openTickers)
                     : 'open risk-on';
@@ -286,8 +364,9 @@ class PortfolioRiskCoachService
                     $exclusions[] = $this->excludeScout(
                         $scout,
                         sprintf(
-                            'Sector %s: al %d risk-on open (%s) — correlatierisico',
+                            'Sector %s %s: al %d risk-on open (%s) — correlatierisico',
                             $sector,
+                            $directionLabel,
                             $openCount,
                             $openLabel,
                         ),
@@ -313,8 +392,9 @@ class PortfolioRiskCoachService
                 $exclusions[] = $this->excludeScout(
                     $scout,
                     sprintf(
-                        'Sector %s: max %d nieuwe setup(s); behouden: %s',
+                        'Sector %s %s: max %d nieuwe setup(s); behouden: %s',
                         $sector,
+                        $directionLabel,
                         $remainingSlots,
                         implode(', ', $keeperTickers),
                     ),

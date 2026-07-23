@@ -104,7 +104,7 @@ class SmartAllocationService
             $sectorExcludedIds[(int) $sectorExclusion['position_id']] = true;
         }
 
-        $openRiskOnSectorCounts = $this->portfolioRiskCoach->openRiskOnSectorCounts($user);
+        $openRiskOnByDirection = $this->portfolioRiskCoach->openRiskOnSectorDirectionCounts($user);
 
         foreach ($positions as $position) {
             if (! $position instanceof Position) {
@@ -232,6 +232,16 @@ class SmartAllocationService
                 continue;
             }
 
+            $directionSeed = [];
+
+            foreach ($openRiskOnByDirection as $sector => $counts) {
+                $count = (int) ($counts[$directionKey] ?? 0);
+
+                if ($count > 0) {
+                    $directionSeed[$sector] = $count;
+                }
+            }
+
             $allocations = [
                 ...$allocations,
                 ...$this->allocateWithRedistribution(
@@ -240,7 +250,7 @@ class SmartAllocationService
                     $bankroll,
                     $mode,
                     $exclusions,
-                    $openRiskOnSectorCounts,
+                    $directionSeed,
                 ),
             ];
         }
