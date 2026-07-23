@@ -137,6 +137,31 @@ class ScoutRadarFiltersTest extends TestCase
         $this->assertSame('gray', ScoutRadarFilters::entryDistanceColor($missing));
     }
 
+    public function test_entry_price_with_distance_html_is_one_line(): void
+    {
+        $near = Position::factory()->scout()->create([
+            'entry_price' => 23.20,
+            'latest_close_price' => 23.11,
+        ]);
+
+        $html = (string) ScoutRadarFilters::entryPriceWithDistanceHtml($near);
+
+        $this->assertStringContainsString('$23.20', $html);
+        $this->assertStringContainsString('−0.39%', $html);
+        $this->assertStringContainsString('vestix-entry-with-distance', $html);
+        $this->assertStringContainsString('text-success-600', $html);
+
+        $withoutClose = Position::factory()->scout()->create([
+            'entry_price' => 23.20,
+            'latest_close_price' => null,
+        ]);
+
+        $this->assertSame('$23.20', (string) ScoutRadarFilters::entryPriceWithDistanceHtml($withoutClose));
+        $this->assertNull(ScoutRadarFilters::entryPriceWithDistanceHtml(
+            Position::factory()->scout()->create(['entry_price' => null]),
+        ));
+    }
+
     public function test_track_labels_from_premarket_scan(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-24 10:00:00', 'America/New_York'));

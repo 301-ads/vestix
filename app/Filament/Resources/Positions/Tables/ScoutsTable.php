@@ -52,6 +52,7 @@ class ScoutsTable
                 TextColumn::make('pipeline_status')
                     ->label('Status')
                     ->badge()
+                    ->alignStart()
                     ->state(fn (Position $record): ScoutPipelineStatus => $record->scoutPipelineStatus())
                     ->formatStateUsing(fn (ScoutPipelineStatus $state): string => $state->label())
                     ->color(fn (ScoutPipelineStatus $state): string => $state->badgeColor())
@@ -67,6 +68,8 @@ class ScoutsTable
                             END {$direction}",
                         );
                     })
+                    ->extraCellAttributes(['class' => 'vestix-status-badge-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-status-badge-cell'])
                     ->width('6rem'),
                 TextColumn::make('track')
                     ->label('Track')
@@ -103,35 +106,41 @@ class ScoutsTable
                     ->placeholder('—')
                     ->width('6.5rem')
                     ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBySetupGrade($direction)),
-                TextColumn::make('entry_price')
-                    ->label('Entry')
-                    ->money('usd')
-                    ->description(function (Position $record): ?HtmlString {
-                        $label = ScoutRadarFilters::entryDistanceLabel($record);
-
-                        if ($label === null) {
-                            return null;
-                        }
-
-                        $class = ScoutRadarFilters::entryDistanceColor($record) === 'success'
-                            ? 'text-success-600 dark:text-success-400'
-                            : 'text-gray-500 dark:text-gray-400';
-
-                        return new HtmlString('<span class="'.$class.'">'.e($label).'</span>');
-                    })
+                TextColumn::make('sector_etf')
+                    ->label('Sector')
+                    ->formatStateUsing(fn (?string $state): ?string => filled($state) ? strtoupper($state) : null)
+                    ->badge()
+                    ->alignStart()
+                    ->color('gray')
                     ->placeholder('—')
                     ->sortable()
-                    ->width('5.5rem'),
+                    ->extraCellAttributes(['class' => 'vestix-sector-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-sector-cell'])
+                    ->width('4.25rem'),
+                TextColumn::make('entry_price')
+                    ->label('Entry')
+                    ->formatStateUsing(fn ($state, Position $record): ?HtmlString => ScoutRadarFilters::entryPriceWithDistanceHtml($record))
+                    ->html()
+                    ->alignStart()
+                    ->placeholder('—')
+                    ->sortable()
+                    ->extraCellAttributes(['class' => 'vestix-entry-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-entry-cell'])
+                    ->width('8.5rem'),
                 TextColumn::make('planned_risk_percentage')
                     ->label('Risico (%)')
                     ->numeric(decimalPlaces: 2)
                     ->suffix('%')
+                    ->alignStart()
                     ->placeholder('—')
                     ->color(fn (?float $state): string => ScoutRadarFilters::riskColor($state))
                     ->sortable()
                     ->tooltip(fn (Position $record): ?string => $record->planned_risk_dollars !== null
                         ? '$'.number_format($record->planned_risk_dollars, 2)
                         : null)
+                    ->extraCellAttributes(['class' => 'vestix-risk-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-risk-cell'])
+                    ->width('5.5rem')
                     ->visible(! $squadMode),
             ])
             ->recordActions([

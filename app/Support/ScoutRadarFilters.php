@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\ScoutPipelineStatus;
 use App\Models\Position;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\HtmlString;
 
 class ScoutRadarFilters
 {
@@ -163,6 +164,34 @@ class ScoutRadarFilters
         }
 
         return $percent <= 1.0 ? 'success' : 'gray';
+    }
+
+    /**
+     * Compact one-line Entry display: "$23.20 −0.39%".
+     */
+    public static function entryPriceWithDistanceHtml(Position $scout): ?HtmlString
+    {
+        if ($scout->entry_price === null) {
+            return null;
+        }
+
+        $price = '$'.number_format((float) $scout->entry_price, 2);
+        $distance = self::entryDistanceLabel($scout);
+
+        if ($distance === null) {
+            return new HtmlString(e($price));
+        }
+
+        $class = self::entryDistanceColor($scout) === 'success'
+            ? 'text-success-600 dark:text-success-400'
+            : 'text-gray-500 dark:text-gray-400';
+
+        return new HtmlString(
+            '<span class="vestix-entry-with-distance">'
+            .e($price)
+            .' <span class="vestix-entry-distance '.$class.'">'.e($distance).'</span>'
+            .'</span>',
+        );
     }
 
     private static function isReadyForExecution(Position $scout): bool

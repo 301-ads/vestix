@@ -2417,19 +2417,26 @@
 /* Compact table badges — left-aligned pills */
 .vestix-setup-grade-cell,
 .vestix-status-badge-cell,
-.vestix-locked-badge-cell {
+.vestix-locked-badge-cell,
+.vestix-sector-cell {
     text-align: start !important;
 }
 
 .vestix-setup-grade-cell .fi-ta-col,
 .vestix-status-badge-cell .fi-ta-col,
-.vestix-locked-badge-cell .fi-ta-col {
+.vestix-locked-badge-cell .fi-ta-col,
+.vestix-sector-cell .fi-ta-col,
+.vestix-entry-cell .fi-ta-col,
+.vestix-risk-cell .fi-ta-col {
     justify-content: flex-start !important;
 }
 
 .vestix-setup-grade-cell .fi-ta-text,
 .vestix-status-badge-cell .fi-ta-text,
-.vestix-locked-badge-cell .fi-ta-text {
+.vestix-locked-badge-cell .fi-ta-text,
+.vestix-sector-cell .fi-ta-text,
+.vestix-entry-cell .fi-ta-text,
+.vestix-risk-cell .fi-ta-text {
     width: auto !important;
     max-width: 100%;
     align-self: flex-start;
@@ -2438,20 +2445,30 @@
 /* Cell padding already matches the header — drop inner text padding to avoid double indent */
 .vestix-setup-grade-cell .fi-ta-text:not(.fi-inline),
 .vestix-status-badge-cell .fi-ta-text:not(.fi-inline),
-.vestix-locked-badge-cell .fi-ta-text:not(.fi-inline) {
+.vestix-locked-badge-cell .fi-ta-text:not(.fi-inline),
+.vestix-sector-cell .fi-ta-text:not(.fi-inline),
+.vestix-entry-cell .fi-ta-text:not(.fi-inline),
+.vestix-risk-cell .fi-ta-text:not(.fi-inline) {
     padding-inline: 0 !important;
 }
 
 .vestix-dashboard .fi-ta-cell.vestix-setup-grade-cell:not(:first-of-type),
 .vestix-dashboard .fi-ta-cell.vestix-locked-badge-cell:not(:first-of-type),
 .vestix-positions-list .fi-ta-cell.vestix-setup-grade-cell:not(:first-of-type),
-.vestix-radar-list .fi-ta-cell.vestix-setup-grade-cell:not(:first-of-type) {
+.vestix-radar-list .fi-ta-cell.vestix-setup-grade-cell:not(:first-of-type),
+.vestix-radar-list .fi-ta-cell.vestix-status-badge-cell:not(:first-of-type),
+.vestix-radar-list .fi-ta-cell.vestix-sector-cell:not(:first-of-type),
+.vestix-radar-list .fi-ta-cell.vestix-entry-cell:not(:first-of-type),
+.vestix-radar-list .fi-ta-cell.vestix-risk-cell:not(:first-of-type) {
     padding-inline-start: 0.75rem !important;
 }
 
 .vestix-setup-grade-cell .fi-ta-text-item,
 .vestix-status-badge-cell .fi-ta-text-item,
-.vestix-locked-badge-cell .fi-ta-text-item {
+.vestix-locked-badge-cell .fi-ta-text-item,
+.vestix-sector-cell .fi-ta-text-item,
+.vestix-entry-cell .fi-ta-text-item,
+.vestix-risk-cell .fi-ta-text-item {
     display: inline-flex !important;
     width: auto !important;
     max-width: 100%;
@@ -2460,12 +2477,27 @@
 
 .vestix-setup-grade-cell .fi-badge,
 .vestix-status-badge-cell .fi-badge,
-.vestix-locked-badge-cell .fi-badge {
+.vestix-locked-badge-cell .fi-badge,
+.vestix-sector-cell .fi-badge {
     border: none;
     display: inline-flex !important;
     width: auto !important;
     max-width: 100%;
     justify-content: flex-start;
+}
+
+/* Entry + distance % on one line */
+.vestix-entry-with-distance {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.vestix-entry-distance {
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1;
 }
 
 .vestix-setup-grade-cell .fi-badge,
