@@ -1098,6 +1098,12 @@
     padding-inline: 0.75rem;
 }
 
+/* Match Posities row height (Schild inputs) on Radar TextColumns */
+.vestix-radar-list .fi-ta-text:not(.fi-inline),
+.vestix-radar-list .fi-ta-cell:has(.fi-ta-actions) {
+    padding-block: 0.75rem;
+}
+
 .vestix-dashboard .fi-ta-text-input:not(.fi-inline),
 .vestix-positions-list .fi-ta-text-input:not(.fi-inline),
 .vestix-radar-list .fi-ta-text-input:not(.fi-inline) {
@@ -2498,6 +2504,12 @@
     font-size: 0.75rem;
     font-weight: 500;
     line-height: 1;
+}
+
+/* Compact Vestix Coach academic-cap next to Sector ETF */
+.vestix-sector-cell .fi-badge svg {
+    width: 0.875rem;
+    height: 0.875rem;
 }
 
 .vestix-setup-grade-cell .fi-badge,

@@ -10,6 +10,7 @@ use App\Models\Position;
 use App\Support\FilamentPolling;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
+use App\Support\ScoutSectorCoachSignal;
 use App\Support\SetupGradeDisplay;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
@@ -111,12 +112,20 @@ class ScoutsTable
                     ->formatStateUsing(fn (?string $state): ?string => filled($state) ? strtoupper($state) : null)
                     ->badge()
                     ->alignStart()
-                    ->color('gray')
+                    ->icon(fn (Position $record): ?string => $squadMode
+                        ? null
+                        : ScoutSectorCoachSignal::icon(auth()->user(), $record))
+                    ->color(fn (Position $record): string => $squadMode
+                        ? 'gray'
+                        : ScoutSectorCoachSignal::color(auth()->user(), $record))
+                    ->tooltip(fn (Position $record): ?string => $squadMode
+                        ? null
+                        : ScoutSectorCoachSignal::tooltip(auth()->user(), $record))
                     ->placeholder('—')
                     ->sortable()
                     ->extraCellAttributes(['class' => 'vestix-sector-cell'])
                     ->extraHeaderAttributes(['class' => 'vestix-sector-cell'])
-                    ->width('4.25rem'),
+                    ->width('5.5rem'),
                 TextColumn::make('entry_price')
                     ->label('Entry')
                     ->formatStateUsing(fn ($state, Position $record): ?HtmlString => ScoutRadarFilters::entryPriceWithDistanceHtml($record))
