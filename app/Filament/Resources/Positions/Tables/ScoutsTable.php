@@ -50,28 +50,6 @@ class ScoutsTable
                         }),
                 ),
                 DirectionColumn::make(),
-                TextColumn::make('pipeline_status')
-                    ->label('Status')
-                    ->badge()
-                    ->alignStart()
-                    ->state(fn (Position $record): ScoutPipelineStatus => $record->scoutPipelineStatus())
-                    ->formatStateUsing(fn (ScoutPipelineStatus $state): string => $state->label())
-                    ->color(fn (ScoutPipelineStatus $state): string => $state->badgeColor())
-                    ->icon(fn (ScoutPipelineStatus $state): ?string => $state->tableIcon())
-                    ->tooltip(fn (Position $record): ?string => $record->scoutPipelineStatus()->tooltip($record))
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            "CASE
-                                WHEN buy_stop_review_required_on IS NOT NULL THEN 3
-                                WHEN broker_order_status = 'pending' THEN 2
-                                WHEN market_open_reminder_on IS NOT NULL THEN 1
-                                ELSE 0
-                            END {$direction}",
-                        );
-                    })
-                    ->extraCellAttributes(['class' => 'vestix-status-badge-cell'])
-                    ->extraHeaderAttributes(['class' => 'vestix-status-badge-cell'])
-                    ->width('6rem'),
                 TextColumn::make('track')
                     ->label('Track')
                     ->state(fn (Position $record): ?string => ScoutRadarFilters::trackLabel($record))
@@ -95,6 +73,31 @@ class ScoutsTable
                     ->html()
                     ->extraCellAttributes(['class' => 'vestix-spotted-by-cell'])
                     ->visible($squadMode),
+                TextColumn::make('entry_price')
+                    ->label('Entry')
+                    ->formatStateUsing(fn ($state, Position $record): ?HtmlString => ScoutRadarFilters::entryPriceWithDistanceHtml($record))
+                    ->html()
+                    ->alignStart()
+                    ->placeholder('—')
+                    ->sortable()
+                    ->extraCellAttributes(['class' => 'vestix-entry-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-entry-cell'])
+                    ->width('8.5rem'),
+                TextColumn::make('planned_risk_percentage')
+                    ->label('Risico (%)')
+                    ->numeric(decimalPlaces: 2)
+                    ->suffix('%')
+                    ->alignStart()
+                    ->placeholder('—')
+                    ->color(fn (?float $state): string => ScoutRadarFilters::riskColor($state))
+                    ->sortable()
+                    ->tooltip(fn (Position $record): ?string => $record->planned_risk_dollars !== null
+                        ? '$'.number_format($record->planned_risk_dollars, 2)
+                        : null)
+                    ->extraCellAttributes(['class' => 'vestix-risk-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-risk-cell'])
+                    ->width('5.5rem')
+                    ->visible(! $squadMode),
                 TextColumn::make('setup_grade')
                     ->label('Setup Grade')
                     ->state(fn (Position $record): ?string => SetupGradeDisplay::label($record))
@@ -126,31 +129,28 @@ class ScoutsTable
                     ->extraCellAttributes(['class' => 'vestix-sector-cell'])
                     ->extraHeaderAttributes(['class' => 'vestix-sector-cell'])
                     ->width('5.5rem'),
-                TextColumn::make('entry_price')
-                    ->label('Entry')
-                    ->formatStateUsing(fn ($state, Position $record): ?HtmlString => ScoutRadarFilters::entryPriceWithDistanceHtml($record))
-                    ->html()
+                TextColumn::make('pipeline_status')
+                    ->label('Status')
+                    ->badge()
                     ->alignStart()
-                    ->placeholder('—')
-                    ->sortable()
-                    ->extraCellAttributes(['class' => 'vestix-entry-cell'])
-                    ->extraHeaderAttributes(['class' => 'vestix-entry-cell'])
-                    ->width('8.5rem'),
-                TextColumn::make('planned_risk_percentage')
-                    ->label('Risico (%)')
-                    ->numeric(decimalPlaces: 2)
-                    ->suffix('%')
-                    ->alignStart()
-                    ->placeholder('—')
-                    ->color(fn (?float $state): string => ScoutRadarFilters::riskColor($state))
-                    ->sortable()
-                    ->tooltip(fn (Position $record): ?string => $record->planned_risk_dollars !== null
-                        ? '$'.number_format($record->planned_risk_dollars, 2)
-                        : null)
-                    ->extraCellAttributes(['class' => 'vestix-risk-cell'])
-                    ->extraHeaderAttributes(['class' => 'vestix-risk-cell'])
-                    ->width('5.5rem')
-                    ->visible(! $squadMode),
+                    ->state(fn (Position $record): ScoutPipelineStatus => $record->scoutPipelineStatus())
+                    ->formatStateUsing(fn (ScoutPipelineStatus $state): string => $state->label())
+                    ->color(fn (ScoutPipelineStatus $state): string => $state->badgeColor())
+                    ->icon(fn (ScoutPipelineStatus $state): ?string => $state->tableIcon())
+                    ->tooltip(fn (Position $record): ?string => $record->scoutPipelineStatus()->tooltip($record))
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderByRaw(
+                            "CASE
+                                WHEN buy_stop_review_required_on IS NOT NULL THEN 3
+                                WHEN broker_order_status = 'pending' THEN 2
+                                WHEN market_open_reminder_on IS NOT NULL THEN 1
+                                ELSE 0
+                            END {$direction}",
+                        );
+                    })
+                    ->extraCellAttributes(['class' => 'vestix-status-badge-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-status-badge-cell'])
+                    ->width('6rem'),
             ])
             ->recordActions([
                 PositionRecordActions::markBuyStopPlaced(),
