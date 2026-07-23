@@ -769,9 +769,15 @@ class PositionRecordActions
             ->modalSubmitActionLabel('Stop-Loss Updated')
             ->modalCancelActionLabel('Annuleren')
             ->action(function (Position $record): void {
-                $record->update(['current_sl' => $record->new_sl]);
+                $newSl = $record->new_sl;
+                $record->update(['current_sl' => $newSl]);
 
-                FilamentNotifier::send(title: 'Stop-Loss geüpdatet!');
+                FilamentNotifier::send(
+                    title: "{$record->ticker}: Stop-Loss geüpdatet!",
+                    body: $newSl !== null
+                        ? 'Nieuwe SL: $'.number_format((float) $newSl, 2)
+                        : null,
+                );
             });
     }
 

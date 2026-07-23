@@ -354,7 +354,10 @@ class EditPosition extends EditRecord
                 $record->update(['current_sl' => $newSl]);
                 $this->data['current_sl'] = $newSl;
 
-                FilamentNotifier::send(title: 'Stop-Loss geüpdatet!');
+                FilamentNotifier::send(
+                    title: "{$record->ticker}: Stop-Loss geüpdatet!",
+                    body: 'Nieuwe SL: $'.number_format((float) $newSl, 2),
+                );
             });
     }
 
