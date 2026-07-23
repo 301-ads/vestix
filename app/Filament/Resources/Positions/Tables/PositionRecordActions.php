@@ -861,9 +861,14 @@ class PositionRecordActions
                 );
             })
             ->after(function ($livewire): void {
-                if (is_object($livewire) && method_exists($livewire, 'refreshFormData')) {
-                    $livewire->refreshFormData();
-                }
+                self::refreshEditRecordForm($livewire, [
+                    'current_sl',
+                    'scaled_out_price',
+                    'scaled_out_quantity',
+                    'scaled_out_at',
+                    'realized_pnl',
+                    'freeride_secured_at',
+                ]);
             });
     }
 
@@ -896,9 +901,10 @@ class PositionRecordActions
                 );
             })
             ->after(function ($livewire): void {
-                if (is_object($livewire) && method_exists($livewire, 'refreshFormData')) {
-                    $livewire->refreshFormData();
-                }
+                self::refreshEditRecordForm($livewire, [
+                    'held_through_earnings_date',
+                    'held_through_earnings_at',
+                ]);
             });
     }
 
@@ -1068,5 +1074,25 @@ class PositionRecordActions
         }
 
         return 'Zet scout om naar open positie met berekende stop-loss';
+    }
+
+    /**
+     * @param  array<int, string>  $statePaths
+     */
+    private static function refreshEditRecordForm(mixed $livewire, array $statePaths): void
+    {
+        if (! is_object($livewire) || ! method_exists($livewire, 'refreshFormData')) {
+            return;
+        }
+
+        if (method_exists($livewire, 'getRecord')) {
+            $record = $livewire->getRecord();
+
+            if ($record instanceof Position) {
+                $record->refresh();
+            }
+        }
+
+        $livewire->refreshFormData($statePaths);
     }
 }
