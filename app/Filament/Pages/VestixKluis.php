@@ -10,6 +10,7 @@ use App\Support\FilamentNotifier;
 use App\Support\Kluis\KluisOrderPlan;
 use App\Support\Kluis\KluisThermometerReading;
 use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -219,7 +220,7 @@ class VestixKluis extends Page implements HasTable
         $reading = $vault->reading($vault->settingsFor($user), force: true);
 
         if ($reading === null) {
-            $this->thermometerError = 'Kon SMA-200 / koers niet ophalen. Voor VWCE gebruiken we VT als US-proxy — controleer de Polygon API-key.';
+            $this->thermometerError = 'Kon SMA-200 / koers niet ophalen. Controleer de Polygon API-key en probeer opnieuw.';
             FilamentNotifier::send(
                 title: 'Thermometer niet beschikbaar',
                 body: $this->thermometerError,
@@ -319,6 +320,28 @@ class VestixKluis extends Page implements HasTable
                 TextColumn::make('confirmed_at')
                     ->label('Bevestigd')
                     ->dateTime('j M Y H:i'),
+            ])
+            ->recordActions([
+                DeleteAction::make()
+                    ->label('Terugdraaien')
+                    ->modalHeading('Maandbevestiging terugdraaien?')
+                    ->modalDescription('Dit verwijdert de logregel en zet het droog kruit terug alsof deze maand niet bevestigd was. Alleen de laatste maand kan worden teruggedraaid.')
+                    ->successNotificationTitle('Maandbevestiging teruggedraaid')
+                    ->visible(function (VaultDeposit $record): bool {
+                        $latestId = VaultDeposit::query()
+                            ->where('user_id', auth()->id())
+                            ->orderByDesc('period_month')
+                            ->orderByDesc('id')
+                            ->value('id');
+
+                        return $latestId === $record->id;
+                    })
+                    ->using(function (VaultDeposit $record): void {
+                        /** @var User $user */
+                        $user = auth()->user();
+                        app(VaultService::class)->revertDeposit($user, $record);
+                        unset($this->settings, $this->reading, $this->orderPlan);
+                    }),
             ])
             ->paginated([10, 25]);
     }

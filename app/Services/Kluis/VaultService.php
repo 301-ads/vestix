@@ -95,4 +95,34 @@ class VaultService
             'confirmed_at' => now(),
         ]);
     }
+
+    public function revertDeposit(User $user, VaultDeposit $deposit): void
+    {
+        if ($deposit->user_id !== $user->id) {
+            throw ValidationException::withMessages([
+                'deposit' => 'Deze storting hoort niet bij jouw Kluis.',
+            ]);
+        }
+
+        $latestId = VaultDeposit::query()
+            ->where('user_id', $user->id)
+            ->orderByDesc('period_month')
+            ->orderByDesc('id')
+            ->value('id');
+
+        if ($latestId !== $deposit->id) {
+            throw ValidationException::withMessages([
+                'deposit' => 'Alleen de laatste bevestigde maand kun je terugdraaien.',
+            ]);
+        }
+
+        $settings = $this->settingsFor($user);
+        $settings->dry_powder_balance = round(
+            max(0.0, (float) $settings->dry_powder_balance - (float) $deposit->dry_powder_delta),
+            2,
+        );
+        $settings->save();
+
+        $deposit->delete();
+    }
 }

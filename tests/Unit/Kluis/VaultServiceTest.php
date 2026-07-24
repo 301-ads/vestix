@@ -60,6 +60,33 @@ class VaultServiceTest extends TestCase
         $vault->confirmMonth($user, 10000, $reading);
     }
 
+    public function test_revert_deposit_restores_dry_powder_and_allows_reconfirm(): void
+    {
+        $user = User::factory()->create();
+        $vault = app(VaultService::class);
+        $settings = $vault->settingsFor($user);
+        $settings->update(['dry_powder_balance' => 0]);
+
+        $reading = new KluisThermometerReading(
+            climate: KluisClimate::Overheat,
+            deviationPct: 12,
+            close: 112,
+            sma200: 100,
+            ticker: 'VWCE',
+        );
+
+        $deposit = $vault->confirmMonth($user, 10000, $reading);
+        $this->assertSame(5000.0, (float) $settings->fresh()->dry_powder_balance);
+
+        $vault->revertDeposit($user, $deposit);
+
+        $this->assertSame(0.0, (float) $settings->fresh()->dry_powder_balance);
+        $this->assertSame(0, VaultDeposit::query()->where('user_id', $user->id)->count());
+
+        $vault->confirmMonth($user, 10000, $reading);
+        $this->assertSame(1, VaultDeposit::query()->where('user_id', $user->id)->count());
+    }
+
     public function test_reading_delegates_to_market_data_service(): void
     {
         $user = User::factory()->create();
