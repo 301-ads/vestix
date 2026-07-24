@@ -60,6 +60,10 @@ class AdminPanelProvider extends PanelProvider
             ->profile(EditUserProfile::class, isSimple: false)
             ->navigationGroups([
                 NavigationGroup::make()
+                    ->label('Tactisch'),
+                NavigationGroup::make()
+                    ->label('Strategisch'),
+                NavigationGroup::make()
                     ->label('Squads'),
                 NavigationGroup::make()
                     ->label('Beheer'),

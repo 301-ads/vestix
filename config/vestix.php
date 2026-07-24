@@ -263,4 +263,24 @@ return [
         'sector_penalty_per_extra' => (float) env('SMART_SIZING_SECTOR_PENALTY_PER_EXTRA', 0.20),
         'sector_penalty_cap' => (float) env('SMART_SIZING_SECTOR_PENALTY_CAP', 0.90),
     ],
+
+    'kluis' => [
+        'default_etf_ticker' => env('VESTIX_KLUIS_ETF_TICKER', 'VWCE'),
+        'default_monthly_budget' => (float) env('VESTIX_KLUIS_MONTHLY_BUDGET', 10000),
+        'overheat_threshold_pct' => (float) env('VESTIX_KLUIS_OVERHEAT_PCT', 10),
+        'crash_threshold_pct' => (float) env('VESTIX_KLUIS_CRASH_PCT', 10),
+        'overheat_invest_fraction' => (float) env('VESTIX_KLUIS_OVERHEAT_INVEST_FRACTION', 0.5),
+        'dip_dry_powder_fraction' => (float) env('VESTIX_KLUIS_DIP_DRY_POWDER_FRACTION', 0.25),
+        'crash_dry_powder_fraction' => (float) env('VESTIX_KLUIS_CRASH_DRY_POWDER_FRACTION', 0.5),
+        'cache_ttl_seconds' => (int) env('VESTIX_KLUIS_CACHE_TTL', 3600),
+        'bar_lookback_days' => (int) env('VESTIX_KLUIS_BAR_LOOKBACK_DAYS', 320),
+        'bar_limit' => (int) env('VESTIX_KLUIS_BAR_LIMIT', 250),
+        // Provider-specific symbols for EU ETFs (display ticker => provider ticker).
+        'polygon_tickers' => [
+            'VWCE' => env('VESTIX_KLUIS_POLYGON_VWCE', 'VWCE.XETR'),
+        ],
+        'finnhub_symbols' => [
+            'VWCE' => env('VESTIX_KLUIS_FINNHUB_VWCE', 'VWCE.DE'),
+        ],
+    ],
 ];

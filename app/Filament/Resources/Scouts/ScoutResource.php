@@ -30,6 +30,8 @@ class ScoutResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedViewfinderCircle;
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Tactisch';
+
     protected static ?int $navigationSort = 3;
 
     public static function form(Schema $schema): Schema

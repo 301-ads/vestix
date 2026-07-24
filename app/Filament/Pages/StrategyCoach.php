@@ -25,6 +25,8 @@ class StrategyCoach extends Page
 
     protected static ?string $slug = 'strategy-coach';
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Tactisch';
+
     protected static ?int $navigationSort = 4;
 
     #[Url]

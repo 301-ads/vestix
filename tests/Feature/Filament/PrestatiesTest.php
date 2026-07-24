@@ -5,6 +5,9 @@ namespace Tests\Feature\Filament;
 use App\Filament\Pages\Prestaties;
 use App\Filament\Widgets\AlphaTrackerChart;
 use App\Filament\Widgets\AlphaTrackerStatsWidget;
+use App\Filament\Widgets\DirectionPnlSplitWidget;
+use App\Filament\Widgets\KluisComingSoonWidget;
+use App\Filament\Widgets\KluisStatsWidget;
 use App\Filament\Widgets\PerformanceComingSoonWidget;
 use App\Models\BankrollSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,6 +26,8 @@ class PrestatiesTest extends TestCase
 
         Livewire::test(Prestaties::class)
             ->assertOk()
+            ->assertSee('Swing Sniper')
+            ->assertSee('Vestix Kluis')
             ->assertSee('Alpha Tracker')
             ->assertSee('Naar dashboard');
     }
@@ -41,13 +46,19 @@ class PrestatiesTest extends TestCase
 
     public function test_prestaties_widget_order(): void
     {
-        $widgets = (new Prestaties)->getWidgets();
+        $page = new Prestaties;
 
         $this->assertSame([
             AlphaTrackerStatsWidget::class,
+            DirectionPnlSplitWidget::class,
             AlphaTrackerChart::class,
             PerformanceComingSoonWidget::class,
-        ], $widgets);
+        ], $page->getSwingWidgets());
+
+        $this->assertSame([
+            KluisStatsWidget::class,
+            KluisComingSoonWidget::class,
+        ], $page->getKluisWidgets());
     }
 
     public function test_prestaties_shows_alpha_tracker_when_two_snapshots_exist(): void
@@ -77,7 +88,6 @@ class PrestatiesTest extends TestCase
         Livewire::test(Prestaties::class)
             ->assertSee('Alpha Tracker')
             ->assertSee('Jouw Rendement (YTD)')
-            ->assertSee('Jouw Alpha')
-            ->assertSee('Meer performance-data');
+            ->assertSee('Jouw Alpha');
     }
 }

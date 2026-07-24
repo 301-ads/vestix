@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -61,6 +62,16 @@ class User extends Authenticatable implements FilamentUser
     public function bankrollCashflows(): HasMany
     {
         return $this->hasMany(BankrollCashflow::class);
+    }
+
+    public function vaultSetting(): HasOne
+    {
+        return $this->hasOne(VaultSetting::class);
+    }
+
+    public function vaultDeposits(): HasMany
+    {
+        return $this->hasMany(VaultDeposit::class);
     }
 
     public function positionAlerts(): HasMany

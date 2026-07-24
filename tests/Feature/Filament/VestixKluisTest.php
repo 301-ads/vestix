@@ -1,0 +1,86 @@
+<?php
+
+namespace Tests\Feature\Filament;
+
+use App\Enums\KluisClimate;
+use App\Filament\Pages\VestixKluis;
+use App\Models\VaultDeposit;
+use App\Services\Kluis\KluisMarketDataService;
+use App\Services\Kluis\VaultService;
+use App\Support\Kluis\KluisThermometerReading;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
+use Mockery;
+use Tests\TestCase;
+
+class VestixKluisTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_kluis_page_renders(): void
+    {
+        $this->authenticateFilament();
+
+        Livewire::test(VestixKluis::class)
+            ->assertOk()
+            ->assertSee('Vestix Kluis')
+            ->assertSee('Beschikbaar maandbudget')
+            ->assertSee('Droog kruit');
+    }
+
+    public function test_confirm_month_writes_deposit(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $reading = new KluisThermometerReading(
+            climate: KluisClimate::Neutral,
+            deviationPct: 2.5,
+            close: 102.5,
+            sma200: 100,
+            ticker: 'VWCE',
+        );
+
+        $market = Mockery::mock(KluisMarketDataService::class);
+        $market->shouldReceive('fetchReading')->andReturn($reading);
+        $this->app->instance(KluisMarketDataService::class, $market);
+
+        Livewire::test(VestixKluis::class)
+            ->fillForm(['budget' => 10000])
+            ->call('confirmMonth')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('vault_deposits', [
+            'user_id' => $user->id,
+            'etf_amount' => 10000,
+            'dry_powder_delta' => 0,
+        ]);
+
+        $this->assertSame(1, VaultDeposit::query()->where('user_id', $user->id)->count());
+        $this->assertSame(0.0, (float) app(VaultService::class)->settingsFor($user)->dry_powder_balance);
+    }
+
+    public function test_save_settings_persists_config(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Livewire::test(VestixKluis::class)
+            ->fillForm([
+                'budget' => 8000,
+                'etf_ticker' => 'vwce',
+                'default_monthly_budget' => 8000,
+                'overheat_threshold_pct' => 12,
+                'crash_threshold_pct' => 12,
+                'overheat_invest_fraction' => 40,
+                'dip_dry_powder_fraction' => 30,
+                'crash_dry_powder_fraction' => 60,
+            ])
+            ->call('saveSettings')
+            ->assertHasNoErrors();
+
+        $settings = app(VaultService::class)->settingsFor($user);
+
+        $this->assertSame('VWCE', $settings->etf_ticker);
+        $this->assertSame(8000.0, (float) $settings->default_monthly_budget);
+        $this->assertSame(0.4, (float) $settings->overheat_invest_fraction);
+    }
+}

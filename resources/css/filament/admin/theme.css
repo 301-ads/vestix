@@ -5280,3 +5280,116 @@
     background: var(--gray-900, #111827);
     color: rgb(243 244 246);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Vestix Kluis                                                               */
+/* -------------------------------------------------------------------------- */
+
+.vestix-kluis-command__grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+    .vestix-kluis-command__grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+.vestix-kluis-panel {
+    border: 1px solid color-mix(in srgb, var(--gray-400) 35%, transparent);
+    border-radius: 0.875rem;
+    background: color-mix(in srgb, var(--vestix-panel, #fff) 92%, transparent);
+    padding: 1rem 1.125rem;
+}
+
+.dark .vestix-kluis-panel {
+    border-color: color-mix(in srgb, var(--gray-600) 55%, transparent);
+    background: color-mix(in srgb, var(--gray-900) 88%, transparent);
+}
+
+.vestix-kluis-panel__title {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+}
+
+.vestix-kluis-panel__value {
+    margin: 0.5rem 0 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.vestix-kluis-panel__hint,
+.vestix-kluis-panel__message,
+.vestix-kluis-panel__error {
+    margin: 0.5rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--gray-500);
+}
+
+.vestix-kluis-panel__error {
+    color: var(--danger-600, #e11d48);
+}
+
+.vestix-kluis-thermometer__badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.vestix-kluis-thermometer__badge--overheat {
+    background: color-mix(in srgb, var(--danger-500) 18%, transparent);
+    color: var(--danger-700, #be123c);
+}
+
+.vestix-kluis-thermometer__badge--neutral {
+    background: color-mix(in srgb, var(--success-500) 18%, transparent);
+    color: var(--success-700, #047857);
+}
+
+.vestix-kluis-thermometer__badge--dip {
+    background: color-mix(in srgb, var(--warning-500) 18%, transparent);
+    color: var(--warning-700, #b45309);
+}
+
+.vestix-kluis-thermometer__badge--crash {
+    background: color-mix(in srgb, var(--gray-500) 22%, transparent);
+    color: var(--gray-700);
+}
+
+.vestix-kluis-plan {
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.vestix-kluis-plan li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.875rem;
+}
+
+.vestix-kluis-plan span {
+    color: var(--gray-500);
+}
+
+.vestix-kluis-plan strong {
+    font-weight: 700;
+}
