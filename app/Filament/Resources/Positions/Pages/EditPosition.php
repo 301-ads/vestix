@@ -78,6 +78,7 @@ class EditPosition extends EditRecord
         /** @var Position $position */
         $position = $this->getRecord();
         $position->loadMissing('asset');
+        $this->headingIconUrl = $position->asset?->icon_url;
 
         if ($position->asset && ! $position->asset->hasIcon()) {
             app(AssetSyncService::class)->queueBrandingSyncIfNeeded($position->asset);
@@ -154,7 +155,7 @@ class EditPosition extends EditRecord
             'title' => $this->getRecordTitle(),
             'status' => $record->status,
             'pipelineStatus' => $record->status === 'scout' ? $record->scoutPipelineStatus() : null,
-            'iconUrl' => $record->asset?->icon_url,
+            'iconUrl' => $this->headingIconUrl ?? $record->asset?->icon_url,
             'iconLoading' => $this->isAssetBrandingLoading(),
             'direction' => $record->tradeDirection(),
         ])->render());

@@ -38,11 +38,25 @@
             </span>
         @elseif ($iconLoading)
             <span
-                class="ticker-with-icon__logo ticker-with-icon__logo--loading"
-                title="Logo wordt geladen…"
-                aria-label="Logo wordt geladen"
+                x-data="{ loading: true }"
+                x-init="setTimeout(() => loading = false, 20000)"
+                class="ticker-with-icon__mark-loading"
             >
-                <span class="ticker-with-icon__spinner" aria-hidden="true"></span>
+                <span
+                    class="ticker-with-icon__logo ticker-with-icon__logo--loading"
+                    title="Logo wordt geladen…"
+                    aria-label="Logo wordt geladen"
+                    x-show="loading"
+                >
+                    <span class="ticker-with-icon__spinner" aria-hidden="true"></span>
+                </span>
+                <span
+                    class="ticker-letter-avatar"
+                    style="background-color: hsl({{ $hue }}, 55%, 42%);"
+                    x-show="!loading"
+                    x-cloak
+                    aria-hidden="true"
+                >{{ $letter }}</span>
             </span>
         @else
             <span

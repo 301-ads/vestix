@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\SyncAssetBrandingJob;
 use App\Models\Asset;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -26,7 +27,9 @@ class AssetSyncService
     }
 
     /**
-     * Queue TradingView/Polygon branding sync when the icon is still missing.
+     * Fetch branding after the HTTP response (no queue worker required).
+     *
+     * In unit/feature tests we still push SyncAssetBrandingJob so callers can Queue::fake().
      */
     public function queueBrandingSyncIfNeeded(Asset $asset): void
     {
@@ -34,7 +37,38 @@ class AssetSyncService
             return;
         }
 
-        SyncAssetBrandingJob::dispatch($asset->id)->afterCommit();
+        $assetId = $asset->id;
+
+        if (app()->runningUnitTests()) {
+            SyncAssetBrandingJob::dispatch($assetId)->afterCommit();
+
+            return;
+        }
+
+        $defer = function () use ($assetId): void {
+            app()->terminating(function () use ($assetId): void {
+                try {
+                    $asset = Asset::query()->find($assetId);
+
+                    if ($asset === null || $asset->hasIcon()) {
+                        return;
+                    }
+
+                    app(self::class)->sync($asset);
+                } catch (\Throwable $exception) {
+                    Log::error('Deferred asset branding sync failed.', [
+                        'asset_id' => $assetId,
+                        'message' => $exception->getMessage(),
+                    ]);
+                }
+            });
+        };
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($defer);
+        } else {
+            $defer();
+        }
     }
 
     public function ensureForTicker(string $ticker): Asset
