@@ -193,16 +193,6 @@ class MarketDataFetcher
             return false;
         }
 
-        $payload = $this->fetchForTicker($position->ticker, withDelays: false);
-
-        if ($payload !== null) {
-            $position->update([
-                'recent_close_prices' => $payload['recent_close_prices'],
-            ]);
-
-            return true;
-        }
-
         $bars = $this->dailyBars->fetchRecentBars($position->ticker, lookbackDays: 30, limit: 20);
 
         if ($bars === null || count($bars['bars']) < 2) {

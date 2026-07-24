@@ -209,11 +209,14 @@ class Position extends Model
                 return;
             }
 
-            $asset = app(AssetSyncService::class)->ensureForTicker($position->ticker);
+            $assetSync = app(AssetSyncService::class);
+            $asset = $assetSync->linkForTicker($position->ticker);
 
             if ($position->asset_id !== $asset->id) {
                 $position->updateQuietly(['asset_id' => $asset->id]);
             }
+
+            $assetSync->queueBrandingSyncIfNeeded($asset);
         });
     }
 

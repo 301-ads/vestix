@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SyncAssetBrandingJob;
 use App\Models\Asset;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -14,11 +15,31 @@ class AssetSyncService
         private PolygonReferenceService $polygonReference,
     ) {}
 
+    /**
+     * Create or return the asset row without remote branding calls.
+     */
+    public function linkForTicker(string $ticker): Asset
+    {
+        return Asset::query()->firstOrCreate([
+            'ticker' => Asset::normalizeTicker($ticker),
+        ]);
+    }
+
+    /**
+     * Queue TradingView/Polygon branding sync when the icon is still missing.
+     */
+    public function queueBrandingSyncIfNeeded(Asset $asset): void
+    {
+        if ($asset->hasIcon()) {
+            return;
+        }
+
+        SyncAssetBrandingJob::dispatch($asset->id)->afterCommit();
+    }
+
     public function ensureForTicker(string $ticker): Asset
     {
-        $ticker = Asset::normalizeTicker($ticker);
-
-        $asset = Asset::query()->firstOrCreate(['ticker' => $ticker]);
+        $asset = $this->linkForTicker($ticker);
 
         if ($asset->hasIcon()) {
             return $asset;

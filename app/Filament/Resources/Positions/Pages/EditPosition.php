@@ -13,7 +13,6 @@ use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Models\Squad;
 use App\Services\AssetSyncService;
-use App\Services\MarketDataFetcher;
 use App\Services\SquadContext;
 use App\Support\EarningsExitDisplay;
 use App\Support\FilamentNotifier;
@@ -79,12 +78,7 @@ class EditPosition extends EditRecord
         $position->loadMissing('asset');
 
         if ($position->asset && ! $position->asset->hasIcon()) {
-            app(AssetSyncService::class)->ensureForTicker($position->ticker);
-            $position->load('asset');
-        }
-
-        if (app(MarketDataFetcher::class)->backfillRecentClosePrices($position)) {
-            $position->refresh();
+            app(AssetSyncService::class)->queueBrandingSyncIfNeeded($position->asset);
         }
 
         if (MarketDataFreshness::isPositionSyncInProgress($position->id)) {

@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SyncAssetBrandingJob;
 use App\Models\Asset;
 use App\Models\Position;
 use App\Services\AssetSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -116,7 +118,39 @@ class AssetSyncTest extends TestCase
         $this->assertNotNull($asset->fetched_at);
     }
 
-    public function test_position_create_links_asset_and_downloads_icon(): void
+    public function test_link_for_ticker_does_not_call_remote_apis(): void
+    {
+        Http::fake();
+
+        $asset = app(AssetSyncService::class)->linkForTicker('AMD');
+
+        $this->assertSame('AMD', $asset->ticker);
+        $this->assertNull($asset->icon_path);
+        Http::assertNothingSent();
+    }
+
+    public function test_position_create_links_asset_and_queues_branding_sync(): void
+    {
+        Queue::fake();
+        Http::fake();
+
+        $position = Position::factory()->create([
+            'ticker' => 'NVDA',
+        ]);
+
+        $position->refresh();
+
+        $this->assertNotNull($position->asset_id);
+        $this->assertSame('NVDA', $position->asset->ticker);
+        $this->assertNull($position->asset->icon_path);
+        Http::assertNothingSent();
+
+        Queue::assertPushed(SyncAssetBrandingJob::class, function (SyncAssetBrandingJob $job) use ($position): bool {
+            return $job->assetId === $position->asset_id;
+        });
+    }
+
+    public function test_sync_asset_branding_job_downloads_icon(): void
     {
         Http::fake([
             'symbol-search.tradingview.com/*' => Http::response([
@@ -134,15 +168,34 @@ class AssetSyncTest extends TestCase
             ]),
         ]);
 
-        $position = Position::factory()->create([
+        $asset = Asset::factory()->create([
             'ticker' => 'NVDA',
+            'icon_path' => null,
         ]);
 
-        $position->refresh();
+        (new SyncAssetBrandingJob($asset->id))->handle(app(AssetSyncService::class));
 
-        $this->assertNotNull($position->asset_id);
-        $this->assertSame('NVDA', $position->asset->ticker);
-        $this->assertNotNull($position->asset->icon_path);
+        $asset->refresh();
+
+        $this->assertNotNull($asset->icon_path);
+        $this->assertTrue(Storage::disk('public')->exists($asset->icon_path));
+    }
+
+    public function test_position_create_skips_branding_job_when_icon_exists(): void
+    {
+        Queue::fake();
+
+        $asset = Asset::factory()->create([
+            'ticker' => 'AAPL',
+            'icon_path' => 'ticker-logos/AAPL-icon.png',
+        ]);
+        Storage::disk('public')->put($asset->icon_path, 'existing');
+
+        Position::factory()->create([
+            'ticker' => 'AAPL',
+        ]);
+
+        Queue::assertNotPushed(SyncAssetBrandingJob::class);
     }
 
     public function test_sync_assets_command_backfills_positions(): void
