@@ -1,6 +1,7 @@
 @props([
     'ticker',
     'iconUrl' => null,
+    'iconLoading' => false,
     'statusDotColor' => null,
     'statusDotLabel' => null,
     'direction' => null,
@@ -34,6 +35,14 @@
         @if (filled($iconUrl))
             <span class="ticker-with-icon__logo">
                 <img src="{{ $iconUrl }}" alt="" class="ticker-with-icon__image" />
+            </span>
+        @elseif ($iconLoading)
+            <span
+                class="ticker-with-icon__logo ticker-with-icon__logo--loading"
+                title="Logo wordt geladen…"
+                aria-label="Logo wordt geladen"
+            >
+                <span class="ticker-with-icon__spinner" aria-hidden="true"></span>
             </span>
         @else
             <span

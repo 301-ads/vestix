@@ -12,6 +12,7 @@ use App\Filament\Pages\ManageSquadSettings;
 use App\Filament\Pages\RegisterSquad;
 use App\Filament\Pages\SquadLeaderboard;
 use App\Filament\Pages\StrategyCoach;
+use App\Filament\Resources\Positions\Pages\CreateScout;
 use App\Filament\Resources\Positions\Pages\EditPosition;
 use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Widgets\PortfolioExposureWidget;
@@ -200,6 +201,15 @@ class AdminPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.hooks.create-saving-overlay', [
+                    'message' => 'Scout wordt opgeslagen…',
+                ])->render(),
+                scopes: [
+                    CreateScout::class,
+                ],
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
                 function (): string {
                     $livewire = Livewire::current();
 
@@ -218,6 +228,13 @@ class AdminPanelProvider extends PanelProvider
                         return view('filament.hooks.market-data-poll', [
                             'poll' => true,
                             'method' => 'pollTickerMarketDataFetch',
+                        ])->render();
+                    }
+
+                    if (property_exists($livewire, 'pollAssetBranding') && $livewire->pollAssetBranding) {
+                        return view('filament.hooks.market-data-poll', [
+                            'poll' => true,
+                            'method' => 'pollAssetBrandingFetch',
                         ])->render();
                     }
 

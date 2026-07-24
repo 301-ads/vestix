@@ -27,6 +27,7 @@
     <x-filament.positions.ticker-with-icon
         :ticker="$title"
         :icon-url="$iconUrl"
+        :icon-loading="$iconLoading ?? false"
         :status-dot-color="$statusDotColor"
         :status-dot-label="$statusDotLabel"
         :direction="$direction ?? null"

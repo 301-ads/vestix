@@ -684,6 +684,7 @@ class PositionResourceTest extends TestCase
             ->assertSee('High (Signaalkaars)')
             ->assertSee('Low (Signaalkaars)')
             ->assertSee('Optioneel tot bounce-dag')
+            ->assertActionExists('save')
             ->assertActionDisabled('fetch_market_data');
     }
 

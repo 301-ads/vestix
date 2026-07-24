@@ -6,6 +6,7 @@ use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
 use App\Enums\TradeDirection;
 use App\Events\SquadRadarTargetPosted;
+use App\Filament\Concerns\PollsAssetBranding;
 use App\Filament\Concerns\PollsPositionMarketData;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Positions\Tables\PositionRecordActions;
@@ -31,6 +32,7 @@ use Illuminate\Validation\ValidationException;
 
 class EditPosition extends EditRecord
 {
+    use PollsAssetBranding;
     use PollsPositionMarketData;
 
     protected static string $resource = PositionResource::class;
@@ -79,6 +81,7 @@ class EditPosition extends EditRecord
 
         if ($position->asset && ! $position->asset->hasIcon()) {
             app(AssetSyncService::class)->queueBrandingSyncIfNeeded($position->asset);
+            $this->startPollingAssetBranding();
         }
 
         if (MarketDataFreshness::isPositionSyncInProgress($position->id)) {
@@ -152,6 +155,7 @@ class EditPosition extends EditRecord
             'status' => $record->status,
             'pipelineStatus' => $record->status === 'scout' ? $record->scoutPipelineStatus() : null,
             'iconUrl' => $record->asset?->icon_url,
+            'iconLoading' => $this->isAssetBrandingLoading(),
             'direction' => $record->tradeDirection(),
         ])->render());
     }

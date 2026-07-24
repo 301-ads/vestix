@@ -23,6 +23,8 @@ class CreateScout extends CreateRecord
 
     protected static ?string $breadcrumb = 'Scout toevoegen';
 
+    protected static bool $canCreateAnother = false;
+
     public function form(Schema $schema): Schema
     {
         return PositionForm::configure($schema, scoutMode: true);
@@ -31,6 +33,13 @@ class CreateScout extends CreateRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('save')
+                ->label('Opslaan')
+                ->icon('heroicon-o-check')
+                ->color('primary')
+                ->keyBindings(['mod+s'])
+                ->action('create')
+                ->extraAttributes(['class' => 'vestix-glow-btn']),
             Action::make('fetch_market_data')
                 ->label('Data ophalen')
                 ->tooltip('Sla de scout eerst op om marktdata op te halen')
@@ -40,6 +49,21 @@ class CreateScout extends CreateRecord
                 ->extraAttributes(['class' => 'vestix-sync-btn'])
                 ->disabled(),
         ];
+    }
+
+    protected function getCreateFormAction(): Action
+    {
+        return parent::getCreateFormAction()
+            ->label('Opslaan')
+            ->extraAttributes([
+                'wire:loading.attr' => 'disabled',
+                'wire:target' => 'create',
+            ]);
+    }
+
+    protected function getCreatedNotificationTitle(): ?string
+    {
+        return 'Scout opgeslagen';
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array

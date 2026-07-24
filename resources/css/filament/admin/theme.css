@@ -2906,6 +2906,27 @@
     border-radius: 50%;
 }
 
+.ticker-with-icon__logo--loading {
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--gray-400) 35%, transparent);
+}
+
+.ticker-with-icon__spinner {
+    width: 0.55em;
+    height: 0.55em;
+    border-radius: 9999px;
+    border: 1.5px solid color-mix(in srgb, var(--gray-500) 35%, transparent);
+    border-top-color: var(--gray-600);
+    animation: vestix-icon-spin 0.7s linear infinite;
+}
+
+@keyframes vestix-icon-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .ticker-with-icon__image {
     display: block;
     width: 100%;
@@ -5223,5 +5244,39 @@
 }
 
 .dark .vestix-coach-edge__heading {
+    color: rgb(243 244 246);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Create scout saving overlay                                                */
+/* -------------------------------------------------------------------------- */
+
+.vestix-saving-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    align-items: center;
+    justify-content: center;
+    background: rgb(15 23 42 / 0.45);
+    backdrop-filter: blur(2px);
+    pointer-events: all;
+}
+
+.vestix-saving-overlay__card {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1.25rem;
+    border-radius: 0.75rem;
+    background: var(--vestix-panel, #fff);
+    color: var(--gray-950, #0a0a0a);
+    box-shadow: 0 18px 40px rgb(0 0 0 / 0.22);
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.dark .vestix-saving-overlay__card {
+    background: var(--gray-900, #111827);
     color: rgb(243 244 246);
 }
