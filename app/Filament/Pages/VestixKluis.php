@@ -219,7 +219,7 @@ class VestixKluis extends Page implements HasTable
         $reading = $vault->reading($vault->settingsFor($user), force: true);
 
         if ($reading === null) {
-            $this->thermometerError = 'Kon SMA-200 / koers niet ophalen voor de kern-ETF. Controleer API-keys en ticker-mapping.';
+            $this->thermometerError = 'Kon SMA-200 / koers niet ophalen. Voor VWCE gebruiken we VT als US-proxy — controleer de Polygon API-key.';
             FilamentNotifier::send(
                 title: 'Thermometer niet beschikbaar',
                 body: $this->thermometerError,

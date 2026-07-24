@@ -275,9 +275,13 @@ return [
         'cache_ttl_seconds' => (int) env('VESTIX_KLUIS_CACHE_TTL', 3600),
         'bar_lookback_days' => (int) env('VESTIX_KLUIS_BAR_LOOKBACK_DAYS', 320),
         'bar_limit' => (int) env('VESTIX_KLUIS_BAR_LIMIT', 250),
-        // Provider-specific symbols for EU ETFs (display ticker => provider ticker).
+        // US-listed proxies for EU ETFs (Polygon free tier has no VWCE).
+        // Display ticker stays VWCE; thermometer climate uses this market-data symbol.
+        'thermometer_proxies' => [
+            'VWCE' => env('VESTIX_KLUIS_THERMOMETER_VWCE', 'VT'),
+        ],
         'polygon_tickers' => [
-            'VWCE' => env('VESTIX_KLUIS_POLYGON_VWCE', 'VWCE.XETR'),
+            'VWCE' => env('VESTIX_KLUIS_POLYGON_VWCE', 'VT'),
         ],
         'finnhub_symbols' => [
             'VWCE' => env('VESTIX_KLUIS_FINNHUB_VWCE', 'VWCE.DE'),

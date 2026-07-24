@@ -33,9 +33,18 @@
                         {{ sprintf('%+.1f%%', $reading->deviationPct) }}
                     </p>
                     <p class="vestix-kluis-panel__hint">
-                        {{ $reading->ticker }} · koers €{{ number_format($reading->close, 2, ',', '.') }}
+                        {{ $reading->ticker }} · koers
+                        @if ($reading->resolvedSymbol && strtoupper($reading->resolvedSymbol) !== strtoupper($reading->ticker))
+                            via {{ $reading->resolvedSymbol }}
+                        @endif
+                        €{{ number_format($reading->close, 2, ',', '.') }}
                         · SMA-200 €{{ number_format($reading->sma200, 2, ',', '.') }}
                     </p>
+                    @if ($reading->resolvedSymbol && strtoupper($reading->resolvedSymbol) !== strtoupper($reading->ticker))
+                        <p class="vestix-kluis-panel__hint">
+                            Thermometer gebruikt {{ $reading->resolvedSymbol }} als marktdata-proxy ({{ $reading->ticker }} is niet beschikbaar op onze koersbronnen).
+                        </p>
+                    @endif
                     <p class="vestix-kluis-panel__message">{{ $reading->message() }}</p>
                 </div>
             @else

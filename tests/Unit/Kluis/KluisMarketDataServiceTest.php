@@ -108,6 +108,6 @@ class KluisMarketDataServiceTest extends TestCase
     {
         $symbols = app(KluisMarketDataService::class)->candidateSymbols('VWCE');
 
-        $this->assertSame(['VWCE.XETR', 'VWCE.DE', 'VWCE'], $symbols);
+        $this->assertSame(['VT', 'VWCE', 'VWCE.DE'], $symbols);
     }
 }

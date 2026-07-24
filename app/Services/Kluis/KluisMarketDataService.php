@@ -106,13 +106,17 @@ class KluisMarketDataService
     public function candidateSymbols(string $displayTicker): array
     {
         $displayTicker = strtoupper(trim($displayTicker));
+        $proxy = config("vestix.kluis.thermometer_proxies.{$displayTicker}");
         $polygon = config("vestix.kluis.polygon_tickers.{$displayTicker}");
         $finnhub = config("vestix.kluis.finnhub_symbols.{$displayTicker}");
 
+        // Prefer working US proxies first — EU symbols often unavailable on free API tiers
+        // and cause long timeouts before fallbacks.
         return array_values(array_unique(array_filter([
-            is_string($polygon) && $polygon !== '' ? $polygon : null,
-            is_string($finnhub) && $finnhub !== '' ? $finnhub : null,
+            is_string($proxy) && $proxy !== '' ? strtoupper($proxy) : null,
+            is_string($polygon) && $polygon !== '' ? strtoupper($polygon) : null,
             $displayTicker,
+            is_string($finnhub) && $finnhub !== '' ? strtoupper($finnhub) : null,
         ])));
     }
 }
