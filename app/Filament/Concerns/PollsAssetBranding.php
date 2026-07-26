@@ -3,6 +3,7 @@
 namespace App\Filament\Concerns;
 
 use App\Models\Position;
+use App\Services\AssetSyncService;
 
 trait PollsAssetBranding
 {
@@ -39,6 +40,16 @@ trait PollsAssetBranding
         $this->assetBrandingPollAttempts++;
         $record->unsetRelation('asset');
         $record->load('asset');
+
+        // Re-queue once mid-poll in case the create-time deferred sync never ran.
+        if (
+            $this->assetBrandingPollAttempts === 2
+            && $record->asset
+            && ! $record->asset->hasIcon()
+        ) {
+            app(AssetSyncService::class)->queueBrandingSyncIfNeeded($record->asset);
+        }
+
         $this->syncHeadingIconState();
 
         if ($record->asset?->hasIcon() || $this->assetBrandingPollAttempts >= 10) {

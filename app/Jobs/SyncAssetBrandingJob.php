@@ -16,7 +16,10 @@ class SyncAssetBrandingJob implements ShouldBeUnique, ShouldQueue
 
     public int $uniqueFor = 120;
 
-    public function __construct(public int $assetId) {}
+    public function __construct(
+        public int $assetId,
+        public bool $force = false,
+    ) {}
 
     public function uniqueId(): string
     {
@@ -27,10 +30,14 @@ class SyncAssetBrandingJob implements ShouldBeUnique, ShouldQueue
     {
         $asset = Asset::query()->find($this->assetId);
 
-        if ($asset === null || $asset->hasIcon()) {
+        if ($asset === null) {
             return;
         }
 
-        $assetSync->sync($asset);
+        if (! $this->force && $asset->hasIcon()) {
+            return;
+        }
+
+        $assetSync->sync($asset, force: $this->force);
     }
 }

@@ -112,27 +112,36 @@ class TradingViewSymbolService
             return null;
         }
 
-        $best = null;
-        $bestScore = PHP_INT_MIN;
-        $bestUsExchange = false;
+        $exactMatches = [];
 
         foreach ($results as $result) {
             if ($this->normalizeSymbol($result['symbol'] ?? '') !== $ticker) {
                 continue;
             }
 
-            $exchange = (string) ($result['exchange'] ?? '');
-            $isUsExchange = in_array($exchange, self::US_EXCHANGES, true);
+            $exactMatches[] = $result;
+        }
+
+        if ($exactMatches === []) {
+            return null;
+        }
+
+        $usMatches = array_values(array_filter(
+            $exactMatches,
+            fn (array $result): bool => in_array((string) ($result['exchange'] ?? ''), self::US_EXCHANGES, true),
+        ));
+
+        $candidates = $usMatches !== [] ? $usMatches : $exactMatches;
+
+        $best = null;
+        $bestScore = PHP_INT_MIN;
+
+        foreach ($candidates as $result) {
             $score = $this->scoreSearchResult($result, $ticker);
 
-            if (
-                $best === null
-                || $score > $bestScore
-                || ($score === $bestScore && $isUsExchange && ! $bestUsExchange)
-            ) {
+            if ($best === null || $score > $bestScore) {
                 $best = $result;
                 $bestScore = $score;
-                $bestUsExchange = $isUsExchange;
             }
         }
 
@@ -158,7 +167,13 @@ class TradingViewSymbolService
             $score += 40;
         }
 
-        if ($normalizedQuery !== '' && str_contains($description, strtolower($normalizedQuery))) {
+        // Description boost only for partial symbol matches — substring hits like
+        // "nem" inside "Nemetschek" must not beat a US exact ticker match.
+        if (
+            $symbol !== $normalizedQuery
+            && $normalizedQuery !== ''
+            && str_contains($description, strtolower($normalizedQuery))
+        ) {
             $score += 20;
         }
 

@@ -104,4 +104,36 @@ class TradingViewSymbolServiceTest extends TestCase
         $this->assertSame('asml', $result['logoid']);
         $this->assertSame('NASDAQ', $result['exchange']);
     }
+
+    public function test_resolve_symbol_prefers_us_listing_over_foreign_name_substring(): void
+    {
+        Http::fake([
+            'symbol-search.tradingview.com/*' => Http::response([
+                [
+                    'symbol' => 'NEM',
+                    'description' => 'Nemetschek SE',
+                    'exchange' => 'XETR',
+                    'logoid' => 'nemetschek-se-on',
+                    'is_primary_listing' => true,
+                    'country' => 'DE',
+                ],
+                [
+                    'symbol' => 'NEM',
+                    'description' => 'Newmont Corporation',
+                    'exchange' => 'NYSE',
+                    'logoid' => 'newmont',
+                    'is_primary_listing' => true,
+                    'country' => 'US',
+                ],
+            ]),
+        ]);
+
+        $service = new TradingViewSymbolService;
+
+        $result = $service->resolveSymbol('NEM');
+
+        $this->assertSame('Newmont Corporation', $result['name']);
+        $this->assertSame('newmont', $result['logoid']);
+        $this->assertSame('NYSE', $result['exchange']);
+    }
 }

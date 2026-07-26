@@ -27,34 +27,35 @@ class AssetSyncService
     }
 
     /**
-     * Fetch branding after the HTTP response (no queue worker required).
+     * Queue branding sync (and run after the HTTP response as a fallback).
      *
-     * In unit/feature tests we still push SyncAssetBrandingJob so callers can Queue::fake().
+     * @param  bool  $force  Re-fetch even when an icon already exists.
      */
-    public function queueBrandingSyncIfNeeded(Asset $asset): void
+    public function queueBrandingSyncIfNeeded(Asset $asset, bool $force = false): void
     {
-        if ($asset->hasIcon()) {
+        if (! $force && $asset->hasIcon()) {
             return;
         }
 
         $assetId = $asset->id;
 
-        if (app()->runningUnitTests()) {
-            SyncAssetBrandingJob::dispatch($assetId)->afterCommit();
+        SyncAssetBrandingJob::dispatch($assetId, $force)->afterCommit();
 
+        if (app()->runningUnitTests()) {
             return;
         }
 
-        $defer = function () use ($assetId): void {
-            app()->terminating(function () use ($assetId): void {
+        // Fallback when no queue worker is running: sync after the response is sent.
+        $defer = function () use ($assetId, $force): void {
+            app()->terminating(function () use ($assetId, $force): void {
                 try {
                     $asset = Asset::query()->find($assetId);
 
-                    if ($asset === null || $asset->hasIcon()) {
+                    if ($asset === null || (! $force && $asset->hasIcon())) {
                         return;
                     }
 
-                    app(self::class)->sync($asset);
+                    app(self::class)->sync($asset, force: $force);
                 } catch (\Throwable $exception) {
                     Log::error('Deferred asset branding sync failed.', [
                         'asset_id' => $assetId,
