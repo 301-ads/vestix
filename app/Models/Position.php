@@ -258,9 +258,13 @@ class Position extends Model
     public function scopeOrderBySetupGrade(Builder $query, string $direction = 'asc'): Builder
     {
         $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+        // Within the same letter grade, higher scores should appear first when
+        // sorting best→worst (asc on rank), and lowest scores first when reversed.
+        $scoreDirection = $direction === 'asc' ? 'desc' : 'asc';
 
         return $query
             ->orderByRaw(ScoutSetupScorecard::setupGradeSortRankSql().' '.$direction)
+            ->orderByRaw('COALESCE(last_setup_score, -1) '.$scoreDirection)
             ->orderBy('ticker');
     }
 

@@ -1063,6 +1063,15 @@ class ScoutWatchlistTest extends TestCase
             'last_setup_score' => 7,
         ]);
 
+        $bSetupStrong = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BSTR',
+            'signal_low' => 100.50,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'last_setup_score' => 8,
+        ]);
+
         $weakSetup = Position::factory()->for($user)->scout()->create([
             'ticker' => 'WEAK',
             'signal_low' => 100.50,
@@ -1072,13 +1081,22 @@ class ScoutWatchlistTest extends TestCase
             'last_setup_score' => 2,
         ]);
 
-        $hardFail = Position::factory()->for($user)->scout()->create([
+        $hardFailHighScore = Position::factory()->for($user)->scout()->create([
             'ticker' => 'FAIL',
             'signal_low' => 99.90,
             'latest_close_price' => 99.90,
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
-            'last_setup_score' => 5,
+            'last_setup_score' => 7,
+        ]);
+
+        $hardFailLowScore = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'LOWN',
+            'signal_low' => 99.90,
+            'latest_close_price' => 99.90,
+            'latest_sma_20' => 100.00,
+            'scout_rsi' => 50,
+            'last_setup_score' => 1,
         ]);
 
         $aMinus = Position::factory()->for($user)->scout()->create([
@@ -1107,11 +1125,12 @@ class ScoutWatchlistTest extends TestCase
             ->pluck('ticker')
             ->all();
 
-        $this->assertSame(['APLS', 'AMNS', 'BSET', 'CSET', 'FAIL', 'WEAK'], $ordered);
+        // Grade first (A++ → A → B → C → N), then score within grade (high → low).
+        $this->assertSame(['APLS', 'AMNS', 'BSTR', 'BSET', 'CSET', 'FAIL', 'WEAK', 'LOWN'], $ordered);
 
         Livewire::test(ListScouts::class)
             ->assertOk()
-            ->assertSeeInOrder(['APLS', 'AMNS', 'BSET', 'CSET', 'FAIL', 'WEAK']);
+            ->assertSeeInOrder(['APLS', 'AMNS', 'BSTR', 'BSET', 'CSET', 'FAIL', 'WEAK', 'LOWN']);
     }
 
     public function test_scouts_list_polls_every_ten_seconds(): void
