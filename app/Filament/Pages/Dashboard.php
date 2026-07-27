@@ -13,6 +13,7 @@ use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
 use Filament\Actions\Action;
 use Filament\Pages\Dashboard as BaseDashboard;
+use Illuminate\Support\HtmlString;
 
 class Dashboard extends BaseDashboard
 {
@@ -57,7 +58,10 @@ class Dashboard extends BaseDashboard
     {
         return [
             Action::make('sync_api')
-                ->label('Forceer API Sync')
+                ->label(new HtmlString(
+                    '<span class="vestix-sync-btn__label vestix-sync-btn__label--full">Forceer API Sync</span>'
+                    .'<span class="vestix-sync-btn__label vestix-sync-btn__label--short">Sync</span>'
+                ))
                 ->icon('heroicon-o-arrow-path')
                 ->color('primary')
                 ->outlined()

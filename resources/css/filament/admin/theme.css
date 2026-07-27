@@ -808,7 +808,8 @@
 }
 
 /* Edit page: freshness above actions (desktop) / beside ticker (mobile) */
-.vestix-position-edit .fi-header {
+.vestix-position-edit .fi-header,
+.vestix-dashboard .fi-header {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 0.75rem;
@@ -816,7 +817,8 @@
     align-items: center;
 }
 
-.vestix-position-edit .fi-header > div:first-child {
+.vestix-position-edit .fi-header > div:first-child,
+.vestix-dashboard .fi-header > div:first-child {
     display: contents;
 }
 
@@ -826,10 +828,15 @@
     margin-bottom: 0;
 }
 
-.vestix-position-edit .fi-header .fi-header-heading {
+.vestix-position-edit .fi-header .fi-header-heading,
+.vestix-dashboard .fi-header .fi-header-heading {
     grid-column: 1;
     grid-row: 2;
     min-width: 0;
+}
+
+.vestix-dashboard .fi-header .fi-header-heading {
+    grid-row: 1;
 }
 
 .vestix-position-edit .fi-header .fi-header-subheading {
@@ -837,14 +844,16 @@
     grid-row: 3;
 }
 
-.vestix-position-edit .fi-header .vestix-market-data-status {
+.vestix-position-edit .fi-header .vestix-market-data-status,
+.vestix-dashboard .fi-header .vestix-market-data-status {
     grid-column: 2;
     grid-row: 1;
     justify-self: end;
     text-align: end;
 }
 
-.vestix-position-edit .fi-header .fi-header-actions-ctn {
+.vestix-position-edit .fi-header .fi-header-actions-ctn,
+.vestix-dashboard .fi-header .fi-header-actions-ctn {
     grid-column: 2;
     grid-row: 2;
     justify-self: end;
@@ -855,18 +864,25 @@
     margin-top: 0;
 }
 
+.vestix-sync-btn__label--short {
+    display: none;
+}
+
 @media (max-width: 639px) {
-    .vestix-position-edit .fi-header .fi-header-heading {
+    .vestix-position-edit .fi-header .fi-header-heading,
+    .vestix-dashboard .fi-header .fi-header-heading {
         grid-column: 1;
         grid-row: 1;
     }
 
-    .vestix-position-edit .fi-header .vestix-market-data-status {
+    .vestix-position-edit .fi-header .vestix-market-data-status,
+    .vestix-dashboard .fi-header .vestix-market-data-status {
         grid-column: 2;
         grid-row: 1;
     }
 
-    .vestix-position-edit .fi-header .fi-header-actions-ctn {
+    .vestix-position-edit .fi-header .fi-header-actions-ctn,
+    .vestix-dashboard .fi-header .fi-header-actions-ctn {
         grid-column: 1 / -1;
         grid-row: 2;
         justify-self: start;
@@ -875,10 +891,20 @@
     }
 
     .vestix-position-edit .fi-header-actions-ctn,
-    .vestix-position-edit .fi-header .fi-ac {
+    .vestix-position-edit .fi-header .fi-ac,
+    .vestix-dashboard .fi-header-actions-ctn,
+    .vestix-dashboard .fi-header .fi-ac {
         flex-wrap: wrap;
         gap: 0.35rem;
         justify-content: flex-start;
+    }
+
+    .vestix-dashboard .vestix-sync-btn__label--full {
+        display: none;
+    }
+
+    .vestix-dashboard .vestix-sync-btn__label--short {
+        display: inline;
     }
 }
 
