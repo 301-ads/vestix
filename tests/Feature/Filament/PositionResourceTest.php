@@ -804,6 +804,32 @@ class PositionResourceTest extends TestCase
             ->assertSet('tableFilters', []);
     }
 
+    public function test_edit_page_shows_log_scale_out_for_auto_runner_bypass_when_target_1_hit(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'ALL',
+            'entry_price' => 51.50,
+            'initial_sl' => 48.00,
+            'current_sl' => 58.14,
+            'latest_close_price' => 59.86,
+            'latest_sma_20' => 57.00,
+            'latest_atr_14' => 1.50,
+            'quantity' => 22,
+            'status' => 'open',
+        ]);
+
+        $this->assertTrue($position->isAutoRunnerBypass());
+        $this->assertTrue($position->isTarget1Hit());
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertOk()
+            ->assertSee('Log Scale-out')
+            ->assertSee('Target 1 overgeslagen of nog niet gelogd')
+            ->assertSee('Log Scale-out alsnog');
+    }
+
     public function test_positions_list_polls_every_ten_seconds(): void
     {
         $this->authenticateFilament();

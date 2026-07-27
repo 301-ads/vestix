@@ -123,8 +123,8 @@ class ScaleOutDisplay
 
     private static function stepOneBypass(): string
     {
-        $body = '<p class="font-semibold text-gray-600 dark:text-gray-300">Target 1 overgeslagen (Breakeven bereikt)</p>'
-            .'<p class="text-gray-500 dark:text-gray-400">Stop-Loss ligt boven de instapprijs. Deze positie is omgezet naar een 100% Runner.</p>';
+        $body = '<p class="font-semibold text-gray-600 dark:text-gray-300">Target 1 overgeslagen of nog niet gelogd (Breakeven bereikt)</p>'
+            .'<p class="text-gray-500 dark:text-gray-400">Stop-Loss ligt op of boven de instapprijs — de positie loopt als runner. Heb je gedeeltelijk verkocht? Log Scale-out alsnog.</p>';
 
         return self::stepRow(
             self::checkMarker('muted'),

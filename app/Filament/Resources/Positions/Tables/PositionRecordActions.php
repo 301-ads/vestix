@@ -822,15 +822,18 @@ class PositionRecordActions
     {
         return Action::make('scale_out')
             ->label('Scale-out uitgevoerd')
-            ->tooltip('Log gedeeltelijke verkoop op Target 1 — stop gaat naar breakeven')
+            ->tooltip(fn (Position $record): string => $record->isAutoRunnerBypass()
+                ? 'Log gedeeltelijke verkoop op Target 1 — stop blijft staan (al op/boven entry)'
+                : 'Log gedeeltelijke verkoop op Target 1 — stop gaat naar breakeven')
             ->icon('heroicon-o-banknotes')
             ->color('success')
             ->visible(fn (Position $record): bool => $record->status === 'open'
                 && ! $record->hasScaledOut()
-                && ! $record->isAutoRunnerBypass()
                 && ($record->isTarget1Hit() || $record->hasTarget1LimitPlaced()))
             ->modalHeading('Target 1 — gedeeltelijke verkoop')
-            ->modalDescription('Log de werkelijke fill bij je broker. Je stop-loss wordt automatisch naar breakeven (entry) verplaatst.')
+            ->modalDescription(fn (Position $record): string => $record->isAutoRunnerBypass()
+                ? 'Log de werkelijke fill bij je broker. Je stop-loss blijft staan (ligt al op of boven entry).'
+                : 'Log de werkelijke fill bij je broker. Je stop-loss wordt automatisch naar breakeven (entry) verplaatst.')
             ->schema([
                 TextInput::make('fill_price')
                     ->label('Werkelijke verkoopprijs')
@@ -849,7 +852,9 @@ class PositionRecordActions
                     ->default(fn (Position $record): ?float => $record->target_1_quantity),
                 Placeholder::make('breakeven_note')
                     ->label('Na verkoop')
-                    ->content('Stop-loss → entry (breakeven). Runner blijft trailen onder SMA 20.'),
+                    ->content(fn (Position $record): string => $record->isAutoRunnerBypass()
+                        ? 'Stop-loss blijft op de huidige prijs (al op/boven entry). Runner blijft trailen onder SMA 20.'
+                        : 'Stop-loss → entry (breakeven). Runner blijft trailen onder SMA 20.'),
             ])
             ->action(function (Position $record, array $data): void {
                 $record->scaleOut(
