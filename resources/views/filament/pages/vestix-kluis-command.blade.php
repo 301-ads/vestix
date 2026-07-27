@@ -54,6 +54,12 @@
                         <span>Naar {{ $reading?->ticker ?? 'ETF' }}</span>
                         <strong>€{{ number_format($plan->etfAmount, 2, ',', '.') }}</strong>
                     </li>
+                    @if ($plan->suggestedShares !== null)
+                        <li>
+                            <span>Indicatie stukken</span>
+                            <strong>{{ number_format($plan->suggestedShares, 4, ',', '.') }}</strong>
+                        </li>
+                    @endif
                     @if ($plan->dryPowderDelta > 0)
                         <li>
                             <span>Naar droog kruit</span>

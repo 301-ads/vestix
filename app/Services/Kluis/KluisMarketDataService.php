@@ -22,20 +22,21 @@ class KluisMarketDataService
         $cacheKey = "vestix:kluis:thermometer:{$ticker}";
         $ttl = max(60, (int) config('vestix.kluis.cache_ttl_seconds', 3600));
 
-        $cached = Cache::get($cacheKey);
-
-        if (is_array($cached) && isset($cached['close'], $cached['sma_200'])) {
-            return $this->thermometer->readingFromPrices(
-                (float) $cached['close'],
-                (float) $cached['sma_200'],
-                $ticker,
-                $settings,
-                $cached['resolved_symbol'] ?? null,
-            );
-        }
-
         // Avoid blocking page loads; only hit providers when explicitly refreshed.
+        // When forced, skip cache so "Thermometer verversen" always refetches.
         if (! $force) {
+            $cached = Cache::get($cacheKey);
+
+            if (is_array($cached) && isset($cached['close'], $cached['sma_200'])) {
+                return $this->thermometer->readingFromPrices(
+                    (float) $cached['close'],
+                    (float) $cached['sma_200'],
+                    $ticker,
+                    $settings,
+                    $cached['resolved_symbol'] ?? null,
+                );
+            }
+
             return null;
         }
 

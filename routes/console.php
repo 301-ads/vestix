@@ -85,6 +85,10 @@ Schedule::command('vestix:bankroll-update-reminders')
     ->dailyAt('10:00')
     ->timezone('Europe/Amsterdam');
 
+Schedule::command('vestix:kluis-month-reminders')
+    ->monthlyOn(10, '09:00')
+    ->timezone('Europe/Amsterdam');
+
 // IBKR Flex EOD sync: ochtend — na IBKR Daily Statement mail (~05:20), vóór trading.
 // Avond-sync (22:45) te vroeg: Flex toDate blijft vaak gisteren → stale cash vs live NLV.
 Schedule::command('vestix:sync-ibkr')

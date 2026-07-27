@@ -13,6 +13,8 @@ readonly class KluisOrderPlan
         public float $dryPowderDelta,
         public float $dryPowderAfter,
         public string $message,
+        public ?float $suggestedShares = null,
+        public ?float $referencePrice = null,
     ) {}
 
     public function cashReserveAmount(): float

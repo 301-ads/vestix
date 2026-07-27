@@ -5,12 +5,15 @@ namespace App\Filament\Pages;
 use App\Models\User;
 use App\Models\VaultDeposit;
 use App\Models\VaultSetting;
+use App\Models\VaultTransaction;
 use App\Services\Kluis\VaultService;
 use App\Support\FilamentNotifier;
 use App\Support\Kluis\KluisOrderPlan;
 use App\Support\Kluis\KluisThermometerReading;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -26,6 +29,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
@@ -52,6 +56,22 @@ class VestixKluis extends Page implements HasTable
     public ?array $data = [];
 
     public ?string $thermometerError = null;
+
+    public static function getNavigationBadge(): ?string
+    {
+        $user = auth()->user();
+
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        return app(VaultService::class)->monthAlreadyConfirmed($user) ? null : 'Open';
+    }
+
+    public static function getNavigationBadgeColor(): string|array|null
+    {
+        return 'warning';
+    }
 
     public function mount(VaultService $vault): void
     {
@@ -155,8 +175,38 @@ class VestixKluis extends Page implements HasTable
                     ->id('vestix-kluis-form'),
                 SchemaView::make('filament.pages.vestix-kluis-command')
                     ->viewData(fn (): array => $this->commandViewData()),
+                Section::make('Aankopen')
+                    ->description('Exacte VWCE-fills — historisch én gekoppeld aan maandbevelen. Cost basis = bedrag + fee.')
+                    ->headerActions([
+                        Action::make('addHistoricalPurchase')
+                            ->label('Historische aankoop')
+                            ->icon('heroicon-o-plus')
+                            ->color('primary')
+                            ->outlined()
+                            ->schema($this->historicalPurchaseFormSchema())
+                            ->action(function (array $data, VaultService $vault): void {
+                                /** @var User $user */
+                                $user = auth()->user();
+                                $vault->addHistoricalPurchase($user, $data);
+                                unset($this->transactions);
+                                FilamentNotifier::send(
+                                    title: 'Historische aankoop toegevoegd',
+                                    body: sprintf(
+                                        '%s stukken · €%s',
+                                        number_format((float) $data['shares'], 4, ',', '.'),
+                                        number_format((float) $data['etf_amount'], 2, ',', '.'),
+                                    ),
+                                );
+                            }),
+                    ])
+                    ->schema([
+                        SchemaView::make('filament.pages.vestix-kluis-transactions')
+                            ->viewData(fn (): array => [
+                                'transactions' => $this->transactions(),
+                            ]),
+                    ]),
                 Section::make('Logboek')
-                    ->description('Bevestigde maandacties')
+                    ->description('Bevestigde maandacties (Smart DCA-bevelen)')
                     ->schema([
                         EmbeddedTable::make(),
                     ]),
@@ -165,6 +215,9 @@ class VestixKluis extends Page implements HasTable
 
     protected function getHeaderActions(): array
     {
+        $plan = $this->orderPlan();
+        $reading = $this->reading();
+
         return [
             Action::make('refreshThermometer')
                 ->label('Thermometer verversen')
@@ -178,12 +231,168 @@ class VestixKluis extends Page implements HasTable
                 ->icon('heroicon-o-check')
                 ->color('primary')
                 ->extraAttributes(['class' => 'vestix-glow-btn'])
-                ->requiresConfirmation()
                 ->modalHeading('Maandbevel bevestigen?')
-                ->modalDescription('Dit schrijft het bevel naar het logboek en werkt het droog kruit bij. Voer de broker-order zelf uit.')
-                ->action('confirmMonth')
+                ->modalDescription('Bevestigt het bevel, werkt droog kruit bij en schrijft de broker-fill naar het aankoopboek. Voer de order zelf uit bij de broker.')
+                ->schema([
+                    TextInput::make('shares')
+                        ->label('Aantal stukken (broker)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.0001)
+                        ->default(fn (): ?float => $plan?->suggestedShares)
+                        ->helperText('Laat leeg om te schatten via bedrag ÷ koers.'),
+                    TextInput::make('fill_price')
+                        ->label('Uitgevoerde koers')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.01)
+                        ->suffix('€')
+                        ->default(fn (): ?float => $reading?->close),
+                    TextInput::make('etf_amount')
+                        ->label('Bedrag (zonder fee)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.01)
+                        ->suffix('€')
+                        ->default(fn (): ?float => $plan?->etfAmount),
+                    TextInput::make('fee')
+                        ->label('Transactiekosten')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.01)
+                        ->suffix('€')
+                        ->default(0),
+                ])
+                ->action(function (array $data, VaultService $vault): void {
+                    $this->confirmMonthWithFill($vault, $data);
+                })
                 ->disabled(fn (): bool => $this->reading() === null || $this->monthAlreadyConfirmed()),
+            Action::make('editHistoricalPurchase')
+                ->label('Bewerken')
+                ->modalHeading('Historische aankoop bewerken')
+                ->schema($this->historicalPurchaseFormSchema())
+                ->fillForm(function (array $arguments): array {
+                    $transaction = VaultTransaction::query()->findOrFail($arguments['transaction']);
+
+                    return [
+                        'traded_at' => $transaction->traded_at,
+                        'shares' => (float) $transaction->shares,
+                        'fill_price' => (float) $transaction->fill_price,
+                        'etf_amount' => (float) $transaction->etf_amount,
+                        'fee' => (float) $transaction->fee,
+                        'notes' => $transaction->notes,
+                    ];
+                })
+                ->action(function (array $data, array $arguments, VaultService $vault): void {
+                    /** @var User $user */
+                    $user = auth()->user();
+                    $transaction = VaultTransaction::query()->findOrFail($arguments['transaction']);
+                    $vault->updateHistoricalPurchase($user, $transaction, $data);
+                    unset($this->transactions);
+                    FilamentNotifier::send(title: 'Aankoop bijgewerkt');
+                })
+                ->extraAttributes(['class' => 'hidden']),
+            Action::make('deleteHistoricalPurchase')
+                ->label('Verwijderen')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading('Historische aankoop verwijderen?')
+                ->action(function (array $arguments, VaultService $vault): void {
+                    /** @var User $user */
+                    $user = auth()->user();
+                    $transaction = VaultTransaction::query()->findOrFail($arguments['transaction']);
+                    $vault->deleteHistoricalPurchase($user, $transaction);
+                    unset($this->transactions);
+                    FilamentNotifier::send(title: 'Aankoop verwijderd', status: 'warning');
+                })
+                ->extraAttributes(['class' => 'hidden']),
         ];
+    }
+
+    /**
+     * @return array<int, TextInput|DateTimePicker|Textarea>
+     */
+    protected function historicalPurchaseFormSchema(): array
+    {
+        return [
+            DateTimePicker::make('traded_at')
+                ->label('Datum & tijd')
+                ->seconds(true)
+                ->required(),
+            TextInput::make('shares')
+                ->label('Aantal stukken')
+                ->numeric()
+                ->minValue(0.000001)
+                ->step(0.0001)
+                ->required(),
+            TextInput::make('fill_price')
+                ->label('Koers')
+                ->numeric()
+                ->minValue(0)
+                ->step(0.01)
+                ->suffix('€')
+                ->required(),
+            TextInput::make('etf_amount')
+                ->label('Bedrag (zonder fee)')
+                ->numeric()
+                ->minValue(0)
+                ->step(0.01)
+                ->suffix('€')
+                ->required(),
+            TextInput::make('fee')
+                ->label('Transactiekosten')
+                ->numeric()
+                ->minValue(0)
+                ->step(0.01)
+                ->suffix('€')
+                ->default(0),
+            Textarea::make('notes')
+                ->label('Notitie')
+                ->rows(2),
+        ];
+    }
+
+    /**
+     * @param  array{shares?: mixed, fill_price?: mixed, etf_amount?: mixed, fee?: mixed}  $fill
+     */
+    public function confirmMonthWithFill(VaultService $vault, array $fill): void
+    {
+        /** @var User $user */
+        $user = auth()->user();
+        $budget = (float) ($this->form->getState()['budget'] ?? 0);
+
+        try {
+            $deposit = $vault->confirmMonth(
+                user: $user,
+                budget: $budget,
+                fill: [
+                    'shares' => filled($fill['shares'] ?? null) ? (float) $fill['shares'] : null,
+                    'fill_price' => filled($fill['fill_price'] ?? null) ? (float) $fill['fill_price'] : null,
+                    'etf_amount' => filled($fill['etf_amount'] ?? null) ? (float) $fill['etf_amount'] : null,
+                    'fee' => filled($fill['fee'] ?? null) ? (float) $fill['fee'] : 0.0,
+                ],
+            );
+        } catch (ValidationException $exception) {
+            FilamentNotifier::send(
+                title: 'Bevestigen mislukt',
+                body: collect($exception->errors())->flatten()->first() ?? 'Onbekende fout.',
+                status: 'danger',
+            );
+
+            return;
+        }
+
+        unset($this->settings, $this->reading, $this->orderPlan, $this->transactions);
+        $this->resetTable();
+
+        FilamentNotifier::send(
+            title: 'Maandbevel bevestigd',
+            body: sprintf(
+                '€%s naar ETF · droog kruit nu €%s',
+                number_format((float) $deposit->etf_amount, 2, ',', '.'),
+                number_format((float) $deposit->dry_powder_after, 2, ',', '.'),
+            ),
+        );
     }
 
     public function saveSettings(VaultService $vault): void
@@ -237,49 +446,6 @@ class VestixKluis extends Page implements HasTable
         );
     }
 
-    public function confirmMonth(VaultService $vault): void
-    {
-        /** @var User $user */
-        $user = auth()->user();
-        $budget = (float) ($this->form->getState()['budget'] ?? 0);
-        $reading = $this->reading();
-
-        if ($reading === null) {
-            FilamentNotifier::send(
-                title: 'Geen thermometerdata',
-                body: 'Ververs eerst de thermometer voordat je bevestigt.',
-                status: 'warning',
-            );
-
-            return;
-        }
-
-        try {
-            $deposit = $vault->confirmMonth($user, $budget, $reading);
-        } catch (ValidationException $exception) {
-            FilamentNotifier::send(
-                title: 'Bevestigen mislukt',
-                body: collect($exception->errors())->flatten()->first() ?? 'Onbekende fout.',
-                status: 'danger',
-            );
-
-            return;
-        }
-
-        unset($this->settings, $this->reading, $this->orderPlan);
-        $this->resetTable();
-
-        FilamentNotifier::send(
-            title: 'Maandbevel bevestigd',
-            body: sprintf(
-                '€%s naar %s · droog kruit nu €%s',
-                number_format((float) $deposit->etf_amount, 2, ',', '.'),
-                $reading->ticker,
-                number_format((float) $deposit->dry_powder_after, 2, ',', '.'),
-            ),
-        );
-    }
-
     public function table(Table $table): Table
     {
         return $table
@@ -325,7 +491,7 @@ class VestixKluis extends Page implements HasTable
                 DeleteAction::make()
                     ->label('Terugdraaien')
                     ->modalHeading('Maandbevestiging terugdraaien?')
-                    ->modalDescription('Dit verwijdert de logregel en zet het droog kruit terug alsof deze maand niet bevestigd was. Alleen de laatste maand kan worden teruggedraaid.')
+                    ->modalDescription('Dit verwijdert de logregel, gekoppelde fill en zet het droog kruit terug. Alleen de laatste maand kan worden teruggedraaid.')
                     ->successNotificationTitle('Maandbevestiging teruggedraaid')
                     ->visible(function (VaultDeposit $record): bool {
                         $latestId = VaultDeposit::query()
@@ -340,7 +506,7 @@ class VestixKluis extends Page implements HasTable
                         /** @var User $user */
                         $user = auth()->user();
                         app(VaultService::class)->revertDeposit($user, $record);
-                        unset($this->settings, $this->reading, $this->orderPlan);
+                        unset($this->settings, $this->reading, $this->orderPlan, $this->transactions);
                     }),
             ])
             ->paginated([10, 25]);
@@ -400,12 +566,25 @@ class VestixKluis extends Page implements HasTable
         return app(VaultService::class)->orderPlan($this->settings(), $budget, $reading);
     }
 
+    /**
+     * @return Collection<int, VaultTransaction>
+     */
+    #[Computed]
+    public function transactions()
+    {
+        return VaultTransaction::query()
+            ->where('user_id', auth()->id())
+            ->orderByDesc('traded_at')
+            ->orderByDesc('id')
+            ->get();
+    }
+
     public function monthAlreadyConfirmed(): bool
     {
-        return VaultDeposit::query()
-            ->where('user_id', auth()->id())
-            ->whereDate('period_month', now()->startOfMonth()->toDateString())
-            ->exists();
+        /** @var User $user */
+        $user = auth()->user();
+
+        return app(VaultService::class)->monthAlreadyConfirmed($user);
     }
 
     public function getSubheading(): string|HtmlString|null

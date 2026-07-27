@@ -2,7 +2,6 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\VaultDeposit;
 use App\Services\Kluis\VaultService;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -17,7 +16,7 @@ class KluisStatsWidget extends StatsOverviewWidget
 
     protected function getColumns(): int|array|null
     {
-        return ['@xl' => 3, '@lg' => 3, 'default' => 1];
+        return ['@xl' => 4, '@lg' => 2, 'default' => 1];
     }
 
     protected function getStats(): array
@@ -28,30 +27,50 @@ class KluisStatsWidget extends StatsOverviewWidget
             return [];
         }
 
-        $settings = app(VaultService::class)->settingsFor($user);
-        $totalEtf = (float) VaultDeposit::query()
-            ->where('user_id', $user->id)
-            ->sum('etf_amount');
-        $months = (int) VaultDeposit::query()
-            ->where('user_id', $user->id)
-            ->count();
-        $dryPowder = (float) $settings->dry_powder_balance;
+        $vault = app(VaultService::class);
+        $settings = $vault->settingsFor($user);
+        $summary = $vault->holdingsSummary($user);
+        $ticker = strtoupper((string) $settings->etf_ticker);
+
+        $holdingsLabel = $summary->hasLivePrice()
+            ? '€'.number_format((float) $summary->holdingsValue, 2, ',', '.')
+            : '€'.number_format($summary->costBasis, 2, ',', '.').'*';
+
+        $holdingsDescription = $summary->hasLivePrice()
+            ? number_format($summary->shares, 4, ',', '.')." {$ticker} · live"
+            : ($summary->transactionCount === 0
+                ? 'Nog geen aankopen — ververs thermometer voor live koers'
+                : 'Cost basis · ververs thermometer voor live waarde');
+
+        $pnl = $summary->unrealizedPnl;
+        $pnlLabel = $pnl === null
+            ? '—'
+            : (($pnl >= 0 ? '+' : '−').'€'.number_format(abs($pnl), 2, ',', '.'));
 
         return [
-            Stat::make('Gestort in ETF', '€'.number_format($totalEtf, 2, ',', '.'))
-                ->description($months === 0 ? 'Nog geen bevestigde maanden' : "{$months} bevestigde maand(en)")
-                ->descriptionIcon('heroicon-m-building-library')
+            Stat::make('Holdings-waarde', $holdingsLabel)
+                ->description($holdingsDescription)
+                ->descriptionIcon('heroicon-m-chart-bar')
                 ->color('primary')
                 ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard']),
-            Stat::make('Droog kruit', '€'.number_format($dryPowder, 2, ',', '.'))
-                ->description('Cash-reserve langs de zijlijn')
+            Stat::make('Cost basis', '€'.number_format($summary->costBasis, 2, ',', '.'))
+                ->description(
+                    $summary->transactionCount === 0
+                        ? 'Nog geen aankopen'
+                        : "{$summary->transactionCount} aankoop(en) · fees €".number_format($summary->fees, 2, ',', '.')
+                )
+                ->descriptionIcon('heroicon-m-building-library')
+                ->color('gray')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard']),
+            Stat::make('Ongerealiseerde P&L', $pnlLabel)
+                ->description($summary->hasLivePrice() ? 'Holdings − cost basis' : 'Wacht op live koers')
+                ->descriptionIcon('heroicon-m-arrow-trending-up')
+                ->color($pnl === null ? 'gray' : ($pnl >= 0 ? 'success' : 'danger'))
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard']),
+            Stat::make('Totaal strategisch', '€'.number_format((float) $summary->totalStrategic, 2, ',', '.'))
+                ->description('Holdings/cost + droog kruit €'.number_format($summary->dryPowder, 2, ',', '.'))
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->color('warning')
-                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard']),
-            Stat::make('Kern-ETF', strtoupper((string) $settings->etf_ticker))
-                ->description('Thermometer-benchmark van de kluis')
-                ->descriptionIcon('heroicon-m-chart-bar')
-                ->color('gray')
                 ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--dashboard']),
         ];
     }

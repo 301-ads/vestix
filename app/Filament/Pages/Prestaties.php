@@ -6,6 +6,7 @@ use App\Filament\Widgets\AlphaTrackerChart;
 use App\Filament\Widgets\AlphaTrackerStatsWidget;
 use App\Filament\Widgets\DirectionPnlSplitWidget;
 use App\Filament\Widgets\KluisComingSoonWidget;
+use App\Filament\Widgets\KluisEquityChart;
 use App\Filament\Widgets\KluisStatsWidget;
 use App\Filament\Widgets\PerformanceComingSoonWidget;
 use Filament\Pages\Page;
@@ -54,6 +55,7 @@ class Prestaties extends Page
     {
         return [
             KluisStatsWidget::class,
+            KluisEquityChart::class,
             KluisComingSoonWidget::class,
         ];
     }

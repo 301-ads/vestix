@@ -3,8 +3,8 @@
         Naar de Vestix Kluis
     </h3>
     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        Bevestig maandelijkse Smart DCA-bevelen in de Kluis. Hier zie je gestort kapitaal en droog kruit;
-        live holdings-waarde volgt later.
+        Bevestig maandelijkse Smart DCA-bevelen en beheer VWCE-fills in de Kluis.
+        Prestaties hierboven volgen uit je aankoopboek + live koers.
     </p>
     <div class="mt-4">
         <a

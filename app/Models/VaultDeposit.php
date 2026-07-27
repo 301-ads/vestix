@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\KluisClimate;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class VaultDeposit extends Model
 {
@@ -29,5 +30,10 @@ class VaultDeposit extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(VaultTransaction::class);
     }
 }

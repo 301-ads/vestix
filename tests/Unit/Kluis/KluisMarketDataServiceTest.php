@@ -110,4 +110,82 @@ class KluisMarketDataServiceTest extends TestCase
 
         $this->assertSame(['VT', 'VWCE', 'VWCE.DE'], $symbols);
     }
+
+    public function test_force_bypasses_cache_and_refetches(): void
+    {
+        Cache::flush();
+
+        $bars = [];
+        for ($i = 0; $i < 220; $i++) {
+            $bars[] = [
+                'open' => 100,
+                'high' => 101,
+                'low' => 99,
+                'close' => 100.0,
+                'volume' => 1000,
+                'date' => now()->subDays(220 - $i)->toDateString(),
+            ];
+        }
+        $bars[219]['close'] = 110.0;
+
+        $provider = Mockery::mock(DailyBarProvider::class);
+        $provider->shouldReceive('fetchRecentBars')
+            ->twice()
+            ->andReturn([
+                'today' => $bars[219],
+                'adv30' => 1000.0,
+                'bars' => $bars,
+            ]);
+
+        $service = new KluisMarketDataService($provider, new KluisThermometer);
+
+        $user = User::factory()->create();
+        $settings = VaultSetting::defaultsFor($user);
+        $settings->save();
+
+        $first = $service->fetchReading($settings->fresh(), force: true);
+        $this->assertNotNull($first);
+
+        $second = $service->fetchReading($settings->fresh(), force: true);
+        $this->assertNotNull($second);
+        $this->assertEqualsWithDelta(110.0, $second->close, 0.01);
+    }
+
+    public function test_without_force_returns_cached_reading(): void
+    {
+        Cache::flush();
+
+        $bars = [];
+        for ($i = 0; $i < 220; $i++) {
+            $bars[] = [
+                'open' => 100,
+                'high' => 101,
+                'low' => 99,
+                'close' => 100.0,
+                'volume' => 1000,
+                'date' => now()->subDays(220 - $i)->toDateString(),
+            ];
+        }
+        $bars[219]['close'] = 110.0;
+
+        $provider = Mockery::mock(DailyBarProvider::class);
+        $provider->shouldReceive('fetchRecentBars')
+            ->once()
+            ->andReturn([
+                'today' => $bars[219],
+                'adv30' => 1000.0,
+                'bars' => $bars,
+            ]);
+
+        $service = new KluisMarketDataService($provider, new KluisThermometer);
+
+        $user = User::factory()->create();
+        $settings = VaultSetting::defaultsFor($user);
+        $settings->save();
+
+        $this->assertNotNull($service->fetchReading($settings->fresh(), force: true));
+        $cached = $service->fetchReading($settings->fresh(), force: false);
+        $this->assertNotNull($cached);
+        $this->assertEqualsWithDelta(110.0, $cached->close, 0.01);
+    }
 }

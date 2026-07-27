@@ -7,6 +7,7 @@ use App\Filament\Widgets\AlphaTrackerChart;
 use App\Filament\Widgets\AlphaTrackerStatsWidget;
 use App\Filament\Widgets\DirectionPnlSplitWidget;
 use App\Filament\Widgets\KluisComingSoonWidget;
+use App\Filament\Widgets\KluisEquityChart;
 use App\Filament\Widgets\KluisStatsWidget;
 use App\Filament\Widgets\PerformanceComingSoonWidget;
 use App\Models\BankrollSnapshot;
@@ -57,6 +58,7 @@ class PrestatiesTest extends TestCase
 
         $this->assertSame([
             KluisStatsWidget::class,
+            KluisEquityChart::class,
             KluisComingSoonWidget::class,
         ], $page->getKluisWidgets());
     }

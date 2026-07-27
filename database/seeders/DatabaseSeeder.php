@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             StrategyTagSeeder::class,
             PositionSeeder::class,
+            VaultTransactionSeeder::class,
         ]);
     }
 }

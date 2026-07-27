@@ -35,6 +35,10 @@ class KluisOrderPlanCalculator
         $etfAmount = round($etfAmount, 2);
         $dryPowderDelta = round($dryPowderDelta, 2);
         $dryPowderAfter = round(max(0.0, $dryPowder + $dryPowderDelta), 2);
+        $referencePrice = $reading->close > 0 ? $reading->close : null;
+        $suggestedShares = $referencePrice !== null && $etfAmount > 0
+            ? round($etfAmount / $referencePrice, 4)
+            : null;
 
         return new KluisOrderPlan(
             climate: $reading->climate,
@@ -43,6 +47,8 @@ class KluisOrderPlanCalculator
             dryPowderDelta: $dryPowderDelta,
             dryPowderAfter: $dryPowderAfter,
             message: $reading->message(),
+            suggestedShares: $suggestedShares,
+            referencePrice: $referencePrice,
         );
     }
 
