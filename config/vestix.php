@@ -272,7 +272,7 @@ return [
         'overheat_invest_fraction' => (float) env('VESTIX_KLUIS_OVERHEAT_INVEST_FRACTION', 0.5),
         'dip_dry_powder_fraction' => (float) env('VESTIX_KLUIS_DIP_DRY_POWDER_FRACTION', 0.25),
         'crash_dry_powder_fraction' => (float) env('VESTIX_KLUIS_CRASH_DRY_POWDER_FRACTION', 0.5),
-        'cache_ttl_seconds' => (int) env('VESTIX_KLUIS_CACHE_TTL', 3600),
+        'cache_ttl_seconds' => (int) env('VESTIX_KLUIS_CACHE_TTL', 93600), // ~26u: nachtelijke EOD-refresh blijft overdag geldig
         'bar_lookback_days' => (int) env('VESTIX_KLUIS_BAR_LOOKBACK_DAYS', 320),
         'bar_limit' => (int) env('VESTIX_KLUIS_BAR_LIMIT', 250),
         // US-listed proxies for EU ETFs (Polygon free tier has no VWCE).
