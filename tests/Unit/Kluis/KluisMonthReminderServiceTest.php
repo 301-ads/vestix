@@ -59,6 +59,7 @@ class KluisMonthReminderServiceTest extends TestCase
 
         $market = Mockery::mock(KluisMarketDataService::class);
         $market->shouldReceive('fetchReading')->andReturn($reading);
+        $market->shouldReceive('fetchHoldingsPrice')->andReturn(null);
         $this->app->instance(KluisMarketDataService::class, $market);
 
         $vault = app(VaultService::class);

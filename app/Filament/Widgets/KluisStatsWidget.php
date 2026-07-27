@@ -37,10 +37,11 @@ class KluisStatsWidget extends StatsOverviewWidget
             : '€'.number_format($summary->costBasis, 2, ',', '.').'*';
 
         $holdingsDescription = $summary->hasLivePrice()
-            ? number_format($summary->shares, 4, ',', '.')." {$ticker} · live"
+            ? number_format($summary->shares, 4, ',', '.')." {$ticker} · €".number_format((float) $summary->livePrice, 2, ',', '.')
+                .($summary->priceSymbol ? " ({$summary->priceSymbol})" : '')
             : ($summary->transactionCount === 0
                 ? 'Nog geen aankopen — ververs thermometer voor live koers'
-                : 'Cost basis · ververs thermometer voor live waarde');
+                : 'Cost basis · ververs thermometer voor live EUR-waarde');
 
         $pnl = $summary->unrealizedPnl;
         $pnlLabel = $pnl === null

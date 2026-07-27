@@ -426,10 +426,12 @@ class VestixKluis extends Page implements HasTable
         unset($this->settings, $this->reading, $this->orderPlan);
         $this->thermometerError = null;
 
-        $reading = $vault->reading($vault->settingsFor($user), force: true);
+        $settings = $vault->settingsFor($user);
+        $reading = $vault->reading($settings, force: true);
+        $holdings = $vault->holdingsPrice($settings, force: true);
 
-        if ($reading === null) {
-            $this->thermometerError = 'Kon SMA-200 / koers niet ophalen. Controleer de Polygon API-key en probeer opnieuw.';
+        if ($reading === null && $holdings === null) {
+            $this->thermometerError = 'Kon SMA-200 / koers niet ophalen. Controleer de Polygon/Finnhub API-keys en probeer opnieuw.';
             FilamentNotifier::send(
                 title: 'Thermometer niet beschikbaar',
                 body: $this->thermometerError,
@@ -439,9 +441,23 @@ class VestixKluis extends Page implements HasTable
             return;
         }
 
+        $bodyParts = [];
+
+        if ($reading !== null) {
+            $bodyParts[] = $reading->message();
+        }
+
+        if ($holdings !== null) {
+            $bodyParts[] = sprintf(
+                'Holdings-koers %s €%s',
+                $holdings['resolved_symbol'],
+                number_format($holdings['price'], 2, ',', '.'),
+            );
+        }
+
         FilamentNotifier::send(
             title: 'Thermometer ververst',
-            body: $reading->message(),
+            body: implode(' · ', $bodyParts),
             status: 'success',
         );
     }

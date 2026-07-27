@@ -39,6 +39,10 @@ class RefreshKluisThermometerTest extends TestCase
             ->once()
             ->with(Mockery::on(fn ($s) => strtoupper((string) $s->etf_ticker) === 'VWCE'), true)
             ->andReturn($reading);
+        $market->shouldReceive('fetchHoldingsPrice')
+            ->once()
+            ->with('VWCE', true)
+            ->andReturn(['price' => 165.20, 'resolved_symbol' => 'VWCE.DE']);
         $this->app->instance(KluisMarketDataService::class, $market);
 
         $this->artisan('vestix:kluis-refresh-thermometer')

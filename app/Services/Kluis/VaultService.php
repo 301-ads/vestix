@@ -53,12 +53,20 @@ class VaultService
         return $this->marketData->fetchReading($settings, $force);
     }
 
+    public function holdingsPrice(VaultSetting $settings, bool $force = false): ?array
+    {
+        return $this->marketData->fetchHoldingsPrice((string) $settings->etf_ticker, $force);
+    }
+
     public function orderPlan(
         VaultSetting $settings,
         float $budget,
         KluisThermometerReading $reading,
     ): KluisOrderPlan {
-        return $this->orderPlans->calculate($settings, $budget, $reading);
+        $valuation = $this->holdingsPrice($settings);
+        $valuationPrice = $valuation['price'] ?? null;
+
+        return $this->orderPlans->calculate($settings, $budget, $reading, $valuationPrice);
     }
 
     /**
@@ -222,8 +230,9 @@ class VaultService
         $costBasis = round($notional + $fees, 2);
         $count = (int) ($agg->transaction_count ?? 0);
 
-        $reading = $this->reading($settings, $forcePrice);
-        $livePrice = $reading?->close;
+        $valuation = $this->holdingsPrice($settings, $forcePrice);
+        $livePrice = isset($valuation['price']) ? (float) $valuation['price'] : null;
+        $priceSymbol = isset($valuation['resolved_symbol']) ? (string) $valuation['resolved_symbol'] : null;
         $holdingsValue = $livePrice !== null
             ? round($shares * $livePrice, 2)
             : null;
@@ -245,6 +254,7 @@ class VaultService
             unrealizedPnl: $unrealizedPnl,
             dryPowder: $dryPowder,
             totalStrategic: $totalStrategic,
+            priceSymbol: $priceSymbol,
         );
     }
 

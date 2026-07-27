@@ -111,6 +111,7 @@ class VaultServiceTest extends TestCase
 
         $market = Mockery::mock(KluisMarketDataService::class);
         $market->shouldReceive('fetchReading')->andReturn(null);
+        $market->shouldReceive('fetchHoldingsPrice')->andReturn(null);
         $this->app->instance(KluisMarketDataService::class, $market);
 
         $this->expectException(ValidationException::class);
@@ -160,16 +161,10 @@ class VaultServiceTest extends TestCase
             'fee' => 4.50,
         ]);
 
-        $reading = new KluisThermometerReading(
-            climate: KluisClimate::Neutral,
-            deviationPct: 1,
-            close: 165.0,
-            sma200: 160,
-            ticker: 'VWCE',
-        );
-
         $market = Mockery::mock(KluisMarketDataService::class);
-        $market->shouldReceive('fetchReading')->andReturn($reading);
+        $market->shouldReceive('fetchHoldingsPrice')
+            ->once()
+            ->andReturn(['price' => 165.0, 'resolved_symbol' => 'VWCE.DE']);
         $this->app->instance(KluisMarketDataService::class, $market);
 
         $summary = app(VaultService::class)->holdingsSummary($user);
@@ -177,6 +172,7 @@ class VaultServiceTest extends TestCase
         $this->assertSame(47.1105, $summary->shares);
         $this->assertEqualsWithDelta(7504.49, $summary->costBasis, 0.01);
         $this->assertEqualsWithDelta(7773.23, (float) $summary->holdingsValue, 0.01);
+        $this->assertSame('VWCE.DE', $summary->priceSymbol);
         $this->assertNotNull($summary->unrealizedPnl);
         $this->assertTrue($summary->unrealizedPnl > 0);
     }
@@ -207,6 +203,7 @@ class VaultServiceTest extends TestCase
     {
         $market = Mockery::mock(KluisMarketDataService::class);
         $market->shouldReceive('fetchReading')->andReturn($reading);
+        $market->shouldReceive('fetchHoldingsPrice')->andReturn(null);
         $this->app->instance(KluisMarketDataService::class, $market);
     }
 }

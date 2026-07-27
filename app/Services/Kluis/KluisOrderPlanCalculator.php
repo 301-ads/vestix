@@ -13,6 +13,7 @@ class KluisOrderPlanCalculator
         VaultSetting $settings,
         float $budget,
         KluisThermometerReading $reading,
+        ?float $valuationPrice = null,
     ): KluisOrderPlan {
         $budget = max(0.0, round($budget, 2));
         $dryPowder = max(0.0, (float) $settings->dry_powder_balance);
@@ -35,7 +36,9 @@ class KluisOrderPlanCalculator
         $etfAmount = round($etfAmount, 2);
         $dryPowderDelta = round($dryPowderDelta, 2);
         $dryPowderAfter = round(max(0.0, $dryPowder + $dryPowderDelta), 2);
-        $referencePrice = $reading->close > 0 ? $reading->close : null;
+        $referencePrice = $valuationPrice !== null && $valuationPrice > 0
+            ? $valuationPrice
+            : ($reading->close > 0 ? $reading->close : null);
         $suggestedShares = $referencePrice !== null && $etfAmount > 0
             ? round($etfAmount / $referencePrice, 4)
             : null;

@@ -3,6 +3,7 @@
 namespace Tests\Unit\Kluis;
 
 use App\Contracts\DailyBarProvider;
+use App\Contracts\QuoteProvider;
 use App\Models\User;
 use App\Models\VaultSetting;
 use App\Services\Kluis\KluisMarketDataService;
@@ -15,6 +16,13 @@ use Tests\TestCase;
 class KluisMarketDataServiceTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function makeService(DailyBarProvider $bars, ?QuoteProvider $quotes = null): KluisMarketDataService
+    {
+        $quotes ??= Mockery::mock(QuoteProvider::class);
+
+        return new KluisMarketDataService($bars, $quotes, new KluisThermometer);
+    }
 
     public function test_returns_null_when_fewer_than_200_bars(): void
     {
@@ -74,7 +82,7 @@ class KluisMarketDataServiceTest extends TestCase
                 'bars' => $bars,
             ]);
 
-        $service = new KluisMarketDataService($provider, new KluisThermometer);
+        $service = $this->makeService($provider);
 
         $user = User::factory()->create();
         $settings = VaultSetting::defaultsFor($user);
@@ -95,7 +103,7 @@ class KluisMarketDataServiceTest extends TestCase
         $provider = Mockery::mock(DailyBarProvider::class);
         $provider->shouldNotReceive('fetchRecentBars');
 
-        $service = new KluisMarketDataService($provider, new KluisThermometer);
+        $service = $this->makeService($provider);
 
         $user = User::factory()->create();
         $settings = VaultSetting::defaultsFor($user);
@@ -109,6 +117,38 @@ class KluisMarketDataServiceTest extends TestCase
         $symbols = app(KluisMarketDataService::class)->candidateSymbols('VWCE');
 
         $this->assertSame(['VT', 'VWCE', 'VWCE.DE'], $symbols);
+    }
+
+    public function test_holdings_price_symbols_exclude_thermometer_proxy(): void
+    {
+        $symbols = app(KluisMarketDataService::class)->holdingsPriceSymbols('VWCE');
+
+        $this->assertSame(['VWCE.DE', 'VWCE'], $symbols);
+        $this->assertNotContains('VT', $symbols);
+    }
+
+    public function test_fetch_holdings_price_uses_eur_quote_not_proxy(): void
+    {
+        Cache::flush();
+
+        $quotes = Mockery::mock(QuoteProvider::class);
+        $quotes->shouldReceive('fetchLivePrice')
+            ->once()
+            ->with('VWCE.DE')
+            ->andReturn(165.20);
+
+        $bars = Mockery::mock(DailyBarProvider::class);
+        $service = $this->makeService($bars, $quotes);
+
+        $payload = $service->fetchHoldingsPrice('VWCE', force: true);
+
+        $this->assertNotNull($payload);
+        $this->assertEqualsWithDelta(165.20, $payload['price'], 0.01);
+        $this->assertSame('VWCE.DE', $payload['resolved_symbol']);
+
+        $cached = $service->fetchHoldingsPrice('VWCE', force: false);
+        $this->assertNotNull($cached);
+        $this->assertEqualsWithDelta(165.20, $cached['price'], 0.01);
     }
 
     public function test_force_bypasses_cache_and_refetches(): void
@@ -137,7 +177,7 @@ class KluisMarketDataServiceTest extends TestCase
                 'bars' => $bars,
             ]);
 
-        $service = new KluisMarketDataService($provider, new KluisThermometer);
+        $service = $this->makeService($provider);
 
         $user = User::factory()->create();
         $settings = VaultSetting::defaultsFor($user);
@@ -177,7 +217,7 @@ class KluisMarketDataServiceTest extends TestCase
                 'bars' => $bars,
             ]);
 
-        $service = new KluisMarketDataService($provider, new KluisThermometer);
+        $service = $this->makeService($provider);
 
         $user = User::factory()->create();
         $settings = VaultSetting::defaultsFor($user);

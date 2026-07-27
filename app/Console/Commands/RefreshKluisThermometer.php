@@ -11,7 +11,7 @@ class RefreshKluisThermometer extends Command
 {
     protected $signature = 'vestix:kluis-refresh-thermometer';
 
-    protected $description = 'Ververst de Kluis-thermometer (SMA-200 / live koers) voor alle unieke kern-ETF tickers.';
+    protected $description = 'Ververst Kluis-thermometer (SMA-200) én EUR holdings-koers voor alle unieke kern-ETF tickers.';
 
     public function handle(KluisMarketDataService $marketData): int
     {
@@ -32,28 +32,43 @@ class RefreshKluisThermometer extends Command
         foreach ($settingsByTicker as $settings) {
             $ticker = strtoupper(trim((string) $settings->etf_ticker));
             $reading = $marketData->fetchReading($settings, force: true);
+            $holdings = $marketData->fetchHoldingsPrice($ticker, force: true);
 
-            if ($reading === null) {
+            if ($reading === null && $holdings === null) {
                 $failed++;
                 $this->warn("Mislukt: {$ticker}");
-                Log::warning('Kluis thermometer refresh failed.', ['ticker' => $ticker]);
+                Log::warning('Kluis market refresh failed.', ['ticker' => $ticker]);
 
                 continue;
             }
 
             $ok++;
-            $this->info(sprintf(
-                '%s · €%s · SMA-200 €%s · %+.1f%% (%s)',
-                $ticker,
-                number_format($reading->close, 2, ',', '.'),
-                number_format($reading->sma200, 2, ',', '.'),
-                $reading->deviationPct,
-                $reading->climate->codeLabel(),
-            ));
+            $parts = [$ticker];
+
+            if ($reading !== null) {
+                $parts[] = sprintf(
+                    'thermo %s €%s · SMA €%s · %+.1f%% (%s)',
+                    $reading->resolvedSymbol ?? 'proxy',
+                    number_format($reading->close, 2, ',', '.'),
+                    number_format($reading->sma200, 2, ',', '.'),
+                    $reading->deviationPct,
+                    $reading->climate->codeLabel(),
+                );
+            }
+
+            if ($holdings !== null) {
+                $parts[] = sprintf(
+                    'holdings %s €%s',
+                    $holdings['resolved_symbol'],
+                    number_format($holdings['price'], 2, ',', '.'),
+                );
+            }
+
+            $this->info(implode(' · ', $parts));
         }
 
         $summary = ['ok' => $ok, 'failed' => $failed, 'tickers' => $settingsByTicker->count()];
-        Log::info('Kluis thermometer refresh completed.', $summary);
+        Log::info('Kluis market refresh completed.', $summary);
         $this->table(['Status', 'Aantal'], [
             ['OK', $ok],
             ['Mislukt', $failed],

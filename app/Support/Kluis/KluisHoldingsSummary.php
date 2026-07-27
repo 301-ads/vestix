@@ -15,6 +15,7 @@ readonly class KluisHoldingsSummary
         public ?float $unrealizedPnl,
         public float $dryPowder,
         public ?float $totalStrategic,
+        public ?string $priceSymbol = null,
     ) {}
 
     public function hasLivePrice(): bool

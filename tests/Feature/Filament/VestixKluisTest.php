@@ -46,6 +46,7 @@ class VestixKluisTest extends TestCase
 
         $market = Mockery::mock(KluisMarketDataService::class);
         $market->shouldReceive('fetchReading')->andReturn($reading);
+        $market->shouldReceive('fetchHoldingsPrice')->andReturn(null);
         $this->app->instance(KluisMarketDataService::class, $market);
 
         Livewire::test(VestixKluis::class)

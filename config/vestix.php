@@ -286,5 +286,12 @@ return [
         'finnhub_symbols' => [
             'VWCE' => env('VESTIX_KLUIS_FINNHUB_VWCE', 'VWCE.DE'),
         ],
+        // Holdings MTM must use EUR (broker) symbols — never the USD thermometer proxy.
+        'holdings_price_symbols' => [
+            'VWCE' => array_values(array_filter([
+                env('VESTIX_KLUIS_HOLDINGS_VWCE', 'VWCE.DE'),
+                'VWCE',
+            ])),
+        ],
     ],
 ];
