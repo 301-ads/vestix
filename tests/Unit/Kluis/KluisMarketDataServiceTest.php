@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\VaultSetting;
 use App\Services\Kluis\KluisMarketDataService;
 use App\Services\Kluis\KluisThermometer;
+use App\Services\YahooFinanceChartQuoteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Mockery;
@@ -17,11 +18,13 @@ class KluisMarketDataServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function makeService(DailyBarProvider $bars, ?QuoteProvider $quotes = null): KluisMarketDataService
+    private function makeService(DailyBarProvider $bars, ?QuoteProvider $quotes = null, ?YahooFinanceChartQuoteService $yahoo = null): KluisMarketDataService
     {
         $quotes ??= Mockery::mock(QuoteProvider::class);
+        $yahoo ??= Mockery::mock(YahooFinanceChartQuoteService::class);
+        $yahoo->shouldReceive('fetchLivePrice')->andReturn(null)->byDefault();
 
-        return new KluisMarketDataService($bars, $quotes, new KluisThermometer);
+        return new KluisMarketDataService($bars, $quotes, $yahoo, new KluisThermometer);
     }
 
     public function test_returns_null_when_fewer_than_200_bars(): void
@@ -131,24 +134,49 @@ class KluisMarketDataServiceTest extends TestCase
     {
         Cache::flush();
 
-        $quotes = Mockery::mock(QuoteProvider::class);
-        $quotes->shouldReceive('fetchLivePrice')
+        $yahoo = Mockery::mock(YahooFinanceChartQuoteService::class);
+        $yahoo->shouldReceive('fetchLivePrice')
             ->once()
             ->with('VWCE.DE')
-            ->andReturn(165.20);
+            ->andReturn(165.14);
+
+        $quotes = Mockery::mock(QuoteProvider::class);
+        $quotes->shouldNotReceive('fetchLivePrice');
 
         $bars = Mockery::mock(DailyBarProvider::class);
-        $service = $this->makeService($bars, $quotes);
+        $service = $this->makeService($bars, $quotes, $yahoo);
 
         $payload = $service->fetchHoldingsPrice('VWCE', force: true);
 
         $this->assertNotNull($payload);
-        $this->assertEqualsWithDelta(165.20, $payload['price'], 0.01);
+        $this->assertEqualsWithDelta(165.14, $payload['price'], 0.01);
         $this->assertSame('VWCE.DE', $payload['resolved_symbol']);
 
         $cached = $service->fetchHoldingsPrice('VWCE', force: false);
         $this->assertNotNull($cached);
-        $this->assertEqualsWithDelta(165.20, $cached['price'], 0.01);
+        $this->assertEqualsWithDelta(165.14, $cached['price'], 0.01);
+    }
+
+    public function test_fetch_holdings_price_falls_back_when_yahoo_missing(): void
+    {
+        Cache::flush();
+
+        $yahoo = Mockery::mock(YahooFinanceChartQuoteService::class);
+        $yahoo->shouldReceive('fetchLivePrice')->andReturn(null);
+
+        $quotes = Mockery::mock(QuoteProvider::class);
+        $quotes->shouldReceive('fetchLivePrice')
+            ->once()
+            ->with('VWCE.DE')
+            ->andReturn(164.28);
+
+        $bars = Mockery::mock(DailyBarProvider::class);
+        $service = $this->makeService($bars, $quotes, $yahoo);
+
+        $payload = $service->fetchHoldingsPrice('VWCE', force: true);
+
+        $this->assertNotNull($payload);
+        $this->assertEqualsWithDelta(164.28, $payload['price'], 0.01);
     }
 
     public function test_force_bypasses_cache_and_refetches(): void

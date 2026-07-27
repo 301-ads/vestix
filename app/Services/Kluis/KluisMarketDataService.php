@@ -5,6 +5,7 @@ namespace App\Services\Kluis;
 use App\Contracts\DailyBarProvider;
 use App\Contracts\QuoteProvider;
 use App\Models\VaultSetting;
+use App\Services\YahooFinanceChartQuoteService;
 use App\Support\Kluis\KluisThermometerReading;
 use App\Support\TechnicalIndicators;
 use Illuminate\Support\Facades\Cache;
@@ -15,6 +16,7 @@ class KluisMarketDataService
     public function __construct(
         private DailyBarProvider $dailyBars,
         private QuoteProvider $quotes,
+        private YahooFinanceChartQuoteService $yahooQuotes,
         private KluisThermometer $thermometer,
     ) {}
 
@@ -84,7 +86,12 @@ class KluisMarketDataService
         }
 
         foreach ($this->holdingsPriceSymbols($displayTicker) as $symbol) {
-            $price = $this->quotes->fetchLivePrice($symbol);
+            // Prefer Yahoo Xetra/EU last price — Alpha Vantage often returns previous close for .DE.
+            $price = $this->yahooQuotes->fetchLivePrice($symbol);
+
+            if ($price === null || $price <= 0) {
+                $price = $this->quotes->fetchLivePrice($symbol);
+            }
 
             if ($price === null || $price <= 0) {
                 Log::info('Kluis holdings quote unavailable.', [
