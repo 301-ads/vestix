@@ -827,9 +827,7 @@ class PositionRecordActions
                 : 'Log gedeeltelijke verkoop op Target 1 — stop gaat naar breakeven')
             ->icon('heroicon-o-banknotes')
             ->color('success')
-            ->visible(fn (Position $record): bool => $record->status === 'open'
-                && ! $record->hasScaledOut()
-                && ($record->isTarget1Hit() || $record->hasTarget1LimitPlaced()))
+            ->visible(fn (Position $record): bool => $record->canLogScaleOut())
             ->modalHeading('Target 1 — gedeeltelijke verkoop')
             ->modalDescription(fn (Position $record): string => $record->isAutoRunnerBypass()
                 ? 'Log de werkelijke fill bij je broker. Je stop-loss blijft staan (ligt al op of boven entry).'

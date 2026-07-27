@@ -124,7 +124,8 @@ class ScaleOutDisplay
     private static function stepOneBypass(): string
     {
         $body = '<p class="font-semibold text-gray-600 dark:text-gray-300">Target 1 overgeslagen of nog niet gelogd (Breakeven bereikt)</p>'
-            .'<p class="text-gray-500 dark:text-gray-400">Stop-Loss ligt op of boven de instapprijs — de positie loopt als runner. Heb je gedeeltelijk verkocht? Log Scale-out alsnog.</p>';
+            .'<p class="text-gray-500 dark:text-gray-400">Stop-Loss ligt op of boven de instapprijs — de positie loopt als runner. Heb je gedeeltelijk verkocht? Log Scale-out alsnog.</p>'
+            .'<div class="vestix-order-plan__step-one-action"></div>';
 
         return self::stepRow(
             self::checkMarker('muted'),
@@ -165,10 +166,7 @@ class ScaleOutDisplay
             $body .= '<p class="text-gray-600 dark:text-gray-300">'.$detail.'</p>';
         }
 
-        $canLogScaleOut = $position->status === 'open'
-            && ($position->isTarget1Hit() || $position->hasTarget1LimitPlaced());
-
-        if ($canLogScaleOut) {
+        if ($position->canLogScaleOut()) {
             $body .= '<div class="vestix-order-plan__step-one-action"></div>';
         }
 

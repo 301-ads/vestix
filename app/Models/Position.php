@@ -738,6 +738,20 @@ class Position extends Model
         return (float) $close >= (float) $target;
     }
 
+    /**
+     * Whether the user may log a Target 1 fill.
+     * Bypass (SL already at/above entry) counts even if price is slightly below the calculated target —
+     * broker fills often precede Vestix price sync, and IBKR never marks "limit placed".
+     */
+    public function canLogScaleOut(): bool
+    {
+        return $this->status === 'open'
+            && ! $this->hasScaledOut()
+            && ($this->isAutoRunnerBypass()
+                || $this->isTarget1Hit()
+                || $this->hasTarget1LimitPlaced());
+    }
+
     public function hasTarget1LimitPlaced(): bool
     {
         return $this->target_1_limit_placed_at !== null;

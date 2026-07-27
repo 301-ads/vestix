@@ -830,6 +830,31 @@ class PositionResourceTest extends TestCase
             ->assertSee('Log Scale-out alsnog');
     }
 
+    public function test_edit_page_shows_log_scale_out_for_bypass_when_price_below_target(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'ALL',
+            'entry_price' => 245.38,
+            'initial_sl' => 237.33,
+            'current_sl' => 245.67,
+            'latest_close_price' => 261.27,
+            'latest_sma_20' => 250.00,
+            'latest_atr_14' => 3.00,
+            'quantity' => 3,
+            'status' => 'open',
+        ]);
+
+        $this->assertTrue($position->isAutoRunnerBypass());
+        $this->assertFalse($position->isTarget1Hit());
+        $this->assertTrue($position->canLogScaleOut());
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertOk()
+            ->assertSee('Log Scale-out');
+    }
+
     public function test_positions_list_polls_every_ten_seconds(): void
     {
         $this->authenticateFilament();

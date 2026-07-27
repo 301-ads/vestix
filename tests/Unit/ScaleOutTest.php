@@ -314,6 +314,7 @@ class ScaleOutTest extends TestCase
 
         $this->assertStringContainsString('Target 1 overgeslagen of nog niet gelogd (Breakeven bereikt)', $html);
         $this->assertStringContainsString('Log Scale-out alsnog', $html);
+        $this->assertStringContainsString('vestix-order-plan__step-one-action', $html);
         $this->assertStringContainsString('vestix-order-plan__step--bypass', $html);
         $this->assertStringContainsString('border-gray-300', $html);
         $this->assertStringContainsString('bg-primary-500', $html);
@@ -344,6 +345,24 @@ class ScaleOutTest extends TestCase
         $this->assertFalse($position->isAutoRunnerBypass());
         $this->assertEquals(245.67, (float) $position->current_sl);
         $this->assertEquals(14.62, (float) $position->realized_pnl);
+    }
+
+    public function test_can_log_scale_out_under_bypass_even_when_target_1_not_hit(): void
+    {
+        $position = Position::factory()->make([
+            'status' => 'open',
+            'entry_price' => 245.38,
+            'initial_sl' => 237.33,
+            'current_sl' => 245.67,
+            'latest_close_price' => 261.27,
+            'quantity' => 3,
+        ]);
+
+        $this->assertTrue($position->isAutoRunnerBypass());
+        $this->assertNotNull($position->target_1_price);
+        $this->assertTrue((float) $position->latest_close_price < (float) $position->target_1_price);
+        $this->assertFalse($position->isTarget1Hit());
+        $this->assertTrue($position->canLogScaleOut());
     }
 
     public function test_order_plan_hunt_phase_shows_active_step_one_number(): void
