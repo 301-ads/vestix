@@ -59,7 +59,9 @@ class AdminPanelProvider extends PanelProvider
             ->passwordReset(RequestPasswordReset::class, ResetPassword::class)
             ->profile(EditUserProfile::class, isSimple: false)
             ->navigationGroups([
-                'Tactisch' => NavigationGroup::make(),
+                'Tactisch' => NavigationGroup::make()
+                    ->label('')
+                    ->collapsible(false),
                 NavigationGroup::make()
                     ->label('Strategisch'),
                 NavigationGroup::make()
