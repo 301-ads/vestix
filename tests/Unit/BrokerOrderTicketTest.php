@@ -66,6 +66,25 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertSame('Stop-Loss Updated', $ticket['submit_label']);
     }
 
+    public function test_stop_loss_update_ticket_uses_remaining_quantity_after_scale_out(): void
+    {
+        $position = Position::factory()->make([
+            'ticker' => 'ALL',
+            'quantity' => 3,
+            'scaled_out_quantity' => 2,
+            'scaled_out_price' => 261.77,
+            'scaled_out_at' => now(),
+            'current_sl' => 246.86,
+            'latest_close_price' => 270.00,
+            'latest_sma_20' => 263.11,
+            'latest_atr_14' => 5.00,
+        ]);
+
+        $ticket = BrokerOrderTicket::forStopLossUpdate($position);
+
+        $this->assertSame('1 stuks', $ticket['rows'][0]['value']);
+    }
+
     public function test_limit_sell_ticket_formats_target_and_tranche(): void
     {
         $user = \App\Models\User::factory()->create(['primary_broker' => \App\Enums\Broker::None]);

@@ -53,6 +53,7 @@ class BrokerOrderTicket
         $currentSl = (float) $position->current_sl;
         $newSl = (float) ($position->new_sl ?? 0);
         $difference = $newSl - $currentSl;
+        $openQty = (float) ($position->remaining_quantity ?? $position->quantity ?? 0);
 
         return [
             'title' => "{$position->ticker} — Stop-Loss Update",
@@ -60,7 +61,7 @@ class BrokerOrderTicket
             'rows' => [
                 [
                     'label' => 'Positie',
-                    'value' => self::formatQuantity((float) ($position->quantity ?? 0)),
+                    'value' => self::formatQuantity($openQty),
                 ],
                 [
                     'label' => 'Oude Stop-Loss',

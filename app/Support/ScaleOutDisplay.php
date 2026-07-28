@@ -23,14 +23,17 @@ class ScaleOutDisplay
     private static function summaryBlock(Position $position): string
     {
         $entry = $position->entry_price;
-        $qty = $position->quantity;
-        $investment = $position->investment;
+        $openQty = $position->remaining_quantity;
+        $investment = $entry !== null && $openQty !== null
+            ? (float) $entry * (float) $openQty
+            : $position->investment;
         $riskStop = $position->initial_sl ?? $position->current_sl;
 
         $rows = '';
 
-        if ($qty !== null && $investment > 0) {
-            $rows .= self::summaryRow('Inleg', '$'.number_format($investment, 2).' ('.self::formatQty((float) $qty).' stuks)');
+        if ($openQty !== null && $investment > 0) {
+            $label = $position->hasScaledOut() ? 'Open positie' : 'Inleg';
+            $rows .= self::summaryRow($label, '$'.number_format($investment, 2).' ('.self::formatQty((float) $openQty).' stuks)');
         }
 
         // Alleen een échte downside (stop onder entry) telt als trade-risico.
@@ -52,8 +55,8 @@ class ScaleOutDisplay
         $user = $position->user ?? auth()->user();
         $bankroll = $user?->trading_bankroll !== null ? (float) $user->trading_bankroll : null;
 
-        if ($hasDownsideRisk && $qty !== null && $bankroll !== null && $bankroll > 0) {
-            $plannedRisk = ((float) $entry - (float) $riskStop) * (float) $qty;
+        if ($hasDownsideRisk && $openQty !== null && $bankroll !== null && $bankroll > 0) {
+            $plannedRisk = ((float) $entry - (float) $riskStop) * (float) $openQty;
             $accountImpact = ($plannedRisk / $bankroll) * 100;
             $rows .= self::summaryRow('Account Impact', self::formatSignedPercent(-$accountImpact, 1).' bankroll');
         }

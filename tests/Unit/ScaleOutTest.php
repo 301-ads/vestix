@@ -428,6 +428,9 @@ class ScaleOutTest extends TestCase
         $this->assertStringContainsString('50 stuks verkocht op $12.00', $html);
         $this->assertStringContainsString('+$100.00 winst veiliggesteld', $html);
         $this->assertStringContainsString('Target 1 &middot; Verkoop 50%', $html);
+        $this->assertStringContainsString('Open positie', $html);
+        $this->assertStringContainsString('$500.00 (50 stuks)', $html);
+        $this->assertStringNotContainsString('100 stuks)', $html);
     }
 
     public function test_primary_action_type_excludes_target_1_for_auto_runner_bypass(): void
