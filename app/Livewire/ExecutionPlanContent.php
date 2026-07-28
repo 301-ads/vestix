@@ -198,7 +198,8 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
 
     public function activateScoutAction(): Action
     {
-        return $this->configureRecordAction(PositionRecordActions::activateScout());
+        // No A++ glow in the tight Order Plan actions column — it bleeds into cancel.
+        return $this->configureRecordAction(PositionRecordActions::activateScout(highlightAPlus: false));
     }
 
     /**

@@ -79,8 +79,15 @@ class PositionForm
                     ->extraAttributes(['class' => 'scout-cockpit-motor'])
                     ->schema([
                         self::scoutSetupValstrikSection($isScoutForm),
-                        self::scoutMarktdataSection(),
-                        self::scoutSchildInputSection(),
+                        Section::make('Advanced — Marktdata & Schild')
+                            ->description('Indicatoren en stop-loss input.')
+                            ->compact()
+                            ->columnSpanFull()
+                            ->extraAttributes(['class' => 'vestix-execute-advanced'])
+                            ->schema([
+                                self::scoutMarktdataSection(),
+                                self::scoutSchildInputSection(),
+                            ]),
                     ]),
                 self::scoutTelemetryColumn(),
             ]);
@@ -101,8 +108,16 @@ class PositionForm
                     ->extraAttributes(['class' => 'position-cockpit-motor position-form-setup-grid'])
                     ->schema([
                         self::setupDetailsSection($isScoutForm),
-                        self::schildSection(),
-                        self::earningsOverrideSection(),
+                        Section::make('Advanced — Schild & Earnings')
+                            ->description('Trailing-modus en earnings overrides. Open alleen bij protocol-wijziging.')
+                            ->collapsed()
+                            ->compact()
+                            ->columnSpanFull()
+                            ->extraAttributes(['class' => 'vestix-execute-advanced'])
+                            ->schema([
+                                self::schildSection(),
+                                self::earningsOverrideSection(),
+                            ]),
                     ]),
                 self::openPositionTelemetryColumn(),
             ]);
@@ -127,6 +142,14 @@ class PositionForm
             ->extraAttributes(['class' => 'vestix-order-plan-section'])
             ->visible(fn (?Position $record): bool => $record?->status === 'open')
             ->schema([
+                Placeholder::make('execution_truth')
+                    ->label('Bron van waarheid')
+                    ->content(fn (?Position $record): HtmlString => new HtmlString(
+                        view('filament.positions.execution-truth-badge', [
+                            'position' => $record,
+                        ])->render()
+                    ))
+                    ->visible(fn (?Position $record): bool => $record !== null),
                 Placeholder::make('order_plan')
                     ->hiddenLabel()
                     ->content(fn (?Position $record): HtmlString => ScaleOutDisplay::orderPlanHtml($record ?? new Position)),
@@ -211,6 +234,17 @@ class PositionForm
             ->divided()
             ->schema([
                 self::directionToggleField(),
+                Select::make('strategy_tag_id')
+                    ->label('Strategie')
+                    ->relationship(
+                        name: 'strategyTag',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn ($query) => $query->where('is_active', true)->orderBy('sort_order'),
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->nullable()
+                    ->helperText('Trampoline Bounce of EMA 200 Bounce'),
                 Grid::make(3)
                     ->schema([
                         self::tickerField(),

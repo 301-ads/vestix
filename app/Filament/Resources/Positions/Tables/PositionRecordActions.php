@@ -144,14 +144,14 @@ class PositionRecordActions
             });
     }
 
-    public static function activateScout(bool $iconButton = true): Action
+    public static function activateScout(bool $iconButton = true, bool $highlightAPlus = true): Action
     {
         $action = Action::make('activate_scout')
             ->label('Activeren')
             ->tooltip(fn (Position $record): string => self::scoutActivationTooltip($record))
             ->icon('heroicon-o-rocket-launch')
             ->color('success')
-            ->extraAttributes(fn (Position $record): array => self::scoutActivateTableExtraAttributes($record))
+            ->extraAttributes(fn (Position $record): array => self::scoutActivateTableExtraAttributes($record, $highlightAPlus))
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && auth()->user() !== null
@@ -386,11 +386,7 @@ class PositionRecordActions
                     return;
                 }
 
-                $record->update([
-                    'broker_order_status' => BrokerOrderStatus::Pending,
-                    'market_open_reminder_on' => null,
-                    'order_plan_excluded_on' => null,
-                ]);
+                $record->markSubmittedAtBroker();
 
                 FilamentNotifier::send(
                     title: $record->usesIbkrWorkflow()
@@ -460,6 +456,7 @@ class PositionRecordActions
             ->label('Laat staan (Rollover)')
             ->tooltip('Order opnieuw bij broker gezet voor vandaag')
             ->icon('heroicon-o-arrow-path')
+            ->iconButton()
             ->color('success')
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->buy_stop_review_required_on !== null
@@ -484,6 +481,7 @@ class PositionRecordActions
             ->label('Wijzig entry')
             ->tooltip('Pas entry en signal-cijfers aan')
             ->icon('heroicon-o-pencil-square')
+            ->iconButton()
             ->color('warning')
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->buy_stop_review_required_on !== null
@@ -498,6 +496,7 @@ class PositionRecordActions
             ->label('Annuleer setup')
             ->tooltip('Setup is niet meer geldig — verwijder van radar')
             ->icon('heroicon-o-trash')
+            ->iconButton()
             ->color('danger')
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->buy_stop_review_required_on !== null
@@ -524,7 +523,7 @@ class PositionRecordActions
     {
         return Action::make('clone_target')
             ->label('Kloon Target')
-            ->tooltip('Kopieer ticker, entry en stop-loss naar je privé-radar')
+            ->tooltip('Kopieer ticker, entry en stop-loss naar je privé-radar + Order Plan')
             ->icon('heroicon-o-document-duplicate')
             ->iconButton()
             ->color('info')
@@ -532,7 +531,7 @@ class PositionRecordActions
             ->authorize(fn (Position $record): bool => auth()->user()?->can('clone', $record) ?? false)
             ->action(function (Position $record, Action $action) use ($scoutResourceClass): void {
                 try {
-                    $clone = $record->cloneForUser(auth()->user());
+                    $clone = $record->cloneForUser(auth()->user(), addToOrderPlan: true);
                 } catch (\InvalidArgumentException $exception) {
                     FilamentNotifier::send(
                         title: 'Al op je radar',
@@ -546,10 +545,61 @@ class PositionRecordActions
 
                 FilamentNotifier::send(
                     title: 'Target gekloond',
-                    body: "{$clone->ticker} staat nu in je privé-radar.",
+                    body: "{$clone->ticker} staat in je radar én Order Plan.",
                 );
 
                 $action->successRedirectUrl($scoutResourceClass::getUrl('edit', ['record' => $clone]));
+            });
+    }
+
+    public static function gapHerplanReprice(): Action
+    {
+        return Action::make('gap_herplan_reprice')
+            ->label('Herprijs')
+            ->tooltip('Gap Reality: herprijs entry / buy-stop review')
+            ->icon('heroicon-o-arrow-path')
+            ->iconButton()
+            ->color('warning')
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->execution_digest_status?->isCancelled() === true
+                && $record->gap_herplan_action === null)
+            ->action(function (Position $record): void {
+                $record->applyGapHerplan(\App\Enums\GapHerplanAction::Reprice);
+                FilamentNotifier::send(title: 'Herplan: herprijs', body: "{$record->ticker} klaar voor buy-stop review.");
+            });
+    }
+
+    public static function gapHerplanSkip(): Action
+    {
+        return Action::make('gap_herplan_skip')
+            ->label('Skip')
+            ->tooltip('Gap Reality: skip vandaag')
+            ->icon('heroicon-o-no-symbol')
+            ->iconButton()
+            ->color('gray')
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->execution_digest_status?->isCancelled() === true
+                && $record->gap_herplan_action === null)
+            ->action(function (Position $record): void {
+                $record->applyGapHerplan(\App\Enums\GapHerplanAction::Skip);
+                FilamentNotifier::send(title: 'Herplan: skip', body: "{$record->ticker} uit Order Plan voor vandaag.");
+            });
+    }
+
+    public static function gapHerplanWait(): Action
+    {
+        return Action::make('gap_herplan_wait')
+            ->label('Wacht')
+            ->tooltip('Gap Reality: wacht op reclaim')
+            ->icon('heroicon-o-clock')
+            ->iconButton()
+            ->color('info')
+            ->visible(fn (Position $record): bool => $record->status === 'scout'
+                && $record->execution_digest_status?->isCancelled() === true
+                && $record->gap_herplan_action === null)
+            ->action(function (Position $record): void {
+                $record->applyGapHerplan(\App\Enums\GapHerplanAction::Wait);
+                FilamentNotifier::send(title: 'Herplan: wacht', body: "{$record->ticker} blijft in Order Plan.");
             });
     }
 
@@ -1084,12 +1134,13 @@ class PositionRecordActions
     /**
      * @return array<string, string>
      */
-    private static function scoutActivateTableExtraAttributes(Position $record): array
+    private static function scoutActivateTableExtraAttributes(Position $record, bool $highlightAPlus = true): array
     {
         $classes = ['vestix-activate-scout-btn'];
 
         if (
-            ($record->signal_low !== null || $record->latest_close_price !== null)
+            $highlightAPlus
+            && ($record->signal_low !== null || $record->latest_close_price !== null)
             && $record->latest_sma_20 !== null
             && $record->scout_rsi !== null
         ) {

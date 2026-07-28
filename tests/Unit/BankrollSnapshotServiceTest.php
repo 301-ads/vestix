@@ -39,6 +39,32 @@ class BankrollSnapshotServiceTest extends TestCase
         $this->assertEquals(10634.60, (float) $user->fresh()->trading_bankroll);
     }
 
+    public function test_record_snapshot_updates_existing_row_for_same_day(): void
+    {
+        $resolver = Mockery::mock(BenchmarkCloseResolver::class);
+        $resolver->shouldReceive('benchmarkTicker')->andReturn('SPY');
+        $resolver->shouldReceive('resolveTradingDayClose')->andReturn(550.25);
+
+        $service = new BankrollSnapshotService($resolver);
+        $user = User::factory()->create(['trading_bankroll' => 9000]);
+
+        // Simulate SQLite date column stored as datetime (common after Eloquent date cast).
+        BankrollSnapshot::query()->create([
+            'user_id' => $user->id,
+            'amount' => 10000,
+            'benchmark_ticker' => 'SPY',
+            'benchmark_close' => 500,
+            'recorded_on' => '2026-07-28 00:00:00',
+            'recorded_at' => now(),
+        ]);
+
+        $snapshot = $service->recordSnapshot($user, 25000, Carbon::parse('2026-07-28', 'Europe/Amsterdam'));
+
+        $this->assertSame(1, BankrollSnapshot::query()->where('user_id', $user->id)->count());
+        $this->assertSame('25000.00', $snapshot->amount);
+        $this->assertEquals(25000.0, (float) $user->fresh()->trading_bankroll);
+    }
+
     public function test_is_update_due_on_saturday_without_weekly_snapshot(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-11 10:00:00', 'Europe/Amsterdam'));

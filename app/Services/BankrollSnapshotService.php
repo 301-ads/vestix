@@ -29,13 +29,15 @@ class BankrollSnapshotService
     {
         $amount = $source->resolveAmount($user);
 
-        $recordedOn = ($date ?? now($this->timezone()))->copy()->startOfDay();
+        $recordedOn = ($date ?? now($this->timezone()))->copy()->timezone($this->timezone())->startOfDay();
         $benchmarkClose = $this->benchmarkCloseResolver->resolveTradingDayClose($recordedOn);
 
+        // Use a Carbon date (not toDateString) so SQLite matches stored `YYYY-MM-DD 00:00:00`
+        // values; a bare date string misses the row and updateOrCreate tries a duplicate insert.
         $snapshot = BankrollSnapshot::query()->updateOrCreate(
             [
                 'user_id' => $user->id,
-                'recorded_on' => $recordedOn->toDateString(),
+                'recorded_on' => $recordedOn,
             ],
             [
                 'amount' => round($amount, 2),

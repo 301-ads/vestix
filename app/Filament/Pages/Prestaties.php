@@ -5,10 +5,12 @@ namespace App\Filament\Pages;
 use App\Filament\Widgets\AlphaTrackerChart;
 use App\Filament\Widgets\AlphaTrackerStatsWidget;
 use App\Filament\Widgets\DirectionPnlSplitWidget;
+use App\Filament\Widgets\EdgeAnalyticsWidget;
 use App\Filament\Widgets\KluisComingSoonWidget;
 use App\Filament\Widgets\KluisEquityChart;
 use App\Filament\Widgets\KluisStatsWidget;
 use App\Filament\Widgets\PerformanceComingSoonWidget;
+use App\Filament\Widgets\TagPerformanceChart;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Tabs;
@@ -45,6 +47,8 @@ class Prestaties extends Page
             DirectionPnlSplitWidget::class,
             AlphaTrackerChart::class,
             PerformanceComingSoonWidget::class,
+            EdgeAnalyticsWidget::class,
+            TagPerformanceChart::class,
         ];
     }
 

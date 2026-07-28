@@ -2,6 +2,10 @@
     use Illuminate\View\ComponentAttributeBag;
 
     /** @var array{title: string, intro?: string|null, rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>, difference_label: string|null, confirmation: string, submit_label: string, is_short?: bool, warning?: string|null, sniper_hard_fails?: list<string>, show_sniper_vision_coming_soon?: bool} $ticket */
+
+    $copyAllText = collect($ticket['rows'] ?? [])
+        ->map(fn (array $row): string => ($row['label'] ?? '').': '.($row['copy_value'] ?? $row['value'] ?? ''))
+        ->implode("\n");
 @endphp
 
 <div @class([
@@ -32,7 +36,22 @@
     @endif
 
     <section class="vestix-broker-order-ticket__section">
-        <h3 class="vestix-broker-order-ticket__heading">Overzicht</h3>
+        <div class="vestix-broker-order-ticket__heading-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;">
+            <h3 class="vestix-broker-order-ticket__heading">Overzicht</h3>
+            <button
+                type="button"
+                class="vestix-broker-order-ticket__copy-all"
+                x-data="{ copied: false }"
+                @click="
+                    navigator.clipboard.writeText(@js($copyAllText)).then(() => {
+                        copied = true;
+                        setTimeout(() => copied = false, 1500);
+                    })
+                "
+            >
+                <span x-text="copied ? 'Gekopieerd' : 'Kopieer alles'"></span>
+            </button>
+        </div>
 
         <dl class="vestix-broker-order-ticket__rows">
             @foreach ($ticket['rows'] as $row)

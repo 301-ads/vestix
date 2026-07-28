@@ -28,14 +28,14 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
 
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 3;
 
     /**
      * @var int|string|array<string, int|string|null>
      */
     protected int|string|array $columnSpan = [
         'default' => 'full',
-        'lg' => 1,
+        'lg' => 2,
     ];
 
     public function boot(): void

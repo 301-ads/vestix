@@ -114,9 +114,13 @@
                                         {{ $investment !== null ? '$'.number_format($investment, 2) : '—' }}
                                     </td>
                                     <td class="vestix-smart-allocation__actions-col">
-                                        <div class="vestix-smart-allocation__row-actions">
-                                            {{ $this->activateScoutActionForPosition($active) }}
-                                            {{ $this->clearBuyStopActionForPosition($active) }}
+                                        <div class="vestix-smart-allocation__row-actions vestix-smart-allocation__row-actions--pair">
+                                            <div class="vestix-smart-allocation__action-slot">
+                                                {{ $this->activateScoutActionForPosition($active) }}
+                                            </div>
+                                            <div class="vestix-smart-allocation__action-slot">
+                                                {{ $this->clearBuyStopActionForPosition($active) }}
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>

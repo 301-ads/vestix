@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\UserAlertPreference;
 use App\Support\EarningsExitSchedule;
 use App\Support\SniperLocalIndicators;
+use App\Support\SniperRejectReasons;
 use App\Support\SniperSetupFilter;
 use App\Support\UsMarketSession;
 use Illuminate\Support\Facades\Log;
@@ -109,6 +110,7 @@ class SniperScanService
         $liquidRows = $cacheQuery->get();
         $scanned = SniperLiquidityCache::query()->count();
         $mathHits = [];
+        $rejectSamples = [];
 
         foreach ($liquidRows as $row) {
             $indicators = $this->indicators->forTicker($row->ticker);
@@ -120,6 +122,16 @@ class SniperScanService
             $direction = SniperSetupFilter::evaluate($indicators);
 
             if ($direction === null) {
+                if (count($rejectSamples) < 25) {
+                    $reasons = SniperRejectReasons::forInputs($indicators);
+                    if ($reasons !== []) {
+                        $rejectSamples[] = [
+                            'ticker' => $row->ticker,
+                            'reasons' => array_slice($reasons, 0, 3),
+                        ];
+                    }
+                }
+
                 continue;
             }
 
@@ -252,7 +264,17 @@ class SniperScanService
             'deduped' => $deduped,
             'splits_purged' => $splitsPurged,
             'coverage' => $coverage,
+            'reject_samples' => $rejectSamples,
         ];
+
+        if ($owner instanceof User && $rejectSamples !== []) {
+            $prefs = is_array($owner->ui_preferences) ? $owner->ui_preferences : [];
+            $prefs['sniper_last_rejects'] = [
+                'date' => $sessionDate,
+                'samples' => $rejectSamples,
+            ];
+            $owner->forceFill(['ui_preferences' => $prefs])->save();
+        }
 
         Log::info('Sniper scan completed.', $summary);
 

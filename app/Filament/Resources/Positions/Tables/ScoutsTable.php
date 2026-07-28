@@ -13,12 +13,16 @@ use App\Support\ScoutRadarFilters;
 use App\Support\ScoutSectorCoachSignal;
 use App\Support\SetupGradeDisplay;
 use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
 
 class ScoutsTable
@@ -162,6 +166,9 @@ class ScoutsTable
                 PositionRecordActions::editBuyStopEntry($resourceClass),
                 PositionRecordActions::cancelBuyStopSetup(),
                 PositionRecordActions::cloneTarget($resourceClass),
+                PositionRecordActions::gapHerplanReprice(),
+                PositionRecordActions::gapHerplanSkip(),
+                PositionRecordActions::gapHerplanWait(),
                 ActionGroup::make([
                     PositionRecordActions::shareSetup(),
                     PositionRecordActions::fetchMarketData(),
@@ -175,6 +182,93 @@ class ScoutsTable
                     ->color('gray')
                     ->iconButton(),
             ]);
+
+        if (! $squadMode) {
+            $table = $table
+                ->toolbarActions([
+                    BulkActionGroup::make([
+                        BulkAction::make('add_to_order_plan')
+                            ->label('Naar Order Plan')
+                            ->icon('heroicon-o-shopping-cart')
+                            ->color('primary')
+                            ->action(function (Collection $records): void {
+                                $count = 0;
+
+                                foreach ($records as $record) {
+                                    if (! $record instanceof Position || ! $record->isOwnedBy(auth()->user())) {
+                                        continue;
+                                    }
+
+                                    if ($record->status !== 'scout') {
+                                        continue;
+                                    }
+
+                                    $record->markSubmittedAtBroker();
+                                    $count++;
+                                }
+
+                                \App\Support\FilamentNotifier::send(
+                                    title: 'Order Plan bijgewerkt',
+                                    body: "{$count} scout(s) toegevoegd.",
+                                );
+                            })
+                            ->deselectRecordsAfterCompletion(),
+                        BulkAction::make('dismiss_scouts')
+                            ->label('Verwijderen')
+                            ->icon('heroicon-o-trash')
+                            ->color('danger')
+                            ->requiresConfirmation()
+                            ->action(function (Collection $records): void {
+                                $count = 0;
+
+                                foreach ($records as $record) {
+                                    if (! $record instanceof Position || ! $record->isOwnedBy(auth()->user())) {
+                                        continue;
+                                    }
+
+                                    if ($record->status !== 'scout') {
+                                        continue;
+                                    }
+
+                                    $record->delete();
+                                    $count++;
+                                }
+
+                                \App\Support\FilamentNotifier::send(
+                                    title: 'Scouts verwijderd',
+                                    body: "{$count} scout(s) weggehaald.",
+                                );
+                            })
+                            ->deselectRecordsAfterCompletion(),
+                        BulkAction::make('ghost_scouts')
+                            ->label('Ghost (privé)')
+                            ->icon('heroicon-o-eye-slash')
+                            ->color('gray')
+                            ->action(function (Collection $records): void {
+                                $count = 0;
+
+                                foreach ($records as $record) {
+                                    if (! $record instanceof Position || ! $record->isOwnedBy(auth()->user())) {
+                                        continue;
+                                    }
+
+                                    $record->update([
+                                        'visibility' => \App\Enums\PositionVisibility::Private,
+                                        'squad_id' => null,
+                                    ]);
+                                    $count++;
+                                }
+
+                                \App\Support\FilamentNotifier::send(
+                                    title: 'Ghost Mode',
+                                    body: "{$count} scout(s) privé gezet.",
+                                );
+                            })
+                            ->deselectRecordsAfterCompletion(),
+                        DeleteBulkAction::make(),
+                    ]),
+                ]);
+        }
 
         return $table;
     }

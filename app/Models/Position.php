@@ -6,6 +6,8 @@ use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\EarningsExitUrgency;
 use App\Enums\ExecutionDigestStatus;
+use App\Enums\ExecutionTruthState;
+use App\Enums\GapHerplanAction;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
 use App\Enums\ScoutPipelineStatus;
@@ -94,6 +96,12 @@ class Position extends Model
             'risk_reward_ratio' => 'decimal:4',
             'visibility' => PositionVisibility::class,
             'broker_order_status' => BrokerOrderStatus::class,
+            'execution_truth_state' => ExecutionTruthState::class,
+            'broker_submitted_at' => 'datetime',
+            'sniper_reject_reasons' => 'array',
+            'protocol_score' => 'integer',
+            'protocol_score_details' => 'array',
+            'gap_herplan_action' => GapHerplanAction::class,
             'broker' => Broker::class,
             'market_open_reminder_on' => 'date',
             'order_plan_excluded_on' => 'date',
@@ -570,7 +578,7 @@ class Position extends Model
         return null;
     }
 
-    public function cloneForUser(User $user): self
+    public function cloneForUser(User $user, bool $addToOrderPlan = false): self
     {
         $direction = $this->tradeDirection();
 
@@ -590,6 +598,11 @@ class Position extends Model
             'exit_price',
             'closed_at',
             'exit_chart_screenshot_path',
+            'broker_submitted_at',
+            'execution_truth_state',
+            'protocol_score',
+            'protocol_score_details',
+            'gap_herplan_action',
         ]);
 
         $clone->fill([
@@ -599,11 +612,83 @@ class Position extends Model
             'cloned_from_id' => $this->id,
             'status' => 'scout',
             'direction' => $direction,
+            'execution_truth_state' => ExecutionTruthState::Planned,
+            'data_source_label' => 'planned',
         ]);
+
+        if ($addToOrderPlan) {
+            $clone->broker_order_status = BrokerOrderStatus::Pending;
+            $clone->market_open_reminder_on = null;
+            $clone->order_plan_excluded_on = null;
+        }
 
         $clone->save();
 
         return $clone;
+    }
+
+    public function markSubmittedAtBroker(): void
+    {
+        $this->update([
+            'broker_submitted_at' => now(),
+            'execution_truth_state' => ExecutionTruthState::SubmittedAtBroker,
+            'data_source_label' => ExecutionTruthState::SubmittedAtBroker->sourceLabel(),
+            'broker_order_status' => BrokerOrderStatus::Pending,
+            'market_open_reminder_on' => null,
+            'order_plan_excluded_on' => null,
+        ]);
+    }
+
+    public function executionTruthState(): ?ExecutionTruthState
+    {
+        if ($this->execution_truth_state instanceof ExecutionTruthState) {
+            return $this->execution_truth_state;
+        }
+
+        if ($this->status === 'closed') {
+            return ExecutionTruthState::Closed;
+        }
+
+        if ($this->status === 'open') {
+            return ExecutionTruthState::SyncedOpen;
+        }
+
+        if ($this->broker_order_status === BrokerOrderStatus::Pending
+            || $this->broker_submitted_at !== null) {
+            return ExecutionTruthState::SubmittedAtBroker;
+        }
+
+        return ExecutionTruthState::Planned;
+    }
+
+    public function resolvedDataSourceLabel(): string
+    {
+        if (filled($this->data_source_label)) {
+            return (string) $this->data_source_label;
+        }
+
+        return $this->executionTruthState()?->sourceLabel() ?? 'planned';
+    }
+
+    public function applyGapHerplan(GapHerplanAction $action): void
+    {
+        match ($action) {
+            GapHerplanAction::Skip => $this->update([
+                'gap_herplan_action' => $action,
+                'order_plan_excluded_on' => now('Europe/Amsterdam')->toDateString(),
+                'broker_order_status' => BrokerOrderStatus::Scout,
+            ]),
+            GapHerplanAction::Wait => $this->update([
+                'gap_herplan_action' => $action,
+                'broker_order_status' => BrokerOrderStatus::Pending,
+                'order_plan_excluded_on' => null,
+            ]),
+            GapHerplanAction::Reprice => $this->update([
+                'gap_herplan_action' => $action,
+                'broker_order_status' => BrokerOrderStatus::Scout,
+                'buy_stop_review_required_on' => now('Europe/Amsterdam')->toDateString(),
+            ]),
+        };
     }
 
     public function archiveWithExitPrice(float $exitPrice, ?string $exitChartPath = null): void
@@ -613,6 +698,7 @@ class Position extends Model
             'status' => 'closed',
             'closed_at' => now(),
             'risk_reward_ratio' => self::computeBlendedRiskRewardRatio($this, $exitPrice),
+            'execution_truth_state' => ExecutionTruthState::Closed,
         ];
 
         if ($exitChartPath !== null) {
@@ -620,6 +706,8 @@ class Position extends Model
         }
 
         $this->update($data);
+
+        app(\App\Services\ProtocolComplianceService::class)->persistForClosed($this->fresh() ?? $this);
     }
 
     public function getEntryChartScreenshotUrlAttribute(): ?string
@@ -1920,5 +2008,20 @@ class Position extends Model
         }
 
         return $result;
+    }
+
+    /**
+     * Persist scorecard hard-fail reasons for Radar learning UI.
+     */
+    public function persistSniperRejectReasons(): void
+    {
+        $result = $this->evaluateSetupScore();
+
+        $this->forceFill([
+            'sniper_reject_reasons' => $result['hardFailReasons'] !== []
+                ? array_values($result['hardFailReasons'])
+                : null,
+            'last_setup_score' => $result['totalPoints'],
+        ])->saveQuietly();
     }
 }

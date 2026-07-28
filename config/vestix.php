@@ -320,4 +320,14 @@ return [
             explode(',', (string) env('VESTIX_SNIPER_ETF_ALLOWLIST', 'SPY,QQQ,IWM,SMH')),
         ), static fn (string $ticker): bool => $ticker !== '')),
     ],
+
+    /*
+    | Free-First entitlements. Overrides force a feature on/off for all users.
+    | Paid plans can later set ui_preferences.plan without rewriting the free loop.
+    */
+    'entitlements' => [
+        'overrides' => [
+            // 'sniper_scanner' => true,
+        ],
+    ],
 ];

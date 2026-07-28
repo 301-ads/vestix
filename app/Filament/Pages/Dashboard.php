@@ -4,10 +4,14 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\BankrollUpdateWidget;
 use App\Filament\Widgets\BuyStopReviewWidget;
+use App\Filament\Widgets\FirstRunChecklistWidget;
+use App\Filament\Widgets\IbkrReconcileWidget;
 use App\Filament\Widgets\OrderPlanTodayWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
+use App\Filament\Widgets\SetupRadarWidget;
+use App\Filament\Widgets\SniperRejectSamplesWidget;
 use App\Support\BackgroundArtisan;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
@@ -23,12 +27,14 @@ class Dashboard extends BaseDashboard
 
     protected static ?int $navigationSort = 1;
 
+    protected static ?string $title = 'Today';
+
     /**
      * @return array<string>
      */
     public function getPageClasses(): array
     {
-        return ['vestix-dashboard'];
+        return ['vestix-dashboard', 'vestix-dashboard--today'];
     }
 
     public function getColumns(): int|array
@@ -40,17 +46,23 @@ class Dashboard extends BaseDashboard
     }
 
     /**
+     * Today Mode: action queue first, then plan/reconcile, then context.
+     *
      * @return array<class-string>
      */
     public function getWidgets(): array
     {
         return [
-            PortfolioExposureWidget::class,
-            BankrollUpdateWidget::class,
-            PortfolioTopFlopWidget::class,
+            FirstRunChecklistWidget::class,
+            IbkrReconcileWidget::class,
             PositionsRequiringActionWidget::class,
             OrderPlanTodayWidget::class,
             BuyStopReviewWidget::class,
+            BankrollUpdateWidget::class,
+            PortfolioExposureWidget::class,
+            PortfolioTopFlopWidget::class,
+            SetupRadarWidget::class,
+            SniperRejectSamplesWidget::class,
         ];
     }
 

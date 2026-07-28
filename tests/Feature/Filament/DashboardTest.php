@@ -165,17 +165,21 @@ class DashboardTest extends TestCase
             ->assertDontSee('Status');
     }
 
-    public function test_dashboard_widget_order_shows_portfolio_before_actions(): void
+    public function test_dashboard_widget_order_shows_actions_before_portfolio(): void
     {
         $widgets = (new Dashboard)->getWidgets();
 
         $this->assertSame([
-            PortfolioExposureWidget::class,
-            BankrollUpdateWidget::class,
-            PortfolioTopFlopWidget::class,
+            \App\Filament\Widgets\FirstRunChecklistWidget::class,
+            \App\Filament\Widgets\IbkrReconcileWidget::class,
             PositionsRequiringActionWidget::class,
             OrderPlanTodayWidget::class,
             BuyStopReviewWidget::class,
+            BankrollUpdateWidget::class,
+            PortfolioExposureWidget::class,
+            PortfolioTopFlopWidget::class,
+            \App\Filament\Widgets\SetupRadarWidget::class,
+            \App\Filament\Widgets\SniperRejectSamplesWidget::class,
         ], $widgets);
     }
 

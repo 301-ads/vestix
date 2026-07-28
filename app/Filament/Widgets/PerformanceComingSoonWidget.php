@@ -13,11 +13,19 @@ class PerformanceComingSoonWidget extends Widget
 
     protected int|string|array $columnSpan = 'full';
 
-    public function hasEnoughSnapshots(): bool
+    /**
+     * Only the empty-state CTA — edge analytics replaces the old "coming soon" branch.
+     */
+    public static function canView(): bool
     {
         $user = auth()->user();
 
         return $user !== null
-            && app(AlphaTrackerService::class)->hasEnoughSnapshots($user);
+            && ! app(AlphaTrackerService::class)->hasEnoughSnapshots($user);
+    }
+
+    public function hasEnoughSnapshots(): bool
+    {
+        return false;
     }
 }

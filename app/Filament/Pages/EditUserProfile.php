@@ -83,6 +83,42 @@ class EditUserProfile extends EditProfile
                                             ->helperText('Uitgeschakeld: je verschijnt niet in de gebruikerszoekfunctie. Je kunt nog wel via e-mail worden uitgenodigd.')
                                             ->default(true),
                                     ]),
+                                Section::make('First-run checklist')
+                                    ->compact()
+                                    ->description('Vier Free-First stappen. Wordt automatisch afgevinkt wanneer alles staat.')
+                                    ->schema([
+                                        Placeholder::make('first_run_status')
+                                            ->label('Voortgang')
+                                            ->content(function (): HtmlString {
+                                                $status = \App\Support\FirstRunChecklist::status($this->getUser());
+
+                                                $lines = collect($status['steps'])->map(function (array $step): string {
+                                                    $mark = $step['done'] ? '✓' : '○';
+
+                                                    return "{$mark} {$step['label']}";
+                                                })->implode('<br>');
+
+                                                return new HtmlString(
+                                                    "<p class=\"text-sm text-gray-500 dark:text-gray-400\">{$status['done_count']}/{$status['total']}</p><p class=\"text-sm\">{$lines}</p>"
+                                                );
+                                            }),
+                                        Toggle::make('ui_preferences_dismiss_first_run')
+                                            ->label('Checklist verbergen op Dashboard')
+                                            ->dehydrated(false)
+                                            ->afterStateHydrated(function (Toggle $component): void {
+                                                $dismissed = (bool) data_get($this->getUser()->ui_preferences, 'first_run.dismissed', false);
+                                                $component->state($dismissed);
+                                            })
+                                            ->afterStateUpdated(function (bool $state): void {
+                                                if ($state) {
+                                                    \App\Support\FirstRunChecklist::dismiss($this->getUser());
+                                                } else {
+                                                    \App\Support\FirstRunChecklist::mergePreferences($this->getUser(), [
+                                                        'first_run' => ['dismissed' => false],
+                                                    ]);
+                                                }
+                                            }),
+                                    ]),
                                 Section::make('Beveiliging')
                                     ->compact()
                                     ->schema([
@@ -429,6 +465,8 @@ class EditUserProfile extends EditProfile
 
     protected function afterSave(): void
     {
+        \App\Support\FirstRunChecklist::markCompletedIfReady($this->getUser()->fresh() ?? $this->getUser());
+
         if (! $this->shouldRecordBankrollSnapshot) {
             return;
         }

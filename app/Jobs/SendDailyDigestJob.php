@@ -25,11 +25,11 @@ class SendDailyDigestJob implements ShouldQueue
                 ->forUser($user->id)
                 ->get()
                 ->filter(function (Position $position): bool {
-                    $command = $position->action_command;
+                    $type = $position->primaryActionType();
 
-                    return in_array($command, ['UPDATE', 'STOPPED OUT'], true)
+                    return $type !== null
                         || $position->isInDangerZone()
-                        || $position->requiresEarningsExit();
+                        || in_array($position->action_command, ['UPDATE', 'STOPPED OUT'], true);
                 })
                 ->values()
                 ->all();

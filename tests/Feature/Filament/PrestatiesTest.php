@@ -6,10 +6,12 @@ use App\Filament\Pages\Prestaties;
 use App\Filament\Widgets\AlphaTrackerChart;
 use App\Filament\Widgets\AlphaTrackerStatsWidget;
 use App\Filament\Widgets\DirectionPnlSplitWidget;
+use App\Filament\Widgets\EdgeAnalyticsWidget;
 use App\Filament\Widgets\KluisComingSoonWidget;
 use App\Filament\Widgets\KluisEquityChart;
 use App\Filament\Widgets\KluisStatsWidget;
 use App\Filament\Widgets\PerformanceComingSoonWidget;
+use App\Filament\Widgets\TagPerformanceChart;
 use App\Models\BankrollSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -54,6 +56,8 @@ class PrestatiesTest extends TestCase
             DirectionPnlSplitWidget::class,
             AlphaTrackerChart::class,
             PerformanceComingSoonWidget::class,
+            EdgeAnalyticsWidget::class,
+            TagPerformanceChart::class,
         ], $page->getSwingWidgets());
 
         $this->assertSame([
@@ -88,8 +92,8 @@ class PrestatiesTest extends TestCase
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(Prestaties::class)
-            ->assertSee('Alpha Tracker')
             ->assertSee('Jouw Rendement (YTD)')
-            ->assertSee('Jouw Alpha');
+            ->assertSee('Jouw Alpha')
+            ->assertDontSee('Naar dashboard');
     }
 }
