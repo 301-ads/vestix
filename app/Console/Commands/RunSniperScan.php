@@ -70,7 +70,7 @@ class RunSniperScan extends Command
         }
 
         $message = sprintf(
-            "Vestix Nightly Scan Voltooid\nScanned: %s | Liquide: %s | Hits: %s | Created: %s\nEarnings blocked: %s | Capped: %s | Splits purged: %s\nBekijk Visuele Review in Mijn Radar.",
+            "Vestix Ochtendscan Voltooid\nScanned: %s | Liquide: %s | Hits: %s | Created: %s\nEarnings blocked: %s | Capped: %s | Splits purged: %s\nBekijk Visuele Review in Mijn Radar.",
             number_format((int) ($summary['scanned'] ?? 0)),
             number_format((int) ($summary['liquid'] ?? 0)),
             number_format((int) ($summary['math_hits'] ?? 0)),

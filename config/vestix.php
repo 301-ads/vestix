@@ -307,7 +307,9 @@ return [
         'min_volume' => (int) env('VESTIX_SNIPER_MIN_VOLUME', 1_000_000),
         'min_avg_volume_30d' => (int) env('VESTIX_SNIPER_MIN_AVG_VOLUME_30D', 1_000_000),
         'min_market_cap' => (float) env('VESTIX_SNIPER_MIN_MARKET_CAP', 2_000_000_000),
-        'schedule_time' => env('VESTIX_SNIPER_SCAN_TIME', '22:45'),
+        // Morning after US session: Polygon Basic Grouped Daily often 403's same evening.
+        'schedule_time' => env('VESTIX_SNIPER_SCAN_TIME', '06:30'),
+        // Warm market caps the evening before the morning scan.
         'profile_refresh_time' => env('VESTIX_SNIPER_PROFILE_REFRESH_TIME', '20:00'),
         'split_gap_pct' => (float) env('VESTIX_SNIPER_SPLIT_GAP_PCT', 40.0),
         'bars_retention_days' => (int) env('VESTIX_SNIPER_BARS_RETENTION_DAYS', 90),

@@ -18,9 +18,10 @@ Schedule::command('vestix:fetch-data')
     ->timezone('Europe/Amsterdam');
 
 // Native sniper scanner (Architectuur V3). Default ON; set VESTIX_SNIPER_SCANNER_ENABLED=false to pause.
+// Runs next morning (default 06:30 NL): Polygon Basic returns 403 for same-evening Grouped Daily.
 Schedule::command('vestix:sniper-scan')
     ->weekdays()
-    ->dailyAt((string) config('vestix.sniper_scanner.schedule_time', '22:45'))
+    ->dailyAt((string) config('vestix.sniper_scanner.schedule_time', '06:30'))
     ->timezone('Europe/Amsterdam')
     ->withoutOverlapping(120)
     ->when(fn (): bool => (bool) config('vestix.sniper_scanner.enabled'));

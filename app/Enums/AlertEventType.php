@@ -82,7 +82,7 @@ enum AlertEventType: string
             self::ExecutionPrepDigest => 'Daily Execution Digest — Stop-Limit plannen (14:30)',
             self::OrderPlanRevised => 'Order Plan herzien — pre-market onder SMA 20 (14:30)',
             self::SquadCopyAlert => 'Squad copy-alerts (Ghost Mode)',
-            self::SniperScanDigest => 'Sniper nightly scan digest (22:45)',
+            self::SniperScanDigest => 'Sniper ochtendscan digest (06:30)',
             self::SniperScanTarget => 'Nieuw sniper-doelwit met score',
         };
     }
