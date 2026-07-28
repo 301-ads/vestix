@@ -60,7 +60,7 @@ class SniperScanService
         $sessionDate = $date ?? UsMarketSession::expectedLastCompletedSessionDate()->toDateString();
 
         if (! $skipIngest) {
-            $ingest = $this->ingest->ingestDate($sessionDate);
+            $ingest = $this->ingest->ingestDate($sessionDate, refreshMetrics: false);
             $sessionDate = $ingest['date'];
             $splitsPurged = $ingest['splits_purged'];
 
@@ -73,6 +73,9 @@ class SniperScanService
                     reason: $ingest['reason'] ?? 'ingest_skipped',
                 );
             }
+
+            // Full-history bars_ready after ingest (avoid short-window false negatives).
+            $this->ingest->recomputeLiquidityMetrics($sessionDate);
         }
 
         $minVolume = (int) config('vestix.sniper_scanner.min_volume');

@@ -175,18 +175,14 @@ class SniperGroupedDailyIngestService
     public function refreshLiquidityMetrics(string $sessionDate): void
     {
         $minBars = (int) config('vestix.sniper_scanner.min_bars_for_ready', 50);
-        $retention = (int) config('vestix.sniper_scanner.bars_retention_days', 60);
-        // Need enough calendar days to cover minBars trading sessions (~1.5x).
-        $readyLookbackDays = max($retention + 5, (int) ceil($minBars * 1.6));
-        $avgLookbackDays = 45; // ~30 trading days
+        $avgLookbackDays = 45; // ~30 trading days for avg volume
         $allowlist = array_map('strtoupper', config('vestix.sniper_scanner.etf_allowlist', []));
-
-        $readySince = Carbon::parse($sessionDate)->subDays($readyLookbackDays)->toDateString();
         $avgSince = Carbon::parse($sessionDate)->subDays($avgLookbackDays)->toDateString();
 
+        // bars_ready = total stored history per ticker (retention already caps table size).
+        // Do NOT use a short calendar window — that falsely zeros bars_ready after daily ingest.
         $barCounts = SniperDailyBar::query()
             ->select(['ticker', DB::raw('COUNT(*) as bar_count')])
-            ->where('date', '>=', $readySince)
             ->groupBy('ticker')
             ->pluck('bar_count', 'ticker');
 
@@ -202,6 +198,7 @@ class SniperGroupedDailyIngestService
 
         $tickers = $barCounts->keys()->merge($avgVolumes->keys())->merge($latestVolumes->keys())->unique();
         $now = now();
+        $readyCount = 0;
 
         foreach ($tickers as $ticker) {
             $ticker = (string) $ticker;
@@ -213,6 +210,11 @@ class SniperGroupedDailyIngestService
             }
 
             $barCount = (int) ($barCounts[$ticker] ?? 0);
+            $barsReady = $barCount >= $minBars;
+
+            if ($barsReady) {
+                $readyCount++;
+            }
 
             SniperLiquidityCache::query()->updateOrCreate(
                 ['ticker' => $ticker],
@@ -225,12 +227,19 @@ class SniperGroupedDailyIngestService
                         ? (int) $latestVolumes[$ticker]
                         : $existing?->last_volume,
                     'enabled' => $existing?->enabled ?? true,
-                    'bars_ready' => $barCount >= $minBars,
+                    'bars_ready' => $barsReady,
                     'metrics_as_of' => $sessionDate,
                     'updated_at' => $now,
                 ],
             );
         }
+
+        Log::info('Sniper liquidity metrics refreshed.', [
+            'as_of' => $sessionDate,
+            'tickers' => $tickers->count(),
+            'bars_ready' => $readyCount,
+            'min_bars' => $minBars,
+        ]);
     }
 
     private function pruneOldBars(): void
