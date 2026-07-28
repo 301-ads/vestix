@@ -16,7 +16,7 @@ class RunSniperScan extends Command
         {--skip-ingest : Skip Grouped Daily ingest (use existing cache)}
         {--no-digest : Do not send digest alert}';
 
-    protected $description = 'Native EOD sniper scan (feature-flagged; disabled by default)';
+    protected $description = 'Native EOD sniper scan (default ON; disable with VESTIX_SNIPER_SCANNER_ENABLED=false)';
 
     public function handle(SniperScanService $scan, AlertDispatcher $alerts): int
     {

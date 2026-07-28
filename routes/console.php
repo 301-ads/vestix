@@ -17,7 +17,7 @@ Schedule::command('vestix:fetch-data')
     ->dailyAt('22:30')
     ->timezone('Europe/Amsterdam');
 
-// Native sniper scanner (Architectuur V3). Feature-flagged — default off for easy rollback.
+// Native sniper scanner (Architectuur V3). Default ON; set VESTIX_SNIPER_SCANNER_ENABLED=false to pause.
 Schedule::command('vestix:sniper-scan')
     ->weekdays()
     ->dailyAt((string) config('vestix.sniper_scanner.schedule_time', '22:45'))

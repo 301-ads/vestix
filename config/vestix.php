@@ -297,7 +297,7 @@ return [
 
     /*
     | Native EOD Sniper Scanner (Architectuur V3).
-    | Rollback: VESTIX_SNIPER_SCANNER_ENABLED=false (default) — schedules no-op, existing scout flow untouched.
+    | Default ON. Disable with VESTIX_SNIPER_SCANNER_ENABLED=false, or git/Forge rollback.
     */
     'sniper_scanner' => [
         'enabled' => filter_var(env('VESTIX_SNIPER_SCANNER_ENABLED', true), FILTER_VALIDATE_BOOL),
