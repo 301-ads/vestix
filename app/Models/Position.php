@@ -277,6 +277,46 @@ class Position extends Model
         return $query->scout()->nonLegacy()->forUser($userId);
     }
 
+    /**
+     * Same ticker may exist once as long and once as short on a user's radar,
+     * but not twice with the same direction.
+     */
+    public static function userHasPersonalScoutWith(
+        int $userId,
+        string $ticker,
+        TradeDirection $direction,
+        ?int $exceptId = null,
+    ): bool {
+        $query = static::query()
+            ->personalScouts($userId)
+            ->where('ticker', strtoupper($ticker))
+            ->where(function (Builder $query) use ($direction): void {
+                if ($direction === TradeDirection::Long) {
+                    $query->where('direction', TradeDirection::Long->value)
+                        ->orWhereNull('direction');
+
+                    return;
+                }
+
+                $query->where('direction', $direction->value);
+            });
+
+        if ($exceptId !== null) {
+            $query->whereKeyNot($exceptId);
+        }
+
+        return $query->exists();
+    }
+
+    public static function duplicateScoutRadarMessage(string $ticker, TradeDirection $direction): string
+    {
+        return sprintf(
+            'Je hebt %s al als %s op je radar.',
+            strtoupper($ticker),
+            $direction->label(),
+        );
+    }
+
     public function scopeSquadShared(Builder $query, int $squadId): Builder
     {
         return $query
@@ -532,6 +572,14 @@ class Position extends Model
 
     public function cloneForUser(User $user): self
     {
+        $direction = $this->tradeDirection();
+
+        if (static::userHasPersonalScoutWith($user->id, (string) $this->ticker, $direction)) {
+            throw new InvalidArgumentException(
+                static::duplicateScoutRadarMessage((string) $this->ticker, $direction),
+            );
+        }
+
         $clone = $this->replicate([
             'quantity',
             'telegram_a_minus_alert_sent_at',
@@ -550,6 +598,7 @@ class Position extends Model
             'squad_id' => null,
             'cloned_from_id' => $this->id,
             'status' => 'scout',
+            'direction' => $direction,
         ]);
 
         $clone->save();

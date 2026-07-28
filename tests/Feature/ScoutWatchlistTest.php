@@ -7,6 +7,7 @@ use App\Enums\BrokerOrderStatus;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
 use App\Enums\ScoutPipelineStatus;
+use App\Enums\TradeDirection;
 use App\Filament\Resources\Positions\Pages\CreateScout;
 use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListScouts;
@@ -76,6 +77,84 @@ class ScoutWatchlistTest extends TestCase
             'quantity' => null,
             'current_sl' => null,
         ]);
+    }
+
+    public function test_duplicate_scout_ticker_same_direction_is_rejected(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'AAPL',
+            'direction' => TradeDirection::Long,
+        ]);
+
+        Livewire::test(CreateScout::class)
+            ->fillForm([
+                'ticker' => 'AAPL',
+                'direction' => TradeDirection::Long->value,
+                'strategy_tag_id' => $this->defaultStrategyTagId(),
+            ])
+            ->call('create')
+            ->assertHasFormErrors([
+                'ticker' => 'Je hebt AAPL al als Long op je radar.',
+            ]);
+
+        $this->assertSame(1, Position::query()->scout()->forUser($user->id)->where('ticker', 'AAPL')->count());
+    }
+
+    public function test_same_scout_ticker_allowed_once_as_long_and_once_as_short(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update(['is_short_enabled' => true]);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'TSLA',
+            'direction' => TradeDirection::Long,
+        ]);
+
+        Livewire::test(CreateScout::class)
+            ->fillForm([
+                'ticker' => 'TSLA',
+                'direction' => TradeDirection::Short->value,
+                'strategy_tag_id' => $this->defaultStrategyTagId(),
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(2, Position::query()->scout()->forUser($user->id)->where('ticker', 'TSLA')->count());
+        $this->assertTrue(
+            Position::query()
+                ->scout()
+                ->forUser($user->id)
+                ->where('ticker', 'TSLA')
+                ->where('direction', TradeDirection::Short->value)
+                ->exists(),
+        );
+    }
+
+    public function test_edit_scout_rejects_ticker_direction_collision(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update(['is_short_enabled' => true]);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'NVDA',
+            'direction' => TradeDirection::Long,
+        ]);
+
+        $shortScout = Position::factory()->for($user)->scout()->short()->create([
+            'ticker' => 'AMD',
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $shortScout->getKey()])
+            ->fillForm([
+                'ticker' => 'NVDA',
+                'direction' => TradeDirection::Long->value,
+            ])
+            ->call('save')
+            ->assertHasFormErrors([
+                'ticker' => 'Je hebt NVDA al als Long op je radar.',
+            ]);
     }
 
     public function test_scout_can_be_created_without_sl_or_quantity(): void

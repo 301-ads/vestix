@@ -8,6 +8,7 @@ use App\Enums\TradeDirection;
 use App\Events\SquadRadarTargetPosted;
 use App\Filament\Resources\Positions\Schemas\PositionForm;
 use App\Filament\Resources\Scouts\ScoutResource;
+use App\Models\Position;
 use App\Models\Squad;
 use App\Services\SquadContext;
 use Filament\Actions\Action;
@@ -78,6 +79,19 @@ class CreateScout extends CreateRecord
         if ($direction === TradeDirection::Short && ! auth()->user()?->canUseShort()) {
             throw ValidationException::withMessages([
                 'direction' => 'Short-selling is niet geactiveerd in je profiel.',
+            ]);
+        }
+
+        $ticker = strtoupper((string) ($data['ticker'] ?? ''));
+        $userId = (int) auth()->id();
+
+        if (
+            $ticker !== ''
+            && $userId > 0
+            && Position::userHasPersonalScoutWith($userId, $ticker, $direction)
+        ) {
+            throw ValidationException::withMessages([
+                'data.ticker' => Position::duplicateScoutRadarMessage($ticker, $direction),
             ]);
         }
 

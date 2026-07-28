@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\PositionVisibility;
 use App\Enums\SquadRole;
+use App\Enums\TradeDirection;
 use App\Events\SquadRadarTargetPosted;
 use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListScouts;
@@ -119,6 +120,34 @@ class MultiTenancyTest extends TestCase
         $this->assertSame('NVDA', $clone->ticker);
         $this->assertEquals(120.50, (float) $clone->entry_price);
         $this->assertSame('scout', $clone->status);
+    }
+
+    public function test_clone_target_rejects_duplicate_ticker_and_direction(): void
+    {
+        ['user' => $analyst, 'squad' => $squad] = $this->createUserWithSquad();
+        $sniper = User::factory()->create();
+        $squad->users()->attach($sniper);
+        app(SquadPermissionService::class)->assignRole($sniper, $squad, SquadRole::Sniper);
+
+        Position::factory()->for($sniper)->scout()->create([
+            'ticker' => 'NVDA',
+            'direction' => TradeDirection::Long,
+        ]);
+
+        $shared = Position::factory()->for($analyst)->scout()->create([
+            'visibility' => PositionVisibility::Squad,
+            'squad_id' => $squad->id,
+            'ticker' => 'NVDA',
+            'direction' => TradeDirection::Long,
+        ]);
+
+        $this->actingAs($sniper);
+        app(SquadPermissionService::class)->setTeamContext($squad->id);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Je hebt NVDA al als Long op je radar.');
+
+        $shared->cloneForUser($sniper);
     }
 
     public function test_clone_target_from_squad_radar_redirects_to_edit_scout(): void

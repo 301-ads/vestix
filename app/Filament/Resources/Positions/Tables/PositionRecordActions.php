@@ -531,7 +531,18 @@ class PositionRecordActions
             ->visible(fn (Position $record): bool => auth()->user()?->can('clone', $record) ?? false)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('clone', $record) ?? false)
             ->action(function (Position $record, Action $action) use ($scoutResourceClass): void {
-                $clone = $record->cloneForUser(auth()->user());
+                try {
+                    $clone = $record->cloneForUser(auth()->user());
+                } catch (\InvalidArgumentException $exception) {
+                    FilamentNotifier::send(
+                        title: 'Al op je radar',
+                        body: $exception->getMessage(),
+                        status: 'warning',
+                    );
+                    $action->halt();
+
+                    return;
+                }
 
                 FilamentNotifier::send(
                     title: 'Target gekloond',

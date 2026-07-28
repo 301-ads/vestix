@@ -206,6 +206,24 @@ class EditPosition extends EditRecord
                 ]);
             }
 
+            $ticker = strtoupper((string) ($data['ticker'] ?? $this->getRecord()->ticker ?? ''));
+            $userId = (int) ($this->getRecord()->user_id ?? auth()->id());
+
+            if (
+                $ticker !== ''
+                && $userId > 0
+                && Position::userHasPersonalScoutWith(
+                    $userId,
+                    $ticker,
+                    $direction,
+                    (int) $this->getRecord()->getKey(),
+                )
+            ) {
+                throw ValidationException::withMessages([
+                    'data.ticker' => Position::duplicateScoutRadarMessage($ticker, $direction),
+                ]);
+            }
+
             $data['direction'] = $direction->value;
 
             $visibility = PositionVisibility::tryFrom((string) ($data['visibility'] ?? ''))
