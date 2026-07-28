@@ -173,7 +173,12 @@ class FinnhubService
     }
 
     /**
-     * @return array{gsector: string|null, finnhubIndustry: string|null, name: string|null}|null
+     * @return array{
+     *     gsector: string|null,
+     *     finnhubIndustry: string|null,
+     *     name: string|null,
+     *     marketCapitalization: float|null,
+     * }|null
      */
     public function fetchCompanyProfile(string $ticker): ?array
     {
@@ -185,10 +190,13 @@ class FinnhubService
             return null;
         }
 
+        $marketCap = $data['marketCapitalization'] ?? null;
+
         return [
             'gsector' => isset($data['gsector']) && is_string($data['gsector']) ? $data['gsector'] : null,
             'finnhubIndustry' => isset($data['finnhubIndustry']) && is_string($data['finnhubIndustry']) ? $data['finnhubIndustry'] : null,
             'name' => isset($data['name']) && is_string($data['name']) ? $data['name'] : null,
+            'marketCapitalization' => is_numeric($marketCap) ? (float) $marketCap : null,
         ];
     }
 

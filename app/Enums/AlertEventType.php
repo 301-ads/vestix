@@ -21,6 +21,7 @@ enum AlertEventType: string
     case ExecutionOrderPlan = 'execution_order_plan';
     case ExecutionPrepDigest = 'execution_prep_digest';
     case OrderPlanRevised = 'order_plan_revised';
+    case SniperScanDigest = 'sniper_scan_digest';
 
     /**
      * @return list<string>
@@ -44,6 +45,7 @@ enum AlertEventType: string
             self::ExecutionOrderPlan->value,
             self::ExecutionPrepDigest->value,
             self::OrderPlanRevised->value,
+            self::SniperScanDigest->value,
         ];
     }
 
@@ -78,6 +80,7 @@ enum AlertEventType: string
             self::ExecutionPrepDigest => 'Daily Execution Digest — Stop-Limit plannen (14:30)',
             self::OrderPlanRevised => 'Order Plan herzien — pre-market onder SMA 20 (14:30)',
             self::SquadCopyAlert => 'Squad copy-alerts (Ghost Mode)',
+            self::SniperScanDigest => 'Sniper nightly scan digest (22:45)',
         };
     }
 
@@ -101,6 +104,7 @@ enum AlertEventType: string
                 self::ExecutionPrepDigest,
                 self::ExecutionOrderPlan,
                 self::MarketOpenBuyStopReminder,
+                self::SniperScanDigest,
             ),
             'risk' => self::optionsFor(
                 self::EarningsWarning,

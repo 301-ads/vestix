@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Enums\ScoutPipelineStatus;
+use App\Enums\ScoutReviewStatus;
+use App\Enums\ScoutSource;
 use App\Models\Position;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
@@ -16,6 +18,7 @@ class ScoutRadarFilters
     {
         return [
             'ready' => 'Klaar voor executie',
+            'visual_review' => 'Visuele review',
             'gap_up' => 'Gap-up risico',
             'reclamation' => 'Reclamation PM',
             'landing' => 'Landing PM',
@@ -58,6 +61,7 @@ class ScoutRadarFilters
     {
         return match ($focus) {
             'ready' => self::isReadyForExecution($scout),
+            'visual_review' => self::isPendingVisualReview($scout),
             'gap_up' => $scout->hasPremarketGapUpRisk(),
             'reclamation' => $scout->hasPremarketReclamation(),
             'landing' => $scout->hasPremarketLanding(),
@@ -73,6 +77,13 @@ class ScoutRadarFilters
             'track_b' => $scout->hasPremarketReclamation(),
             default => false,
         };
+    }
+
+    public static function isPendingVisualReview(Position $scout): bool
+    {
+        return $scout->status === 'scout'
+            && $scout->source === ScoutSource::SniperScan
+            && $scout->review_status === ScoutReviewStatus::PendingVisualReview;
     }
 
     public static function apply(Builder $query, ?string $focus): Builder

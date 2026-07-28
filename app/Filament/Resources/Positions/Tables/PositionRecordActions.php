@@ -585,6 +585,38 @@ class PositionRecordActions
             });
     }
 
+    public static function rejectVisualReview(): Action
+    {
+        return Action::make('reject_visual_review')
+            ->label('Afwijzen')
+            ->tooltip('Verwijder deze sniper-kandidaat uit Visuele Review')
+            ->icon('heroicon-o-x-mark')
+            ->color('danger')
+            ->iconButton()
+            ->visible(fn (Position $record): bool => self::canRejectVisualReview($record))
+            ->requiresConfirmation()
+            ->modalHeading('Scout afwijzen')
+            ->modalDescription('Deze sniper-kandidaat verdwijnt uit Visuele Review.')
+            ->modalSubmitActionLabel('Afwijzen')
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('delete', $record) ?? false)
+            ->action(function (Position $record): void {
+                $ticker = $record->ticker;
+                $record->rejectVisualReview();
+
+                FilamentNotifier::send(
+                    title: 'Scout afgewezen',
+                    body: "{$ticker} is verwijderd uit Visuele Review.",
+                );
+            });
+    }
+
+    public static function canRejectVisualReview(Position $record): bool
+    {
+        return $record->status === 'scout'
+            && $record->source?->value === 'sniper_scan'
+            && $record->review_status?->value === 'pending_visual_review';
+    }
+
     public static function canPromoteToA(Position $record): bool
     {
         if (

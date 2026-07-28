@@ -116,10 +116,18 @@ class AlertDispatcher
 
     public function dispatchDigest(User $user, string $message): void
     {
+        $this->dispatchUserEvent($user, AlertEventType::DailyDigest, $message);
+    }
+
+    /**
+     * User-level alert without a position (digests / scan summaries).
+     */
+    public function dispatchUserEvent(User $user, AlertEventType $event, string $message): void
+    {
         UserAlertPreference::ensureDefaultsForUser($user);
 
         foreach ($user->alertPreferences()->where('is_active', true)->get() as $preference) {
-            if (! $preference->hasEventEnabled(AlertEventType::DailyDigest)) {
+            if (! $preference->hasEventEnabled($event)) {
                 continue;
             }
 

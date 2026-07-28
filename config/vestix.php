@@ -294,4 +294,28 @@ return [
             ])),
         ],
     ],
+
+    /*
+    | Native EOD Sniper Scanner (Architectuur V3).
+    | Rollback: VESTIX_SNIPER_SCANNER_ENABLED=false (default) — schedules no-op, existing scout flow untouched.
+    */
+    'sniper_scanner' => [
+        'enabled' => filter_var(env('VESTIX_SNIPER_SCANNER_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'owner_user_id' => (int) env('VESTIX_SNIPER_OWNER_USER_ID', 0),
+        'earnings_cutoff_days' => (int) env('VESTIX_SNIPER_EARNINGS_CUTOFF_DAYS', 14),
+        'max_earnings_checks_per_run' => (int) env('VESTIX_SNIPER_MAX_EARNINGS_CHECKS', 50),
+        'min_volume' => (int) env('VESTIX_SNIPER_MIN_VOLUME', 1_000_000),
+        'min_avg_volume_30d' => (int) env('VESTIX_SNIPER_MIN_AVG_VOLUME_30D', 1_000_000),
+        'min_market_cap' => (float) env('VESTIX_SNIPER_MIN_MARKET_CAP', 2_000_000_000),
+        'schedule_time' => env('VESTIX_SNIPER_SCAN_TIME', '22:45'),
+        'profile_refresh_time' => env('VESTIX_SNIPER_PROFILE_REFRESH_TIME', '20:00'),
+        'split_gap_pct' => (float) env('VESTIX_SNIPER_SPLIT_GAP_PCT', 40.0),
+        'bars_retention_days' => (int) env('VESTIX_SNIPER_BARS_RETENTION_DAYS', 60),
+        'min_bars_for_ready' => (int) env('VESTIX_SNIPER_MIN_BARS_FOR_READY', 50),
+        'profile_refresh_per_run' => (int) env('VESTIX_SNIPER_PROFILE_REFRESH_PER_RUN', 150),
+        'etf_allowlist' => array_values(array_filter(array_map(
+            static fn (string $ticker): string => strtoupper(trim($ticker)),
+            explode(',', (string) env('VESTIX_SNIPER_ETF_ALLOWLIST', 'SPY,QQQ,IWM,SMH')),
+        ), static fn (string $ticker): bool => $ticker !== '')),
+    ],
 ];

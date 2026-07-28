@@ -17,6 +17,21 @@ Schedule::command('vestix:fetch-data')
     ->dailyAt('22:30')
     ->timezone('Europe/Amsterdam');
 
+// Native sniper scanner (Architectuur V3). Feature-flagged — default off for easy rollback.
+Schedule::command('vestix:sniper-scan')
+    ->weekdays()
+    ->dailyAt((string) config('vestix.sniper_scanner.schedule_time', '22:45'))
+    ->timezone('Europe/Amsterdam')
+    ->withoutOverlapping(120)
+    ->when(fn (): bool => (bool) config('vestix.sniper_scanner.enabled'));
+
+Schedule::command('vestix:sniper-refresh-profiles')
+    ->weekdays()
+    ->dailyAt((string) config('vestix.sniper_scanner.profile_refresh_time', '20:00'))
+    ->timezone('Europe/Amsterdam')
+    ->withoutOverlapping(60)
+    ->when(fn (): bool => (bool) config('vestix.sniper_scanner.enabled'));
+
 // Ochtend scout-sync: verse EOD-bars + signaalkaars meeschuiven vóór Order Plan / premarket (14:30).
 Schedule::command('vestix:fetch-data --scouts-only')
     ->weekdays()

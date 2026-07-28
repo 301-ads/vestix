@@ -9,6 +9,8 @@ use App\Enums\ExecutionDigestStatus;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
 use App\Enums\ScoutPipelineStatus;
+use App\Enums\ScoutReviewStatus;
+use App\Enums\ScoutSource;
 use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Services\AssetSyncService;
@@ -102,6 +104,8 @@ class Position extends Model
             'buy_stop_review_setup_score' => 'integer',
             'is_legacy' => 'boolean',
             'direction' => TradeDirection::class,
+            'source' => ScoutSource::class,
+            'review_status' => ScoutReviewStatus::class,
         ];
     }
 
@@ -1757,10 +1761,16 @@ class Position extends Model
      */
     public function promoteToA(): void
     {
-        $this->update([
+        $payload = [
             'trader_promoted_a' => true,
             'trader_promoted_a_at' => now(),
-        ]);
+        ];
+
+        if ($this->source === ScoutSource::SniperScan) {
+            $payload['review_status'] = ScoutReviewStatus::ActiveScout;
+        }
+
+        $this->update($payload);
     }
 
     public function clearAPromotion(): void
@@ -1777,12 +1787,31 @@ class Position extends Model
 
     public function promoteToAPlus(): void
     {
-        $this->update([
+        $payload = [
             'trader_promoted_a' => true,
             'trader_promoted_a_at' => $this->trader_promoted_a_at ?? now(),
             'trader_promoted_a_plus' => true,
             'trader_promoted_a_plus_at' => now(),
+        ];
+
+        if ($this->source === ScoutSource::SniperScan) {
+            $payload['review_status'] = ScoutReviewStatus::ActiveScout;
+        }
+
+        $this->update($payload);
+    }
+
+    public function rejectVisualReview(): void
+    {
+        if ($this->status !== 'scout') {
+            return;
+        }
+
+        $this->update([
+            'review_status' => ScoutReviewStatus::Rejected,
         ]);
+
+        $this->delete();
     }
 
     public function clearAPlusPromotion(): void
