@@ -19,7 +19,7 @@ class SniperGroupedDailyIngestService
     /**
      * @return array{date: string, upserted: int, splits_purged: int, skipped: bool, reason?: string}
      */
-    public function ingestDate(?string $date = null): array
+    public function ingestDate(?string $date = null, bool $refreshMetrics = true): array
     {
         $sessionDate = $date
             ? Carbon::parse($date, 'America/New_York')->toDateString()
@@ -38,6 +38,7 @@ class SniperGroupedDailyIngestService
         }
 
         $splitsPurged = 0;
+        $skippedUpserts = 0;
         $now = now();
         $chunk = [];
         $previousSession = UsMarketSession::previousTradingDay(Carbon::parse($sessionDate, 'America/New_York'))
@@ -50,16 +51,21 @@ class SniperGroupedDailyIngestService
 
         foreach ($rows as $row) {
             $previousClose = $previousCloses[$row['ticker']] ?? null;
-            $purge = $this->splitGuard->shouldPurge(
+            $decision = $this->splitGuard->decide(
                 $row['ticker'],
                 $sessionDate,
                 $row['close'],
                 $previousClose,
             );
 
-            if ($purge) {
+            if ($decision === 'purge') {
                 $this->splitGuard->purgeAndBackfill($row['ticker']);
                 $splitsPurged++;
+            } elseif ($decision === 'skip') {
+                // Extreme gap without confirmed split: keep history, skip today's bar.
+                $skippedUpserts++;
+
+                continue;
             }
 
             $chunk[] = [
@@ -84,18 +90,21 @@ class SniperGroupedDailyIngestService
             $this->upsertBars($chunk);
         }
 
-        $this->refreshLiquidityMetrics($sessionDate);
-        $this->pruneOldBars();
+        if ($refreshMetrics) {
+            $this->refreshLiquidityMetrics($sessionDate);
+            $this->pruneOldBars();
+        }
 
         Log::info('Sniper grouped daily ingested.', [
             'date' => $sessionDate,
-            'upserted' => count($rows),
+            'upserted' => count($rows) - $skippedUpserts,
             'splits_purged' => $splitsPurged,
+            'skipped_upserts' => $skippedUpserts,
         ]);
 
         return [
             'date' => $sessionDate,
-            'upserted' => count($rows),
+            'upserted' => count($rows) - $skippedUpserts,
             'splits_purged' => $splitsPurged,
             'skipped' => false,
         ];
@@ -110,17 +119,44 @@ class SniperGroupedDailyIngestService
         $cursor = UsMarketSession::expectedLastCompletedSessionDate();
         $dates = [];
         $upserted = 0;
+        $latestDate = $cursor->toDateString();
 
         for ($i = 0; $i < $tradingDays; $i++) {
             $dates[] = $cursor->toDateString();
-            $result = $this->ingestDate($cursor->toDateString());
+            $result = $this->ingestDate($cursor->toDateString(), refreshMetrics: false);
             $upserted += $result['upserted'];
             $cursor = UsMarketSession::previousTradingDay($cursor);
         }
 
+        $this->refreshLiquidityMetrics($latestDate);
+        $this->pruneOldBars();
+
         return [
             'dates' => $dates,
             'upserted' => $upserted,
+        ];
+    }
+
+    /**
+     * Recompute liquidity cache from existing bars (no Polygon calls).
+     *
+     * @return array{tickers: int, bars_ready: int}
+     */
+    public function recomputeLiquidityMetrics(?string $asOf = null): array
+    {
+        $sessionDate = $asOf
+            ?? SniperDailyBar::query()->max('date')
+            ?? UsMarketSession::expectedLastCompletedSessionDate()->toDateString();
+
+        if ($sessionDate instanceof Carbon) {
+            $sessionDate = $sessionDate->toDateString();
+        }
+
+        $this->refreshLiquidityMetrics((string) $sessionDate);
+
+        return [
+            'tickers' => SniperLiquidityCache::query()->count(),
+            'bars_ready' => SniperLiquidityCache::query()->where('bars_ready', true)->count(),
         ];
     }
 
@@ -136,29 +172,39 @@ class SniperGroupedDailyIngestService
         );
     }
 
-    private function refreshLiquidityMetrics(string $sessionDate): void
+    public function refreshLiquidityMetrics(string $sessionDate): void
     {
         $minBars = (int) config('vestix.sniper_scanner.min_bars_for_ready', 50);
+        $retention = (int) config('vestix.sniper_scanner.bars_retention_days', 60);
+        // Need enough calendar days to cover minBars trading sessions (~1.5x).
+        $readyLookbackDays = max($retention + 5, (int) ceil($minBars * 1.6));
+        $avgLookbackDays = 45; // ~30 trading days
         $allowlist = array_map('strtoupper', config('vestix.sniper_scanner.etf_allowlist', []));
 
-        $stats = SniperDailyBar::query()
-            ->select([
-                'ticker',
-                DB::raw('AVG(volume) as avg_volume_30d'),
-                DB::raw('COUNT(*) as bar_count'),
-            ])
-            ->where('date', '>=', Carbon::parse($sessionDate)->subDays(45)->toDateString())
+        $readySince = Carbon::parse($sessionDate)->subDays($readyLookbackDays)->toDateString();
+        $avgSince = Carbon::parse($sessionDate)->subDays($avgLookbackDays)->toDateString();
+
+        $barCounts = SniperDailyBar::query()
+            ->select(['ticker', DB::raw('COUNT(*) as bar_count')])
+            ->where('date', '>=', $readySince)
             ->groupBy('ticker')
-            ->get();
+            ->pluck('bar_count', 'ticker');
+
+        $avgVolumes = SniperDailyBar::query()
+            ->select(['ticker', DB::raw('AVG(volume) as avg_volume_30d')])
+            ->where('date', '>=', $avgSince)
+            ->groupBy('ticker')
+            ->pluck('avg_volume_30d', 'ticker');
 
         $latestVolumes = SniperDailyBar::query()
             ->where('date', $sessionDate)
             ->pluck('volume', 'ticker');
 
+        $tickers = $barCounts->keys()->merge($avgVolumes->keys())->merge($latestVolumes->keys())->unique();
         $now = now();
 
-        foreach ($stats as $stat) {
-            $ticker = (string) $stat->ticker;
+        foreach ($tickers as $ticker) {
+            $ticker = (string) $ticker;
             $existing = SniperLiquidityCache::query()->find($ticker);
             $assetType = $existing?->asset_type;
 
@@ -166,14 +212,20 @@ class SniperGroupedDailyIngestService
                 $assetType = 'ETF';
             }
 
+            $barCount = (int) ($barCounts[$ticker] ?? 0);
+
             SniperLiquidityCache::query()->updateOrCreate(
                 ['ticker' => $ticker],
                 [
                     'asset_type' => $assetType,
-                    'avg_volume_30d' => (int) round((float) $stat->avg_volume_30d),
-                    'last_volume' => isset($latestVolumes[$ticker]) ? (int) $latestVolumes[$ticker] : $existing?->last_volume,
+                    'avg_volume_30d' => isset($avgVolumes[$ticker])
+                        ? (int) round((float) $avgVolumes[$ticker])
+                        : $existing?->avg_volume_30d,
+                    'last_volume' => isset($latestVolumes[$ticker])
+                        ? (int) $latestVolumes[$ticker]
+                        : $existing?->last_volume,
                     'enabled' => $existing?->enabled ?? true,
-                    'bars_ready' => (int) $stat->bar_count >= $minBars,
+                    'bars_ready' => $barCount >= $minBars,
                     'metrics_as_of' => $sessionDate,
                     'updated_at' => $now,
                 ],

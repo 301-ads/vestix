@@ -158,14 +158,7 @@ class SniperScanService
 
             $direction = $hit['direction'] === 'short' ? TradeDirection::Short : TradeDirection::Long;
 
-            $exists = Position::query()
-                ->where('user_id', $owner->id)
-                ->where('status', 'scout')
-                ->where('ticker', $hit['ticker'])
-                ->where('direction', $direction->value)
-                ->exists();
-
-            if ($exists) {
+            if (Position::userHasPersonalScoutWith($owner->id, $hit['ticker'], $direction)) {
                 $deduped++;
 
                 continue;

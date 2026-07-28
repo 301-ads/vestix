@@ -15,12 +15,15 @@ class SniperSplitGuard
         private readonly PolygonDailyBarService $dailyBars,
     ) {}
 
-    public function shouldPurge(
+    /**
+     * @return 'ok'|'purge'|'skip'
+     */
+    public function decide(
         string $ticker,
         string $sessionDate,
         float $newClose,
         ?float $previousClose = null,
-    ): bool {
+    ): string {
         if ($previousClose === null) {
             $previous = SniperDailyBar::query()
                 ->where('ticker', $ticker)
@@ -32,14 +35,14 @@ class SniperSplitGuard
         }
 
         if ($previousClose === null || $previousClose <= 0 || $newClose <= 0) {
-            return false;
+            return 'ok';
         }
 
         $gapPct = abs(($newClose / $previousClose) - 1.0) * 100;
         $threshold = (float) config('vestix.sniper_scanner.split_gap_pct', 40.0);
 
         if ($gapPct < $threshold) {
-            return false;
+            return 'ok';
         }
 
         $from = Carbon::parse($sessionDate)->subDays(10)->toDateString();
@@ -53,18 +56,18 @@ class SniperSplitGuard
                 'splits' => $splits,
             ]);
 
-            return true;
+            return 'purge';
         }
 
-        // Extreme gap without API confirmation still purge — safer than false Shorts.
-        Log::warning('Sniper split heuristic purge without API confirmation.', [
+        // No API confirmation: do not wipe history (avoids mass false purges).
+        Log::warning('Sniper split heuristic skip without API confirmation.', [
             'ticker' => $ticker,
             'gap_pct' => $gapPct,
             'prev_close' => $previousClose,
             'new_close' => $newClose,
         ]);
 
-        return true;
+        return 'skip';
     }
 
     public function purgeAndBackfill(string $ticker): void
