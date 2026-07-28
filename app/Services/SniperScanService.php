@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Alerts\AlertDispatcher;
+use App\Enums\AlertEventType;
 use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\PositionVisibility;
@@ -11,11 +13,13 @@ use App\Enums\TradeDirection;
 use App\Models\Position;
 use App\Models\SniperLiquidityCache;
 use App\Models\User;
+use App\Models\UserAlertPreference;
 use App\Support\EarningsExitSchedule;
 use App\Support\SniperLocalIndicators;
 use App\Support\SniperSetupFilter;
 use App\Support\UsMarketSession;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SniperScanService
 {
@@ -24,6 +28,8 @@ class SniperScanService
         private readonly EarningsCalendarSyncService $earningsSync,
         private readonly AssetSyncService $assetSync,
         private readonly SniperLocalIndicators $indicators,
+        private readonly MarketDataFetcher $marketDataFetcher,
+        private readonly AlertDispatcher $alerts,
     ) {}
 
     /**
@@ -37,6 +43,8 @@ class SniperScanService
      *     earnings_blocked: int,
      *     earnings_capped: int,
      *     created: int,
+     *     enriched: int,
+     *     notified: int,
      *     deduped: int,
      *     splits_purged: int,
      *     coverage: array{bars_ready: int, with_cap: int, cache_rows: int},
@@ -137,12 +145,16 @@ class SniperScanService
         $maxChecks = (int) config('vestix.sniper_scanner.max_earnings_checks_per_run', 50);
         $earningsCutoff = (int) config('vestix.sniper_scanner.earnings_cutoff_days', 14);
         $finnhubDelay = max(0, (int) config('vestix.finnhub.rate_limit_delay', 1));
+        $polygonDelay = max(0, (int) config('vestix.polygon.rate_limit_delay', 13));
 
         $toCheck = array_slice($mathHits, 0, $maxChecks);
         $earningsCapped = max(0, count($mathHits) - count($toCheck));
         $earningsBlocked = 0;
         $created = 0;
+        $enriched = 0;
+        $notified = 0;
         $deduped = 0;
+        $enrichIndex = 0;
 
         foreach ($toCheck as $index => $hit) {
             if ($index > 0 && $finnhubDelay > 0) {
@@ -179,7 +191,7 @@ class SniperScanService
 
             $indicators = $hit['indicators'];
 
-            Position::query()->create([
+            $position = Position::query()->create([
                 'user_id' => $owner->id,
                 'ticker' => $hit['ticker'],
                 'status' => 'scout',
@@ -203,6 +215,20 @@ class SniperScanService
             ]);
 
             $created++;
+
+            if ($enrichIndex > 0 && $polygonDelay > 0) {
+                sleep($polygonDelay);
+            }
+
+            if ($this->enrichCreatedScout($position)) {
+                $enriched++;
+            }
+
+            $enrichIndex++;
+
+            if ($this->notifyCreatedScout($owner, $position->fresh() ?? $position)) {
+                $notified++;
+            }
         }
 
         $coverage = [
@@ -221,6 +247,8 @@ class SniperScanService
             'earnings_blocked' => $earningsBlocked,
             'earnings_capped' => $earningsCapped,
             'created' => $created,
+            'enriched' => $enriched,
+            'notified' => $notified,
             'deduped' => $deduped,
             'splits_purged' => $splitsPurged,
             'coverage' => $coverage,
@@ -229,6 +257,80 @@ class SniperScanService
         Log::info('Sniper scan completed.', $summary);
 
         return $summary;
+    }
+
+    private function enrichCreatedScout(Position $position): bool
+    {
+        $synced = false;
+
+        try {
+            $synced = $this->marketDataFetcher->syncPosition($position, withDelays: false);
+            $position->refresh();
+        } catch (Throwable $exception) {
+            Log::warning('Sniper scout enrich failed.', [
+                'position_id' => $position->id,
+                'ticker' => $position->ticker,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        $scorecard = $position->evaluateSetupScore();
+        $position->update(['last_setup_score' => $scorecard['totalPoints']]);
+        $position->refresh();
+
+        return $synced;
+    }
+
+    private function notifyCreatedScout(User $owner, Position $position): bool
+    {
+        $scorecard = $position->evaluateSetupScore();
+        $context = [
+            'total_points' => $scorecard['totalPoints'],
+            'max_points' => $scorecard['maxPoints'],
+            'grade_label' => $scorecard['gradeLabel'],
+        ];
+
+        if ($this->alerts->dispatchNow(
+            $owner->id,
+            $position->id,
+            AlertEventType::SniperScanTarget,
+            $context,
+        )) {
+            return true;
+        }
+
+        // Existing prefs may predate sniper_scan_target; reuse digest toggle as fallback.
+        if (! $this->ownerAllowsSniperDigestFallback($owner)) {
+            return false;
+        }
+
+        $message = sprintf(
+            '🎯 Nieuw sniper-doelwit: %s %s — Score: %d/%d (%s). Bekijk Visuele Review in Mijn Radar.',
+            $position->ticker,
+            $position->isShort() ? 'Short' : 'Long',
+            $scorecard['totalPoints'],
+            $scorecard['maxPoints'],
+            $scorecard['gradeLabel'],
+        );
+
+        $this->alerts->dispatchUserEvent($owner, AlertEventType::SniperScanDigest, $message);
+
+        return true;
+    }
+
+    private function ownerAllowsSniperDigestFallback(User $owner): bool
+    {
+        UserAlertPreference::ensureDefaultsForUser($owner);
+        $owner->unsetRelation('alertPreferences');
+        $owner->load('alertPreferences');
+
+        foreach ($owner->alertPreferences as $preference) {
+            if ($preference->hasEventEnabled(AlertEventType::SniperScanDigest)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -251,6 +353,8 @@ class SniperScanService
             'earnings_blocked' => 0,
             'earnings_capped' => 0,
             'created' => 0,
+            'enriched' => 0,
+            'notified' => 0,
             'deduped' => 0,
             'splits_purged' => $splitsPurged,
             'coverage' => [

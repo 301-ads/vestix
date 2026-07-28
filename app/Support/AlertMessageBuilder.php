@@ -94,7 +94,27 @@ class AlertMessageBuilder
             AlertEventType::ExecutionOrderPlan => $context['digest_body'] ?? 'Geen Gap Reality Check vandaag.',
             AlertEventType::ExecutionPrepDigest => $context['digest_body'] ?? 'Geen Execution Digest vandaag.',
             AlertEventType::OrderPlanRevised => $context['digest_body'] ?? 'Geen Order Plan-herziening vandaag.',
+            AlertEventType::SniperScanDigest => $context['digest_body'] ?? 'Sniper scan voltooid.',
+            AlertEventType::SniperScanTarget => self::sniperScanTargetMessage($position, $context),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private static function sniperScanTargetMessage(Position $position, array $context): string
+    {
+        $scorecard = $position->evaluateSetupScore();
+
+        return sprintf(
+            '🎯 <b>Nieuw sniper-doelwit</b>: %s %s — Score: %d/%d (%s). <a href="%s">Visuele review</a>',
+            e($position->ticker),
+            $position->isShort() ? 'Short' : 'Long',
+            (int) ($context['total_points'] ?? $scorecard['totalPoints']),
+            (int) ($context['max_points'] ?? $scorecard['maxPoints']),
+            e((string) ($context['grade_label'] ?? $scorecard['gradeLabel'])),
+            ScoutResource::getUrl('edit', ['record' => $position]),
+        );
     }
 
     /**
