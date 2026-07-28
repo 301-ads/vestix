@@ -300,7 +300,7 @@ return [
     | Rollback: VESTIX_SNIPER_SCANNER_ENABLED=false (default) — schedules no-op, existing scout flow untouched.
     */
     'sniper_scanner' => [
-        'enabled' => filter_var(env('VESTIX_SNIPER_SCANNER_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'enabled' => filter_var(env('VESTIX_SNIPER_SCANNER_ENABLED', true), FILTER_VALIDATE_BOOL),
         'owner_user_id' => (int) env('VESTIX_SNIPER_OWNER_USER_ID', 0),
         'earnings_cutoff_days' => (int) env('VESTIX_SNIPER_EARNINGS_CUTOFF_DAYS', 14),
         'max_earnings_checks_per_run' => (int) env('VESTIX_SNIPER_MAX_EARNINGS_CHECKS', 50),
