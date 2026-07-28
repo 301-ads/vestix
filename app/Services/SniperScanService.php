@@ -88,10 +88,14 @@ class SniperScanService
             ->where('bars_ready', true)
             ->where('last_volume', '>', $minVolume)
             ->where('avg_volume_30d', '>', $minAvg)
-            ->where('market_cap', '>', $minCap)
-            ->where(function ($query) use ($allowlist): void {
-                $query->where('asset_type', 'CS')
-                    ->orWhereIn('ticker', $allowlist);
+            ->where(function ($query) use ($allowlist, $minCap): void {
+                // Allowlist ETFs (SPY/QQQ/…) mogen zonder Finnhub market cap.
+                $query->where(function ($inner) use ($allowlist): void {
+                    $inner->whereIn('ticker', $allowlist);
+                })->orWhere(function ($inner) use ($minCap): void {
+                    $inner->where('asset_type', 'CS')
+                        ->where('market_cap', '>', $minCap);
+                });
             });
 
         $liquidRows = $cacheQuery->get();

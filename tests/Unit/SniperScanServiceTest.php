@@ -152,6 +152,60 @@ class SniperScanServiceTest extends TestCase
         $this->assertSame(1, Position::query()->scout()->count());
     }
 
+    public function test_allowlist_etf_without_market_cap_can_be_liquid(): void
+    {
+        $user = User::factory()->create(['is_short_enabled' => true]);
+
+        config([
+            'vestix.sniper_scanner.enabled' => true,
+            'vestix.sniper_scanner.owner_user_id' => $user->id,
+            'vestix.sniper_scanner.etf_allowlist' => ['SPY'],
+            'vestix.finnhub.rate_limit_delay' => 0,
+        ]);
+
+        SniperLiquidityCache::query()->create([
+            'ticker' => 'SPY',
+            'asset_type' => 'ETF',
+            'avg_volume_30d' => 50_000_000,
+            'last_volume' => 40_000_000,
+            'market_cap' => null,
+            'enabled' => true,
+            'bars_ready' => true,
+        ]);
+
+        $indicators = Mockery::mock(SniperLocalIndicators::class);
+        $indicators->shouldReceive('forTicker')->with('SPY')->andReturn([
+            'open' => 100.0,
+            'high' => 101.2,
+            'low' => 99.8,
+            'close' => 101.0,
+            'volume' => 40_000_000,
+            'date' => '2026-07-27',
+            'sma10' => 101.5,
+            'sma20' => 100.0,
+            'sma50' => 98.0,
+            'rsi14' => 48.0,
+        ]);
+
+        $ingest = Mockery::mock(SniperGroupedDailyIngestService::class);
+        $earnings = Mockery::mock(EarningsCalendarSyncService::class);
+        $assets = Mockery::mock(AssetSyncService::class);
+
+        $earnings->shouldReceive('syncTicker')->once()->andReturn('synced');
+        $assets->shouldReceive('ensureForTicker')->once()->andReturn(
+            Asset::query()->create([
+                'ticker' => 'SPY',
+                'next_earnings_date' => now()->addDays(40)->toDateString(),
+            ])
+        );
+
+        $service = new SniperScanService($ingest, $earnings, $assets, $indicators);
+        $result = $service->run(dryRun: true, skipIngest: true);
+
+        $this->assertSame(1, $result['liquid']);
+        $this->assertSame(1, $result['math_hits']);
+    }
+
     public function test_blocks_earnings_inside_cutoff(): void
     {
         $user = User::factory()->create(['is_short_enabled' => true]);

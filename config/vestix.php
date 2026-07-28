@@ -310,7 +310,7 @@ return [
         'schedule_time' => env('VESTIX_SNIPER_SCAN_TIME', '22:45'),
         'profile_refresh_time' => env('VESTIX_SNIPER_PROFILE_REFRESH_TIME', '20:00'),
         'split_gap_pct' => (float) env('VESTIX_SNIPER_SPLIT_GAP_PCT', 40.0),
-        'bars_retention_days' => (int) env('VESTIX_SNIPER_BARS_RETENTION_DAYS', 60),
+        'bars_retention_days' => (int) env('VESTIX_SNIPER_BARS_RETENTION_DAYS', 90),
         'min_bars_for_ready' => (int) env('VESTIX_SNIPER_MIN_BARS_FOR_READY', 50),
         'profile_refresh_per_run' => (int) env('VESTIX_SNIPER_PROFILE_REFRESH_PER_RUN', 150),
         'etf_allowlist' => array_values(array_filter(array_map(

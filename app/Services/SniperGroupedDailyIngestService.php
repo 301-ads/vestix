@@ -138,6 +138,59 @@ class SniperGroupedDailyIngestService
     }
 
     /**
+     * Fetch only missing session dates until distinct bar dates >= $minDays (SMA50 needs 50).
+     *
+     * @return array{fetched: list<string>, skipped_existing: int, upserted: int, distinct_dates: int, bars_ready: int}
+     */
+    public function ensureTradingDays(int $minDays): array
+    {
+        $minDays = max(1, min(80, $minDays));
+        $existing = [];
+
+        foreach (SniperDailyBar::query()->distinct()->pluck('date') as $date) {
+            $key = $date instanceof Carbon ? $date->toDateString() : Carbon::parse((string) $date)->toDateString();
+            $existing[$key] = true;
+        }
+
+        $cursor = UsMarketSession::expectedLastCompletedSessionDate();
+        $latestDate = $cursor->toDateString();
+        $fetched = [];
+        $skippedExisting = 0;
+        $upserted = 0;
+        $guard = 0;
+
+        while (count($existing) < $minDays && $guard < 120) {
+            $date = $cursor->toDateString();
+
+            if (isset($existing[$date])) {
+                $skippedExisting++;
+            } else {
+                $result = $this->ingestDate($date, refreshMetrics: false);
+                $upserted += $result['upserted'];
+
+                if (! ($result['skipped'] ?? false) && $result['upserted'] > 0) {
+                    $existing[$date] = true;
+                    $fetched[] = $date;
+                }
+            }
+
+            $cursor = UsMarketSession::previousTradingDay($cursor);
+            $guard++;
+        }
+
+        $metrics = $this->recomputeLiquidityMetrics($latestDate);
+        $this->pruneOldBars();
+
+        return [
+            'fetched' => $fetched,
+            'skipped_existing' => $skippedExisting,
+            'upserted' => $upserted,
+            'distinct_dates' => count($existing),
+            'bars_ready' => $metrics['bars_ready'],
+        ];
+    }
+
+    /**
      * Recompute liquidity cache from existing bars (no Polygon calls).
      *
      * @return array{tickers: int, bars_ready: int}

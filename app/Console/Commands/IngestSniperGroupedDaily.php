@@ -9,7 +9,8 @@ class IngestSniperGroupedDaily extends Command
 {
     protected $signature = 'vestix:sniper-ingest-grouped
         {--date= : Single US session date YYYY-MM-DD}
-        {--backfill=0 : Number of trading days to backfill (rate-limited)}';
+        {--backfill=0 : Number of trading days to backfill (rate-limited)}
+        {--ensure-days=0 : Only fetch missing days until this many distinct dates exist}';
 
     protected $description = 'Ingest Polygon Grouped Daily into sniper_daily_bars (free-tier throttled)';
 
@@ -17,6 +18,25 @@ class IngestSniperGroupedDaily extends Command
     {
         if (! (bool) config('vestix.sniper_scanner.enabled')) {
             $this->warn('Sniper scanner is disabled (VESTIX_SNIPER_SCANNER_ENABLED=false). No-op.');
+
+            return self::SUCCESS;
+        }
+
+        $ensureDays = (int) $this->option('ensure-days');
+
+        if ($ensureDays > 0) {
+            $this->info("Ensuring at least {$ensureDays} distinct trading days (fetches only missing dates)...");
+            $result = $ingest->ensureTradingDays($ensureDays);
+            $this->table(
+                ['Field', 'Value'],
+                [
+                    ['fetched', implode(', ', $result['fetched']) ?: '(none)'],
+                    ['skipped_existing', (string) $result['skipped_existing']],
+                    ['upserted', (string) $result['upserted']],
+                    ['distinct_dates', (string) $result['distinct_dates']],
+                    ['bars_ready', (string) $result['bars_ready']],
+                ],
+            );
 
             return self::SUCCESS;
         }

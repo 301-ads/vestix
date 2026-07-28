@@ -25,6 +25,7 @@ class DiagnoseSniperCache extends Command
             ['cache_rows', (string) SniperLiquidityCache::query()->count()],
             ['bars_ready', (string) SniperLiquidityCache::query()->where('bars_ready', true)->count()],
             ['with_market_cap', (string) SniperLiquidityCache::query()->whereNotNull('market_cap')->count()],
+            ['min_bars_gap', (string) max(0, (int) config('vestix.sniper_scanner.min_bars_for_ready') - SniperDailyBar::query()->distinct()->count('date'))],
             ["{$ticker}_bar_count", (string) SniperDailyBar::query()->where('ticker', $ticker)->count()],
             ["{$ticker}_bars_ready", (string) (SniperLiquidityCache::query()->where('ticker', $ticker)->value('bars_ready') ? 'true' : 'false')],
             ["{$ticker}_last_volume", (string) (SniperLiquidityCache::query()->where('ticker', $ticker)->value('last_volume') ?? 'null')],
