@@ -4144,47 +4144,23 @@
     transition: background-color 150ms, color 150ms;
 }
 
-.vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn) > .fi-icon,
-.vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn) > .fi-icon,
-.vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn) > .fi-icon {
-    color: rgb(113 113 122);
-    transition: color 150ms;
+/* Soft tinted hover — keep Filament action colors (primary/info/danger/…) visible */
+.vestix-dashboard .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):hover,
+.vestix-dashboard .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):focus-visible,
+.vestix-positions-list .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):hover,
+.vestix-positions-list .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):focus-visible,
+.vestix-radar-list .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):hover,
+.vestix-radar-list .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):focus-visible {
+    background-color: color-mix(in srgb, var(--color-500) 14%, transparent);
 }
 
-:not(.dark) .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
-:not(.dark) .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible,
-:not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
-:not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible,
-:not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
-:not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible {
-    background-color: rgb(228 228 231 / 0.8);
-}
-
-:not(.dark) .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
-:not(.dark) .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon,
-:not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
-:not(.dark) .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon,
-:not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
-:not(.dark) .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon {
-    color: rgb(0 0 0);
-}
-
-.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
-.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible,
-.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
-.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible,
-.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover,
-.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible {
-    background-color: rgb(63 63 70 / 0.5);
-}
-
-.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
-.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon,
-.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
-.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon,
-.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):hover > .fi-icon,
-.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn:not(.vestix-activate-scout-btn):focus-visible > .fi-icon {
-    color: rgb(255 255 255);
+.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):hover,
+.dark .vestix-dashboard .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):focus-visible,
+.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):hover,
+.dark .vestix-positions-list .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):focus-visible,
+.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):hover,
+.dark .vestix-radar-list .fi-ta-actions .fi-icon-btn.fi-color:not(.vestix-activate-scout-btn):not(.fi-disabled):not([disabled]):focus-visible {
+    background-color: color-mix(in srgb, var(--color-400) 18%, transparent);
 }
 
 .vestix-dashboard .fi-ta-text .ticker-with-icon,

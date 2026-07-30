@@ -122,7 +122,9 @@ class SetupRadarWidget extends TableWidget
                 ActionGroup::make([
                     PositionRecordActions::shareSetup(),
                     PositionRecordActions::fetchMarketData(),
-                ])->iconButton(),
+                ])
+                    ->color('gray')
+                    ->iconButton(),
             ])
             ->emptyStateHeading('Geen sterke setups in je watchlist')
             ->emptyStateDescription('Voeg A+/A- setups toe via Mijn Radar, of pas het filter aan.')

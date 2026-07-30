@@ -171,7 +171,9 @@ class ScoutsTable
                         ->visible(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false),
                     DeleteAction::make()
                         ->visible(fn (Position $record): bool => auth()->user()?->can('delete', $record) ?? false),
-                ])->iconButton(),
+                ])
+                    ->color('gray')
+                    ->iconButton(),
             ]);
 
         return $table;

@@ -230,7 +230,9 @@ class PositionsTable
                     PositionRecordActions::archive(),
                     EditAction::make(),
                     DeleteAction::make(),
-                ])->iconButton(),
+                ])
+                    ->color('gray')
+                    ->iconButton(),
             ]);
     }
 
