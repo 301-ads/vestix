@@ -234,6 +234,11 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
         return $this->orderPlanScouts()->count();
     }
 
+    public function allocatedCount(): int
+    {
+        return count($this->allocationResult()['allocations']);
+    }
+
     public function activeCount(): int
     {
         return $this->activeOrderPlanScouts()->count();
@@ -262,6 +267,8 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
             'pie_committed' => 0.0,
             'pie_percent' => 0.0,
             'bankroll' => 0.0,
+            'cash_available' => 0.0,
+            'cash_capped' => false,
             'weights_uniform' => true,
             'allocations' => [],
             'exclusions' => [],
@@ -330,6 +337,7 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
     {
         return view('livewire.execution-plan-content', [
             'planCount' => $this->planCount(),
+            'allocatedCount' => $this->allocatedCount(),
             'activeCount' => $this->activeCount(),
             'result' => $this->allocationResult(),
             'totalInvestment' => $this->totalInvestment(),

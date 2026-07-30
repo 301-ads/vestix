@@ -59,6 +59,8 @@ class SmartAllocationService
      *         short?: array{percent: float, total: float, committed: float, available: float},
      *     },
      *     bankroll: float,
+     *     cash_available: float,
+     *     cash_capped: bool,
      *     weights_uniform: bool,
      *     allocations: list<array{
      *         position_id: int,
@@ -257,6 +259,16 @@ class SmartAllocationService
 
         usort($allocations, fn (array $a, array $b): int => $b['weight'] <=> $a['weight']);
 
+        $cashCap = max(0.0, round($bankroll - $this->committedActiveInvestment($user), 2));
+        $beforeCashCap = array_sum(array_column($allocations, 'investment'));
+        $allocations = $this->capAllocationsByDeployableCash(
+            $allocations,
+            $cashCap,
+            $bankroll,
+            $exclusions,
+        );
+        $cashCapped = $beforeCashCap > $cashCap + 0.01;
+
         $pieTotal = $longPie['total'] + ($includeShortPie ? $shortPie['total'] : 0.0);
         $pieCommitted = $longPie['committed'] + ($includeShortPie ? $shortPie['committed'] : 0.0);
         $pieAvailable = $longPie['available'] + ($includeShortPie ? $shortPie['available'] : 0.0);
@@ -274,6 +286,8 @@ class SmartAllocationService
             'pie_percent' => $longPie['percent'],
             'pie_breakdown' => $pieBreakdown,
             'bankroll' => $bankroll,
+            'cash_available' => $cashCap,
+            'cash_capped' => $cashCapped,
             'weights_uniform' => $this->weightsAreUniform($allocations),
             'allocations' => $allocations,
             'exclusions' => $exclusions,
@@ -555,6 +569,241 @@ class SmartAllocationService
                 'stop_loss' => $row['stop_loss'],
                 'target_1' => $row['target_1'],
             ];
+        }
+
+        return $allocations;
+    }
+
+    /**
+     * Cash already reserved by live buy-stops waiting for fill.
+     */
+    public function committedActiveInvestment(User $user): float
+    {
+        return round(Position::activeOrderPlanForUser((int) $user->id)->sum(
+            function (Position $position): float {
+                $qty = $position->quantity !== null ? (float) $position->quantity : 0.0;
+                $entry = $position->entry_price !== null ? (float) $position->entry_price : 0.0;
+
+                if ($qty <= 0 || $entry <= 0) {
+                    return 0.0;
+                }
+
+                return $qty * $entry;
+            },
+        ), 2);
+    }
+
+    /**
+     * Risk pie can imply notionals larger than deployable cash (tight stops).
+     * Scale quantities so Σ(qty × entry) fits the cash cap; drop names that fall below min qty.
+     *
+     * @param  list<array{
+     *     position_id: int,
+     *     ticker: string,
+     *     score: int,
+     *     reward_risk: float|null,
+     *     expected_value: float|null,
+     *     sector: string|null,
+     *     sector_penalty: float,
+     *     weight: float,
+     *     weight_share: float,
+     *     risk_dollars: float,
+     *     risk_percent: float,
+     *     quantity: int,
+     *     investment: float,
+     *     entry: float,
+     *     stop_loss: float,
+     *     target_1: float|null,
+     * }>  $allocations
+     * @param  list<array{position_id: int, ticker: string, reason: string}>  $exclusions
+     * @return list<array{
+     *     position_id: int,
+     *     ticker: string,
+     *     score: int,
+     *     reward_risk: float|null,
+     *     expected_value: float|null,
+     *     sector: string|null,
+     *     sector_penalty: float,
+     *     weight: float,
+     *     weight_share: float,
+     *     risk_dollars: float,
+     *     risk_percent: float,
+     *     quantity: int,
+     *     investment: float,
+     *     entry: float,
+     *     stop_loss: float,
+     *     target_1: float|null,
+     * }>
+     */
+    private function capAllocationsByDeployableCash(
+        array $allocations,
+        float $cashCap,
+        float $bankroll,
+        array &$exclusions,
+    ): array {
+        if ($allocations === [] || $cashCap <= 0) {
+            if ($allocations !== [] && $cashCap <= 0) {
+                foreach ($allocations as $row) {
+                    $exclusions[] = [
+                        'position_id' => (int) $row['position_id'],
+                        'ticker' => (string) $row['ticker'],
+                        'reason' => 'Geen deployable cash meer voor nieuwe inleg',
+                    ];
+                }
+
+                return [];
+            }
+
+            return $allocations;
+        }
+
+        $minQuantity = $this->minQuantity();
+        $working = $allocations;
+        $maxRounds = count($working) + 2;
+
+        while ($working !== [] && $maxRounds-- > 0) {
+            $totalInvestment = array_sum(array_column($working, 'investment'));
+
+            if ($totalInvestment <= $cashCap + 0.01) {
+                return $this->rebalanceWeightShares($working);
+            }
+
+            $scale = $cashCap / $totalInvestment;
+            $scaled = [];
+            $dropped = false;
+
+            foreach ($working as $row) {
+                $newQty = (int) floor((int) $row['quantity'] * $scale);
+
+                if ($newQty < $minQuantity) {
+                    $exclusions[] = [
+                        'position_id' => (int) $row['position_id'],
+                        'ticker' => (string) $row['ticker'],
+                        'reason' => sprintf(
+                            'Inleg paste niet in deployable cash $%s (min. %d aandelen) — herverdeeld',
+                            number_format($cashCap, 2),
+                            $minQuantity,
+                        ),
+                    ];
+                    $dropped = true;
+
+                    continue;
+                }
+
+                $scaled[] = $this->resizeAllocationRow($row, $newQty, $bankroll);
+            }
+
+            $working = $scaled;
+
+            if (! $dropped) {
+                break;
+            }
+        }
+
+        // Floor rounding can still leave a few dollars over — trim largest lots.
+        while ($working !== []) {
+            $totalInvestment = array_sum(array_column($working, 'investment'));
+
+            if ($totalInvestment <= $cashCap + 0.01) {
+                break;
+            }
+
+            usort($working, fn (array $a, array $b): int => $b['investment'] <=> $a['investment']);
+            $largest = $working[0];
+            $newQty = (int) $largest['quantity'] - 1;
+
+            if ($newQty < $minQuantity) {
+                $exclusions[] = [
+                    'position_id' => (int) $largest['position_id'],
+                    'ticker' => (string) $largest['ticker'],
+                    'reason' => sprintf(
+                        'Inleg paste niet in deployable cash $%s (min. %d aandelen) — herverdeeld',
+                        number_format($cashCap, 2),
+                        $minQuantity,
+                    ),
+                ];
+                array_shift($working);
+
+                continue;
+            }
+
+            $working[0] = $this->resizeAllocationRow($largest, $newQty, $bankroll);
+        }
+
+        return $this->rebalanceWeightShares($working);
+    }
+
+    /**
+     * @param  array{
+     *     position_id: int,
+     *     ticker: string,
+     *     score: int,
+     *     reward_risk: float|null,
+     *     expected_value: float|null,
+     *     sector: string|null,
+     *     sector_penalty: float,
+     *     weight: float,
+     *     weight_share: float,
+     *     risk_dollars: float,
+     *     risk_percent: float,
+     *     quantity: int,
+     *     investment: float,
+     *     entry: float,
+     *     stop_loss: float,
+     *     target_1: float|null,
+     * }  $row
+     * @return array{
+     *     position_id: int,
+     *     ticker: string,
+     *     score: int,
+     *     reward_risk: float|null,
+     *     expected_value: float|null,
+     *     sector: string|null,
+     *     sector_penalty: float,
+     *     weight: float,
+     *     weight_share: float,
+     *     risk_dollars: float,
+     *     risk_percent: float,
+     *     quantity: int,
+     *     investment: float,
+     *     entry: float,
+     *     stop_loss: float,
+     *     target_1: float|null,
+     * }
+     */
+    private function resizeAllocationRow(array $row, int $quantity, float $bankroll): array
+    {
+        $entry = (float) $row['entry'];
+        $stopLoss = (float) $row['stop_loss'];
+        $riskPerShare = abs($entry - $stopLoss);
+        $riskDollars = $quantity * $riskPerShare;
+        $riskPercent = $bankroll > 0
+            ? PositionSizing::riskAsPercentOfBankroll($riskDollars, $bankroll)
+            : 0.0;
+
+        return [
+            ...$row,
+            'quantity' => $quantity,
+            'investment' => round($quantity * $entry, 2),
+            'risk_dollars' => round($riskDollars, 2),
+            'risk_percent' => round($riskPercent, 4),
+        ];
+    }
+
+    /**
+     * @param  list<array{weight: float, weight_share: float}>  $allocations
+     * @return list<array{weight: float, weight_share: float}>
+     */
+    private function rebalanceWeightShares(array $allocations): array
+    {
+        $totalWeight = array_sum(array_column($allocations, 'weight'));
+
+        if ($totalWeight <= 0) {
+            return $allocations;
+        }
+
+        foreach ($allocations as $index => $row) {
+            $allocations[$index]['weight_share'] = $row['weight'] / $totalWeight;
         }
 
         return $allocations;

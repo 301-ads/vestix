@@ -79,6 +79,14 @@
     </p>
     @endif
 
+    @if (($result['cash_capped'] ?? false))
+        <p class="vestix-smart-allocation__hint">
+            Inleg is teruggeschaald naar deployable cash
+            <strong>${{ number_format($result['cash_available'] ?? 0, 2) }}</strong>
+            (min Available Funds / Settled Cash). Risicopie alleen bepaalt risico, niet je koopkracht.
+        </p>
+    @endif
+
     @if (($result['mode'] ?? '') === 'smart' && ($result['weights_uniform'] ?? false) && count($result['allocations']) >= 2)
         <p class="vestix-smart-allocation__hint">
             Smart Sizing verdeelt hier gelijk aan Gelijkmatig: score en R/R zijn per setup (nagenoeg) gelijk,
@@ -109,7 +117,7 @@
                         <th>Risico $</th>
                         <th
                             x-data
-                            x-tooltip="{ content: 'Risico als percentage van je IBKR bankroll (NLV).', theme: $store.theme, trigger: 'mouseenter' }"
+                            x-tooltip="{ content: 'Risico als percentage van je IBKR deployable cash (min Available Funds / Settled).', theme: $store.theme, trigger: 'mouseenter' }"
                         >
                             Risico %
                         </th>

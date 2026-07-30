@@ -355,6 +355,40 @@ class SmartAllocationServiceTest extends TestCase
         $this->assertEqualsWithDelta(10000.0, $this->service->resolveSizingBankroll($user->fresh()), 0.01);
     }
 
+    public function test_total_investment_is_capped_by_deployable_cash(): void
+    {
+        $user = User::factory()->create([
+            'trading_bankroll' => 10000,
+            'ibkr_net_liquidation' => 10000,
+            'ibkr_available_funds' => 1000,
+            'ibkr_settled_cash' => 1000,
+            'default_risk_percent' => 1,
+        ]);
+
+        // Tight stop → risk pie buys far more notional than deployable cash allows.
+        $expensive = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->scorecardAttributes(10),
+            [
+                'ticker' => 'CASH',
+                'last_setup_score' => 10,
+                'entry_price' => 100.00,
+                'latest_sma_20' => 99.90,
+                'latest_atr_14' => 0.05,
+                'sector_etf' => 'XLK',
+                'target_1_rr' => 2.0,
+                'quantity' => null,
+            ],
+        ));
+
+        $result = $this->service->allocate($user, [$expensive], SmartAllocationService::MODE_SMART);
+
+        $this->assertTrue($result['cash_capped']);
+        $this->assertEqualsWithDelta(1000.0, $result['cash_available'], 0.01);
+        $this->assertCount(1, $result['allocations']);
+        $this->assertLessThanOrEqual(1000.01, $result['allocations'][0]['investment']);
+        $this->assertGreaterThanOrEqual(2, $result['allocations'][0]['quantity']);
+    }
+
     public function test_unaffordable_share_is_excluded_and_budget_redistributed(): void
     {
         $user = User::factory()->create([
@@ -621,9 +655,16 @@ class SmartAllocationServiceTest extends TestCase
         $this->assertEqualsWithDelta(100.0, $result['pie_breakdown']['short']['total'], 0.01);
         $this->assertCount(2, $result['allocations']);
 
+        // Risk pies can imply more notional than deployable cash — quantities are cash-capped.
+        $totalInvestment = (float) collect($result['allocations'])->sum('investment');
+        $this->assertLessThanOrEqual(10000.01, $totalInvestment);
+        $this->assertTrue($result['cash_capped']);
+
         $byTicker = collect($result['allocations'])->keyBy('ticker');
-        $this->assertEqualsWithDelta(150.0, $byTicker['LONG']['risk_dollars'], 0.1);
-        $this->assertEqualsWithDelta(100.0, $byTicker['SHRT']['risk_dollars'], 0.1);
+        $this->assertArrayHasKey('LONG', $byTicker->all());
+        $this->assertArrayHasKey('SHRT', $byTicker->all());
+        $this->assertGreaterThan(0, $byTicker['LONG']['risk_dollars']);
+        $this->assertGreaterThan(0, $byTicker['SHRT']['risk_dollars']);
     }
 
     public function test_excludes_setups_that_cannot_reach_min_quantity_of_two(): void

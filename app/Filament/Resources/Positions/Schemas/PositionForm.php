@@ -1278,7 +1278,7 @@ class PositionForm
             ->numeric()
             ->minValue(0.01)
             ->dehydrated(false)
-            ->placeholder('bijv. 1000')
+            ->placeholder('leeg = Smart Sizing')
             ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
             ->helperText(fn (Get $get, ?Position $record): ?string => self::plannedInvestmentHelperText($get, $record))
             ->live()
@@ -1384,8 +1384,12 @@ class PositionForm
 
     private static function plannedInvestmentHelperText(Get $get, ?Position $record): ?string
     {
+        $parts = [
+            'Optioneel — laat leeg om quantity via Order Plan / Smart Sizing te laten zetten. Of vul in voor handmatige sizing (inleg ÷ entry).',
+        ];
+
         if (! self::userHasBankroll()) {
-            return null;
+            return $parts[0];
         }
 
         $bankroll = (float) auth()->user()->trading_bankroll;
@@ -1393,12 +1397,13 @@ class PositionForm
         $riskLimit = PositionSizing::resolveRiskLimitFromProfile($bankroll, $limitPercent);
 
         if ($riskLimit === null) {
-            return null;
+            return $parts[0];
         }
 
         $percentLabel = rtrim(rtrim(number_format($limitPercent, 2), '0'), '.');
+        $parts[] = "Risicolimiet: {$percentLabel}% van $".number_format($bankroll, 2).' = $'.number_format($riskLimit, 2).' max risico.';
 
-        return "Limiet: {$percentLabel}% van $".number_format($bankroll, 2).' = $'.number_format($riskLimit, 2).' max risico';
+        return implode(' ', $parts);
     }
 
     private static function userHasBankroll(): bool
