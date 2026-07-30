@@ -90,9 +90,8 @@ class PositionsRequiringActionWidget extends TableWidget
                     ->color('gray'),
                 $this->outlinedRowAction(PositionRecordActions::cancelBuyStopSetup(iconButton: false)),
             ])
-            ->emptyStateHeading('Geen acties vereist')
-            ->emptyStateDescription('Alle stop-losses zijn up-to-date en geen buy-stop reviews open.')
-            ->emptyStateIcon('heroicon-o-check-circle')
+            // Compact empty: header + gray "0" badge only — no tall icon/copy empty state.
+            ->emptyState(new HtmlString('<div class="fi-ta-empty-state vestix-actions-empty--compact" aria-hidden="true"></div>'))
             ->paginated(false);
     }
 
@@ -302,10 +301,6 @@ class PositionsRequiringActionWidget extends TableWidget
         $statusColorCounts = $this->statusColorCounts;
         $pendingCount = $statusColorCounts->sum();
 
-        if ($pendingCount === 0) {
-            return 'Acties vereist';
-        }
-
         $palette = [
             'danger' => 'bg-danger-500/10 text-danger-400 ring-danger-500/20',
             'warning' => 'bg-warning-500/10 text-warning-400 ring-warning-500/20',
@@ -316,11 +311,15 @@ class PositionsRequiringActionWidget extends TableWidget
 
         $badges = '';
 
-        foreach ($palette as $color => $classes) {
-            $count = (int) ($statusColorCounts[$color] ?? 0);
+        if ($pendingCount === 0) {
+            $badges = '<span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset '.$palette['gray'].'">0</span>';
+        } else {
+            foreach ($palette as $color => $classes) {
+                $count = (int) ($statusColorCounts[$color] ?? 0);
 
-            if ($count > 0) {
-                $badges .= '<span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset '.$classes.'">'.$count.'</span>';
+                if ($count > 0) {
+                    $badges .= '<span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset '.$classes.'">'.$count.'</span>';
+                }
             }
         }
 

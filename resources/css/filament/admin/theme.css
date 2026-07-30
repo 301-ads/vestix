@@ -3256,6 +3256,22 @@
     min-height: 0;
 }
 
+/* Acties vereist: zero actions → header + gray "0" badge only */
+.vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-empty-state.vestix-actions-empty--compact {
+    display: none;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table:has(.vestix-actions-empty--compact) {
+    height: auto;
+    align-self: start;
+}
+
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table:has(.vestix-actions-empty--compact) > .fi-ta,
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table:has(.vestix-actions-empty--compact) .fi-ta-ctn,
+.vestix-dashboard .fi-sc.fi-grid > .fi-wi-widget.fi-wi-table:has(.vestix-actions-empty--compact) .fi-ta-main {
+    flex: none;
+}
+
 .vestix-dashboard .vestix-leaderboard-widget.fi-wi-widget {
     height: auto;
     align-self: start;

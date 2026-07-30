@@ -666,4 +666,19 @@ class DashboardTest extends TestCase
         $this->assertTrue($position->heldThroughEarningsForCurrentCycle());
         $this->assertNotNull($position->held_through_earnings_at);
     }
+
+    public function test_action_widget_empty_state_is_compact_header_with_gray_zero_badge(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertSee('Acties vereist')
+            ->assertSeeHtml('bg-gray-500/10 text-gray-400 ring-gray-500/20')
+            ->assertSeeHtml('>0</span>')
+            ->assertSeeHtml('vestix-actions-empty--compact')
+            ->assertDontSee('Geen acties vereist')
+            ->assertDontSee('Alle stop-losses zijn up-to-date');
+    }
 }
