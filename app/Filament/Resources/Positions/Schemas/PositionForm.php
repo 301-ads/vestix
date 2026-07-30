@@ -24,6 +24,7 @@ use App\Support\ScoutSetupScorecard;
 use App\Support\SetupGradeColors;
 use App\Support\SlPriceProximity;
 use App\Support\StopLossProtocol;
+use App\Support\TradeJournal;
 use App\Support\UsMarketSession;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -153,12 +154,14 @@ class PositionForm
     {
         return self::collapsedTradeJournalSection('position-journal-kelder')
             ->columnSpanFull()
-            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation));
+            ->visible(fn (?Position $record, string $operation): bool => TradeJournal::enabled()
+                && $isScoutForm($record, $operation));
     }
 
     private static function openPositionJournalSection(): Section
     {
-        return self::collapsedTradeJournalSection('position-journal-sidebar');
+        return self::collapsedTradeJournalSection('position-journal-sidebar')
+            ->visible(fn (): bool => TradeJournal::enabled());
     }
 
     private static function collapsedTradeJournalSection(string $extraClass): Section

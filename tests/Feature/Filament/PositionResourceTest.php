@@ -353,8 +353,24 @@ class PositionResourceTest extends TestCase
             ->assertSee('+11.71% t.o.v. inleg');
     }
 
-    public function test_edit_page_shows_trade_journal_section(): void
+    public function test_edit_page_hides_trade_journal_section_when_disabled(): void
     {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
+            'trade_journal' => 'Gekocht op bounce van 200 EMA.',
+        ]);
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertOk()
+            ->assertDontSee('Trade Journal & Notities')
+            ->assertDontSee('TradingView — entry')
+            ->assertSee('Schild status');
+    }
+
+    public function test_edit_page_shows_trade_journal_section_when_enabled(): void
+    {
+        config(['vestix.trade_journal.enabled' => true]);
+
         $user = $this->authenticateFilament();
         $position = Position::factory()->for($user)->create([
             'trade_journal' => 'Gekocht op bounce van 200 EMA.',
@@ -388,6 +404,8 @@ class PositionResourceTest extends TestCase
 
     public function test_create_position_persists_trade_journal(): void
     {
+        config(['vestix.trade_journal.enabled' => true]);
+
         $user = $this->authenticateFilament();
 
         Livewire::test(CreatePosition::class)
@@ -445,6 +463,8 @@ class PositionResourceTest extends TestCase
 
     public function test_global_search_finds_positions_by_trade_journal(): void
     {
+        config(['vestix.trade_journal.enabled' => true]);
+
         $user = $this->authenticateFilament();
         Position::factory()->for($user)->create([
             'ticker' => 'TSLA',
@@ -456,6 +476,20 @@ class PositionResourceTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertStringContainsString('TSLA', (string) $results->first()->title);
         $this->assertSame('Open', $results->first()->details['Status']);
+    }
+
+    public function test_global_search_skips_trade_journal_when_disabled(): void
+    {
+        $user = $this->authenticateFilament();
+        Position::factory()->for($user)->create([
+            'ticker' => 'TSLA',
+            'trade_journal' => 'Gekocht voor earnings, wilde een gokje wagen.',
+        ]);
+
+        $results = PositionResource::getGlobalSearchResults('earnings');
+
+        $this->assertCount(0, $results);
+        $this->assertSame(['ticker'], PositionResource::getGloballySearchableAttributes());
     }
 
     public function test_positions_navigation_badge_shows_open_count(): void
@@ -483,6 +517,7 @@ class PositionResourceTest extends TestCase
 
     public function test_edit_position_persists_entry_chart_screenshot(): void
     {
+        config(['vestix.trade_journal.enabled' => true]);
         Storage::fake('public');
 
         $user = $this->authenticateFilament();
@@ -504,6 +539,7 @@ class PositionResourceTest extends TestCase
 
     public function test_archive_action_persists_exit_chart_screenshot(): void
     {
+        config(['vestix.trade_journal.enabled' => true]);
         Storage::fake('public');
 
         $user = $this->authenticateFilament();
@@ -523,8 +559,25 @@ class PositionResourceTest extends TestCase
         Storage::disk('public')->assertExists($position->exit_chart_screenshot_path);
     }
 
-    public function test_closed_position_shows_entry_and_exit_chart_upload_fields(): void
+    public function test_closed_position_hides_chart_upload_fields_when_journal_disabled(): void
     {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->closed()->create([
+            'entry_price' => 100.00,
+            'exit_price' => 90.00,
+            'quantity' => 10,
+        ]);
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertDontSee('Trade Journal & Notities')
+            ->assertDontSee('TradingView — entry')
+            ->assertDontSee('TradingView — exit');
+    }
+
+    public function test_closed_position_shows_entry_and_exit_chart_upload_fields_when_enabled(): void
+    {
+        config(['vestix.trade_journal.enabled' => true]);
+
         $user = $this->authenticateFilament();
         $position = Position::factory()->for($user)->closed()->create([
             'entry_price' => 100.00,
@@ -539,6 +592,8 @@ class PositionResourceTest extends TestCase
 
     public function test_closed_position_trade_journal_remains_editable(): void
     {
+        config(['vestix.trade_journal.enabled' => true]);
+
         $user = $this->authenticateFilament();
         $position = Position::factory()->for($user)->closed()->create([
             'entry_price' => 100.00,

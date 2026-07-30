@@ -22,6 +22,7 @@ use App\Support\ScoutSetupAlertService;
 use App\Support\ScoutSetupScorecard;
 use App\Support\ShareCardDataFactory;
 use App\Support\StopLossProtocol;
+use App\Support\TradeJournal;
 use App\Support\UsMarketSession;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
@@ -1052,7 +1053,8 @@ class PositionRecordActions
                 ChartScreenshotUpload::make('exit_chart_screenshot_path')
                     ->label('TradingView — exit')
                     ->imagePreviewHeight('160')
-                    ->helperText('Optioneel: upload je exit-chart voor je trade journal. '.ChartScreenshotUpload::maxSizeLabel()),
+                    ->helperText('Optioneel: upload je exit-chart voor je trade journal. '.ChartScreenshotUpload::maxSizeLabel())
+                    ->visible(fn (): bool => TradeJournal::enabled()),
             ])
             ->action(function (Position $record, array $data): void {
                 $wasStoppedOut = $record->action_command === 'STOPPED OUT';

@@ -9,6 +9,7 @@ use App\Filament\Resources\Positions\Schemas\PositionForm;
 use App\Filament\Resources\Positions\Tables\PositionsTable;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
+use App\Support\TradeJournal;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -143,7 +144,13 @@ class PositionResource extends Resource
      */
     public static function getGloballySearchableAttributes(): array
     {
-        return ['ticker', 'trade_journal'];
+        $attributes = ['ticker'];
+
+        if (TradeJournal::enabled()) {
+            $attributes[] = 'trade_journal';
+        }
+
+        return $attributes;
     }
 
     /**

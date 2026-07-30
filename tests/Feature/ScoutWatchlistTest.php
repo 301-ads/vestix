@@ -584,7 +584,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertSee('Marktdata & Indicatoren')
             ->assertDontSee('Advanced — Marktdata & Schild')
             ->assertSee('Wiskundige Validatie')
-            ->assertSee('Trade Journal & Notities')
+            ->assertDontSee('Trade Journal & Notities')
             ->assertSee('Zichtbaarheid')
             ->assertSee('Deel met squad')
             ->assertSeeHtml('scout-scorecard-hud');
@@ -608,7 +608,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertDontSee('Advanced — Marktdata & Schild')
             ->assertSee('Wiskundige Validatie')
             ->assertSee('Het Schild')
-            ->assertSee('Trade Journal & Notities')
+            ->assertDontSee('Trade Journal & Notities')
             ->assertSee('Zichtbaarheid')
             ->assertSee('Deel met squad')
             ->assertSee('SMA 20 (5 dagen geleden)')

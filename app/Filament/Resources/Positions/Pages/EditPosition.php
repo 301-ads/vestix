@@ -130,9 +130,7 @@ class EditPosition extends EditRecord
             ->outlined()
             ->extraAttributes(['class' => 'vestix-header-share-btn']);
         $actions[] = PositionRecordActions::archive()
-            ->label(fn (): string => $this->getRecord()->action_command === 'STOPPED OUT'
-                ? 'Schild Geraakt'
-                : 'Sluiten')
+            ->label('Sluiten')
             ->color('gray')
             ->outlined()
             ->extraAttributes(['class' => 'vestix-header-close-btn']);

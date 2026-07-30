@@ -39,7 +39,9 @@ return [
         fn (string $email): bool => $email !== '',
     )),
 
+    // Temporarily off — no storage UI yet. Set VESTIX_TRADE_JOURNAL_ENABLED=true to re-enable.
     'trade_journal' => [
+        'enabled' => filter_var(env('VESTIX_TRADE_JOURNAL_ENABLED', false), FILTER_VALIDATE_BOOL),
         'chart_screenshot_max_kb' => (int) env('CHART_SCREENSHOT_MAX_KB', 10240),
     ],
 

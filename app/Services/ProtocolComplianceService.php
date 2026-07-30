@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Position;
+use App\Support\TradeJournal;
 
 class ProtocolComplianceService
 {
@@ -20,9 +21,12 @@ class ProtocolComplianceService
                 || $position->hasTarget1LimitPlaced(),
             'breakeven_after_scale' => ! $position->hasScaledOut()
                 || $this->stopAtOrBeyondBreakeven($position),
-            'journal_present' => filled($position->trade_journal)
-                || filled($position->exit_chart_screenshot_path),
         ];
+
+        if (TradeJournal::enabled()) {
+            $checks['journal_present'] = filled($position->trade_journal)
+                || filled($position->exit_chart_screenshot_path);
+        }
 
         $score = count(array_filter($checks));
         $max = count($checks);
