@@ -7,6 +7,7 @@ use App\Filament\Resources\Positions\Tables\PositionsTable;
 use App\Filament\Widgets\ArchivePostMortemStatsWidget;
 use App\Filament\Widgets\OpenPositionsStatsWidget;
 use App\Services\SquadContext;
+use App\Support\LegacyArchive;
 use App\Support\OpenPositionsFilters;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
@@ -28,7 +29,7 @@ class ListPositions extends ListRecords
 
     public function getTabs(): array
     {
-        return [
+        $tabs = [
             'open' => Tab::make('Open Posities')
                 ->modifyQueryUsing(fn (Builder $query) => $query
                     ->where('status', 'open')
@@ -37,11 +38,16 @@ class ListPositions extends ListRecords
                 ->modifyQueryUsing(fn (Builder $query) => $query
                     ->where('status', 'closed')
                     ->where('is_legacy', false)),
-            'legacy' => Tab::make('Legacy Archief')
+        ];
+
+        if (LegacyArchive::enabled()) {
+            $tabs['legacy'] = Tab::make('Legacy Archief')
                 ->modifyQueryUsing(fn (Builder $query) => $query
                     ->where('is_legacy', true)
-                    ->where('status', 'closed')),
-        ];
+                    ->where('status', 'closed'));
+        }
+
+        return $tabs;
     }
 
     protected function getTableQuery(): ?Builder

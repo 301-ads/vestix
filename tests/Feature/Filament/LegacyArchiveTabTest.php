@@ -12,8 +12,22 @@ class LegacyArchiveTabTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_legacy_archive_tab_is_hidden_when_disabled(): void
+    {
+        $this->authenticateFilament();
+
+        config(['vestix.legacy_archive.enabled' => false]);
+
+        Livewire::test(ListPositions::class)
+            ->assertDontSee('Legacy Archief')
+            ->assertSee('Open Posities')
+            ->assertSee('Archief');
+    }
+
     public function test_open_and_archive_tabs_exclude_legacy_positions(): void
     {
+        config(['vestix.legacy_archive.enabled' => true]);
+
         $user = $this->authenticateFilament();
 
         $open = Position::factory()->for($user)->create([
@@ -34,6 +48,7 @@ class LegacyArchiveTabTest extends TestCase
         ]);
 
         Livewire::test(ListPositions::class)
+            ->assertSee('Legacy Archief')
             ->assertCanSeeTableRecords([$open])
             ->assertCanNotSeeTableRecords([$closed, $legacyOpen, $legacyClosed]);
 

@@ -45,6 +45,11 @@ return [
         'chart_screenshot_max_kb' => (int) env('CHART_SCREENSHOT_MAX_KB', 10240),
     ],
 
+    // Temporarily off — keep is_legacy data + tab code. Set VESTIX_LEGACY_ARCHIVE_ENABLED=true to re-enable.
+    'legacy_archive' => [
+        'enabled' => filter_var(env('VESTIX_LEGACY_ARCHIVE_ENABLED', false), FILTER_VALIDATE_BOOL),
+    ],
+
     'strategy_coach' => [
         'min_closed_trades' => (int) env('STRATEGY_COACH_MIN_TRADES', 20),
         // Local-only preview of unlocked edge stats (never active outside local).
