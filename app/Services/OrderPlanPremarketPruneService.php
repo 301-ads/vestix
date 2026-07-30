@@ -206,6 +206,9 @@ class OrderPlanPremarketPruneService
             : null;
 
         try {
+            // Alleen echte pre-market quotes (Polygon realtime / Finnhub intraday + stale-close filter).
+            // Geen fetchLivePrice-fallback: /quote levert zonder extended-hours trades de slotkoers,
+            // waardoor "geen pre-market" ten onrechte als trendbreuk onder SMA 20 zou tellen.
             $premarket = $this->quotes->fetchPremarketPrice($ticker, $referenceClose);
 
             if ($premarket !== null && $premarket > 0) {
@@ -213,19 +216,6 @@ class OrderPlanPremarketPruneService
             }
         } catch (\Throwable $e) {
             Log::warning('Order plan premarket prune quote failed.', [
-                'ticker' => $ticker,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        try {
-            $live = $this->quotes->fetchLivePrice($ticker);
-
-            if ($live !== null && $live > 0) {
-                return round($live, 4);
-            }
-        } catch (\Throwable $e) {
-            Log::warning('Order plan premarket prune live quote failed.', [
                 'ticker' => $ticker,
                 'error' => $e->getMessage(),
             ]);

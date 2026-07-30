@@ -53,7 +53,7 @@ class OrderPlanPremarketPruneServiceTest extends TestCase
     {
         $quotes = Mockery::mock(QuoteProvider::class);
         $quotes->shouldReceive('fetchPremarketPrice')->andReturn(null);
-        $quotes->shouldReceive('fetchLivePrice')->andReturn(null);
+        $quotes->shouldReceive('fetchLivePrice')->never();
 
         $service = new OrderPlanPremarketPruneService($quotes, app(AlertDispatcher::class));
         $scout = $this->scout(sma: 63.61);
@@ -61,6 +61,25 @@ class OrderPlanPremarketPruneServiceTest extends TestCase
         $result = $service->evaluate($scout);
 
         $this->assertSame('unavailable', $result['action']);
+    }
+
+    public function test_does_not_treat_live_prior_close_as_premarket(): void
+    {
+        $quotes = Mockery::mock(QuoteProvider::class);
+        $quotes->shouldReceive('fetchPremarketPrice')
+            ->once()
+            ->with('EMBJ', 64.37)
+            ->andReturn(null);
+        // Stale-close rejection in FallbackQuoteProvider returns null; live /quote must not reintroduce the slotkoers.
+        $quotes->shouldReceive('fetchLivePrice')->never();
+
+        $service = new OrderPlanPremarketPruneService($quotes, app(AlertDispatcher::class));
+        $scout = $this->scout(sma: 64.39);
+
+        $result = $service->evaluate($scout);
+
+        $this->assertSame('unavailable', $result['action']);
+        $this->assertNull($result['price']);
     }
 
     private function serviceWithPremarket(float $price): OrderPlanPremarketPruneService
