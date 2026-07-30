@@ -72,11 +72,31 @@ class FreeFirstAutomationTest extends TestCase
 
         $this->assertCount(1, $mismatches);
         $this->assertSame('qty_drift', $mismatches[0]['type']);
+        $this->assertStringContainsString('neem IBKR over als Flex klopt', $mismatches[0]['message']);
 
         app(IbkrPositionReconciler::class)->acceptQuantity($position->fresh(), 10.0);
 
-        $this->assertEquals(10.0, (float) $position->fresh()->quantity);
-        $this->assertSame('broker-synced', $position->fresh()->data_source_label);
+        $fresh = $position->fresh();
+        $this->assertEquals(10.0, (float) $fresh->quantity);
+        $this->assertSame('broker-synced', $fresh->data_source_label);
+        $this->assertSame('Revolut', $fresh->displayDataSourceLabel());
+        $this->assertSame('Gesynchroniseerd · open positie', $fresh->executionTruthState()?->label());
+    }
+
+    public function test_display_data_source_label_uses_broker_short_name(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+        $position = Position::factory()->create([
+            'user_id' => $user->id,
+            'status' => 'open',
+            'broker' => Broker::Ibkr,
+            'data_source_label' => 'broker-synced',
+            'execution_truth_state' => ExecutionTruthState::SyncedOpen,
+        ]);
+
+        $this->assertSame('IBKR', $position->displayDataSourceLabel());
+        $this->assertSame('Handmatig', $position->fill(['data_source_label' => 'handmatig'])->displayDataSourceLabel());
+        $this->assertSame('Gepland', $position->fill(['data_source_label' => 'planned'])->displayDataSourceLabel());
     }
 
     public function test_execution_truth_and_gap_herplan(): void
@@ -93,6 +113,8 @@ class FreeFirstAutomationTest extends TestCase
 
         $this->assertSame(ExecutionTruthState::SubmittedAtBroker, $scout->execution_truth_state);
         $this->assertNotNull($scout->broker_submitted_at);
+        $this->assertSame('Handmatig', $scout->displayDataSourceLabel());
+        $this->assertSame('Geplaatst bij broker', $scout->executionTruthState()?->label());
 
         $scout->applyGapHerplan(GapHerplanAction::Skip);
         $scout->refresh();

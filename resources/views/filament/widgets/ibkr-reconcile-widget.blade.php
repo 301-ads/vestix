@@ -1,7 +1,7 @@
 <x-filament-widgets::widget class="vestix-actions-widget">
     <x-filament::section
-        heading="IBKR reconcile"
-        description="Verschillen tussen Vestix en Flex — alleen overnemen na jouw bevestiging."
+        heading="IBKR Flex-verschillen"
+        description="Posities of aantallen die niet kloppen tussen Vestix en je IBKR Flex-rapport. Dit is geen ‘bron van waarheid’ per trade — alleen een sync-check. Overnemen gebeurt pas na jouw bevestiging."
         :compact="true"
     >
         <ul class="vestix-action-todos">

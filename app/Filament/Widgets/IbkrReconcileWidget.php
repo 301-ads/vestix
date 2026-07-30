@@ -81,11 +81,11 @@ class IbkrReconcileWidget extends Widget implements HasActions, HasSchemas
     public function acceptQtyAction(int $index, array $mismatch): Action
     {
         return Action::make('acceptQty_'.$index)
-            ->label('Accepteer IBKR qty')
+            ->label('Neem IBKR-aantal over')
             ->color('primary')
             ->size('sm')
             ->requiresConfirmation()
-            ->modalHeading('IBKR quantity overnemen')
+            ->modalHeading('IBKR-aantal overnemen')
             ->modalDescription($mismatch['message'] ?? '')
             ->action(function () use ($mismatch): void {
                 $position = Position::query()->find($mismatch['position_id'] ?? 0);
@@ -102,8 +102,8 @@ class IbkrReconcileWidget extends Widget implements HasActions, HasSchemas
                 );
 
                 Notification::make()
-                    ->title('Quantity bijgewerkt')
-                    ->body("{$position->ticker} volgt nu IBKR Flex.")
+                    ->title('Aantal bijgewerkt')
+                    ->body("{$position->ticker} volgt nu het aantal uit IBKR Flex.")
                     ->success()
                     ->send();
             });

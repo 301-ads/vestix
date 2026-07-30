@@ -3,7 +3,7 @@
     use App\Enums\ExecutionTruthState;
 
     $state = $position?->executionTruthState();
-    $source = $position?->resolvedDataSourceLabel() ?? 'planned';
+    $source = $position?->displayDataSourceLabel() ?? 'Gepland';
 @endphp
 
 @if ($position)
@@ -15,6 +15,7 @@
                 'bg-warning-500/15 text-warning-400' => $state === ExecutionTruthState::SubmittedAtBroker,
                 'bg-success-500/15 text-success-400' => $state === ExecutionTruthState::SyncedOpen,
                 'bg-info-500/15 text-info-400' => $state === ExecutionTruthState::SyncedPartial,
+                'bg-gray-500/15 text-gray-300' => $state === ExecutionTruthState::Closed,
             ])>
                 {{ $state->label() }}
             </span>

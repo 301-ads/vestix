@@ -15,8 +15,8 @@ enum ExecutionTruthState: string
         return match ($this) {
             self::Planned => 'Gepland',
             self::SubmittedAtBroker => 'Geplaatst bij broker',
-            self::SyncedOpen => 'Gesynchroniseerd (open)',
-            self::SyncedPartial => 'Gesynchroniseerd (deels)',
+            self::SyncedOpen => 'Gesynchroniseerd · open positie',
+            self::SyncedPartial => 'Gesynchroniseerd · deels open',
             self::Closed => 'Gesloten',
         };
     }

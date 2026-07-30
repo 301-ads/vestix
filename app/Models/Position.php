@@ -670,6 +670,21 @@ class Position extends Model
         return $this->executionTruthState()?->sourceLabel() ?? 'planned';
     }
 
+    /**
+     * Human-facing bron label for UI (broker short name instead of "broker-synced").
+     */
+    public function displayDataSourceLabel(): string
+    {
+        $raw = $this->resolvedDataSourceLabel();
+
+        return match ($raw) {
+            'broker-synced' => $this->effectiveBroker()->shortLabel(),
+            'handmatig' => 'Handmatig',
+            'planned' => 'Gepland',
+            default => $raw,
+        };
+    }
+
     public function applyGapHerplan(GapHerplanAction $action): void
     {
         match ($action) {

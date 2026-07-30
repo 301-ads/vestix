@@ -46,7 +46,7 @@ class IbkrPositionReconciler
                     'vestix_qty' => $vestixQty,
                     'ibkr_qty' => null,
                     'position_id' => $position->id,
-                    'message' => "{$symbol}: open in Vestix, niet in IBKR Flex.",
+                    'message' => "{$symbol}: open in Vestix, maar niet (meer) in je IBKR Flex-rapport. Check of je de positie hebt gesloten of of Flex nog moet syncen.",
                 ];
 
                 continue;
@@ -62,7 +62,7 @@ class IbkrPositionReconciler
                     'ibkr_qty' => $ibkrQty,
                     'position_id' => $position->id,
                     'message' => sprintf(
-                        '%s: Vestix %.4f vs IBKR %.4f',
+                        '%s: Vestix telt %.4f stuks, IBKR Flex %.4f — neem IBKR over als Flex klopt.',
                         $symbol,
                         $vestixQty,
                         $ibkrQty,
@@ -86,7 +86,7 @@ class IbkrPositionReconciler
                 'vestix_qty' => null,
                 'ibkr_qty' => $ibkrQty,
                 'position_id' => null,
-                'message' => "{$symbol}: in IBKR Flex, niet als open positie in Vestix.",
+                'message' => "{$symbol}: staat in IBKR Flex, maar nog niet als open positie in Vestix. Activeer of log de fill in Vestix.",
             ];
         }
 
