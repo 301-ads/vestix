@@ -4,7 +4,6 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\BankrollUpdateWidget;
 use App\Filament\Widgets\FirstRunChecklistWidget;
-use App\Filament\Widgets\IbkrReconcileWidget;
 use App\Filament\Widgets\OrderPlanTodayWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
@@ -52,7 +51,6 @@ class Dashboard extends BaseDashboard
     {
         return [
             FirstRunChecklistWidget::class,
-            IbkrReconcileWidget::class,
             PositionsRequiringActionWidget::class,
             BankrollUpdateWidget::class,
             PortfolioExposureWidget::class,

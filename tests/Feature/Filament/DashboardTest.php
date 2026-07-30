@@ -202,7 +202,6 @@ class DashboardTest extends TestCase
 
         $this->assertSame([
             \App\Filament\Widgets\FirstRunChecklistWidget::class,
-            \App\Filament\Widgets\IbkrReconcileWidget::class,
             PositionsRequiringActionWidget::class,
             BankrollUpdateWidget::class,
             PortfolioExposureWidget::class,
