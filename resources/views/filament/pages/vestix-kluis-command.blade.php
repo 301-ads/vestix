@@ -33,8 +33,7 @@
                         {{ sprintf('%+.1f%%', $reading->deviationPct) }}
                     </p>
                     <p class="vestix-kluis-panel__hint">
-                        {{ $reading->ticker }} · koers €{{ number_format($reading->close, 2, ',', '.') }}
-                        · SMA-200 €{{ number_format($reading->sma200, 2, ',', '.') }}
+                        {{ $reading->priceLine() }}
                     </p>
                     <p class="vestix-kluis-panel__message">{{ $reading->message() }}</p>
                 </div>

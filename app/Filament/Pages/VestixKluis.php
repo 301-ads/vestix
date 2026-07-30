@@ -445,6 +445,12 @@ class VestixKluis extends Page implements HasTable
 
         if ($reading !== null) {
             $bodyParts[] = $reading->message();
+            $bodyParts[] = sprintf(
+                'Klimaat-koers %s %s%s',
+                $reading->resolvedSymbol ?? $reading->ticker,
+                $reading->priceCurrencySymbol(),
+                number_format($reading->close, 2, ',', '.'),
+            );
         }
 
         if ($holdings !== null) {
