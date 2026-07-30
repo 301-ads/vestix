@@ -15,6 +15,7 @@ class FlexStatementParserTest extends TestCase
 
         $this->assertSame(10634.60, $snapshot->netLiquidation);
         $this->assertSame(4200.00, $snapshot->availableFunds);
+        $this->assertTrue($snapshot->availableFundsIsExplicit);
         $this->assertSame(3800.50, $snapshot->settledCash);
         $this->assertSame('USD', $snapshot->baseCurrency);
         $this->assertSame(3800.50, $snapshot->deployableCapital());
@@ -43,8 +44,9 @@ class FlexStatementParserTest extends TestCase
         $snapshot = (new FlexStatementParser)->parse($xml);
 
         $this->assertSame(4555.29, $snapshot->netLiquidation);
-        // No CashReport in Activity Flex → cash from latest equity row.
+        // No CashReport / availableFunds in Activity Flex → cash proxy, not explicit AF.
         $this->assertSame(2723.73, $snapshot->availableFunds);
+        $this->assertFalse($snapshot->availableFundsIsExplicit);
         $this->assertSame(2723.73, $snapshot->settledCash);
         $this->assertSame(2723.73, $snapshot->deployableCapital());
         $this->assertSame('USD', $snapshot->baseCurrency);

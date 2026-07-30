@@ -108,7 +108,7 @@ class EditUserProfileTest extends TestCase
         $user->refresh();
         $this->assertEquals(6840.89, (float) $user->trading_bankroll);
         $this->assertEquals(6840.89, (float) $user->ibkr_net_liquidation);
-        $this->assertEquals(5009.03, (float) $user->ibkr_settled_cash);
+        $this->assertEquals(4555.29, (float) $user->ibkr_settled_cash);
         $this->assertEquals(5009.03, (float) $user->ibkr_available_funds);
     }
 

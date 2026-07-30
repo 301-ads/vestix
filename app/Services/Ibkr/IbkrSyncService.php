@@ -67,6 +67,7 @@ class IbkrSyncService
                     openOrders: $openOrders,
                     cashTransactions: $snapshot->cashTransactions,
                     metadata: $snapshot->metadata,
+                    availableFundsIsExplicit: $snapshot->availableFundsIsExplicit,
                 );
             } catch (Throwable $ordersException) {
                 if ((bool) config('vestix.ibkr.client_portal.enabled', false)) {
@@ -128,6 +129,7 @@ class IbkrSyncService
      *     base_currency: string,
      *     net_liquidation: float,
      *     available_funds: float,
+     *     available_funds_explicit: bool,
      *     settled_cash: float,
      *     deployable: float,
      *     open_positions: int,
@@ -150,6 +152,7 @@ class IbkrSyncService
             'base_currency' => $snapshot->baseCurrency,
             'net_liquidation' => $snapshot->netLiquidation,
             'available_funds' => $snapshot->availableFunds,
+            'available_funds_explicit' => $snapshot->availableFundsIsExplicit,
             'settled_cash' => $snapshot->settledCash,
             'deployable' => $snapshot->deployableCapital(),
             'open_positions' => count($snapshot->openPositions),
@@ -160,9 +163,21 @@ class IbkrSyncService
 
     private function persistSuccess(User $user, IbkrAccountSnapshot $snapshot, Carbon $attemptAt): void
     {
+        // Activity Flex often has Cash but not Available Funds. Don't clobber a real AF
+        // (manual or prior) with the Cash proxy — Order Plan uses min(AF, Settled).
+        $availableFunds = $snapshot->availableFunds;
+
+        if (! $snapshot->availableFundsIsExplicit) {
+            $existing = $user->ibkr_available_funds;
+
+            if ($existing !== null && (float) $existing > 0) {
+                $availableFunds = round((float) $existing, 2);
+            }
+        }
+
         $user->forceFill([
             'ibkr_net_liquidation' => $snapshot->netLiquidation,
-            'ibkr_available_funds' => $snapshot->availableFunds,
+            'ibkr_available_funds' => $availableFunds,
             'ibkr_settled_cash' => $snapshot->settledCash,
             'ibkr_base_currency' => $snapshot->baseCurrency,
             'ibkr_open_positions' => $snapshot->openPositionsAsArrays(),

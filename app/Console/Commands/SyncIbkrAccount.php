@@ -140,6 +140,7 @@ class SyncIbkrAccount extends Command
                     ['Base currency', $snapshot['base_currency'] ?? '—'],
                     ['Net Liquidation', $this->money($snapshot['net_liquidation'] ?? null)],
                     ['Available Funds', $this->money($snapshot['available_funds'] ?? null)],
+                    ['AF from Flex field', ($snapshot['available_funds_explicit'] ?? false) ? 'yes' : 'no (Cash proxy)'],
                     ['Settled Cash', $this->money($snapshot['settled_cash'] ?? null)],
                     ['Deployable', $this->money($snapshot['deployable'] ?? null)],
                     ['Open positions', (string) ($snapshot['open_positions'] ?? 0)],

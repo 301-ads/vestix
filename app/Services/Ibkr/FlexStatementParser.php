@@ -32,8 +32,11 @@ class FlexStatementParser
         }
 
         $netLiquidation = $this->resolveNetLiquidation($statement);
-        $availableFunds = $this->resolveAvailableFunds($statement, $netLiquidation);
-        $settledCash = $this->resolveSettledCash($statement, $availableFunds);
+        $explicitAvailableFunds = $this->resolveExplicitAvailableFunds($statement);
+        $cash = $this->resolveCash($statement);
+        $availableFundsIsExplicit = $explicitAvailableFunds !== null;
+        $availableFunds = $explicitAvailableFunds ?? $cash ?? $netLiquidation;
+        $settledCash = $this->resolveSettledCash($statement, $cash ?? $availableFunds);
 
         return new IbkrAccountSnapshot(
             netLiquidation: round($netLiquidation, 2),
@@ -44,6 +47,7 @@ class FlexStatementParser
             openOrders: [],
             cashTransactions: $this->parseCashTransactions($statement),
             metadata: $this->parseMetadata($statement),
+            availableFundsIsExplicit: $availableFundsIsExplicit,
         );
     }
 
@@ -128,16 +132,17 @@ class FlexStatementParser
         throw new RuntimeException('IBKR Flex statement is missing Net Liquidation / Equity Summary.');
     }
 
-    private function resolveAvailableFunds(SimpleXMLElement $statement, float $fallback): float
+    /**
+     * Only real Available Funds fields — never Cash. Activity Flex usually omits these.
+     */
+    private function resolveExplicitAvailableFunds(SimpleXMLElement $statement): ?float
     {
         $latestEquity = $this->latestEquitySummaryRow($statement);
 
         $paths = [
             $statement->EquitySummaryInBase['availableFunds'] ?? null,
             $statement->AccountInformation['availableFunds'] ?? null,
-            $statement->CashReport->CashReportCurrency['endingCash'] ?? null,
-            // Activity Flex often omits CashReport; equity summary cash is the next-best proxy.
-            $latestEquity['cash'] ?? null,
+            $latestEquity['availableFunds'] ?? null,
         ];
 
         foreach ($paths as $value) {
@@ -146,7 +151,46 @@ class FlexStatementParser
             }
         }
 
-        return $fallback;
+        return null;
+    }
+
+    /**
+     * IBKR Cash balance (equity summary cash or CashReport endingCash).
+     */
+    private function resolveCash(SimpleXMLElement $statement): ?float
+    {
+        $cashReport = $statement->CashReport->CashReportCurrency ?? null;
+
+        if ($cashReport instanceof SimpleXMLElement) {
+            foreach ($cashReport as $row) {
+                $currency = strtoupper((string) ($row['currency'] ?? ''));
+                $level = strtoupper((string) ($row['levelOfDetail'] ?? ''));
+
+                if ($currency === 'BASE' || $level === 'BASE' || $level === 'CURRENCY' || $level === 'BASECURRENCY') {
+                    $endingCash = trim((string) ($row['endingCash'] ?? ''));
+
+                    if ($endingCash !== '') {
+                        return (float) $endingCash;
+                    }
+                }
+            }
+
+            $first = $cashReport[0] ?? $cashReport;
+            $endingCash = trim((string) ($first['endingCash'] ?? ''));
+
+            if ($endingCash !== '') {
+                return (float) $endingCash;
+            }
+        }
+
+        $latestEquity = $this->latestEquitySummaryRow($statement);
+        $cash = trim((string) ($latestEquity['cash'] ?? ''));
+
+        if ($cash !== '') {
+            return (float) $cash;
+        }
+
+        return null;
     }
 
     private function resolveSettledCash(SimpleXMLElement $statement, float $fallback): float

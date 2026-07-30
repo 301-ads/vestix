@@ -96,7 +96,7 @@ class EditUserProfile extends EditProfile
                             ->schema([
                                 Section::make('Position sizing')
                                     ->compact()
-                                    ->description('NLV voor Alpha · Cash/AF voor Order Plan sizing. Zelfde splitsing als in IBKR/TradingView.')
+                                    ->description('NLV voor Alpha · Available Funds + Settled/Cash voor Order Plan (min). Activity Flex mist vaak AF.')
                                     ->schema([
                                         Placeholder::make('ibkr_sync_status')
                                             ->label('IBKR sync')
@@ -108,11 +108,11 @@ class EditUserProfile extends EditProfile
                                             ->minValue(0.01)
                                             ->helperText(fn (): string => $this->tradingBankrollHelperText()),
                                         TextInput::make('ibkr_available_funds')
-                                            ->label('Cash / Available Funds')
+                                            ->label('Available Funds')
                                             ->numeric()
                                             ->prefix('$')
                                             ->minValue(0)
-                                            ->helperText('Voor Order Plan / Smart Sizing. Op een cash-account gelijk aan Cash in IBKR. Settled Cash wordt hieraan gelijk gezet.')
+                                            ->helperText('Voor Order Plan / Smart Sizing. Activity Flex levert dit veld vaak niet (alleen Cash) — sync overschrijft je AF dan niet. Order Plan gebruikt min(Available Funds, Settled/Cash).')
                                             ->visible(fn (): bool => $this->getUser()->ibkr_last_success_at !== null
                                                 || (string) config('vestix.ibkr.reader', 'stub') === 'flex'
                                                 || $this->getUser()->primary_broker === Broker::Ibkr),
@@ -414,10 +414,8 @@ class EditUserProfile extends EditProfile
         }
 
         if (array_key_exists('ibkr_available_funds', $data) && filled($data['ibkr_available_funds'])) {
-            // Cash account: treat Available Funds as deployable; keep Settled in sync for min(AF, settled).
-            $deployable = round((float) $data['ibkr_available_funds'], 2);
-            $data['ibkr_available_funds'] = $deployable;
-            $data['ibkr_settled_cash'] = $deployable;
+            // Keep Settled independent (from Flex Cash). Order Plan uses min(AF, Settled).
+            $data['ibkr_available_funds'] = round((float) $data['ibkr_available_funds'], 2);
         }
 
         if (array_key_exists('baseline_date', $data)) {
@@ -793,7 +791,7 @@ class EditUserProfile extends EditProfile
         }
 
         return sprintf(
-            'Settled %s · Available Funds %s → Order Plan gebruikt $%s',
+            'Settled/Cash %s · Available Funds %s → Order Plan gebruikt $%s',
             $settledLabel,
             $availableLabel,
             number_format((float) $deployable, 2),

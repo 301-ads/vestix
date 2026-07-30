@@ -119,4 +119,44 @@ class IbkrSyncServiceTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_activity_flex_without_af_preserves_existing_available_funds(): void
+    {
+        config([
+            'vestix.ibkr.flex.token' => 'token',
+            'vestix.ibkr.flex.query_id' => '123',
+            'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
+            'vestix.ibkr.flex.poll_delay_ms' => 1,
+            'vestix.ibkr.client_portal.enabled' => false,
+            'vestix.ibkr.sync_bankroll_snapshot' => false,
+        ]);
+
+        $user = User::factory()->create([
+            'primary_broker' => Broker::Ibkr,
+            'trading_bankroll' => 1000,
+            'ibkr_available_funds' => 7609.08,
+            'ibkr_settled_cash' => 5000,
+        ]);
+
+        $statement = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_real_structure.xml'));
+
+        Http::fake([
+            'https://flex.test/AccountManagement/FlexWebService/SendRequest*' => Http::response(
+                '<?xml version="1.0"?><FlexStatementResponse><Status>Success</Status><ReferenceCode>999</ReferenceCode></FlexStatementResponse>',
+                200,
+            ),
+            'https://flex.test/AccountManagement/FlexWebService/GetStatement*' => Http::response($statement, 200),
+        ]);
+
+        $summary = app(IbkrSyncService::class)->sync($user);
+
+        $this->assertTrue($summary['success']);
+        $this->assertFalse($summary['snapshot']['available_funds_explicit']);
+        $user->refresh();
+
+        // NLV + Settled/Cash from Flex; Available Funds preserved (not Cash proxy).
+        $this->assertEquals(4555.29, (float) $user->ibkr_net_liquidation);
+        $this->assertEquals(2723.73, (float) $user->ibkr_settled_cash);
+        $this->assertEquals(7609.08, (float) $user->ibkr_available_funds);
+    }
 }

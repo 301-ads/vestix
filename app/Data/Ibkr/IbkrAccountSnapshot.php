@@ -18,6 +18,11 @@ final readonly class IbkrAccountSnapshot
         public array $openOrders = [],
         public array $cashTransactions = [],
         public ?FlexStatementMetadata $metadata = null,
+        /**
+         * True when Flex exposed a real availableFunds field.
+         * False when we fell back to Cash / NLV (Activity Flex often lacks AF).
+         */
+        public bool $availableFundsIsExplicit = true,
     ) {}
 
     /**
