@@ -16,6 +16,7 @@ class PremarketQuoteCapability
      * @return array{
      *     polygon_realtime: bool,
      *     finnhub_intraday: bool,
+     *     tradingview_scanner: bool,
      *     message: string,
      * }
      */
@@ -24,10 +25,15 @@ class PremarketQuoteCapability
         return Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, function () use ($probeTicker): array {
             $polygonRealtime = self::polygonRealtimeAvailable($probeTicker);
             $finnhubIntraday = self::finnhubIntradayAvailable($probeTicker);
+            // TradingView america/scan exposes premarket_close (null when no EH trades).
+            $tradingViewScanner = true;
 
             $message = match (true) {
                 $polygonRealtime => 'Polygon realtime beschikbaar voor pre-market quotes.',
                 $finnhubIntraday => 'Finnhub intraday candles beschikbaar voor pre-market quotes.',
+                $tradingViewScanner => 'TradingView scanner beschikbaar voor pre-market quotes '
+                    .'(premarket_close; null bij geen extended-hours trades). '
+                    .'Polygon realtime/snapshot en Finnhub 1-min candles geven 403 op het huidige API-plan.',
                 default => 'Geen live pre-market bron beschikbaar op het huidige API-plan. '
                     .'Polygon realtime/snapshot en Finnhub 1-min candles geven 403. '
                     .'Finnhub/Alpha Vantage /quote levert alleen de laatste slotkoers.',
@@ -36,6 +42,7 @@ class PremarketQuoteCapability
             return [
                 'polygon_realtime' => $polygonRealtime,
                 'finnhub_intraday' => $finnhubIntraday,
+                'tradingview_scanner' => $tradingViewScanner,
                 'message' => $message,
             ];
         });
@@ -45,7 +52,9 @@ class PremarketQuoteCapability
     {
         $assessment = self::assess();
 
-        return $assessment['polygon_realtime'] || $assessment['finnhub_intraday'];
+        return $assessment['polygon_realtime']
+            || $assessment['finnhub_intraday']
+            || ($assessment['tradingview_scanner'] ?? false);
     }
 
     public static function forgetCachedAssessment(): void

@@ -37,8 +37,9 @@ class PremarketQuoteCapabilityTest extends TestCase
 
         $this->assertFalse($assessment['polygon_realtime']);
         $this->assertFalse($assessment['finnhub_intraday']);
-        $this->assertStringContainsString('Geen live pre-market bron beschikbaar', $assessment['message']);
-        $this->assertFalse(PremarketQuoteCapability::hasLivePremarketSource());
+        $this->assertTrue($assessment['tradingview_scanner']);
+        $this->assertStringContainsString('TradingView scanner', $assessment['message']);
+        $this->assertTrue(PremarketQuoteCapability::hasLivePremarketSource());
     }
 
     public function test_assess_detects_polygon_realtime_when_snapshot_is_available(): void

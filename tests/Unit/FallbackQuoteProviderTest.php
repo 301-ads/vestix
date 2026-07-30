@@ -6,6 +6,7 @@ use App\Services\AlphaVantageQuoteProvider;
 use App\Services\FallbackQuoteProvider;
 use App\Services\FinnhubQuoteProvider;
 use App\Services\PolygonQuoteProvider;
+use App\Services\TradingViewPremarketQuoteService;
 use App\Support\PremarketQuoteCapability;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -26,17 +27,28 @@ class FallbackQuoteProviderTest extends TestCase
         Cache::put('vestix.premarket_quote_capability', [
             'polygon_realtime' => true,
             'finnhub_intraday' => false,
+            'tradingview_scanner' => true,
             'message' => 'Polygon realtime beschikbaar voor pre-market quotes.',
         ], 3600);
     }
 
-    private function disableLivePremarketSources(): void
+    private function disablePaidLivePremarketSources(): void
     {
         Cache::put('vestix.premarket_quote_capability', [
             'polygon_realtime' => false,
             'finnhub_intraday' => false,
-            'message' => 'Geen live pre-market bron beschikbaar op het huidige API-plan.',
+            'tradingview_scanner' => true,
+            'message' => 'TradingView scanner beschikbaar voor pre-market quotes.',
         ], 3600);
+    }
+
+    private function tradingViewMock(): TradingViewPremarketQuoteService
+    {
+        $tv = Mockery::mock(TradingViewPremarketQuoteService::class);
+        $tv->shouldReceive('fetchPremarketQuote')->andReturn(['ok' => false, 'price' => null])->byDefault();
+        $tv->shouldReceive('fetchPremarketPrice')->andReturn(null)->byDefault();
+
+        return $tv;
     }
 
     public function test_returns_finnhub_price_when_available(): void
@@ -54,7 +66,7 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $this->tradingViewMock());
 
         $this->assertSame(263.22, $provider->fetchLivePrice('PANW'));
     }
@@ -74,7 +86,7 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $this->tradingViewMock());
 
         $this->assertSame(263.22, $provider->fetchLivePrice('PANW'));
     }
@@ -94,7 +106,7 @@ class FallbackQuoteProviderTest extends TestCase
             'low' => null,
         ]);
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $this->tradingViewMock());
 
         $quote = $provider->fetchSessionQuoteWithProvider('PANW');
 
@@ -120,9 +132,91 @@ class FallbackQuoteProviderTest extends TestCase
             'previous_close' => 557.89,
         ]);
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $this->tradingViewMock());
 
         $this->assertSame(543.50, $provider->fetchPremarketPrice('AMD', 557.89));
+    }
+
+    public function test_premarket_uses_tradingview_when_paid_sources_unavailable(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:30:00', 'America/New_York'));
+        $this->disablePaidLivePremarketSources();
+
+        $tv = Mockery::mock(TradingViewPremarketQuoteService::class);
+        $tv->shouldReceive('fetchPremarketQuote')
+            ->once()
+            ->with('PECO')
+            ->andReturn(['ok' => true, 'price' => 42.40]);
+
+        $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
+        $finnhub->shouldNotReceive('fetchSessionQuote');
+
+        $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
+        $alphaVantage->shouldNotReceive('fetchSessionQuote');
+
+        $polygon = Mockery::mock(PolygonQuoteProvider::class);
+        $polygon->shouldNotReceive('fetchSessionQuote');
+
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+
+        $this->assertSame(42.40, $provider->fetchPremarketPrice('PECO', 42.79));
+    }
+
+    public function test_premarket_keeps_unavailable_when_tradingview_reports_no_eh_trades(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:30:00', 'America/New_York'));
+        $this->disablePaidLivePremarketSources();
+
+        $tv = Mockery::mock(TradingViewPremarketQuoteService::class);
+        $tv->shouldReceive('fetchPremarketQuote')
+            ->once()
+            ->with('GNTX')
+            ->andReturn(['ok' => true, 'price' => null]);
+
+        $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
+        // Must not reintroduce RTH close after TV says no premarket trades.
+        $finnhub->shouldNotReceive('fetchSessionQuote');
+
+        $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
+        $alphaVantage->shouldNotReceive('fetchSessionQuote');
+
+        $polygon = Mockery::mock(PolygonQuoteProvider::class);
+        $polygon->shouldNotReceive('fetchSessionQuote');
+
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+
+        $this->assertNull($provider->fetchPremarketPrice('GNTX', 23.97));
+    }
+
+    public function test_premarket_rejects_stale_rth_close_equal_to_reference(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:30:00', 'America/New_York'));
+        $this->disablePaidLivePremarketSources();
+
+        $tv = Mockery::mock(TradingViewPremarketQuoteService::class);
+        $tv->shouldReceive('fetchPremarketQuote')
+            ->once()
+            ->with('GNTX')
+            ->andReturn(['ok' => false, 'price' => null]);
+
+        $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
+        $finnhub->shouldReceive('fetchSessionQuote')->with('GNTX')->once()->andReturn([
+            'close' => 23.97,
+            'previous_close' => 24.05,
+            'quoted_at' => Carbon::parse('2026-07-12 16:00:00', 'America/New_York'),
+        ]);
+
+        $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
+        $alphaVantage->shouldReceive('fetchSessionQuote')->with('GNTX')->once()->andReturn([
+            'close' => 23.97,
+        ]);
+
+        $polygon = Mockery::mock(PolygonQuoteProvider::class);
+        $polygon->shouldNotReceive('fetchSessionQuote');
+
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+
+        $this->assertNull($provider->fetchPremarketPrice('GNTX', 23.97));
     }
 
     public function test_premarket_price_rejects_finnhub_when_it_matches_previous_close(): void
@@ -136,18 +230,19 @@ class FallbackQuoteProviderTest extends TestCase
             'previous_close' => 557.89,
         ]);
 
+        $tv = Mockery::mock(TradingViewPremarketQuoteService::class);
+        $tv->shouldReceive('fetchPremarketQuote')
+            ->once()
+            ->with('AMD')
+            ->andReturn(['ok' => true, 'price' => 543.50]);
+
         $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
-        $finnhub->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
-            'close' => 557.89,
-            'previous_close' => 557.89,
-        ]);
+        $finnhub->shouldNotReceive('fetchSessionQuote');
 
         $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
-        $alphaVantage->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
-            'close' => 543.50,
-        ]);
+        $alphaVantage->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
 
         $this->assertSame(543.50, $provider->fetchPremarketPrice('AMD', 557.89));
     }
@@ -163,26 +258,57 @@ class FallbackQuoteProviderTest extends TestCase
             'previous_close' => 557.89,
         ]);
 
+        $tv = Mockery::mock(TradingViewPremarketQuoteService::class);
+        $tv->shouldReceive('fetchPremarketQuote')
+            ->once()
+            ->with('AMD')
+            ->andReturn(['ok' => true, 'price' => 557.89]);
+
         $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
-        $finnhub->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
-            'close' => 557.89,
-            'previous_close' => 557.89,
-        ]);
+        $finnhub->shouldNotReceive('fetchSessionQuote');
 
         $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
-        $alphaVantage->shouldReceive('fetchSessionQuote')->with('AMD')->once()->andReturn([
-            'close' => 557.89,
-        ]);
+        $alphaVantage->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
 
         $this->assertNull($provider->fetchPremarketPrice('AMD', 557.89));
     }
 
-    public function test_premarket_price_returns_null_when_no_live_source_is_entitled(): void
+    public function test_premarket_accepts_real_print_one_cent_from_close(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-13 08:30:00', 'America/New_York'));
-        $this->disableLivePremarketSources();
+        $this->disablePaidLivePremarketSources();
+
+        $tv = Mockery::mock(TradingViewPremarketQuoteService::class);
+        $tv->shouldReceive('fetchPremarketQuote')
+            ->once()
+            ->with('PECO')
+            ->andReturn(['ok' => true, 'price' => 42.80]);
+
+        $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
+        $finnhub->shouldNotReceive('fetchSessionQuote');
+        $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
+        $alphaVantage->shouldNotReceive('fetchSessionQuote');
+        $polygon = Mockery::mock(PolygonQuoteProvider::class);
+        $polygon->shouldNotReceive('fetchSessionQuote');
+
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+
+        // Must not treat float noise on abs(42.80-42.79) as a stale RTH close.
+        $this->assertSame(42.80, $provider->fetchPremarketPrice('PECO', 42.79));
+    }
+
+    public function test_premarket_price_uses_tradingview_when_no_paid_realtime_entitlement(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 08:30:00', 'America/New_York'));
+        $this->disablePaidLivePremarketSources();
+
+        $tv = Mockery::mock(TradingViewPremarketQuoteService::class);
+        $tv->shouldReceive('fetchPremarketQuote')
+            ->once()
+            ->with('AMD')
+            ->andReturn(['ok' => true, 'price' => 543.50]);
 
         $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
         $finnhub->shouldNotReceive('fetchSessionQuote');
@@ -193,8 +319,8 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon);
+        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
 
-        $this->assertNull($provider->fetchPremarketPrice('AMD', 557.89));
+        $this->assertSame(543.50, $provider->fetchPremarketPrice('AMD', 557.89));
     }
 }

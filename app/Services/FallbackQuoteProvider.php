@@ -13,6 +13,7 @@ class FallbackQuoteProvider implements QuoteProvider
         private FinnhubQuoteProvider $finnhub,
         private AlphaVantageQuoteProvider $alphaVantage,
         private PolygonQuoteProvider $polygon,
+        private TradingViewPremarketQuoteService $tradingViewPremarket,
     ) {}
 
     public function fetchLivePrice(string $ticker): ?float
@@ -24,15 +25,9 @@ class FallbackQuoteProvider implements QuoteProvider
 
     public function fetchPremarketPrice(string $ticker, ?float $referenceClose = null): ?float
     {
-        if (! PremarketQuoteCapability::hasLivePremarketSource()) {
-            Log::info('Pre-market quote skipped — no entitled live data source on current API plan.', [
-                'ticker' => $ticker,
-            ]);
+        $assessment = PremarketQuoteCapability::assess($ticker);
 
-            return null;
-        }
-
-        if (PremarketQuoteCapability::assess($ticker)['finnhub_intraday']) {
+        if ($assessment['finnhub_intraday']) {
             $intradayPrice = $this->finnhub->fetchIntradayClose($ticker);
 
             if ($intradayPrice !== null && ! $this->isStalePremarketQuote($intradayPrice, [], $referenceClose)) {
@@ -40,7 +35,51 @@ class FallbackQuoteProvider implements QuoteProvider
             }
         }
 
-        foreach ($this->premarketProviders() as $entry) {
+        if ($assessment['polygon_realtime']) {
+            $quote = $this->polygon->fetchSessionQuote($ticker);
+
+            if ($quote !== null && isset($quote['close'])) {
+                $price = (float) $quote['close'];
+
+                if (! $this->isStalePremarketQuote($price, $quote, $referenceClose)) {
+                    return $price;
+                }
+
+                Log::info('Pre-market quote rejected as stale close — trying next fallback.', [
+                    'ticker' => $ticker,
+                    'provider' => 'polygon',
+                    'price' => $price,
+                    'reference_close' => $referenceClose,
+                    'provider_previous_close' => $quote['previous_close'] ?? null,
+                ]);
+            }
+        }
+
+        // Prefer TradingView premarket_close over Finnhub/AV /quote (those are usually RTH closes).
+        if ($assessment['tradingview_scanner'] ?? true) {
+            $tv = $this->tradingViewPremarket->fetchPremarketQuote($ticker);
+
+            if ($tv['ok']) {
+                $tvPrice = $tv['price'];
+
+                if ($tvPrice !== null && $tvPrice > 0 && ! $this->isStalePremarketQuote($tvPrice, [], $referenceClose)) {
+                    return $tvPrice;
+                }
+
+                if ($tvPrice !== null && $this->isStalePremarketQuote($tvPrice, [], $referenceClose)) {
+                    Log::info('TradingView premarket rejected as stale close.', [
+                        'ticker' => $ticker,
+                        'price' => $tvPrice,
+                        'reference_close' => $referenceClose,
+                    ]);
+                }
+
+                // Listing resolved: null price means no EH trades — do not fall back to RTH /quote.
+                return null;
+            }
+        }
+
+        foreach ($this->premarketQuoteFallbacks() as $entry) {
             $quote = $entry['provider']->fetchSessionQuote($ticker);
 
             if ($quote === null || ! isset($quote['close'])) {
@@ -134,18 +173,12 @@ class FallbackQuoteProvider implements QuoteProvider
     /**
      * @return list<array{name: string, provider: QuoteProvider}>
      */
-    private function premarketProviders(): array
+    private function premarketQuoteFallbacks(): array
     {
-        $providers = [];
-
-        if (PremarketQuoteCapability::assess()['polygon_realtime']) {
-            $providers[] = ['name' => 'polygon', 'provider' => $this->polygon];
-        }
-
-        $providers[] = ['name' => 'finnhub', 'provider' => $this->finnhub];
-        $providers[] = ['name' => 'alpha_vantage', 'provider' => $this->alphaVantage];
-
-        return $providers;
+        return [
+            ['name' => 'finnhub', 'provider' => $this->finnhub],
+            ['name' => 'alpha_vantage', 'provider' => $this->alphaVantage],
+        ];
     }
 
     /**
@@ -170,12 +203,13 @@ class FallbackQuoteProvider implements QuoteProvider
             }
         }
 
-        if ($referenceClose !== null && abs($price - $referenceClose) < 0.01) {
+        if ($referenceClose !== null && round($price, 2) === round($referenceClose, 2)) {
             return true;
         }
 
         $providerPreviousClose = $quote['previous_close'] ?? null;
 
-        return $providerPreviousClose !== null && abs($price - (float) $providerPreviousClose) < 0.01;
+        return $providerPreviousClose !== null
+            && round($price, 2) === round((float) $providerPreviousClose, 2);
     }
 }

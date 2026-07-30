@@ -28,6 +28,42 @@ class OrderPlanPremarketPruneServiceTest extends TestCase
         $this->assertStringContainsString('SMA 20', $result['reason']);
     }
 
+    public function test_prunes_peco_like_gap_down_below_sma(): void
+    {
+        $service = $this->serviceWithPremarket(42.40);
+        $scout = $this->scout(
+            sma: 42.69,
+            ticker: 'PECO',
+            close: 42.79,
+        );
+
+        $result = $service->evaluate($scout);
+
+        $this->assertSame('prune', $result['action']);
+        $this->assertSame(ExecutionDigestStatus::CancelledTrendBreak, $result['status']);
+        $this->assertEqualsWithDelta(42.40, (float) $result['price'], 0.001);
+        $this->assertStringContainsString('SMA 20', $result['reason']);
+    }
+
+    public function test_keeps_when_stale_rth_close_labeled_as_premarket_is_unavailable(): void
+    {
+        $quotes = Mockery::mock(QuoteProvider::class);
+        // Real EH missing: provider returns null after rejecting RTH close ≈ previous close.
+        $quotes->shouldReceive('fetchPremarketPrice')
+            ->once()
+            ->with('GNTX', 23.97)
+            ->andReturn(null);
+        $quotes->shouldReceive('fetchLivePrice')->never();
+
+        $service = new OrderPlanPremarketPruneService($quotes, app(AlertDispatcher::class));
+        $scout = $this->scout(sma: 23.99, ticker: 'GNTX', close: 23.97);
+
+        $result = $service->evaluate($scout);
+
+        $this->assertSame('unavailable', $result['action']);
+        $this->assertNull($result['price']);
+    }
+
     public function test_evaluates_keep_when_premarket_above_sma(): void
     {
         $service = $this->serviceWithPremarket(64.00);
@@ -91,16 +127,20 @@ class OrderPlanPremarketPruneServiceTest extends TestCase
         return new OrderPlanPremarketPruneService($quotes, app(AlertDispatcher::class));
     }
 
-    private function scout(?float $sma, ?float $priorLow = null): Position
-    {
+    private function scout(
+        ?float $sma,
+        ?float $priorLow = null,
+        string $ticker = 'EMBJ',
+        float $close = 64.37,
+    ): Position {
         $user = User::factory()->create();
 
         return Position::factory()->for($user)->scout()->create([
-            'ticker' => 'EMBJ',
-            'entry_price' => 64.50,
+            'ticker' => $ticker,
+            'entry_price' => $close + 0.13,
             'latest_sma_20' => $sma,
             'prior_day_low' => $priorLow,
-            'latest_close_price' => 64.37,
+            'latest_close_price' => $close,
             'latest_atr_14' => 1.2,
             'quantity' => 10,
         ]);

@@ -26,6 +26,7 @@ return [
     'tradingview' => [
         'symbol_search_url' => env('TRADINGVIEW_SYMBOL_SEARCH_URL', 'https://symbol-search.tradingview.com/symbol_search/'),
         'logo_cdn_url' => env('TRADINGVIEW_LOGO_CDN_URL', 'https://s3-symbol-logo.tradingview.com'),
+        'scanner_url' => env('TRADINGVIEW_SCANNER_URL', 'https://scanner.tradingview.com/america/scan'),
     ],
 
     'telegram' => [
