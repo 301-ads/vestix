@@ -37,6 +37,24 @@ class PositionsTable
         return '('.self::blendedClosedPnlSql().') / NULLIF(entry_price * quantity, 0) * 100';
     }
 
+    /**
+     * Capital-weighted closed ROI %: Σ $ P&L ÷ Σ inleg (entry × quantity).
+     * Prefer this over AVG(% per trade) when position sizes differ.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     */
+    private static function capitalWeightedClosedRoiPct($query): float
+    {
+        $totalPnl = (float) (clone $query)->sum(DB::raw(self::blendedClosedPnlSql()));
+        $totalInvested = (float) (clone $query)->sum(DB::raw('entry_price * quantity'));
+
+        if ($totalInvested <= 0.0) {
+            return 0.0;
+        }
+
+        return ($totalPnl / $totalInvested) * 100;
+    }
+
     private static function blendedOpenPnlSql(): string
     {
         $runnerQty = '(quantity - COALESCE(scaled_out_quantity, 0))';
@@ -134,10 +152,11 @@ class PositionsTable
                     ->summarize(
                         Average::make()
                             ->label('Gem.')
+                            ->numeric(decimalPlaces: 2)
                             ->suffix('%')
                             ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire))
                             ->query(fn ($query) => $query)
-                            ->using(fn ($query) => $query->avg(DB::raw(self::blendedClosedPnlPctSql()))),
+                            ->using(fn ($query) => self::capitalWeightedClosedRoiPct($query)),
                     ),
                 ColumnGroup::make(static::schildGroupLabel())
                     ->extraHeaderAttributes(['class' => 'vestix-schild-group-header'])

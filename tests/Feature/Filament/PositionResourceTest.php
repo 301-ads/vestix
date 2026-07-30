@@ -818,6 +818,36 @@ class PositionResourceTest extends TestCase
             ->assertSee('$80.00');
     }
 
+    public function test_archive_tab_gem_pct_is_capital_weighted_not_unweighted_avg(): void
+    {
+        $user = $this->authenticateFilament();
+
+        // +10% on $100 inleg → +$10
+        Position::factory()->for($user)->closed()->create([
+            'ticker' => 'SMALL',
+            'entry_price' => 100,
+            'exit_price' => 110,
+            'quantity' => 1,
+        ]);
+        // -5% on $1_000 inleg → -$50
+        Position::factory()->for($user)->closed()->create([
+            'ticker' => 'LARGE',
+            'entry_price' => 100,
+            'exit_price' => 95,
+            'quantity' => 10,
+        ]);
+
+        // Unweighted AVG(%) would be (10 - 5) / 2 = 2.50%
+        // Capital-weighted: (-40) / 1100 ≈ -3.64%
+        Livewire::test(ListPositions::class)
+            ->set('activeTab', 'closed')
+            ->assertOk()
+            ->assertSee('Gem.')
+            ->assertSee('Netto')
+            ->assertSee('-$40.00')
+            ->assertSee('-3.64%');
+    }
+
     public function test_position_focus_filter_shows_only_danger_zone_positions(): void
     {
         $user = $this->authenticateFilament();
