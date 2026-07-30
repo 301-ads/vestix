@@ -184,7 +184,7 @@
                                                 wire:loading.attr="disabled"
                                                 title="Haal uit Order Plan"
                                             >
-                                                {{ \Filament\Support\generate_icon_html('heroicon-o-x-mark', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm'])) }}
+                                                {{ \Filament\Support\generate_icon_html('heroicon-o-x-mark', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-xs'])) }}
                                             </button>
                                         @endif
                                     </div>
@@ -215,7 +215,7 @@
                                 wire:loading.attr="disabled"
                                 title="Haal uit Order Plan"
                             >
-                                {{ \Filament\Support\generate_icon_html('heroicon-o-x-mark', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-sm'])) }}
+                                {{ \Filament\Support\generate_icon_html('heroicon-o-x-mark', attributes: (new ComponentAttributeBag)->class(['fi-icon fi-size-xs'])) }}
                             </button>
                         @endif
                     </li>
