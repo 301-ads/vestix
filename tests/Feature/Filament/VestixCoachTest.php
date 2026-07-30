@@ -9,6 +9,7 @@ use App\Filament\Widgets\GradePerformanceChart;
 use App\Filament\Widgets\PortfolioCoachInsightsWidget;
 use App\Filament\Widgets\StrategyCoachStatsWidget;
 use App\Models\Position;
+use App\Models\StrategyTag;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -84,34 +85,40 @@ class VestixCoachTest extends TestCase
             ->assertSee('risk-on');
     }
 
-    public function test_portfolio_coach_widget_shows_long_short_strip(): void
+    public function test_coach_unlock_counts_archived_closed_trades_without_active_tag(): void
     {
         $user = $this->authenticateFilament();
-        $user->update(['is_short_enabled' => true]);
 
-        Position::factory()->for($user)->create([
+        config(['vestix.strategy_coach.min_closed_trades' => 3]);
+
+        $emaId = (int) StrategyTag::query()->where('slug', 'ema-200-bounce')->value('id');
+
+        Position::factory()->for($user)->closed()->create([
             'ticker' => 'AAA',
-            'status' => 'open',
-            'direction' => TradeDirection::Long,
-            'sector_etf' => 'XLK',
-            'entry_price' => 100.00,
-            'current_sl' => 95.00,
+            'strategy_tag_id' => null,
+            'entry_price' => 100,
+            'exit_price' => 110,
             'quantity' => 10,
-            'latest_close_price' => 100.00,
         ]);
-
-        Position::factory()->for($user)->create([
+        Position::factory()->for($user)->closed()->create([
             'ticker' => 'BBB',
-            'status' => 'open',
-            'direction' => TradeDirection::Short,
-            'sector_etf' => 'XLE',
-            'entry_price' => 100.00,
-            'current_sl' => 105.00,
+            'strategy_tag_id' => $emaId,
+            'entry_price' => 100,
+            'exit_price' => 90,
             'quantity' => 10,
-            'latest_close_price' => 100.00,
+        ]);
+        Position::factory()->for($user)->closed()->create([
+            'ticker' => 'CCC',
+            'strategy_tag_id' => null,
+            'entry_price' => 100,
+            'exit_price' => 105,
+            'quantity' => 10,
         ]);
 
-        Livewire::test(PortfolioCoachInsightsWidget::class)
-            ->assertSee('1 long / 1 short');
+        Livewire::test(StrategyCoachStatsWidget::class)
+            ->assertDontSee('Nog 3 trades')
+            ->assertDontSee('Nog 20 trades')
+            ->assertSee('Gesloten trades')
+            ->assertSee('3');
     }
 }

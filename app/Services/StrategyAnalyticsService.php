@@ -18,17 +18,29 @@ class StrategyAnalyticsService
     }
 
     /**
+     * Closed non-legacy journal trades for Coach unlock and analytics.
+     *
+     * By default includes archive history regardless of strategy tag (null or inactive),
+     * so past closed positions still count toward the edge unlock threshold.
+     * Pass $activeStrategyTagsOnly when a chart should prefer trampoline/active tags.
+     *
      * @return Collection<int, Position>
      */
-    public function closedTradesForUser(int $userId, ?TradeDirection $direction = null): Collection
-    {
+    public function closedTradesForUser(
+        int $userId,
+        ?TradeDirection $direction = null,
+        bool $activeStrategyTagsOnly = false,
+    ): Collection {
         $query = Position::query()
             ->closed()
             ->nonLegacy()
             ->forUser($userId)
-            ->whereHas('strategyTag', fn ($q) => $q->where('is_active', true))
             ->with('strategyTag')
             ->orderBy('closed_at');
+
+        if ($activeStrategyTagsOnly) {
+            $query->whereHas('strategyTag', fn ($q) => $q->where('is_active', true));
+        }
 
         if ($direction !== null) {
             $query->where('direction', $direction->value);
@@ -155,8 +167,8 @@ class StrategyAnalyticsService
      */
     public function statsPerTag(int $userId, ?TradeDirection $direction = null): array
     {
-        // closedTradesForUser already restricts to active strategy tags (e.g. Trampoline Bounce).
-        $trades = $this->closedTradesForUser($userId, $direction);
+        // Tag breakdown stays trampoline/active-first; unlock counting uses all closed trades.
+        $trades = $this->closedTradesForUser($userId, $direction, activeStrategyTagsOnly: true);
 
         $grouped = $trades->groupBy('strategy_tag_id');
         $results = [];
@@ -183,7 +195,13 @@ class StrategyAnalyticsService
      */
     public function statsByGrade(int $userId, ?TradeDirection $direction = null): array
     {
-        $trades = $this->closedTradesForUser($userId, $direction);
+        // Prefer active strategy tags (e.g. Trampoline); fall back to full archive if none tagged.
+        $trades = $this->closedTradesForUser($userId, $direction, activeStrategyTagsOnly: true);
+
+        if ($trades->isEmpty()) {
+            $trades = $this->closedTradesForUser($userId, $direction);
+        }
+
         $grouped = $trades->groupBy(fn (Position $position): string => $this->resolveStoredSetupGrade($position));
         $results = [];
 
