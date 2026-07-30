@@ -34,7 +34,7 @@ class PortfolioTopFlopWidget extends TableWidget
             ->poll(FilamentPolling::INTERVAL)
             ->columnManager(false)
             ->striped(false)
-            ->heading('Portfolio Top / Flop')
+            ->heading('Portfolio')
             ->searchable(false)
             ->recordUrl(fn (Position $record): string => PositionResource::getUrl('edit', ['record' => $record]))
             ->query(fn (): Builder => Position::open()

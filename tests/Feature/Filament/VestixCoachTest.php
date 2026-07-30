@@ -4,6 +4,8 @@ namespace Tests\Feature\Filament;
 
 use App\Enums\TradeDirection;
 use App\Filament\Pages\StrategyCoach;
+use App\Filament\Widgets\EquityCurveChart;
+use App\Filament\Widgets\GradePerformanceChart;
 use App\Filament\Widgets\PortfolioCoachInsightsWidget;
 use App\Filament\Widgets\StrategyCoachStatsWidget;
 use App\Models\Position;
@@ -28,6 +30,18 @@ class VestixCoachTest extends TestCase
             ->assertSee('Shorts');
     }
 
+    public function test_coach_widgets_include_grade_performance_chart(): void
+    {
+        $page = new StrategyCoach;
+
+        $this->assertSame([
+            PortfolioCoachInsightsWidget::class,
+            StrategyCoachStatsWidget::class,
+            EquityCurveChart::class,
+            GradePerformanceChart::class,
+        ], $page->getWidgets());
+    }
+
     public function test_local_demo_preview_shows_fake_edge_stats(): void
     {
         $this->authenticateFilament();
@@ -44,6 +58,9 @@ class VestixCoachTest extends TestCase
             ->assertSee('24')
             ->assertSee('62.5%')
             ->assertSee('1.85%');
+
+        Livewire::test(GradePerformanceChart::class)
+            ->assertOk();
     }
 
     public function test_portfolio_coach_widget_shows_sector_concentration(): void

@@ -46,4 +46,26 @@ class BankrollUpdateWidgetIbkrTest extends TestCase
 
         $this->assertFalse(BankrollUpdateWidget::canView());
     }
+
+    public function test_widget_hides_when_flex_is_configured_but_never_synced(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00')); // Wednesday — bankroll update not due
+
+        config([
+            'vestix.ibkr.reader' => 'flex',
+            'vestix.bankroll_tracker.source' => 'manual',
+        ]);
+
+        $user = User::factory()->create([
+            'trading_bankroll' => 25000,
+            'ibkr_last_success_at' => null,
+            'ibkr_data_stale' => false,
+        ]);
+
+        $this->actingAs($user);
+
+        $this->assertFalse(BankrollUpdateWidget::canView());
+
+        Carbon::setTestNow();
+    }
 }

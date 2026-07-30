@@ -72,13 +72,39 @@ class SetupGradeDisplay
             return 'danger';
         }
 
-        return match ($score['grade']) {
-            'A++' => 'success',
-            'A' => 'success',
+        return self::filamentColorForGrade($score['grade']);
+    }
+
+    /**
+     * Filament badge color name for a stored/resolved grade string.
+     */
+    public static function filamentColorForGrade(string $grade): string
+    {
+        return match ($grade) {
+            'A++', 'A' => 'success',
             'B' => 'warning',
             'C' => 'gray',
             default => 'danger',
         };
+    }
+
+    /**
+     * Scorecard HUD tone (`a-plus` / `a` / `b` / `c` / `no-trade`).
+     */
+    public static function badgeToneForGrade(string $grade): string
+    {
+        return SetupGradeColors::badgeTone($grade);
+    }
+
+    /**
+     * Colored grade badge matching scorecard HUD / Setup Radar.
+     */
+    public static function badgeHtml(string $grade, string $size = 'sm'): HtmlString
+    {
+        return new HtmlString(view('components.filament.positions.setup-grade-badge', [
+            'grade' => $grade,
+            'size' => $size,
+        ])->render());
     }
 
     public static function description(Position $record): ?string

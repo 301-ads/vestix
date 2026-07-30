@@ -9,6 +9,7 @@ use App\Models\Position;
 use App\Support\FilamentPolling;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
+use App\Support\ScoutSectorCoachSignal;
 use App\Support\SetupGradeDisplay;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -23,14 +24,14 @@ class SetupRadarWidget extends TableWidget
 {
     protected static bool $isLazy = false;
 
-    protected static ?int $sort = 8;
+    protected static ?int $sort = 4;
 
     /**
      * @var int|string|array<string, int|string|null>
      */
     protected int|string|array $columnSpan = [
         'default' => 'full',
-        'lg' => 2,
+        'lg' => 1,
     ];
 
     protected string $view = 'filament.widgets.scrollable-table-widget';
@@ -66,9 +67,10 @@ class SetupRadarWidget extends TableWidget
 
                             return $class !== null ? ['class' => $class] : [];
                         }),
+                    showDirectionIcon: true,
                 ),
                 TextColumn::make('setup_grade')
-                    ->label('Setup Grade')
+                    ->label('Score')
                     ->state(fn (Position $record): ?HtmlString => SetupGradeDisplay::html($record))
                     ->html()
                     ->alignStart()
@@ -76,14 +78,18 @@ class SetupRadarWidget extends TableWidget
                     ->extraHeaderAttributes(['class' => 'vestix-setup-grade-cell'])
                     ->placeholder('—')
                     ->width('6.5rem'),
-                TextColumn::make('latest_close_price')
-                    ->label('Close')
-                    ->money('usd')
-                    ->placeholder('—'),
-                TextColumn::make('entry_price')
-                    ->label('Entry')
-                    ->money('usd')
-                    ->placeholder('—'),
+                TextColumn::make('sector_etf')
+                    ->label('Sector')
+                    ->formatStateUsing(fn (?string $state): ?string => filled($state) ? strtoupper($state) : null)
+                    ->badge()
+                    ->alignCenter()
+                    ->icon(fn (Position $record): ?string => ScoutSectorCoachSignal::icon(auth()->user(), $record))
+                    ->color(fn (Position $record): string => ScoutSectorCoachSignal::color(auth()->user(), $record))
+                    ->tooltip(fn (Position $record): ?string => ScoutSectorCoachSignal::tooltip(auth()->user(), $record))
+                    ->placeholder('—')
+                    ->extraCellAttributes(['class' => 'vestix-sector-cell'])
+                    ->extraHeaderAttributes(['class' => 'vestix-sector-cell'])
+                    ->width('6.75rem'),
                 TextColumn::make('planned_risk_percentage')
                     ->label('Risico (%)')
                     ->numeric(decimalPlaces: 2)
@@ -118,7 +124,6 @@ class SetupRadarWidget extends TableWidget
                     ->link(),
             ])
             ->recordActions([
-                PositionRecordActions::activateScout(),
                 ActionGroup::make([
                     PositionRecordActions::shareSetup(),
                     PositionRecordActions::fetchMarketData(),

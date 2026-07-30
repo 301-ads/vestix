@@ -450,13 +450,12 @@ class PositionRecordActions
         return $action;
     }
 
-    public static function rolloverBuyStop(): Action
+    public static function rolloverBuyStop(bool $iconButton = true): Action
     {
-        return Action::make('rollover_buy_stop')
-            ->label('Laat staan (Rollover)')
+        $action = Action::make('rollover_buy_stop')
+            ->label($iconButton ? 'Laat staan (Rollover)' : 'Rollover')
             ->tooltip('Order opnieuw bij broker gezet voor vandaag')
             ->icon('heroicon-o-arrow-path')
-            ->iconButton()
             ->color('success')
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->buy_stop_review_required_on !== null
@@ -473,30 +472,40 @@ class PositionRecordActions
                     body: "{$record->ticker} staat weer op Active in je radar.",
                 );
             });
+
+        if ($iconButton) {
+            $action->iconButton();
+        }
+
+        return $action;
     }
 
-    public static function editBuyStopEntry(string $scoutResourceClass): Action
+    public static function editBuyStopEntry(string $scoutResourceClass, bool $iconButton = true): Action
     {
-        return Action::make('edit_buy_stop_entry')
-            ->label('Wijzig entry')
+        $action = Action::make('edit_buy_stop_entry')
+            ->label($iconButton ? 'Wijzig entry' : 'Wijzig')
             ->tooltip('Pas entry en signal-cijfers aan')
             ->icon('heroicon-o-pencil-square')
-            ->iconButton()
             ->color('warning')
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->buy_stop_review_required_on !== null
                 && $record->isOwnedBy(auth()->user()))
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
             ->url(fn (Position $record): string => $scoutResourceClass::getUrl('edit', ['record' => $record]));
+
+        if ($iconButton) {
+            $action->iconButton();
+        }
+
+        return $action;
     }
 
-    public static function cancelBuyStopSetup(): Action
+    public static function cancelBuyStopSetup(bool $iconButton = true): Action
     {
-        return Action::make('cancel_buy_stop_setup')
-            ->label('Annuleer setup')
+        $action = Action::make('cancel_buy_stop_setup')
+            ->label($iconButton ? 'Annuleer setup' : 'Annuleer')
             ->tooltip('Setup is niet meer geldig — verwijder van radar')
             ->icon('heroicon-o-trash')
-            ->iconButton()
             ->color('danger')
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->buy_stop_review_required_on !== null
@@ -514,6 +523,12 @@ class PositionRecordActions
                     body: "{$ticker} is van je radar verwijderd.",
                 );
             });
+
+        if ($iconButton) {
+            $action->iconButton();
+        }
+
+        return $action;
     }
 
     /**
@@ -1014,7 +1029,7 @@ class PositionRecordActions
     {
         return Action::make('archive')
             ->label(fn (Position $record): string => $record->action_command === 'STOPPED OUT'
-                ? 'Schild Geraakt (Sluit)'
+                ? 'Sluiten'
                 : 'Archiveer')
             ->tooltip('Sluit de positie en verplaats naar archief')
             ->icon('heroicon-o-archive-box')

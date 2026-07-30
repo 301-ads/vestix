@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\TradeDirection;
 use App\Models\Position;
 use App\Models\StrategyTag;
+use App\Support\ScoutSetupScorecard;
 use Illuminate\Support\Collection;
 
 class StrategyAnalyticsService
@@ -25,6 +26,7 @@ class StrategyAnalyticsService
             ->closed()
             ->nonLegacy()
             ->forUser($userId)
+            ->whereHas('strategyTag', fn ($q) => $q->where('is_active', true))
             ->with('strategyTag')
             ->orderBy('closed_at');
 
@@ -153,9 +155,8 @@ class StrategyAnalyticsService
      */
     public function statsPerTag(int $userId, ?TradeDirection $direction = null): array
     {
-        $trades = $this->closedTradesForUser($userId, $direction)->filter(
-            fn (Position $p): bool => $p->strategy_tag_id !== null,
-        );
+        // closedTradesForUser already restricts to active strategy tags (e.g. Trampoline Bounce).
+        $trades = $this->closedTradesForUser($userId, $direction);
 
         $grouped = $trades->groupBy('strategy_tag_id');
         $results = [];
@@ -163,31 +164,127 @@ class StrategyAnalyticsService
         foreach ($grouped as $tagId => $tagTrades) {
             /** @var Position $first */
             $first = $tagTrades->first();
-            $count = $tagTrades->count();
-            $wins = $tagTrades->filter(fn (Position $p): bool => $p->unrealized_pnl_percentage > 0);
-            $losses = $tagTrades->filter(fn (Position $p): bool => $p->unrealized_pnl_percentage <= 0);
-
-            $winRate = $wins->count() / $count;
-            $lossRate = $losses->count() / $count;
-            $avgWin = $wins->isNotEmpty()
-                ? (float) $wins->avg(fn (Position $p): float => $p->unrealized_pnl_percentage)
-                : 0.0;
-            $avgLoss = $losses->isNotEmpty()
-                ? abs((float) $losses->avg(fn (Position $p): float => $p->unrealized_pnl_percentage))
-                : 0.0;
-
             $results[] = [
                 'tag_id' => (int) $tagId,
                 'tag_name' => $first->strategyTag?->name ?? 'Onbekend',
-                'trades' => $count,
-                'win_rate' => round($winRate * 100, 1),
-                'expectancy' => round(($winRate * $avgWin) - ($lossRate * $avgLoss), 2),
+                ...$this->groupWinStats($tagTrades),
             ];
         }
 
         usort($results, fn (array $a, array $b): int => $b['expectancy'] <=> $a['expectancy']);
 
         return $results;
+    }
+
+    /**
+     * Win rate + expectancy per setup-grade (A++/A/B/C/…) for trampoline-first edge review.
+     *
+     * @return list<array{grade: string, trades: int, win_rate: float, expectancy: float}>
+     */
+    public function statsByGrade(int $userId, ?TradeDirection $direction = null): array
+    {
+        $trades = $this->closedTradesForUser($userId, $direction);
+        $grouped = $trades->groupBy(fn (Position $position): string => $this->resolveStoredSetupGrade($position));
+        $results = [];
+
+        foreach ($grouped as $grade => $gradeTrades) {
+            $results[] = [
+                'grade' => (string) $grade,
+                ...$this->groupWinStats($gradeTrades),
+            ];
+        }
+
+        $order = ['A++' => 0, 'A' => 1, 'B' => 2, 'C' => 3, 'NO TRADE' => 4, '—' => 5];
+
+        usort(
+            $results,
+            fn (array $a, array $b): int => ($order[$a['grade']] ?? 99) <=> ($order[$b['grade']] ?? 99)
+                ?: $b['trades'] <=> $a['trades'],
+        );
+
+        return $results;
+    }
+
+    /**
+     * Prefer the buy-stop review snapshot; otherwise derive from stored score + promotions.
+     */
+    public function resolveStoredSetupGrade(Position $position): string
+    {
+        $snapshot = $position->buy_stop_review_setup_grade;
+
+        if (is_string($snapshot) && $snapshot !== '') {
+            return $snapshot;
+        }
+
+        $score = $position->last_setup_score;
+
+        if ($score === null) {
+            return '—';
+        }
+
+        $maxPoints = ScoutSetupScorecard::maxPoints();
+
+        if ($score >= $maxPoints && $position->trader_promoted_a_plus) {
+            return 'A++';
+        }
+
+        // Perfect score without an explicit A++ promotion still reads as A++ in journals/demo.
+        if ($score >= $maxPoints) {
+            return 'A++';
+        }
+
+        if ($score >= $maxPoints - 1) {
+            return 'A';
+        }
+
+        if ($score >= 8 && $position->trader_promoted_a) {
+            return 'A';
+        }
+
+        if ($score >= 7) {
+            return 'B';
+        }
+
+        if ($score >= 5) {
+            return 'C';
+        }
+
+        return 'NO TRADE';
+    }
+
+    /**
+     * @param  Collection<int, Position>  $trades
+     * @return array{trades: int, win_rate: float, expectancy: float}
+     */
+    private function groupWinStats(Collection $trades): array
+    {
+        $count = $trades->count();
+
+        if ($count === 0) {
+            return [
+                'trades' => 0,
+                'win_rate' => 0.0,
+                'expectancy' => 0.0,
+            ];
+        }
+
+        $wins = $trades->filter(fn (Position $p): bool => $p->unrealized_pnl_percentage > 0);
+        $losses = $trades->filter(fn (Position $p): bool => $p->unrealized_pnl_percentage <= 0);
+
+        $winRate = $wins->count() / $count;
+        $lossRate = $losses->count() / $count;
+        $avgWin = $wins->isNotEmpty()
+            ? (float) $wins->avg(fn (Position $p): float => $p->unrealized_pnl_percentage)
+            : 0.0;
+        $avgLoss = $losses->isNotEmpty()
+            ? abs((float) $losses->avg(fn (Position $p): float => $p->unrealized_pnl_percentage))
+            : 0.0;
+
+        return [
+            'trades' => $count,
+            'win_rate' => round($winRate * 100, 1),
+            'expectancy' => round(($winRate * $avgWin) - ($lossRate * $avgLoss), 2),
+        ];
     }
 
     /**

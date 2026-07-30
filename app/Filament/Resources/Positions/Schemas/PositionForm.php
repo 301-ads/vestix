@@ -8,6 +8,7 @@ use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Filament\Resources\Positions\Tables\PositionRecordActions;
 use App\Models\Position;
+use App\Models\StrategyTag;
 use App\Services\SquadContext;
 use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
@@ -20,6 +21,7 @@ use App\Support\PremarketGatekeeperDisplay;
 use App\Support\RelativeVolumeCalculator;
 use App\Support\ScaleOutDisplay;
 use App\Support\ScoutSetupScorecard;
+use App\Support\SetupGradeColors;
 use App\Support\SlPriceProximity;
 use App\Support\StopLossProtocol;
 use App\Support\UsMarketSession;
@@ -79,15 +81,8 @@ class PositionForm
                     ->extraAttributes(['class' => 'scout-cockpit-motor'])
                     ->schema([
                         self::scoutSetupValstrikSection($isScoutForm),
-                        Section::make('Advanced — Marktdata & Schild')
-                            ->description('Indicatoren en stop-loss input.')
-                            ->compact()
-                            ->columnSpanFull()
-                            ->extraAttributes(['class' => 'vestix-execute-advanced'])
-                            ->schema([
-                                self::scoutMarktdataSection(),
-                                self::scoutSchildInputSection(),
-                            ]),
+                        self::scoutMarktdataSection(),
+                        self::scoutSchildInputSection(),
                     ]),
                 self::scoutTelemetryColumn(),
             ]);
@@ -108,16 +103,8 @@ class PositionForm
                     ->extraAttributes(['class' => 'position-cockpit-motor position-form-setup-grid'])
                     ->schema([
                         self::setupDetailsSection($isScoutForm),
-                        Section::make('Advanced — Schild & Earnings')
-                            ->description('Trailing-modus en earnings overrides. Open alleen bij protocol-wijziging.')
-                            ->collapsed()
-                            ->compact()
-                            ->columnSpanFull()
-                            ->extraAttributes(['class' => 'vestix-execute-advanced'])
-                            ->schema([
-                                self::schildSection(),
-                                self::earningsOverrideSection(),
-                            ]),
+                        self::schildSection(),
+                        self::earningsOverrideSection(),
                     ]),
                 self::openPositionTelemetryColumn(),
             ]);
@@ -218,11 +205,11 @@ class PositionForm
     private static function scoutSetupValstrikSection(callable $isScoutForm): Section
     {
         return Section::make('Setup & Valstrik')
-            ->description('Vul pas in na een Telegram-alert (fase 3). Low/High = dagkaars (1D) van de bounce-dag in TradingView.')
-            ->afterLabel([
+            ->afterHeader([
                 Icon::make('heroicon-o-information-circle')
                     ->tooltip(
-                        "Fase 1–2: laat dit blok leeg.\n"
+                        "Vul pas in na een Telegram-alert (fase 3). Low/High = dagkaars (1D) van de bounce-dag in TradingView.\n"
+                        ."Fase 1–2: laat dit blok leeg.\n"
                         ."Fase 3: na Telegram-alert vul je Low/High in van de bounce-dagkaars (TradingView, 1D).\n"
                         ."Buy-Stop: High + 10% × ATR 14 (ATR staat in Het Schild).\n"
                         ."Plaats je buy-stop niet de avond ervoor — zet de reminder aan wanneer je klaar bent; je krijgt de volgende handelsdag een Telegram vlak na market open.\n"
@@ -244,7 +231,9 @@ class PositionForm
                     ->searchable()
                     ->preload()
                     ->nullable()
-                    ->helperText('Trampoline Bounce of EMA 200 Bounce'),
+                    ->default(fn (): ?int => StrategyTag::query()->where('slug', 'trampoline-bounce')->value('id'))
+                    ->dehydrated()
+                    ->hidden(),
                 Grid::make(3)
                     ->schema([
                         self::tickerField(),
@@ -257,7 +246,8 @@ class PositionForm
                                 ->step('any')
                                 ->minValue(0.000001)
                                 ->readOnly()
-                                ->helperText('Auto-berekend uit totale inleg ÷ entry')
+                                ->hintIcon('heroicon-o-information-circle', 'Auto-berekend uit totale inleg ÷ entry')
+                                ->hintColor('gray')
                                 ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace(',', '.', $state) : null)
                                 ->rules(['nullable', 'numeric', 'min:0.000001'])
                                 ->live(onBlur: true)
@@ -337,9 +327,13 @@ class PositionForm
     private static function scoutMarktdataSection(): Section
     {
         return Section::make('Marktdata & Indicatoren')
-            ->description(fn (string $operation): string => $operation === 'create'
-                ? 'Vul handmatig in — na opslaan kun je rechtsboven "Data ophalen" gebruiken'
-                : 'Klik "Data ophalen" rechtsboven, of vul handmatig in')
+            ->afterHeader([
+                Icon::make('heroicon-o-information-circle')
+                    ->tooltip(fn (string $operation): string => $operation === 'create'
+                        ? 'Vul handmatig in — na opslaan kun je rechtsboven "Data ophalen" gebruiken'
+                        : 'Klik "Data ophalen" rechtsboven, of vul handmatig in')
+                    ->color('gray'),
+            ])
             ->compact()
             ->schema([
                 Grid::make(2)
@@ -385,7 +379,11 @@ class PositionForm
     private static function scoutScorecardTelemetrySection(): Section
     {
         return Section::make('Sniper Scorecard')
-            ->description('Objectieve setup-beoordeling (max '.ScoutSetupScorecard::maxPoints().' punten)')
+            ->afterHeader([
+                Icon::make('heroicon-o-information-circle')
+                    ->tooltip('Objectieve setup-beoordeling (max '.ScoutSetupScorecard::maxPoints().' punten)')
+                    ->color('gray'),
+            ])
             ->icon('heroicon-m-viewfinder-circle')
             ->compact()
             ->schema([
@@ -428,7 +426,8 @@ class PositionForm
                 ->numeric()
                 ->minValue(0)
                 ->maxValue(100)
-                ->helperText('Auto ingevuld bij Data ophalen — handmatig overschrijfbaar')
+                ->hintIcon('heroicon-o-information-circle', 'Auto ingevuld bij Data ophalen — handmatig overschrijfbaar')
+                ->hintColor('gray')
                 ->live(debounce: 300),
             TextInput::make('sma_20_five_days_ago')
                 ->label('SMA 20 (5 dagen geleden)')
@@ -439,7 +438,8 @@ class PositionForm
                 ->label(sprintf('SMA 20 (%d dagen geleden)', ScoutSetupScorecard::smaSlopeLookbackDays()))
                 ->numeric()
                 ->prefix('$')
-                ->helperText('Gebruikt voor SMA-helling in scorecard')
+                ->hintIcon('heroicon-o-information-circle', 'Gebruikt voor SMA-helling in scorecard')
+                ->hintColor('gray')
                 ->live(debounce: 300),
             TextInput::make('latest_sma_50')
                 ->label('SMA 50')
@@ -456,7 +456,8 @@ class PositionForm
                 ->label('RVol bevestigd (≥ '.RelativeVolumeCalculator::formatThresholdPercent().')')
                 ->disabled()
                 ->dehydrated()
-                ->helperText('Automatisch bij Data ophalen op bounce-dag')
+                ->hintIcon('heroicon-o-information-circle', 'Automatisch bij Data ophalen op bounce-dag')
+                ->hintColor('gray')
                 ->extraFieldWrapperAttributes(self::scoutTelemetryReadonlyWrapperAttributes()),
             Placeholder::make('relative_volume_display')
                 ->label('Relative Volume (RVol)')
@@ -492,7 +493,8 @@ class PositionForm
                 ->placeholder('Auto via Finnhub')
                 ->native(false)
                 ->searchable()
-                ->helperText('Laat leeg voor auto-detectie via Finnhub, of kies handmatig een sector-ETF')
+                ->hintIcon('heroicon-o-information-circle', 'Laat leeg voor auto-detectie via Finnhub, of kies handmatig een sector-ETF')
+                ->hintColor('gray')
                 ->live(debounce: 300),
             Placeholder::make('sector_etf_display')
                 ->label('Sector ETF (gedetecteerd)')
@@ -561,12 +563,14 @@ class PositionForm
         return Section::make('Zichtbaarheid')
             ->compact()
             ->columnSpanFull()
-            ->description('Privé (Ghost Mode): alleen jij ziet deze setup. Squad: zichtbaar voor je teamgenoten.')
             ->extraAttributes(['class' => 'scout-visibility-section'])
-            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation)
-                && (($user = auth()->user()) !== null
-                    && app(SquadContext::class)->userCanInAnySquad($user, 'scout.share')))
+            ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
             ->afterHeader([
+                Icon::make('heroicon-o-information-circle')
+                    ->tooltip(fn (): string => self::userCanShareWithSquad()
+                        ? 'Privé (Ghost Mode): alleen jij ziet deze setup. Squad: zichtbaar voor je teamgenoten.'
+                        : 'Privé (Ghost Mode): alleen jij ziet deze setup. Maak of join eerst een squad om te delen.')
+                    ->color('gray'),
                 self::scoutVisibilityToggle(),
             ])
             ->schema([
@@ -586,10 +590,19 @@ class PositionForm
                             ->pluck('name', 'id')
                             ->all();
                     })
-                    ->visible(fn (Get $get): bool => self::visibilityIsSquad($get('visibility')))
+                    ->visible(fn (Get $get): bool => self::visibilityIsSquad($get('visibility'))
+                        && self::userCanShareWithSquad())
                     ->native(false)
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function userCanShareWithSquad(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null
+            && app(SquadContext::class)->userCanInAnySquad($user, 'scout.share');
     }
 
     private static function visibilityIsSquad(mixed $state): bool
@@ -615,11 +628,20 @@ class PositionForm
             ->onColor('success')
             ->offColor('gray')
             ->dehydrated(false)
+            ->disabled(fn (): bool => ! self::userCanShareWithSquad())
             ->afterStateHydrated(function (Toggle $component, $state, Get $get, ?Position $record): void {
                 $component->state(self::visibilityIsSquad($get('visibility') ?? $record?->visibility));
             })
             ->live()
             ->afterStateUpdated(function (bool $state, Set $set): void {
+                if (! self::userCanShareWithSquad()) {
+                    $set('share_with_squad', false);
+                    $set('visibility', PositionVisibility::Private->value);
+                    $set('squad_id', null);
+
+                    return;
+                }
+
                 $set('visibility', $state
                     ? PositionVisibility::Squad->value
                     : PositionVisibility::Private->value);
@@ -672,27 +694,31 @@ class PositionForm
                 $record->refresh();
             })
             ->disabled(fn (Get $get): bool => blank($get('entry_price')))
-            ->helperText(function (Get $get, ?Position $record): string {
-                if (blank($get('entry_price'))) {
-                    return 'Vul eerst Low/High in zodat de buy-stop berekend is.';
-                }
+            ->hintIcon(
+                'heroicon-o-information-circle',
+                function (Get $get, ?Position $record): string {
+                    if (blank($get('entry_price'))) {
+                        return 'Vul eerst Low/High in zodat de buy-stop berekend is.';
+                    }
 
-                $record?->refresh();
-                $reminderOn = $record?->market_open_reminder_on;
+                    $record?->refresh();
+                    $reminderOn = $record?->market_open_reminder_on;
 
-                if ($reminderOn !== null) {
+                    if ($reminderOn !== null) {
+                        return sprintf(
+                            'Reminder gepland op %s om %s — Telegram met buy-stop en broker-link.',
+                            $reminderOn->format('d-m-Y'),
+                            config('vestix.market_open_reminder.time', '15:35'),
+                        );
+                    }
+
                     return sprintf(
-                        'Reminder gepland op %s om %s — Telegram met buy-stop en broker-link.',
-                        $reminderOn->format('d-m-Y'),
+                        'Aan: volgende handelsdag om %s Telegram-reminder. Plaats je order pas ná market open.',
                         config('vestix.market_open_reminder.time', '15:35'),
                     );
-                }
-
-                return sprintf(
-                    'Aan: volgende handelsdag om %s Telegram-reminder. Plaats je order pas ná market open.',
-                    config('vestix.market_open_reminder.time', '15:35'),
-                );
-            });
+                },
+            )
+            ->hintColor('gray');
     }
 
     /**
@@ -727,9 +753,13 @@ class PositionForm
                             ->extraInputAttributes(fn (?Position $record, string $operation): array => $isScoutForm($record, $operation)
                                 ? ['class' => 'scout-readonly-computed-input', 'tabindex' => '-1']
                                 : [])
-                            ->helperText(fn (?Position $record, string $operation): ?string => $isScoutForm($record, $operation)
+                            ->hintIcon(fn (?Position $record, string $operation): ?string => $isScoutForm($record, $operation)
+                                ? 'heroicon-o-information-circle'
+                                : null)
+                            ->hintIconTooltip(fn (?Position $record, string $operation): ?string => $isScoutForm($record, $operation)
                                 ? 'Auto-berekend uit totale inleg ÷ entry'
                                 : null)
+                            ->hintColor('gray')
                             ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace(',', '.', $state) : null)
                             ->rules(function (?Position $record, string $operation) use ($isScoutForm): array {
                                 return $isScoutForm($record, $operation)
@@ -822,9 +852,11 @@ class PositionForm
     private static function earningsOverrideSection(): Section
     {
         return Section::make('Earnings Data (API Override)')
-            ->description('Vestix haalt deze data automatisch op. Vul dit alleen in als de API sync faalt.')
             ->icon('heroicon-o-calendar')
             ->afterHeader([
+                Icon::make('heroicon-o-information-circle')
+                    ->tooltip('Vestix haalt deze data automatisch op. Vul dit alleen in als de API sync faalt.')
+                    ->color('gray'),
                 Text::make(fn (?Position $record): ?string => EarningsExitDisplay::sectionDaysBadgeLabel($record))
                     ->badge()
                     ->color(fn (?Position $record): string => EarningsExitDisplay::sectionDaysBadgeColor($record))
@@ -1060,11 +1092,11 @@ class PositionForm
     private static function buyStopSection(callable $isScoutForm): Section
     {
         return Section::make('Executie & Valstrik')
-            ->description('Vul pas in na een Telegram-alert (fase 3). Low/High = dagkaars (1D) van de bounce-dag in TradingView.')
-            ->afterLabel([
+            ->afterHeader([
                 Icon::make('heroicon-o-information-circle')
                     ->tooltip(
-                        "Fase 1–2: laat dit blok leeg.\n"
+                        "Vul pas in na een Telegram-alert (fase 3). Low/High = dagkaars (1D) van de bounce-dag in TradingView.\n"
+                        ."Fase 1–2: laat dit blok leeg.\n"
                         ."Fase 3: na Telegram-alert vul je Low/High in van de bounce-dagkaars (TradingView, 1D).\n"
                         ."Buy-Stop: High + 10% × ATR 14 (ATR staat in Setup).\n"
                         ."Plaats je buy-stop niet de avond ervoor — zet de reminder aan wanneer je klaar bent; je krijgt de volgende handelsdag een Telegram vlak na market open.\n"
@@ -1091,9 +1123,13 @@ class PositionForm
                 ->prefix('$')
                 ->minValue(0.01)
                 ->rules(['nullable', 'numeric', 'min:0.01'])
-                ->helperText(fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
-                    ? 'Laagste punt van de rode afwijzingskaars (TradingView, 1D). Drijft de Sell-Stop.'
-                    : 'Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D).')
+                ->hintIcon(
+                    'heroicon-o-information-circle',
+                    fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
+                        ? 'Laagste punt van de rode afwijzingskaars (TradingView, 1D). Drijft de Sell-Stop.'
+                        : 'Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D).',
+                )
+                ->hintColor('gray')
                 ->live(onBlur: true)
                 ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
                     self::touchSignalBarDate($set, $get, $record);
@@ -1106,9 +1142,13 @@ class PositionForm
                 ->prefix('$')
                 ->minValue(0.01)
                 ->rules(['nullable', 'numeric', 'min:0.01'])
-                ->helperText(fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
-                    ? 'Hoogste punt / plafond van de afwijzingskaars (TradingView, 1D).'
-                    : 'Optioneel tot bounce-dag. Hoogste punt van de bounce-dagkaars (TradingView, 1D).')
+                ->hintIcon(
+                    'heroicon-o-information-circle',
+                    fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
+                        ? 'Hoogste punt / plafond van de afwijzingskaars (TradingView, 1D).'
+                        : 'Optioneel tot bounce-dag. Hoogste punt van de bounce-dagkaars (TradingView, 1D).',
+                )
+                ->hintColor('gray')
                 ->live(onBlur: true)
                 ->afterStateUpdated(function (Set $set, Get $get, ?Position $record): void {
                     self::touchSignalBarDate($set, $get, $record);
@@ -1201,7 +1241,11 @@ class PositionForm
     private static function trampolineValidationSection(callable $isScoutForm): Section
     {
         return Section::make('Wiskundige Validatie')
-            ->description('Voldoet deze setup aan de keiharde eisen van de Trampoline Bounce strategie?')
+            ->afterHeader([
+                Icon::make('heroicon-o-information-circle')
+                    ->tooltip('Voldoet deze setup aan de keiharde eisen van de Trampoline Bounce strategie?')
+                    ->color('gray'),
+            ])
             ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
             ->compact()
             ->schema([
@@ -1314,7 +1358,11 @@ class PositionForm
             ->dehydrated(false)
             ->placeholder('leeg = Smart Sizing')
             ->visible(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
-            ->helperText(fn (Get $get, ?Position $record): ?string => self::plannedInvestmentHelperText($get, $record))
+            ->hintIcon(
+                'heroicon-o-information-circle',
+                fn (Get $get, ?Position $record): ?string => self::plannedInvestmentHelperText($get, $record),
+            )
+            ->hintColor('gray')
             ->live()
             ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncPlannedQuantityFromInvestment($set, $get, $record))
             ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::hydratePlannedInvestmentField($set, $get, $record));
@@ -1629,13 +1677,7 @@ class PositionForm
             return 'no-trade';
         }
 
-        return match ($score['grade']) {
-            'A++' => 'a-plus',
-            'A' => 'a',
-            'B' => 'b',
-            'C' => 'c',
-            default => 'no-trade',
-        };
+        return SetupGradeColors::badgeTone($score['grade']);
     }
 
     private static function resolveActionCardVariant(Get $get, ?Position $record): string

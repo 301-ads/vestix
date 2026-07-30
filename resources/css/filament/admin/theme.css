@@ -808,8 +808,7 @@
 }
 
 /* Edit page: freshness above actions (desktop) / beside ticker (mobile) */
-.vestix-position-edit .fi-header,
-.vestix-dashboard .fi-header {
+.vestix-position-edit .fi-header {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 0.75rem;
@@ -817,8 +816,7 @@
     align-items: center;
 }
 
-.vestix-position-edit .fi-header > div:first-child,
-.vestix-dashboard .fi-header > div:first-child {
+.vestix-position-edit .fi-header > div:first-child {
     display: contents;
 }
 
@@ -828,15 +826,10 @@
     margin-bottom: 0;
 }
 
-.vestix-position-edit .fi-header .fi-header-heading,
-.vestix-dashboard .fi-header .fi-header-heading {
+.vestix-position-edit .fi-header .fi-header-heading {
     grid-column: 1;
     grid-row: 2;
     min-width: 0;
-}
-
-.vestix-dashboard .fi-header .fi-header-heading {
-    grid-row: 1;
 }
 
 .vestix-position-edit .fi-header .fi-header-subheading {
@@ -844,16 +837,14 @@
     grid-row: 3;
 }
 
-.vestix-position-edit .fi-header .vestix-market-data-status,
-.vestix-dashboard .fi-header .vestix-market-data-status {
+.vestix-position-edit .fi-header .vestix-market-data-status {
     grid-column: 2;
     grid-row: 1;
     justify-self: end;
     text-align: end;
 }
 
-.vestix-position-edit .fi-header .fi-header-actions-ctn,
-.vestix-dashboard .fi-header .fi-header-actions-ctn {
+.vestix-position-edit .fi-header .fi-header-actions-ctn {
     grid-column: 2;
     grid-row: 2;
     justify-self: end;
@@ -864,25 +855,71 @@
     margin-top: 0;
 }
 
+/*
+ * Dashboard header: one horizontal row.
+ * Filament structure is two siblings — heading wrapper + .fi-header-actions-ctn
+ * (freshness via PAGE_HEADER_ACTIONS_BEFORE lives inside the actions container).
+ * Force both onto the same grid row; do not reuse EditPosition's two-row grid.
+ */
+.vestix-dashboard .fi-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto;
+    align-items: center;
+    column-gap: 0.75rem;
+    row-gap: 0;
+}
+
+.vestix-dashboard .fi-header > div:first-child {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+}
+
+.vestix-dashboard .fi-header .fi-header-heading {
+    min-width: 0;
+}
+
+.vestix-dashboard .fi-header .fi-header-actions-ctn {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    margin-top: 0 !important;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.vestix-dashboard .fi-header-actions-ctn,
+.vestix-dashboard .fi-header .fi-ac {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.vestix-dashboard .fi-header .vestix-market-data-status {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 .vestix-sync-btn__label--short {
     display: none;
 }
 
 @media (max-width: 639px) {
-    .vestix-position-edit .fi-header .fi-header-heading,
-    .vestix-dashboard .fi-header .fi-header-heading {
+    .vestix-position-edit .fi-header .fi-header-heading {
         grid-column: 1;
         grid-row: 1;
     }
 
-    .vestix-position-edit .fi-header .vestix-market-data-status,
-    .vestix-dashboard .fi-header .vestix-market-data-status {
+    .vestix-position-edit .fi-header .vestix-market-data-status {
         grid-column: 2;
         grid-row: 1;
     }
 
-    .vestix-position-edit .fi-header .fi-header-actions-ctn,
-    .vestix-dashboard .fi-header .fi-header-actions-ctn {
+    .vestix-position-edit .fi-header .fi-header-actions-ctn {
         grid-column: 1 / -1;
         grid-row: 2;
         justify-self: start;
@@ -891,12 +928,20 @@
     }
 
     .vestix-position-edit .fi-header-actions-ctn,
-    .vestix-position-edit .fi-header .fi-ac,
-    .vestix-dashboard .fi-header-actions-ctn,
-    .vestix-dashboard .fi-header .fi-ac {
+    .vestix-position-edit .fi-header .fi-ac {
         flex-wrap: wrap;
         gap: 0.35rem;
         justify-content: flex-start;
+    }
+
+    .vestix-dashboard .fi-header {
+        column-gap: 0.5rem;
+    }
+
+    .vestix-dashboard .fi-header .fi-header-actions-ctn,
+    .vestix-dashboard .fi-header-actions-ctn,
+    .vestix-dashboard .fi-header .fi-ac {
+        gap: 0.5rem;
     }
 
     .vestix-dashboard .vestix-sync-btn__label--full {
@@ -1174,7 +1219,7 @@
 .vestix-dashboard .vestix-actions-widget .vestix-action-todos {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -1184,9 +1229,9 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem 1rem;
-    padding: 0.875rem 1rem;
-    border-radius: 0.75rem;
+    gap: 0.5rem 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.625rem;
     border: 1px solid var(--vestix-border);
     background-color: rgb(255 255 255 / 0.7);
     border-inline-start-width: 3px;
@@ -1199,8 +1244,9 @@
 
 @media (min-width: 1024px) {
     .vestix-dashboard .vestix-actions-widget .vestix-action-todo {
-        gap: 0.625rem 0.75rem;
-        padding: 0.75rem 0.875rem;
+        gap: 0.5rem 0.625rem;
+        padding: 0.5rem 0.75rem;
+        flex-wrap: nowrap;
     }
 }
 
@@ -1234,8 +1280,8 @@
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__identity .ticker-with-icon__logo,
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__identity .ticker-letter-avatar {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2rem;
+    height: 2rem;
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__content {
@@ -1247,15 +1293,16 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 0.375rem;
-    font-size: 0.9375rem;
+    gap: 0.25rem;
+    font-size: 0.875rem;
     font-weight: 700;
     color: var(--gray-950);
-    line-height: 1.25;
+    line-height: 1.2;
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__ticker .ticker-direction-icon {
-    margin-left: 0.375rem;
+    margin-left: 0;
+    margin-inline-start: 0;
 }
 
 .vestix-smart-allocation__ticker .ticker-direction-label,
@@ -1272,9 +1319,9 @@
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__instruction {
-    margin-top: 0.25rem;
-    font-size: 0.875rem;
-    line-height: 1.45;
+    margin-top: 0.125rem;
+    font-size: 0.8125rem;
+    line-height: 1.35;
     color: var(--gray-500);
     overflow-wrap: anywhere;
 }
@@ -1295,37 +1342,25 @@
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__action {
     flex: 0 1 auto;
     min-width: 0;
+    margin-inline-start: auto;
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions {
     display: flex;
-    flex: 0 0 auto;
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
+    flex: 0 1 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.375rem;
     min-width: 0;
 }
 
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions .fi-ac-btn-action,
 .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions .fi-btn {
-    width: 100%;
+    width: auto;
     max-width: 100%;
     justify-content: center;
-}
-
-@media (min-width: 640px) {
-    .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions {
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: flex-end;
-    }
-
-    .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions .fi-ac-btn-action,
-    .vestix-dashboard .vestix-actions-widget .vestix-action-todo__actions .fi-btn {
-        width: auto;
-    }
 }
 
 /* Keep last dashboard widgets (and their action buttons) above the iOS home indicator. */
@@ -1735,17 +1770,23 @@
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    width: 1rem;
-    height: 1rem;
-    margin-left: 0.375rem;
-    border: 1.5px solid currentColor;
+    width: 0.8rem;
+    height: 0.8rem;
+    margin-left: 0;
+    margin-inline-start: 0;
+    border: 1.3px solid currentColor;
     border-radius: 9999px;
     background: transparent;
-    font-size: 0.5625rem;
+    font-size: 0.4625rem;
     font-weight: 700;
     letter-spacing: 0;
     line-height: 1;
     vertical-align: middle;
+}
+
+/* Keep logo→label gap; sit L/S icon tighter after ticker text (exclude from flex gap) */
+.ticker-with-icon > .ticker-direction-icon {
+    margin-inline-start: calc(-0.5em + 0.125rem);
 }
 
 .ticker-direction-icon--long {
@@ -2498,7 +2539,7 @@
 .vestix-radar-list .fi-ta-cell.vestix-ticker-cell .ticker-with-icon,
 .vestix-positions-list .fi-ta-cell.vestix-ticker-cell .ticker-with-icon {
     justify-content: flex-start;
-    width: 100%;
+    width: auto;
 }
 
 /* Segmented tabs */
@@ -2545,15 +2586,13 @@
 /* Compact table badges — left-aligned pills */
 .vestix-setup-grade-cell,
 .vestix-status-badge-cell,
-.vestix-locked-badge-cell,
-.vestix-sector-cell {
+.vestix-locked-badge-cell {
     text-align: start !important;
 }
 
 .vestix-setup-grade-cell .fi-ta-col,
 .vestix-status-badge-cell .fi-ta-col,
 .vestix-locked-badge-cell .fi-ta-col,
-.vestix-sector-cell .fi-ta-col,
 .vestix-entry-cell .fi-ta-col,
 .vestix-risk-cell .fi-ta-col {
     justify-content: flex-start !important;
@@ -2562,7 +2601,6 @@
 .vestix-setup-grade-cell .fi-ta-text,
 .vestix-status-badge-cell .fi-ta-text,
 .vestix-locked-badge-cell .fi-ta-text,
-.vestix-sector-cell .fi-ta-text,
 .vestix-entry-cell .fi-ta-text,
 .vestix-risk-cell .fi-ta-text {
     width: auto !important;
@@ -2585,7 +2623,6 @@
 .vestix-positions-list .fi-ta-cell.vestix-setup-grade-cell:not(:first-of-type),
 .vestix-radar-list .fi-ta-cell.vestix-setup-grade-cell:not(:first-of-type),
 .vestix-radar-list .fi-ta-cell.vestix-status-badge-cell:not(:first-of-type),
-.vestix-radar-list .fi-ta-cell.vestix-sector-cell:not(:first-of-type),
 .vestix-radar-list .fi-ta-cell.vestix-entry-cell:not(:first-of-type),
 .vestix-radar-list .fi-ta-cell.vestix-risk-cell:not(:first-of-type) {
     padding-inline-start: 0.75rem !important;
@@ -2594,13 +2631,41 @@
 .vestix-setup-grade-cell .fi-ta-text-item,
 .vestix-status-badge-cell .fi-ta-text-item,
 .vestix-locked-badge-cell .fi-ta-text-item,
-.vestix-sector-cell .fi-ta-text-item,
 .vestix-entry-cell .fi-ta-text-item,
 .vestix-risk-cell .fi-ta-text-item {
     display: inline-flex !important;
     width: auto !important;
     max-width: 100%;
     justify-content: flex-start;
+}
+
+/* Sector badges — centered under header, spaced from Score */
+.fi-ta-header-cell-sector-etf,
+.fi-ta-cell.fi-ta-cell-sector-etf,
+.fi-ta-header-cell.vestix-sector-cell,
+.fi-ta-cell.vestix-sector-cell {
+    padding-inline-start: 1rem !important;
+}
+
+.vestix-sector-cell {
+    text-align: center !important;
+}
+
+.vestix-sector-cell .fi-ta-col {
+    justify-content: center !important;
+}
+
+.vestix-sector-cell .fi-ta-text {
+    width: auto !important;
+    max-width: 100%;
+    align-self: center;
+}
+
+.vestix-sector-cell .fi-ta-text-item {
+    display: inline-flex !important;
+    width: auto !important;
+    max-width: 100%;
+    justify-content: center;
 }
 
 .vestix-setup-grade-cell .fi-ta-text-item {
@@ -2712,13 +2777,20 @@
 
 .vestix-setup-grade-cell .fi-badge,
 .vestix-status-badge-cell .fi-badge,
-.vestix-locked-badge-cell .fi-badge,
-.vestix-sector-cell .fi-badge {
+.vestix-locked-badge-cell .fi-badge {
     border: none;
     display: inline-flex !important;
     width: auto !important;
     max-width: 100%;
     justify-content: flex-start;
+}
+
+.vestix-sector-cell .fi-badge {
+    border: none;
+    display: inline-flex !important;
+    width: auto !important;
+    max-width: 100%;
+    justify-content: center;
 }
 
 /* Entry + distance % on one line */
@@ -5455,4 +5527,134 @@
 
 .vestix-kluis-plan strong {
     font-weight: 700;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Edge analytics                                                             */
+/* -------------------------------------------------------------------------- */
+
+.vestix-edge-analytics {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.vestix-edge-analytics__kpis {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 1024px) {
+    .vestix-edge-analytics__kpis {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.vestix-edge-analytics__kpis .vestix-stat-card {
+    padding: 0.875rem 1rem;
+}
+
+.vestix-edge-analytics__kpis .fi-wi-stats-overview-stat-value {
+    font-size: 1.375rem;
+}
+
+.vestix-edge-analytics__kpi-meta {
+    margin: 0.25rem 0 0;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: rgb(113 113 122);
+}
+
+.dark .vestix-edge-analytics__kpi-meta {
+    color: rgb(161 161 170);
+}
+
+.vestix-edge-analytics__hint {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: rgb(113 113 122);
+}
+
+.dark .vestix-edge-analytics__hint {
+    color: rgb(161 161 170);
+}
+
+.vestix-edge-analytics__grades {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--vestix-border);
+}
+
+.vestix-edge-analytics__grades-title {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgb(63 63 70);
+}
+
+.dark .vestix-edge-analytics__grades-title {
+    color: rgb(212 212 216);
+}
+
+.vestix-edge-analytics__table-wrap {
+    overflow-x: auto;
+}
+
+.vestix-edge-analytics__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.vestix-edge-analytics__table th {
+    padding: 0.5rem 0.75rem 0.5rem 0;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: rgb(113 113 122);
+}
+
+.dark .vestix-edge-analytics__table th {
+    color: rgb(161 161 170);
+}
+
+.vestix-edge-analytics__table th:not(:first-child),
+.vestix-edge-analytics__table td:not(:first-child) {
+    text-align: right;
+    padding-right: 0;
+    padding-left: 0.75rem;
+}
+
+.vestix-edge-analytics__table td {
+    padding: 0.55rem 0.75rem 0.55rem 0;
+    border-top: 1px solid var(--vestix-border);
+    color: rgb(24 24 27);
+}
+
+.dark .vestix-edge-analytics__table td {
+    color: rgb(250 250 250);
+}
+
+.vestix-edge-analytics__table td .scout-scorecard-hud-grade-badge {
+    vertical-align: middle;
+}
+
+.vestix-edge-analytics__num--pos {
+    color: rgb(22 163 74);
+}
+
+.dark .vestix-edge-analytics__num--pos {
+    color: rgb(74 222 128);
+}
+
+.vestix-edge-analytics__num--neg {
+    color: rgb(225 29 72);
+}
+
+.dark .vestix-edge-analytics__num--neg {
+    color: rgb(251 113 133);
 }

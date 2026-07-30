@@ -8,13 +8,16 @@ use App\Enums\ExecutionDigestStatus;
 use App\Enums\ExecutionTruthState;
 use App\Enums\PositionVisibility;
 use App\Enums\ScoutReviewStatus;
+use App\Enums\SquadRole;
 use App\Enums\TradeDirection;
 use App\Models\Asset;
 use App\Models\BankrollSnapshot;
 use App\Models\Position;
+use App\Models\Squad;
 use App\Models\StrategyTag;
 use App\Models\User;
 use App\Services\ProtocolComplianceService;
+use App\Services\SquadPermissionService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 
@@ -38,9 +41,9 @@ class FreeFirstDemoSeeder extends Seeder
         }
 
         $trampolineId = StrategyTag::query()->where('slug', 'trampoline-bounce')->value('id');
-        $emaId = StrategyTag::query()->where('slug', 'ema-200-bounce')->value('id');
 
         $this->configureUser($user);
+        $this->ensureDemoSquad($user);
         $this->seedAssets([
             'AAPL', 'MSFT', 'NVDA', 'AMD', 'META', 'GOOGL', 'AMZN', 'TSLA',
             'CRM', 'SHOP', 'PLTR', 'COIN', 'SOFI', 'RIVN', 'NFLX', 'AVGO',
@@ -48,9 +51,9 @@ class FreeFirstDemoSeeder extends Seeder
         ]);
 
         $this->seedActionOpenPositions($user, $trampolineId);
-        $this->seedOrderPlanAndRadarScouts($user, $trampolineId, $emaId);
+        $this->seedOrderPlanAndRadarScouts($user, $trampolineId);
         $this->seedGapHerplanScout($user, $trampolineId);
-        $this->seedClosedTradesForEdge($user, $trampolineId, $emaId);
+        $this->seedClosedTradesForEdge($user, $trampolineId);
         $this->seedBankrollSnapshots($user);
 
         $this->command?->info("Free-First demo geladen voor {$user->email} (id {$user->id}).");
@@ -116,6 +119,27 @@ class FreeFirstDemoSeeder extends Seeder
                 'plan' => 'free',
             ],
         ])->save();
+    }
+
+    private function ensureDemoSquad(User $user): void
+    {
+        $squad = Squad::query()->firstOrCreate(
+            ['slug' => 'alpha-squad'],
+            [
+                'name' => 'Alpha Squad',
+                'owner_id' => $user->id,
+            ],
+        );
+
+        if ($squad->owner_id === null) {
+            $squad->forceFill(['owner_id' => $user->id])->save();
+        }
+
+        if (! $squad->users()->whereKey($user->id)->exists()) {
+            $squad->users()->attach($user->id);
+        }
+
+        app(SquadPermissionService::class)->assignRole($user, $squad, SquadRole::Commander);
     }
 
     /**
@@ -238,7 +262,7 @@ class FreeFirstDemoSeeder extends Seeder
         ]);
     }
 
-    private function seedOrderPlanAndRadarScouts(User $user, ?int $trampolineId, ?int $emaId): void
+    private function seedOrderPlanAndRadarScouts(User $user, ?int $trampolineId): void
     {
         $strong = [
             'signal_low' => 101.00,
@@ -274,7 +298,7 @@ class FreeFirstDemoSeeder extends Seeder
         ]));
 
         $this->upsertScout($user, 'AVGO', array_merge($strong, [
-            'strategy_tag_id' => $emaId,
+            'strategy_tag_id' => $trampolineId,
             'broker_order_status' => BrokerOrderStatus::Scout,
             'latest_close_price' => 101.20,
             'signal_low' => 101.20,
@@ -339,7 +363,7 @@ class FreeFirstDemoSeeder extends Seeder
         ]);
     }
 
-    private function seedClosedTradesForEdge(User $user, ?int $trampolineId, ?int $emaId): void
+    private function seedClosedTradesForEdge(User $user, ?int $trampolineId): void
     {
         $tickers = ['GOOGL', 'AMZN', 'NFLX', 'ORCL', 'INTC', 'QCOM', 'MU', 'RIVN', 'DEMO1', 'DEMO2'];
         $protocol = app(ProtocolComplianceService::class);
@@ -348,7 +372,7 @@ class FreeFirstDemoSeeder extends Seeder
             $win = $i % 3 !== 0;
             $entry = 50 + ($i * 7);
             $exit = $win ? $entry * 1.08 : $entry * 0.96;
-            $tagId = $i % 2 === 0 ? $trampolineId : $emaId;
+            $tagId = $trampolineId;
             $grade = match ($i % 4) {
                 0 => 'A++',
                 1 => 'A',
@@ -372,6 +396,9 @@ class FreeFirstDemoSeeder extends Seeder
                 'scaled_out_quantity' => $win && $i % 2 === 0 ? 5 : null,
                 'trade_journal' => $win ? "Demo win {$grade}" : "Demo loss {$grade}",
                 'last_setup_score' => $grade === 'A++' ? 10 : ($grade === 'A' ? 9 : 7),
+                'trader_promoted_a' => in_array($grade, ['A++', 'A'], true),
+                'trader_promoted_a_plus' => $grade === 'A++',
+                'buy_stop_review_setup_grade' => $grade,
                 'execution_truth_state' => ExecutionTruthState::Closed,
                 'data_source_label' => 'handmatig',
                 'broker' => Broker::Revolut,
@@ -389,7 +416,7 @@ class FreeFirstDemoSeeder extends Seeder
             $entry = 30 + $n;
             $win = $n % 2 === 0;
             $position = $this->upsertClosed($user, $ticker, [
-                'strategy_tag_id' => $n % 2 === 0 ? $trampolineId : $emaId,
+                'strategy_tag_id' => $trampolineId,
                 'entry_price' => $entry,
                 'exit_price' => $win ? $entry + 3 : $entry - 2,
                 'quantity' => 8,

@@ -31,8 +31,11 @@ class BankrollUpdateWidget extends Widget
             ? number_format((float) $bankroll, 2, '.', '')
             : null;
 
-        $this->ibkrStale = $user !== null && app(IbkrSyncHealth::class)->isStale($user)
-            && ($user->ibkr_last_success_at !== null || (string) config('vestix.ibkr.reader', 'stub') === 'flex');
+        // Escape hatch only after a real sync went stale — not when Flex is
+        // configured locally but has never succeeded (common local false positive).
+        $this->ibkrStale = $user !== null
+            && $user->ibkr_last_success_at !== null
+            && app(IbkrSyncHealth::class)->isStale($user);
     }
 
     public static function canView(): bool
@@ -44,12 +47,15 @@ class BankrollUpdateWidget extends Widget
         }
 
         $health = app(IbkrSyncHealth::class);
-        $usesIbkrSync = $user->ibkr_last_success_at !== null
-            || (string) config('vestix.ibkr.reader', 'stub') === 'flex'
-            || (string) config('vestix.bankroll_tracker.source', 'manual') === 'ibkr';
 
-        if ($usesIbkrSync) {
-            return $health->isStale($user);
+        // Don't surface the dashboard card for "Flex configured, never synced".
+        // That state is common locally; production with a healthy sync stays quiet.
+        if ($user->ibkr_last_success_at !== null && $health->isStale($user)) {
+            return true;
+        }
+
+        if ((string) config('vestix.bankroll_tracker.source', 'manual') === 'ibkr' && $health->isStale($user)) {
+            return true;
         }
 
         return app(BankrollSnapshotService::class)->isUpdateDue($user);

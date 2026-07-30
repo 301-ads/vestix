@@ -3,7 +3,6 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Widgets\BankrollUpdateWidget;
-use App\Filament\Widgets\BuyStopReviewWidget;
 use App\Filament\Widgets\FirstRunChecklistWidget;
 use App\Filament\Widgets\IbkrReconcileWidget;
 use App\Filament\Widgets\OrderPlanTodayWidget;
@@ -11,7 +10,6 @@ use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
 use App\Filament\Widgets\PositionsRequiringActionWidget;
 use App\Filament\Widgets\SetupRadarWidget;
-use App\Filament\Widgets\SniperRejectSamplesWidget;
 use App\Support\BackgroundArtisan;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
@@ -27,7 +25,7 @@ class Dashboard extends BaseDashboard
 
     protected static ?int $navigationSort = 1;
 
-    protected static ?string $title = 'Today';
+    protected static ?string $title = 'Dashboard';
 
     /**
      * @return array<string>
@@ -46,7 +44,7 @@ class Dashboard extends BaseDashboard
     }
 
     /**
-     * Today Mode: action queue first, then plan/reconcile, then context.
+     * Today Mode: action queue first, then portfolio context, then Order Plan under Top/Flop + Radar.
      *
      * @return array<class-string>
      */
@@ -56,13 +54,11 @@ class Dashboard extends BaseDashboard
             FirstRunChecklistWidget::class,
             IbkrReconcileWidget::class,
             PositionsRequiringActionWidget::class,
-            OrderPlanTodayWidget::class,
-            BuyStopReviewWidget::class,
             BankrollUpdateWidget::class,
             PortfolioExposureWidget::class,
             PortfolioTopFlopWidget::class,
             SetupRadarWidget::class,
-            SniperRejectSamplesWidget::class,
+            OrderPlanTodayWidget::class,
         ];
     }
 

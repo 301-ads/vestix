@@ -7,15 +7,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Kept for migration history on this WIP branch; Trampoline-only for now.
-        StrategyTag::query()->updateOrCreate(
-            ['slug' => 'ema-200-bounce'],
-            [
-                'name' => 'EMA 200 Bounce',
-                'sort_order' => 2,
-                'is_active' => false,
-            ],
-        );
+        StrategyTag::query()->where('slug', 'ema-200-bounce')->update(['is_active' => false]);
 
         StrategyTag::query()->where('slug', 'trampoline-bounce')->update([
             'sort_order' => 1,

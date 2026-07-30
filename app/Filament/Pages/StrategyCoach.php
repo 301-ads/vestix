@@ -4,9 +4,9 @@ namespace App\Filament\Pages;
 
 use App\Enums\TradeDirection;
 use App\Filament\Widgets\EquityCurveChart;
+use App\Filament\Widgets\GradePerformanceChart;
 use App\Filament\Widgets\PortfolioCoachInsightsWidget;
 use App\Filament\Widgets\StrategyCoachStatsWidget;
-use App\Filament\Widgets\TagPerformanceChart;
 use App\Support\StrategyCoachDemoPreview;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Grid;
@@ -67,7 +67,7 @@ class StrategyCoach extends Page
             PortfolioCoachInsightsWidget::class,
             StrategyCoachStatsWidget::class,
             EquityCurveChart::class,
-            TagPerformanceChart::class,
+            GradePerformanceChart::class,
         ];
     }
 
@@ -94,7 +94,7 @@ class StrategyCoach extends Page
                             ->schema(fn (): array => $this->getWidgetsSchemaComponents([
                                 StrategyCoachStatsWidget::class,
                                 EquityCurveChart::class,
-                                TagPerformanceChart::class,
+                                GradePerformanceChart::class,
                             ])),
                     ])
                     ->extraAttributes(['class' => 'vestix-coach-edge-section']),

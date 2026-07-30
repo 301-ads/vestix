@@ -64,6 +64,7 @@ class ProtocolComplianceService
             ->nonLegacy()
             ->forUser($userId)
             ->whereNotNull('protocol_score')
+            ->whereHas('strategyTag', fn ($q) => $q->where('is_active', true))
             ->get();
 
         if ($trades->isEmpty()) {

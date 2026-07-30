@@ -10,7 +10,7 @@ use App\Filament\Widgets\KluisComingSoonWidget;
 use App\Filament\Widgets\KluisEquityChart;
 use App\Filament\Widgets\KluisStatsWidget;
 use App\Filament\Widgets\PerformanceComingSoonWidget;
-use App\Filament\Widgets\TagPerformanceChart;
+use App\Filament\Widgets\GradePerformanceChart;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Tabs;
@@ -48,7 +48,7 @@ class Prestaties extends Page
             AlphaTrackerChart::class,
             PerformanceComingSoonWidget::class,
             EdgeAnalyticsWidget::class,
-            TagPerformanceChart::class,
+            GradePerformanceChart::class,
         ];
     }
 

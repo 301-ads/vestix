@@ -61,7 +61,7 @@ class PositionStatsAggregatorTest extends TestCase
     public function test_strategy_analytics_expectancy(): void
     {
         $user = User::factory()->create();
-        $tag = StrategyTag::query()->first();
+        $tagId = $this->defaultStrategyTagId();
 
         Position::factory()->create([
             'user_id' => $user->id,
@@ -70,7 +70,7 @@ class PositionStatsAggregatorTest extends TestCase
             'exit_price' => 110,
             'closed_at' => now()->subDays(2),
             'quantity' => 1,
-            'strategy_tag_id' => $tag?->id,
+            'strategy_tag_id' => $tagId,
         ]);
 
         Position::factory()->create([
@@ -80,7 +80,7 @@ class PositionStatsAggregatorTest extends TestCase
             'exit_price' => 90,
             'closed_at' => now()->subDay(),
             'quantity' => 1,
-            'strategy_tag_id' => $tag?->id,
+            'strategy_tag_id' => $tagId,
         ]);
 
         $analytics = app(StrategyAnalyticsService::class);

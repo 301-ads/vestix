@@ -48,6 +48,18 @@ class StrategyCoachDemoPreview
     }
 
     /**
+     * @return list<array{grade: string, trades: int, win_rate: float, expectancy: float}>
+     */
+    public static function statsByGrade(): array
+    {
+        return [
+            ['grade' => 'A++', 'trades' => 6, 'win_rate' => 83.3, 'expectancy' => 3.40],
+            ['grade' => 'A', 'trades' => 10, 'win_rate' => 70.0, 'expectancy' => 2.10],
+            ['grade' => 'B', 'trades' => 8, 'win_rate' => 37.5, 'expectancy' => -0.40],
+        ];
+    }
+
+    /**
      * @return list<array{date: string, cumulative_roi: float}>
      */
     public static function equityCurve(): array

@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Position;
+use App\Models\StrategyTag;
 use App\Models\User;
 use App\Services\StrategyAnalyticsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -118,5 +119,88 @@ class StrategyAnalyticsServiceTest extends TestCase
         $this->assertSame(0.0, $hitRate['hit_rate']);
         $this->assertSame(0, $hitRate['hits']);
         $this->assertSame(1, $hitRate['total']);
+    }
+
+    public function test_closed_trades_exclude_inactive_strategy_tags(): void
+    {
+        $user = User::factory()->create();
+        $trampolineId = (int) StrategyTag::query()->where('slug', 'trampoline-bounce')->value('id');
+        $emaId = (int) StrategyTag::query()->where('slug', 'ema-200-bounce')->value('id');
+
+        Position::factory()->for($user)->closed()->create([
+            'ticker' => 'TRAM',
+            'entry_price' => 100,
+            'exit_price' => 110,
+            'quantity' => 10,
+            'strategy_tag_id' => $trampolineId,
+        ]);
+        Position::factory()->for($user)->closed()->create([
+            'ticker' => 'EMA',
+            'entry_price' => 100,
+            'exit_price' => 50,
+            'quantity' => 10,
+            'strategy_tag_id' => $emaId,
+        ]);
+
+        $trades = $this->analytics->closedTradesForUser($user->id);
+        $stats = $this->analytics->overallStats($user->id);
+        $perTag = $this->analytics->statsPerTag($user->id);
+
+        $this->assertCount(1, $trades);
+        $this->assertSame('TRAM', $trades->first()->ticker);
+        $this->assertSame(1, $stats['total_trades']);
+        $this->assertSame(100.0, $stats['win_rate']);
+        $this->assertCount(1, $perTag);
+        $this->assertSame('Trampoline Bounce', $perTag[0]['tag_name']);
+    }
+
+    public function test_stats_by_grade_groups_win_rate_and_expectancy(): void
+    {
+        $user = User::factory()->create();
+        $trampolineId = (int) StrategyTag::query()->where('slug', 'trampoline-bounce')->value('id');
+
+        Position::factory()->for($user)->closed()->create([
+            'strategy_tag_id' => $trampolineId,
+            'entry_price' => 100,
+            'exit_price' => 110,
+            'quantity' => 10,
+            'last_setup_score' => 10,
+            'trader_promoted_a_plus' => true,
+            'trader_promoted_a' => true,
+        ]);
+        Position::factory()->for($user)->closed()->create([
+            'strategy_tag_id' => $trampolineId,
+            'entry_price' => 100,
+            'exit_price' => 90,
+            'quantity' => 10,
+            'last_setup_score' => 10,
+            'trader_promoted_a_plus' => true,
+            'trader_promoted_a' => true,
+        ]);
+        Position::factory()->for($user)->closed()->create([
+            'strategy_tag_id' => $trampolineId,
+            'entry_price' => 100,
+            'exit_price' => 108,
+            'quantity' => 10,
+            'last_setup_score' => 7,
+        ]);
+        Position::factory()->for($user)->closed()->create([
+            'strategy_tag_id' => $trampolineId,
+            'entry_price' => 100,
+            'exit_price' => 112,
+            'quantity' => 10,
+            'buy_stop_review_setup_grade' => 'A',
+            'last_setup_score' => null,
+        ]);
+
+        $byGrade = $this->analytics->statsByGrade($user->id);
+
+        $this->assertSame(['A++', 'A', 'B'], array_column($byGrade, 'grade'));
+        $this->assertSame(2, $byGrade[0]['trades']);
+        $this->assertSame(50.0, $byGrade[0]['win_rate']);
+        $this->assertSame(1, $byGrade[1]['trades']);
+        $this->assertSame(100.0, $byGrade[1]['win_rate']);
+        $this->assertSame(1, $byGrade[2]['trades']);
+        $this->assertSame(100.0, $byGrade[2]['win_rate']);
     }
 }

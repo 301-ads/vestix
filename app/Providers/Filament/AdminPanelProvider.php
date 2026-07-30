@@ -178,10 +178,16 @@ class AdminPanelProvider extends PanelProvider
                     .'<link rel="manifest" href="'.asset('manifest.json').'">'
             )
             ->renderHook(
-                PanelsRenderHook::PAGE_HEADER_HEADING_AFTER,
+                PanelsRenderHook::PAGE_HEADER_ACTIONS_BEFORE,
                 fn (): string => view('filament.dashboard.market-data-status')->render(),
                 scopes: [
                     Dashboard::class,
+                ],
+            )
+            ->renderHook(
+                PanelsRenderHook::PAGE_HEADER_HEADING_AFTER,
+                fn (): string => view('filament.dashboard.market-data-status')->render(),
+                scopes: [
                     EditPosition::class,
                     EditScout::class,
                 ],

@@ -3,29 +3,25 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\EarningsExitUrgency;
+use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Positions\Tables\PositionRecordActions;
+use App\Filament\Resources\Scouts\ScoutResource;
+use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\EarningsExitDisplay;
 use App\Support\EarningsExitSchedule;
 use App\Support\FilamentPolling;
+use App\Support\SetupGradeDisplay;
 use Filament\Actions\Action;
-use Filament\Actions\Concerns\InteractsWithActions;
-use Filament\Actions\Contracts\HasActions;
-use Filament\Schemas\Concerns\InteractsWithSchemas;
-use Filament\Schemas\Contracts\HasSchemas;
-use Filament\Widgets\Widget;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-use Illuminate\Database\Eloquent\Model;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
+use Filament\Widgets\TableWidget;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
 
-class PositionsRequiringActionWidget extends Widget implements HasActions, HasSchemas
+class PositionsRequiringActionWidget extends TableWidget
 {
-    use InteractsWithActions;
-    use InteractsWithSchemas;
-
-    protected string $view = 'filament.widgets.positions-requiring-action-widget';
-
     protected static bool $isLazy = false;
 
     protected static ?int $sort = 3;
@@ -38,58 +34,91 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
         'lg' => 2,
     ];
 
-    public function boot(): void
-    {
-        // Unique per-row action names must be re-cached on every Livewire request
-        // so mountAction() can resolve them (cachedActions is not persisted).
-        // Query directly — do not touch the computed actionablePositions property here,
-        // or Livewire memoizes a stale list before callMountedAction updates records.
-        foreach ($this->loadActionablePositions() as $position) {
-            $this->actionForPosition($position);
-            $this->secondaryActionForPosition($position);
-        }
-    }
+    protected string $view = 'filament.widgets.scrollable-table-widget';
 
     public function getPollingInterval(): ?string
     {
         return FilamentPolling::INTERVAL;
     }
 
-    public function getDefaultActionRecord(Action $action): ?Model
+    public function table(Table $table): Table
     {
-        $arguments = $action->getArguments();
-        $key = $arguments['record'] ?? $arguments['recordKey'] ?? null;
-
-        return $this->resolveActionPosition($key);
+        return $table
+            ->poll(FilamentPolling::INTERVAL)
+            ->columnManager(false)
+            ->striped(false)
+            ->heading(fn (): string|HtmlString => $this->buildHeading())
+            ->searchable(false)
+            ->query(fn (): Builder => $this->actionableQuery())
+            ->recordUrl(fn (Position $record): string => $record->status === 'scout'
+                ? ScoutResource::getUrl('edit', ['record' => $record])
+                : PositionResource::getUrl('edit', ['record' => $record]))
+            ->columns([
+                TickerColumn::wrap(
+                    TextColumn::make('ticker')
+                        ->label('Ticker')
+                        ->width('6rem'),
+                    showDirectionIcon: true,
+                ),
+                TextColumn::make('action_type')
+                    ->label('Type')
+                    ->badge()
+                    ->alignStart()
+                    ->state(fn (Position $record): string => $this->formatActionTypeLabel($record))
+                    ->color(fn (Position $record): string => $this->formatActionAccent($record))
+                    ->width('7rem'),
+                TextColumn::make('instruction')
+                    ->label('Instructie')
+                    ->wrap()
+                    ->html()
+                    ->state(fn (Position $record): HtmlString => $record->buy_stop_review_required_on !== null
+                        ? $this->formatBuyStopInstructionHtml($record)
+                        : $this->formatInstructionHtml($record)),
+            ])
+            ->recordActions([
+                $this->outlinedRowAction(PositionRecordActions::markTarget1LimitPlaced()),
+                $this->outlinedRowAction(PositionRecordActions::markInitialSlPlaced()),
+                $this->outlinedRowAction(PositionRecordActions::markAsUpdated()),
+                $this->outlinedRowAction(PositionRecordActions::holdThroughEarnings()),
+                $this->outlinedRowAction(PositionRecordActions::archive())
+                    ->visible(fn (Position $record): bool => in_array($record->primaryActionType(), [
+                        Position::PRIMARY_ACTION_EARNINGS,
+                        Position::PRIMARY_ACTION_LIQUIDATION,
+                    ], true)),
+                $this->outlinedRowAction(PositionRecordActions::rolloverBuyStop(iconButton: false)),
+                $this->outlinedRowAction(PositionRecordActions::editBuyStopEntry(ScoutResource::class, iconButton: false))
+                    ->color('gray'),
+                $this->outlinedRowAction(PositionRecordActions::cancelBuyStopSetup(iconButton: false)),
+            ])
+            ->emptyStateHeading('Geen acties vereist')
+            ->emptyStateDescription('Alle stop-losses zijn up-to-date en geen buy-stop reviews open.')
+            ->emptyStateIcon('heroicon-o-check-circle')
+            ->paginated(false);
     }
 
-    /**
-     * @return EloquentCollection<int, Position>
-     */
-    public function getActionablePositionsProperty(): EloquentCollection
-    {
-        return $this->loadActionablePositions();
-    }
-
-    /**
-     * @return EloquentCollection<int, Position>
-     */
-    private function loadActionablePositions(): EloquentCollection
+    private function actionableQuery(): Builder
     {
         $userId = auth()->id() ?? 0;
-        $actionableIds = Position::requiringActionForUser($userId)->pluck('id');
+        $ids = Position::requiringActionForUser($userId)
+            ->pluck('id')
+            ->merge(Position::requiringBuyStopReviewForUser($userId)->pluck('id'))
+            ->unique()
+            ->values();
 
         return Position::query()
             ->forUser($userId)
             ->when(
-                $actionableIds->isNotEmpty(),
-                fn ($query) => $query->whereIn('id', $actionableIds),
-                fn ($query) => $query->whereRaw('1 = 0'),
+                $ids->isNotEmpty(),
+                fn (Builder $query): Builder => $query->whereIn('id', $ids),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
             )
             ->with('asset')
-            ->orderByRaw('CASE WHEN latest_close_price <= current_sl THEN 0 ELSE 1 END')
-            ->orderBy('ticker')
-            ->get();
+            ->orderByRaw("CASE
+                WHEN status = 'open' AND latest_close_price IS NOT NULL AND current_sl IS NOT NULL AND latest_close_price <= current_sl THEN 0
+                WHEN buy_stop_review_required_on IS NOT NULL THEN 2
+                ELSE 1
+            END")
+            ->orderBy('ticker');
     }
 
     /**
@@ -97,9 +126,35 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
      */
     public function getStatusColorCountsProperty(): Collection
     {
-        return $this->actionablePositions
+        $userId = auth()->id() ?? 0;
+
+        $counts = Position::requiringActionForUser($userId)
             ->groupBy(fn (Position $position): string => $this->formatActionAccent($position))
             ->map(fn (Collection $group): int => $group->count());
+
+        $buyStopCount = Position::requiringBuyStopReviewForUser($userId)->count();
+
+        if ($buyStopCount > 0) {
+            $counts['warning'] = (int) ($counts['warning'] ?? 0) + $buyStopCount;
+        }
+
+        return $counts;
+    }
+
+    public function formatActionTypeLabel(Position $record): string
+    {
+        if ($record->buy_stop_review_required_on !== null) {
+            return 'Buy-stop';
+        }
+
+        return match ($record->primaryActionType()) {
+            Position::PRIMARY_ACTION_TARGET_1 => 'Target 1',
+            Position::PRIMARY_ACTION_LIQUIDATION => 'Liquidatie',
+            Position::PRIMARY_ACTION_EARNINGS => 'Earnings',
+            Position::PRIMARY_ACTION_UPDATE_SL => 'Stop-Loss',
+            Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'Initial SL',
+            default => 'Actie',
+        };
     }
 
     public function formatInstruction(Position $record): string
@@ -138,25 +193,31 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
 
     public function formatInstructionHtml(Position $record): HtmlString
     {
+        $emphasis = 'font-semibold text-gray-950 dark:text-white';
+
         return match ($record->primaryActionType()) {
             Position::PRIMARY_ACTION_UPDATE_SL => new HtmlString(sprintf(
-                'Verhoog Stop-Loss van $%s naar <span class="vestix-action-todo__new-sl">$%s</span> (+$%s).',
+                'Verhoog Stop-Loss van $%s naar <span class="%s">$%s</span> (+$%s).',
                 number_format((float) $record->current_sl, 2),
+                $emphasis,
                 number_format((float) ($record->new_sl ?? 0), 2),
                 number_format(((float) ($record->new_sl ?? 0)) - (float) $record->current_sl, 2),
             )),
             Position::PRIMARY_ACTION_PLACE_INITIAL_SL => new HtmlString(sprintf(
-                'Stel Stop-Loss in op <span class="vestix-action-todo__new-sl">$%s</span> bij je broker.',
+                'Stel Stop-Loss in op <span class="%s">$%s</span> bij je broker.',
+                $emphasis,
                 number_format((float) ($record->current_sl ?? 0), 2),
             )),
             Position::PRIMARY_ACTION_TARGET_1 => new HtmlString($record->userUsesRevolutWorkflow()
                 ? sprintf(
-                    'Target 1 bereikt op <span class="vestix-action-todo__new-sl">$%s</span>. Pas SL aan, verkoop %d%%, zet runner-SL op breakeven.',
+                    'Target 1 bereikt op <span class="%s">$%s</span>. Pas SL aan, verkoop %d%%, zet runner-SL op breakeven.',
+                    $emphasis,
                     number_format((float) ($record->target_1_price ?? 0), 2),
                     (int) round($record->effective_first_tranche_fraction * 100),
                 )
                 : sprintf(
-                    'Stel Limit Sell in op <span class="vestix-action-todo__new-sl">$%s</span> voor %d%% van je positie.',
+                    'Stel Limit Sell in op <span class="%s">$%s</span> voor %d%% van je positie.',
+                    $emphasis,
                     number_format((float) ($record->target_1_price ?? 0), 2),
                     (int) round($record->effective_first_tranche_fraction * 100),
                 )),
@@ -164,8 +225,49 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
         };
     }
 
+    public function formatBuyStopInstruction(Position $record): string
+    {
+        return 'Beoordeel open buy-stop: order is gisteren niet geraakt. Is de setup vandaag nog geldig?';
+    }
+
+    public function formatBuyStopInstructionHtml(Position $record): HtmlString
+    {
+        $instruction = e($this->formatBuyStopInstruction($record));
+        $hint = $this->formatBuyStopValidationHintHtml($record);
+
+        if ($hint === null) {
+            return new HtmlString($instruction);
+        }
+
+        return new HtmlString($instruction.' '.$hint->toHtml());
+    }
+
+    public function formatBuyStopValidationHintHtml(Position $record): ?HtmlString
+    {
+        $hint = $record->buyStopReviewValidationHint();
+
+        if ($hint === null) {
+            $grade = SetupGradeDisplay::label($record);
+
+            if ($grade === null) {
+                return null;
+            }
+
+            return new HtmlString(sprintf(
+                '<span class="font-medium">Setup: %s</span>.',
+                e($grade),
+            ));
+        }
+
+        return new HtmlString('<span class="font-medium text-warning-600 dark:text-warning-400">'.e($hint).'</span>');
+    }
+
     public function formatActionAccent(Position $record): string
     {
+        if ($record->buy_stop_review_required_on !== null) {
+            return 'warning';
+        }
+
         return match ($record->primaryActionType()) {
             Position::PRIMARY_ACTION_TARGET_1 => 'success',
             Position::PRIMARY_ACTION_LIQUIDATION => 'danger',
@@ -184,129 +286,22 @@ class PositionsRequiringActionWidget extends Widget implements HasActions, HasSc
         };
     }
 
-    public function actionForPosition(Position $position): ?Action
-    {
-        $factory = match ($position->primaryActionType()) {
-            Position::PRIMARY_ACTION_TARGET_1 => 'makeMarkLimitPlaced',
-            Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'makeMarkInitialSlPlaced',
-            Position::PRIMARY_ACTION_UPDATE_SL => 'makeMarkAsUpdated',
-            Position::PRIMARY_ACTION_EARNINGS => 'makeArchive',
-            default => null,
-        };
-
-        if ($factory === null) {
-            return null;
-        }
-
-        return $this->cacheAction($this->uniqueRecordAction($this->{$factory}(), $position));
-    }
-
-    public function secondaryActionForPosition(Position $position): ?Action
-    {
-        if ($position->primaryActionType() !== Position::PRIMARY_ACTION_EARNINGS) {
-            return null;
-        }
-
-        return $this->cacheAction($this->uniqueRecordAction($this->makeHoldThroughEarnings(), $position));
-    }
-
-    private function uniqueRecordAction(Action $action, Position $position): Action
-    {
-        $name = $action->getName().'_'.$position->getKey();
-
-        $action->name($name);
-
-        // Row is already filtered by primaryActionType(); keep the button mountable
-        // even before Filament has injected the record into visible() callbacks.
-        $action->visible(true);
-
-        // Scope loading-disabled to this button only — without wire:target, wire:poll
-        // on the list disables every Update button on the component.
-        $action->extraAttributes([
-            'wire:target' => "mountAction('{$name}')",
-        ], merge: true);
-
-        return $action(['record' => $position->getKey()])->record($position);
-    }
-
-    private function makeMarkLimitPlaced(): Action
-    {
-        return $this->configureRecordAction(PositionRecordActions::markTarget1LimitPlaced());
-    }
-
-    private function makeMarkInitialSlPlaced(): Action
-    {
-        return $this->configureRecordAction(PositionRecordActions::markInitialSlPlaced());
-    }
-
-    private function makeMarkAsUpdated(): Action
-    {
-        return $this->configureRecordAction(PositionRecordActions::markAsUpdated());
-    }
-
-    private function makeHoldThroughEarnings(): Action
-    {
-        return $this->configureRecordAction(PositionRecordActions::holdThroughEarnings());
-    }
-
-    private function makeArchive(): Action
-    {
-        return $this->configureRecordAction(PositionRecordActions::archive());
-    }
-
-    private function configureRecordAction(Action $action): Action
+    /**
+     * Match Kapitaalbewegingen row actions: outlined/ghost buttons with compact chrome.
+     */
+    private function outlinedRowAction(Action $action): Action
     {
         return $action
-            ->resolveRecordUsing(function (array $arguments) use ($action): ?Position {
-                $key = $arguments['key']
-                    ?? $action->getArguments()['record']
-                    ?? $action->getArguments()['recordKey']
-                    ?? null;
-
-                return $this->resolveActionPosition($key);
-            })
-            ->before(function (Action $action): void {
-                $record = $this->getDefaultActionRecord($action);
-
-                if ($record instanceof Position) {
-                    $action->record($record);
-                }
-            });
+            ->button()
+            ->outlined()
+            ->size('sm');
     }
 
-    private function resolveActionPosition(mixed $key): ?Position
+    private function buildHeading(): string|HtmlString
     {
-        if ($key === null || $key === '') {
-            return null;
-        }
+        $statusColorCounts = $this->statusColorCounts;
+        $pendingCount = $statusColorCounts->sum();
 
-        if ($key instanceof Position) {
-            return $key;
-        }
-
-        return Position::query()
-            ->forUser(auth()->id() ?? 0)
-            ->find($key);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function getViewData(): array
-    {
-        return [
-            'heading' => $this->buildHeading(
-                $this->actionablePositions->count(),
-                $this->statusColorCounts,
-            ),
-        ];
-    }
-
-    /**
-     * @param  Collection<string, int>  $statusColorCounts
-     */
-    private function buildHeading(int $pendingCount, Collection $statusColorCounts): string|HtmlString
-    {
         if ($pendingCount === 0) {
             return 'Acties vereist';
         }

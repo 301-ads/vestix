@@ -10,7 +10,7 @@ class StrategyTagSeeder extends Seeder
     public function run(): void
     {
         $tags = [
-            ['slug' => 'ema-200-bounce', 'name' => 'EMA 200 Bounce', 'sort_order' => 2, 'is_active' => true],
+            ['slug' => 'ema-200-bounce', 'name' => 'EMA 200 Bounce', 'sort_order' => 2, 'is_active' => false],
             ['slug' => 'breakout', 'name' => 'Breakout', 'sort_order' => 3, 'is_active' => false],
             ['slug' => 'earnings-play', 'name' => 'Earnings Play', 'sort_order' => 4, 'is_active' => false],
             ['slug' => 'mean-reversion', 'name' => 'Mean Reversion', 'sort_order' => 5, 'is_active' => false],

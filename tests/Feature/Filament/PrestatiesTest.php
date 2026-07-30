@@ -11,7 +11,7 @@ use App\Filament\Widgets\KluisComingSoonWidget;
 use App\Filament\Widgets\KluisEquityChart;
 use App\Filament\Widgets\KluisStatsWidget;
 use App\Filament\Widgets\PerformanceComingSoonWidget;
-use App\Filament\Widgets\TagPerformanceChart;
+use App\Filament\Widgets\GradePerformanceChart;
 use App\Models\BankrollSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -57,7 +57,7 @@ class PrestatiesTest extends TestCase
             AlphaTrackerChart::class,
             PerformanceComingSoonWidget::class,
             EdgeAnalyticsWidget::class,
-            TagPerformanceChart::class,
+            GradePerformanceChart::class,
         ], $page->getSwingWidgets());
 
         $this->assertSame([

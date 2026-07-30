@@ -13,9 +13,10 @@ use App\Filament\Resources\Positions\Pages\EditScout;
 use App\Filament\Resources\Positions\Pages\ListScouts;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
-use App\Filament\Widgets\BuyStopReviewWidget;
+use App\Filament\Widgets\PositionsRequiringActionWidget;
 use App\Filament\Widgets\SetupRadarWidget;
 use App\Models\Position;
+use App\Models\User;
 use App\Services\MarketDataFetcher;
 use App\Support\BrokerOrderTicket;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -361,7 +362,7 @@ class ScoutWatchlistTest extends TestCase
         Livewire::test(EditScout::class, ['record' => $scout->getKey()])
             ->assertSee('Bankroll instellen')
             ->assertSee('Position sizing')
-            ->assertSee('bijv. 1000')
+            ->assertSee('leeg = Smart Sizing')
             ->fillForm(['_planned_investment' => 1000])
             ->assertFormSet(['quantity' => '4']);
     }
@@ -556,6 +557,22 @@ class ScoutWatchlistTest extends TestCase
         $this->assertNotNull($scout->scout_rsi);
     }
 
+    public function test_edit_scout_page_shows_visibility_without_squad_membership(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAsFilamentUser($user);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'MSFT',
+        ]);
+
+        Livewire::test(EditScout::class, ['record' => $scout->getKey()])
+            ->assertOk()
+            ->assertSee('Zichtbaarheid')
+            ->assertSee('Deel met squad')
+            ->assertSee('Maak of join eerst een squad om te delen');
+    }
+
     public function test_create_scout_page_shows_scorecard(): void
     {
         $this->authenticateFilament();
@@ -565,8 +582,11 @@ class ScoutWatchlistTest extends TestCase
             ->assertSee('Setup & Valstrik')
             ->assertSee('Sniper Scorecard')
             ->assertSee('Marktdata & Indicatoren')
+            ->assertDontSee('Advanced — Marktdata & Schild')
             ->assertSee('Wiskundige Validatie')
             ->assertSee('Trade Journal & Notities')
+            ->assertSee('Zichtbaarheid')
+            ->assertSee('Deel met squad')
             ->assertSeeHtml('scout-scorecard-hud');
     }
 
@@ -585,9 +605,12 @@ class ScoutWatchlistTest extends TestCase
             ->assertSee('Setup & Valstrik')
             ->assertSee('Sniper Scorecard')
             ->assertSee('Marktdata & Indicatoren')
+            ->assertDontSee('Advanced — Marktdata & Schild')
             ->assertSee('Wiskundige Validatie')
             ->assertSee('Het Schild')
             ->assertSee('Trade Journal & Notities')
+            ->assertSee('Zichtbaarheid')
+            ->assertSee('Deel met squad')
             ->assertSee('SMA 20 (5 dagen geleden)')
             ->assertSee('SMA 50')
             ->assertSee('Live Rating')
@@ -692,6 +715,58 @@ class ScoutWatchlistTest extends TestCase
 
         Livewire::test(SetupRadarWidget::class)
             ->assertDontSee('Berekende SL');
+    }
+
+    public function test_setup_radar_widget_hides_close_entry_and_activate_action(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aPlusSetupAttributes(),
+            ['ticker' => 'LEAN'],
+        ));
+
+        Livewire::test(SetupRadarWidget::class)
+            ->assertTableColumnExists('setup_grade')
+            ->assertTableColumnExists('sector_etf')
+            ->assertTableColumnExists('planned_risk_percentage')
+            ->assertTableColumnDoesNotExist('latest_close_price')
+            ->assertTableColumnDoesNotExist('entry_price')
+            ->assertTableActionDoesNotExist('activate_scout')
+            ->assertSee('Mijn Radar');
+    }
+
+    public function test_setup_radar_widget_shows_direction_icons_when_short_enabled(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update(['is_short_enabled' => true]);
+
+        Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aPlusSetupAttributes(),
+            ['ticker' => 'LONGX', 'direction' => TradeDirection::Long],
+        ));
+
+        Position::factory()->for($user)->scout()->short()->create([
+            'ticker' => 'SHRTX',
+        ]);
+
+        Livewire::test(SetupRadarWidget::class)
+            ->set('tableFilters.setup_focus.value', null)
+            ->assertSeeHtml('ticker-direction-icon--long')
+            ->assertSeeHtml('ticker-direction-icon--short');
+    }
+
+    public function test_setup_radar_widget_hides_direction_icons_when_short_disabled(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->scout()->create(array_merge(
+            $this->aPlusSetupAttributes(),
+            ['ticker' => 'NOSHT'],
+        ));
+
+        Livewire::test(SetupRadarWidget::class)
+            ->assertDontSee('ticker-direction-icon');
     }
 
     public function test_market_data_fetcher_syncs_position(): void
@@ -1255,7 +1330,7 @@ class ScoutWatchlistTest extends TestCase
         $this->assertDatabaseMissing('positions', ['id' => $scout->id]);
     }
 
-    public function test_buy_stop_review_widget_lists_scouts_requiring_review(): void
+    public function test_actions_widget_lists_scouts_requiring_buy_stop_review(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
         $this->actingAsFilamentUser($user, $squad);
@@ -1268,11 +1343,15 @@ class ScoutWatchlistTest extends TestCase
             'ticker' => 'HOLD',
         ]);
 
-        Livewire::test(BuyStopReviewWidget::class)
-            ->assertSee('Buy-stop review')
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertSee('Acties vereist')
             ->assertSee('APTV')
             ->assertSee('Beoordeel open buy-stop')
-            ->assertDontSee('HOLD — Beoordeel open buy-stop');
+            ->assertSee('Rollover')
+            ->assertSee('Wijzig')
+            ->assertSee('Annuleer')
+            ->assertDontSee('HOLD')
+            ->assertDontSee('Buy-stop review');
     }
 
     /**

@@ -103,7 +103,7 @@ class ScoutsTable
                     ->width('5.5rem')
                     ->visible(! $squadMode),
                 TextColumn::make('setup_grade')
-                    ->label('Setup Grade')
+                    ->label('Score')
                     ->state(fn (Position $record): ?HtmlString => SetupGradeDisplay::html($record))
                     ->html()
                     ->alignStart()
@@ -116,7 +116,7 @@ class ScoutsTable
                     ->label('Sector')
                     ->formatStateUsing(fn (?string $state): ?string => filled($state) ? strtoupper($state) : null)
                     ->badge()
-                    ->alignStart()
+                    ->alignCenter()
                     ->icon(fn (Position $record): ?string => $squadMode
                         ? null
                         : ScoutSectorCoachSignal::icon(auth()->user(), $record))
@@ -130,7 +130,7 @@ class ScoutsTable
                     ->sortable()
                     ->extraCellAttributes(['class' => 'vestix-sector-cell'])
                     ->extraHeaderAttributes(['class' => 'vestix-sector-cell'])
-                    ->width('5.5rem'),
+                    ->width('6.75rem'),
                 TextColumn::make('pipeline_status')
                     ->label('Status')
                     ->badge()
