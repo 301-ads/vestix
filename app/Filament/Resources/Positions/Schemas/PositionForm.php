@@ -1129,8 +1129,8 @@ class PositionForm
                 ->hintIcon(
                     'heroicon-o-information-circle',
                     fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
-                        ? 'Laagste punt van de rode afwijzingskaars (TradingView, 1D). Drijft de Sell-Stop.'
-                        : 'Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D).',
+                        ? 'Laagste punt van de rode afwijzingskaars (TradingView, 1D). Drijft de Sell-Stop entry.'
+                        : 'Optioneel tot bounce-dag. Laagste punt van de bounce-dagkaars (TradingView, 1D). Drijft de initiële SL (low − 0,10×ATR).',
                 )
                 ->hintColor('gray')
                 ->live(onBlur: true)
@@ -1148,7 +1148,7 @@ class PositionForm
                 ->hintIcon(
                     'heroicon-o-information-circle',
                     fn (Get $get, ?Position $record): string => self::resolveFormDirection($get, $record) === TradeDirection::Short
-                        ? 'Hoogste punt / plafond van de afwijzingskaars (TradingView, 1D).'
+                        ? 'Hoogste punt / plafond van de afwijzingskaars (TradingView, 1D). Drijft de initiële Buy-Stop SL (high + 0,10×ATR).'
                         : 'Optioneel tot bounce-dag. Hoogste punt van de bounce-dagkaars (TradingView, 1D).',
                 )
                 ->hintColor('gray')
@@ -2354,10 +2354,22 @@ class PositionForm
             return StopLossProtocol::resolveWithOverrides($record, self::marketFieldOverrides($get, $record));
         }
 
+        $direction = self::resolveFormDirection($get, $record);
+        $structure = Position::computeStructureStopLoss(
+            $get('signal_low') ?? $record?->signal_low,
+            $get('signal_high') ?? $record?->signal_high,
+            $get('latest_atr_14') ?? $record?->latest_atr_14,
+            $direction,
+        );
+
+        if ($structure !== null) {
+            return $structure;
+        }
+
         return StopLossProtocol::resolveForIndicators(
             $get('latest_sma_20') ?? $record?->latest_sma_20,
             $get('latest_atr_14') ?? $record?->latest_atr_14,
-            self::resolveFormDirection($get, $record),
+            $direction,
         );
     }
 
@@ -2442,11 +2454,18 @@ class PositionForm
             return null;
         }
 
-        $perShare = round((float) $entry - $newSl, 2);
+        $direction = self::resolveFormDirection($get, $record);
+        $perShare = PositionSizing::riskPerShare((float) $entry, (float) $newSl, $direction);
+
+        if ($perShare === null) {
+            return null;
+        }
+
         $percentage = ($perShare / (float) $entry) * 100;
         $tradeRiskLabel = rtrim(rtrim(number_format($percentage, 2), '0'), '.');
+        $moveLabel = $direction === TradeDirection::Short ? 'stijging' : 'daling';
         $tradeRiskSecondary = [
-            'text' => "{$tradeRiskLabel}% daling tot SL",
+            'text' => "{$tradeRiskLabel}% {$moveLabel} tot SL",
         ];
         $guard = self::resolveRiskGuardState($get, $record);
 

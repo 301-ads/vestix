@@ -44,6 +44,31 @@ class PositionAccessorTest extends TestCase
         $this->assertEquals(68.13, Position::computeBuyStop(68.00, 1.30));
     }
 
+    public function test_structure_stop_loss_mirrors_entry_stop_formulas(): void
+    {
+        $this->assertSame(
+            68.13,
+            Position::computeStructureStopLoss(67.00, 68.00, 1.30, \App\Enums\TradeDirection::Short),
+        );
+        $this->assertSame(
+            66.87,
+            Position::computeStructureStopLoss(67.00, 68.00, 1.30, \App\Enums\TradeDirection::Long),
+        );
+    }
+
+    public function test_scout_new_sl_prefers_structure_over_sma_protocol(): void
+    {
+        $scout = Position::factory()->scout()->make([
+            'signal_low' => 75.00,
+            'signal_high' => 80.00,
+            'latest_sma_20' => 77.50,
+            'latest_atr_14' => 2.80,
+        ]);
+
+        // Structure long SL = low − 0.10×ATR = 74.72 (clears the low), not SMA − ATR/2 = 76.10.
+        $this->assertEquals(74.72, $scout->new_sl);
+    }
+
     public function test_buy_stop_returns_null_without_inputs(): void
     {
         $this->assertNull(Position::computeBuyStop(null, 1.30));

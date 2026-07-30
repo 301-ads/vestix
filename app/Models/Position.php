@@ -772,7 +772,12 @@ class Position extends Model
         ?float $target1Rr = null,
         ?float $firstTrancheFraction = null,
     ): void {
-        $sl = self::computeNewSl($this->latest_sma_20, $this->latest_atr_14, $this->tradeDirection());
+        $sl = self::computeStructureStopLoss(
+            $this->signal_low,
+            $this->signal_high,
+            $this->latest_atr_14,
+            $this->tradeDirection(),
+        ) ?? self::computeNewSl($this->latest_sma_20, $this->latest_atr_14, $this->tradeDirection());
 
         if ($sl === null) {
             throw new InvalidArgumentException('Marktdata ontbreekt — kan geen stop-loss berekenen.');
@@ -1544,6 +1549,26 @@ class Position extends Model
         return StopLossProtocol::computeStandard($sma, $atr, $direction);
     }
 
+    /**
+     * Initial/structure stop for trampoline scouts: clears the signal candle extreme + 0.10×ATR buffer.
+     * Short: above signal high (same formula as buy-stop). Long: below signal low (same as sell-stop).
+     * Quantity/risk sizing should derive FROM this distance — not the reverse.
+     */
+    public static function computeStructureStopLoss(
+        mixed $signalLow,
+        mixed $signalHigh,
+        mixed $atr,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): ?float {
+        $direction = $direction instanceof TradeDirection
+            ? $direction
+            : (($direction === TradeDirection::Short->value) ? TradeDirection::Short : TradeDirection::Long);
+
+        return $direction === TradeDirection::Short
+            ? self::computeBuyStop($signalHigh, $atr)
+            : self::computeSellStop($signalLow, $atr);
+    }
+
     public static function computeBuyStop(mixed $high, mixed $atr): ?float
     {
         if ($high === null || $atr === null || $high === '' || $atr === '') {
@@ -1620,6 +1645,20 @@ class Position extends Model
 
     public function getNewSlAttribute(): ?float
     {
+        // Scouts: structure SL (signal extreme + buffer). Open positions: trailing protocol (SMA ± ATR/2).
+        if ($this->status === 'scout') {
+            $structure = self::computeStructureStopLoss(
+                $this->signal_low,
+                $this->signal_high,
+                $this->latest_atr_14,
+                $this->tradeDirection(),
+            );
+
+            if ($structure !== null) {
+                return $structure;
+            }
+        }
+
         return StopLossProtocol::resolve($this);
     }
 

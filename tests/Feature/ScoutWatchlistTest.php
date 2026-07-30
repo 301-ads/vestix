@@ -204,6 +204,27 @@ class ScoutWatchlistTest extends TestCase
         $this->assertSame(Position::PRIMARY_ACTION_PLACE_INITIAL_SL, $scout->primaryActionType());
     }
 
+    public function test_activate_scout_uses_structure_stop_when_signal_extreme_present(): void
+    {
+        $scout = Position::factory()->scout()->short()->create([
+            'ticker' => 'GNTX',
+            'entry_price' => 23.80,
+            'signal_low' => 23.87,
+            'signal_high' => 24.44,
+            'latest_sma_20' => 23.99,
+            'latest_atr_14' => 0.70,
+        ]);
+
+        $scout->activateAsPosition(23.80, 125);
+
+        $scout->refresh();
+
+        $this->assertEquals('open', $scout->status);
+        $this->assertEquals(24.51, (float) $scout->initial_sl);
+        $this->assertEquals(24.51, (float) $scout->current_sl);
+        $this->assertGreaterThan(24.44, (float) $scout->initial_sl);
+    }
+
     public function test_activate_scout_fails_without_market_data(): void
     {
         $scout = Position::factory()->scout()->create([

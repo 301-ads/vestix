@@ -48,6 +48,83 @@ class ShortModuleTest extends TestCase
         $this->assertNull(Position::computeSellStop(null, 1.30));
     }
 
+    public function test_short_structure_stop_clears_signal_high(): void
+    {
+        // GNTX-style: sell-stop entry under low; SL must sit above signal high, not inside the wick.
+        $atr = 0.70;
+        $signalLow = 23.87;
+        $signalHigh = 24.44;
+        $entry = Position::computeSellStop($signalLow, $atr);
+        $structureSl = Position::computeStructureStopLoss($signalLow, $signalHigh, $atr, TradeDirection::Short);
+
+        $this->assertSame(23.80, $entry);
+        $this->assertSame(24.51, $structureSl);
+        $this->assertGreaterThan($signalHigh, $structureSl);
+
+        $scout = Position::factory()->scout()->short()->make([
+            'entry_price' => $entry,
+            'quantity' => 125,
+            'signal_low' => $signalLow,
+            'signal_high' => $signalHigh,
+            'latest_sma_20' => 23.99,
+            'latest_atr_14' => $atr,
+            'target_1_rr' => 2.0,
+        ]);
+
+        // Structure SL wins over SMA + ATR/2 (= 24.34) which would sit inside the wick.
+        $this->assertSame(24.51, $scout->new_sl);
+        $this->assertSame(0.71, $scout->planned_risk_per_share);
+        $this->assertEqualsWithDelta(88.75, $scout->planned_risk_dollars, 0.01);
+    }
+
+    public function test_short_structure_sl_cascade_shrinks_qty_and_lowers_1_to_2_target(): void
+    {
+        // Wrong (SMA) SL inside wick: $24.34 → $0.54/share → 125 stuks op $67.50 risico → T1 $22.72
+        // Correct structure SL above high: $24.51 → $0.71/share → kleinere qty + diepere T1.
+        $entry = 23.80;
+        $structureSl = 24.51;
+        $riskBudget = 67.50;
+
+        $qty = PositionSizing::quantityFromRiskBudget($riskBudget, $entry, $structureSl, TradeDirection::Short);
+        $riskPerShare = PositionSizing::riskPerShare($entry, $structureSl, TradeDirection::Short);
+        $target = PositionSizing::targetPrice($entry, $riskPerShare, 2.0, TradeDirection::Short);
+
+        $this->assertSame(95, $qty);
+        $this->assertSame(0.71, $riskPerShare);
+        $this->assertSame(22.38, $target);
+        $this->assertLessThan(125, $qty);
+        $this->assertLessThan(22.72, $target);
+        $this->assertEqualsWithDelta(67.45, $qty * $riskPerShare, 0.01);
+
+        $scout = Position::factory()->scout()->short()->make([
+            'entry_price' => $entry,
+            'quantity' => $qty,
+            'signal_low' => 23.87,
+            'signal_high' => 24.44,
+            'latest_sma_20' => 23.99,
+            'latest_atr_14' => 0.70,
+            'target_1_rr' => 2.0,
+        ]);
+
+        $this->assertSame(24.51, $scout->new_sl);
+        $this->assertSame(22.38, $scout->plannedBracketTarget1Price());
+    }
+
+    public function test_short_scout_falls_back_to_sma_stop_without_signal_high(): void
+    {
+        $position = Position::factory()->scout()->short()->make([
+            'entry_price' => 100.00,
+            'quantity' => 10,
+            'signal_high' => null,
+            'latest_sma_20' => 102.00,
+            'latest_atr_14' => 2.00,
+            'target_1_rr' => 2.0,
+        ]);
+
+        $this->assertSame(103.0, $position->new_sl);
+        $this->assertSame(3.0, $position->planned_risk_per_share);
+    }
+
     public function test_short_target_and_planned_risk_accessors(): void
     {
         $position = Position::factory()->scout()->short()->make([
@@ -58,7 +135,7 @@ class ShortModuleTest extends TestCase
             'target_1_rr' => 2.0,
         ]);
 
-        // new_sl for short scout = SMA + ATR/2 = 103.00
+        // new_sl for short scout without signal high = SMA + ATR/2 = 103.00
         $this->assertSame(103.0, $position->new_sl);
         $this->assertSame(3.0, $position->planned_risk_per_share);
         $this->assertSame(94.0, $position->plannedBracketTarget1Price());
