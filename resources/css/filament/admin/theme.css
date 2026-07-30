@@ -2339,22 +2339,49 @@
     background: var(--gray-700);
 }
 
+/* Outlined icon button — match Kapitaalbewegingen / fi-icon-btn chrome next to clipboard */
 .vestix-execution-plan__remove-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border: 0;
-    border-radius: 0.4rem;
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--gray-300);
+    border-radius: 0.5rem;
     color: var(--gray-500);
     background: transparent;
+    box-shadow: none;
     cursor: pointer;
+    transition: background-color 150ms, color 150ms, border-color 150ms;
 }
 
-.vestix-execution-plan__remove-btn:hover {
+.vestix-execution-plan__remove-btn:hover,
+.vestix-execution-plan__remove-btn:focus-visible {
     color: var(--danger-600);
+    border-color: color-mix(in srgb, var(--danger-500) 45%, var(--gray-300));
     background: color-mix(in srgb, var(--danger-500) 12%, transparent);
+    outline: none;
+}
+
+.vestix-execution-plan__remove-btn:disabled,
+.vestix-execution-plan__remove-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.dark .vestix-execution-plan__remove-btn {
+    border-color: var(--gray-600);
+    color: var(--gray-400);
+}
+
+.dark .vestix-execution-plan__remove-btn:hover,
+.dark .vestix-execution-plan__remove-btn:focus-visible {
+    color: var(--danger-400);
+    border-color: color-mix(in srgb, var(--danger-400) 50%, var(--gray-600));
+    background: color-mix(in srgb, var(--danger-500) 18%, transparent);
 }
 
 .vestix-execution-plan__footer {

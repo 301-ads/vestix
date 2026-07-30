@@ -200,6 +200,7 @@ class SmartBudgetAllocationTest extends TestCase
             ->assertSee('R/R')
             ->assertSee('Risico %')
             ->assertSeeHtml('vestix-smart-allocation__ticker-link')
+            ->assertSeeHtml('vestix-execution-plan__remove-btn')
             ->assertDontSee('Buy-Stop')
             ->assertDontSee('Take-Profit')
             ->assertSee('Toepassen');
