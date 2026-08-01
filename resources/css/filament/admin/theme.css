@@ -1260,6 +1260,10 @@
         border-inline-start-width: 3px;
         border-inline-start-style: solid;
         border-inline-start-color: var(--info-500);
+        background-color: rgb(255 255 255 / 0.7);
+    }
+
+    .dark .vestix-dashboard .vestix-actions-table-widget .fi-ta-row {
         background-color: rgb(255 255 255 / 0.03);
     }
 
