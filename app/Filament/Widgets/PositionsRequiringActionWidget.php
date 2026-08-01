@@ -34,7 +34,7 @@ class PositionsRequiringActionWidget extends TableWidget
         'lg' => 2,
     ];
 
-    protected string $view = 'filament.widgets.scrollable-table-widget';
+    protected string $view = 'filament.widgets.actions-table-widget';
 
     public function getPollingInterval(): ?string
     {
@@ -53,6 +53,10 @@ class PositionsRequiringActionWidget extends TableWidget
             ->recordUrl(fn (Position $record): string => $record->status === 'scout'
                 ? ScoutResource::getUrl('edit', ['record' => $record])
                 : PositionResource::getUrl('edit', ['record' => $record]))
+            ->recordClasses(fn (Position $record): array => [
+                'vestix-action-row',
+                'vestix-action-row--'.$this->formatActionAccent($record),
+            ])
             ->columns([
                 TickerColumn::wrap(
                     TextColumn::make('ticker')

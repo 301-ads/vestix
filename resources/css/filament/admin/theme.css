@@ -1216,6 +1216,125 @@
     display: none;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Acties vereist — mobile stacked cards                                      */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 639px) {
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-content-ctn {
+        max-height: none;
+        overflow: visible;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-content-ctn thead {
+        display: none;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-table {
+        display: block;
+        width: 100%;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-table tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 0.75rem;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "ticker type"
+            "instruction instruction"
+            "actions actions";
+        column-gap: 0.75rem;
+        row-gap: 0.625rem;
+        align-items: center;
+        width: 100%;
+        margin: 0;
+        padding: 0.875rem 1rem;
+        border: 1px solid var(--vestix-border);
+        border-radius: 0.75rem;
+        border-inline-start-width: 3px;
+        border-inline-start-style: solid;
+        border-inline-start-color: var(--info-500);
+        background-color: rgb(255 255 255 / 0.03);
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row.vestix-action-row--success {
+        border-inline-start-color: var(--success-500);
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row.vestix-action-row--warning {
+        border-inline-start-color: var(--warning-500);
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row.vestix-action-row--danger {
+        border-inline-start-color: var(--danger-500);
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row.vestix-action-row--info {
+        border-inline-start-color: var(--info-500);
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row.vestix-action-row--gray {
+        border-inline-start-color: var(--gray-400);
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row > .fi-ta-cell {
+        display: block;
+        width: auto;
+        max-width: none;
+        padding: 0 !important;
+        border: 0;
+        background: transparent;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row > .fi-ta-cell:nth-child(1) {
+        grid-area: ticker;
+        min-width: 0;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row > .fi-ta-cell:nth-child(2) {
+        grid-area: type;
+        justify-self: end;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row > .fi-ta-cell:nth-child(3) {
+        grid-area: instruction;
+        min-width: 0;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row > .fi-ta-cell:has(.fi-ta-actions),
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row > .fi-ta-cell:last-child {
+        grid-area: actions;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row .fi-ta-text:not(.fi-inline),
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row .fi-ta-text-item {
+        padding: 0 !important;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row .fi-ta-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row .fi-ta-actions .fi-ac-btn-action,
+    .vestix-dashboard .vestix-actions-table-widget .fi-ta-row .fi-ta-actions .fi-btn {
+        width: 100%;
+        max-width: 100%;
+        justify-content: center;
+    }
+}
+
 .vestix-dashboard .vestix-actions-widget .vestix-action-todos {
     display: flex;
     flex-direction: column;
