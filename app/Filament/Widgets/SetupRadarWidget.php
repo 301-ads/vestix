@@ -22,6 +22,8 @@ use Illuminate\Support\HtmlString;
 
 class SetupRadarWidget extends TableWidget
 {
+    protected static bool $isLazy = false;
+
     protected static ?int $sort = 4;
 
     /**
