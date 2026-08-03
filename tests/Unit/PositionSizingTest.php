@@ -92,6 +92,27 @@ class PositionSizingTest extends TestCase
         $this->assertEqualsWithDelta(0.0, PositionSizing::overLimitByPercentPoints(0.4, 1.0), 0.001);
     }
 
+    public function test_reward_risk_from_target_round_trips_with_target_price(): void
+    {
+        $entry = 65.13;
+        $riskPerShare = 2.43;
+        $rr = 2.0;
+        $target = PositionSizing::targetPrice($entry, $riskPerShare, $rr);
+
+        $this->assertEqualsWithDelta(69.99, $target, 0.001);
+        $this->assertEqualsWithDelta(
+            $rr,
+            PositionSizing::rewardRiskFromTarget($entry, $riskPerShare, $target),
+            0.001,
+        );
+    }
+
+    public function test_reward_risk_from_target_returns_null_when_target_is_on_wrong_side(): void
+    {
+        $this->assertNull(PositionSizing::rewardRiskFromTarget(65.13, 2.43, 64.00));
+        $this->assertNull(PositionSizing::rewardRiskFromTarget(65.13, 2.43, 70.00, 'short'));
+    }
+
     /**
      * @return array<string, array{float, float, float, int}>
      */

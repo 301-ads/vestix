@@ -293,6 +293,31 @@ class PositionResourceTest extends TestCase
         $this->assertNull($position->fresh()->exit_price);
     }
 
+    public function test_edit_page_can_update_take_profit_via_target_1_rr(): void
+    {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
+            'status' => 'open',
+            'entry_price' => 65.13,
+            'initial_sl' => 62.70,
+            'current_sl' => 64.98,
+            'target_1_rr' => 2.0,
+        ]);
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertOk()
+            ->assertSee('Take Profit (Target 1)')
+            ->assertSee('Target 1 R/R')
+            ->fillForm([
+                'target_1_rr' => 2.5,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertEqualsWithDelta(2.5, (float) $position->fresh()->target_1_rr, 0.001);
+        $this->assertEqualsWithDelta(71.21, (float) $position->fresh()->target_1_price, 0.01);
+    }
+
     public function test_confirm_sl_action_updates_current_sl(): void
     {
         $user = $this->authenticateFilament();

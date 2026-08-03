@@ -803,6 +803,8 @@ class PositionForm
 
                                 if ($isScoutForm($record, $operation)) {
                                     self::syncPlannedQuantityFromInvestment($set, $get, $record);
+                                } else {
+                                    self::syncTakeProfitPriceFromRr($set, $get, $record);
                                 }
                             })
                             ->afterStateHydrated(function (Set $set, Get $get, ?Position $record, string $operation) use ($isScoutForm): void {
@@ -810,6 +812,8 @@ class PositionForm
 
                                 if ($isScoutForm($record, $operation)) {
                                     self::syncPlannedQuantityFromInvestment($set, $get, $record);
+                                } else {
+                                    self::hydrateTarget1Fields($set, $get, $record);
                                 }
                             }),
                         self::marketOpenReminderToggle()
@@ -832,6 +836,30 @@ class PositionForm
                             ->prefix('$')
                             ->minValue(0.01)
                             ->live(onBlur: true),
+                    ]),
+                Grid::make(2)
+                    ->visible(function (?Position $record, string $operation) use ($isScoutForm): bool {
+                        return ! $isScoutForm($record, $operation);
+                    })
+                    ->schema([
+                        TextInput::make('_take_profit_price')
+                            ->label('Take Profit (Target 1)')
+                            ->numeric()
+                            ->prefix('$')
+                            ->minValue(0.01)
+                            ->dehydrated(false)
+                            ->helperText('Limit-prijs voor Target 1 — past R/R automatisch aan.')
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTarget1RrFromTakeProfit($set, $get, $record)),
+                        TextInput::make('target_1_rr')
+                            ->label('Target 1 R/R')
+                            ->numeric()
+                            ->minValue(0.1)
+                            ->step(0.1)
+                            ->helperText('1:2 = standaard — Take Profit herberekent mee.')
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTakeProfitPriceFromRr($set, $get, $record))
+                            ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::hydrateTarget1Fields($set, $get, $record)),
                     ]),
                 self::bankrollSetupCallout($isScoutForm),
                 self::earningsSmartAlert(),
@@ -1417,6 +1445,99 @@ class PositionForm
         }
 
         $set('_total_investment', number_format((float) $entry * (float) $quantity, 2, '.', ''));
+    }
+
+    private static function hydrateTarget1Fields(Set $set, Get $get, ?Position $record): void
+    {
+        $rr = $get('target_1_rr');
+
+        if (($rr === null || $rr === '') && $record !== null) {
+            $rr = $record->target_1_rr ?? Position::defaultTarget1Rr();
+            $set('target_1_rr', number_format((float) $rr, 1, '.', ''));
+        }
+
+        self::syncTakeProfitPriceFromRr($set, $get, $record);
+    }
+
+    private static function syncTakeProfitPriceFromRr(Set $set, Get $get, ?Position $record): void
+    {
+        $entry = self::numericFormValue($get('entry_price') ?? $record?->entry_price);
+        $rr = self::numericFormValue($get('target_1_rr') ?? $record?->target_1_rr ?? Position::defaultTarget1Rr());
+        $riskPerShare = self::target1RiskPerShare($get, $record, $entry);
+
+        if ($entry === null || $rr === null || $riskPerShare === null) {
+            $set('_take_profit_price', null);
+
+            return;
+        }
+
+        $direction = $record?->tradeDirection() ?? TradeDirection::Long;
+        $set('_take_profit_price', number_format(
+            PositionSizing::targetPrice($entry, $riskPerShare, $rr, $direction),
+            2,
+            '.',
+            '',
+        ));
+    }
+
+    private static function syncTarget1RrFromTakeProfit(Set $set, Get $get, ?Position $record): void
+    {
+        $entry = self::numericFormValue($get('entry_price') ?? $record?->entry_price);
+        $takeProfit = self::numericFormValue($get('_take_profit_price'));
+        $riskPerShare = self::target1RiskPerShare($get, $record, $entry);
+
+        if ($entry === null || $takeProfit === null || $riskPerShare === null) {
+            return;
+        }
+
+        $direction = $record?->tradeDirection() ?? TradeDirection::Long;
+        $rr = PositionSizing::rewardRiskFromTarget($entry, $riskPerShare, $takeProfit, $direction);
+
+        if ($rr === null) {
+            return;
+        }
+
+        $set('target_1_rr', number_format($rr, 4, '.', ''));
+    }
+
+    private static function target1RiskPerShare(Get $get, ?Position $record, ?float $entry): ?float
+    {
+        if ($entry === null) {
+            return null;
+        }
+
+        $stopLoss = self::numericFormValue(
+            $record?->initial_sl
+                ?? $get('current_sl')
+                ?? $record?->current_sl
+        );
+
+        if ($stopLoss === null) {
+            return null;
+        }
+
+        return PositionSizing::riskPerShare(
+            $entry,
+            $stopLoss,
+            $record?->tradeDirection() ?? TradeDirection::Long,
+        );
+    }
+
+    private static function numericFormValue(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $value = str_replace(',', '.', $value);
+        }
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
     }
 
     private static function syncPlannedQuantityFromInvestment(Set $set, Get $get, ?Position $record): void

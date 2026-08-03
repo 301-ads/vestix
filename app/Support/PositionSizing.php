@@ -74,6 +74,29 @@ class PositionSizing
         return round($entry + ($rewardRisk * $riskPerShare), 2);
     }
 
+    public static function rewardRiskFromTarget(
+        float $entry,
+        float $riskPerShare,
+        float $targetPrice,
+        TradeDirection|string|null $direction = TradeDirection::Long,
+    ): ?float {
+        if ($riskPerShare <= 0) {
+            return null;
+        }
+
+        $direction = self::normalizeDirection($direction);
+
+        $reward = $direction === TradeDirection::Short
+            ? round($entry - $targetPrice, 2)
+            : round($targetPrice - $entry, 2);
+
+        if ($reward <= 0) {
+            return null;
+        }
+
+        return round($reward / $riskPerShare, 4);
+    }
+
     public static function quantityFromRiskBudget(
         float $riskBudget,
         float $entry,
