@@ -10,6 +10,8 @@ class EdgeAnalyticsWidget extends Widget
 {
     protected string $view = 'filament.widgets.edge-analytics-widget';
 
+    protected static bool $isLazy = false;
+
     protected int|string|array $columnSpan = 'full';
 
     public static function canView(): bool

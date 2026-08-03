@@ -9,17 +9,10 @@ use Livewire\Component;
 
 class ExecutionPlanPanel extends Component
 {
-    public bool $contentLoaded = false;
-
     #[On('order-plan-updated')]
     public function refreshPlan(): void
     {
         // Refresh badge when Order Plan membership changes.
-    }
-
-    public function loadContent(): void
-    {
-        $this->contentLoaded = true;
     }
 
     public function planCount(): int

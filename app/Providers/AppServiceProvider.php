@@ -16,7 +16,6 @@ use App\Services\FallbackDailyBarProvider;
 use App\Services\FallbackQuoteProvider;
 use App\Services\Ibkr\FlexIbkrAccountReader;
 use App\Services\Ibkr\StubIbkrAccountReader;
-use App\Services\StrategyAnalyticsService;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse as RegistrationResponseContract;
 use Illuminate\Support\Facades\Auth;
@@ -41,7 +40,6 @@ class AppServiceProvider extends ServiceProvider
                 default => $this->app->make(StubIbkrAccountReader::class),
             };
         });
-        $this->app->singleton(StrategyAnalyticsService::class);
     }
 
     /**

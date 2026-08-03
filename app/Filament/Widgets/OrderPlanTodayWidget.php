@@ -8,9 +8,9 @@ use Livewire\Attributes\On;
 
 class OrderPlanTodayWidget extends Widget
 {
-    protected static bool $isLazy = false;
-
     protected string $view = 'filament.widgets.order-plan-today-widget';
+
+    protected static bool $isLazy = false;
 
     protected static ?int $sort = 5;
 
@@ -29,6 +29,6 @@ class OrderPlanTodayWidget extends Widget
 
     public function getPollingInterval(): ?string
     {
-        return FilamentPolling::interval();
+        return FilamentPolling::INTERVAL;
     }
 }

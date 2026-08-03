@@ -22,6 +22,8 @@ use Illuminate\Support\HtmlString;
 
 class SetupRadarWidget extends TableWidget
 {
+    protected static bool $isLazy = false;
+
     protected static ?int $sort = 4;
 
     /**
@@ -44,7 +46,7 @@ class SetupRadarWidget extends TableWidget
     public function table(Table $table): Table
     {
         return $table
-            ->poll(FilamentPolling::interval())
+            ->poll(FilamentPolling::INTERVAL)
             ->columnManager(false)
             ->striped(false)
             ->heading('Setup Radar')
@@ -131,6 +133,6 @@ class SetupRadarWidget extends TableWidget
             ])
             ->emptyStateHeading('Geen sterke setups in je watchlist')
             ->emptyStateDescription('Voeg A+/A- setups toe via Mijn Radar, of pas het filter aan.')
-            ->paginated([10, 25]);
+            ->paginated(false);
     }
 }

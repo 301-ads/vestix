@@ -2,17 +2,16 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Concerns\PollsWithMarketAwareInterval;
 use App\Models\Position;
-use App\Support\OpenPositionsSnapshot;
+use App\Support\FilamentPolling;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class PortfolioExposureWidget extends StatsOverviewWidget
 {
-    use PollsWithMarketAwareInterval;
-
     protected static bool $isLazy = false;
+
+    protected ?string $pollingInterval = FilamentPolling::INTERVAL;
 
     protected static ?int $sort = 1;
 
@@ -31,7 +30,7 @@ class PortfolioExposureWidget extends StatsOverviewWidget
             return [];
         }
 
-        $openPositions = OpenPositionsSnapshot::forUser($userId);
+        $openPositions = Position::open()->nonLegacy()->forUser($userId)->get();
 
         $totalInvested = $openPositions->sum(fn (Position $position) => $position->portfolio_cost_basis);
         $totalValue = $openPositions->sum(fn (Position $position) => $position->portfolio_equity_value);

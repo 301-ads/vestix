@@ -2,10 +2,9 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Concerns\PollsWithMarketAwareInterval;
 use App\Models\Position;
+use App\Support\FilamentPolling;
 use App\Support\OpenPositionsFilters;
-use App\Support\OpenPositionsSnapshot;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Collection;
@@ -13,11 +12,11 @@ use Livewire\Attributes\Reactive;
 
 class OpenPositionsStatsWidget extends StatsOverviewWidget
 {
-    use PollsWithMarketAwareInterval;
+    protected static bool $isDiscovered = false;
 
     protected static bool $isLazy = false;
 
-    protected static bool $isDiscovered = false;
+    protected ?string $pollingInterval = FilamentPolling::INTERVAL;
 
     protected int|string|array $columnSpan = 'full';
 
@@ -45,7 +44,7 @@ class OpenPositionsStatsWidget extends StatsOverviewWidget
             return [];
         }
 
-        $openPositions = OpenPositionsSnapshot::forUser($userId);
+        $openPositions = Position::open()->nonLegacy()->forUser($userId)->get();
 
         if ($openPositions->isEmpty()) {
             return [
