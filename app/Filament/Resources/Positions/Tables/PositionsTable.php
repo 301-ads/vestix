@@ -18,6 +18,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 
@@ -41,7 +42,7 @@ class PositionsTable
      * Capital-weighted closed ROI %: Σ $ P&L ÷ Σ inleg (entry × quantity).
      * Prefer this over AVG(% per trade) when position sizes differ.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  Builder  $query
      */
     private static function capitalWeightedClosedRoiPct($query): float
     {
@@ -72,7 +73,7 @@ class PositionsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->poll(FilamentPolling::INTERVAL)
+            ->poll(FilamentPolling::interval())
             ->columnManager(false)
             ->striped(false)
             ->defaultSort('unrealized_pnl_percentage', 'desc')
@@ -213,7 +214,7 @@ class PositionsTable
                     ->money('usd')
                     ->color(fn ($state) => ($state ?? 0) >= 0 ? 'success' : 'danger')
                     ->sortable(query: function ($query, string $direction): void {
-                        $query->orderByRaw("CASE WHEN status = 'closed' THEN ".self::blendedClosedPnlSql()." ELSE ".self::blendedOpenPnlSql()." END {$direction}");
+                        $query->orderByRaw("CASE WHEN status = 'closed' THEN ".self::blendedClosedPnlSql().' ELSE '.self::blendedOpenPnlSql()." END {$direction}");
                     })
                     ->toggleable()
                     ->width('5.5rem')

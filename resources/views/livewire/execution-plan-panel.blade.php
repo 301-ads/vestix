@@ -22,6 +22,7 @@
                 icon-size="lg"
                 label="Order Plan"
                 class="fi-topbar-execution-plan-btn"
+                x-on:click="$wire.loadContent()"
             />
         </x-slot>
 
@@ -47,9 +48,15 @@
             </div>
         </x-slot>
 
-        <livewire:execution-plan-content
-            layout="panel"
-            :key="'execution-plan-panel-content'"
-        />
+        @if ($contentLoaded)
+            <livewire:execution-plan-content
+                layout="panel"
+                :key="'execution-plan-panel-content'"
+            />
+        @else
+            <div class="p-4 text-sm text-gray-500 dark:text-gray-400">
+                Order Plan laden…
+            </div>
+        @endif
     </x-filament::modal>
 </div>

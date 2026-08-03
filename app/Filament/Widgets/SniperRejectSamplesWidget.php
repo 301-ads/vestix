@@ -8,8 +8,6 @@ class SniperRejectSamplesWidget extends Widget
 {
     protected string $view = 'filament.widgets.sniper-reject-samples-widget';
 
-    protected static bool $isLazy = false;
-
     protected static ?int $sort = 9;
 
     /**

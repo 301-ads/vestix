@@ -4,6 +4,8 @@ Vestix — Laravel Forge setup checklist
 Server (Forge → Create Server)
   [ ] PHP 8.3
   [ ] MySQL 8
+  [ ] Redis enabled (Forge → Server → Redis, or install redis-server)
+  [ ] PHP redis extension (phpredis) enabled for PHP 8.3
   [ ] Node.js enabled
   [ ] UFW / fail2ban defaults
 
@@ -35,7 +37,14 @@ Environment (Forge → Site → Environment)
         ALPHA_VANTAGE_API_KEY=... (fallback quote, max 25/dag gratis)
   [ ] Fill overige keys: mail (Resend), VESTIX_ADMIN_NOTIFICATION_EMAILS, PHP_BINARY
   [ ] Resend: domein vestix.io verifiëren, RESEND_API_KEY in Environment
-  [ ] Queue worker in Forge (Site → Queue) voor e-mailnotificaties en Telegram alerts (database queue)
+  [ ] Redis drivers (from production.env.example):
+        CACHE_STORE=redis
+        QUEUE_CONNECTION=redis
+        REDIS_CLIENT=phpredis
+        REDIS_HOST=127.0.0.1
+        # Optional later (logs users out once): SESSION_DRIVER=redis
+  [ ] Queue worker in Forge (Site → Queue) for alerts/jobs — connection: redis
+        (restart worker after switching QUEUE_CONNECTION from database → redis)
 
 Deployment (Forge → Site → Deployment)
   [ ] Zero-downtime deploy script: zie forge/deploy.sh

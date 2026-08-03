@@ -276,6 +276,7 @@ class SmartBudgetAllocationTest extends TestCase
         $this->authenticateFilament();
 
         Livewire::test(ExecutionPlanPanel::class)
+            ->call('loadContent')
             ->assertSeeLivewire(ExecutionPlanContent::class);
     }
 

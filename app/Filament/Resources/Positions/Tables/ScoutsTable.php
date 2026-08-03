@@ -2,11 +2,13 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
+use App\Enums\PositionVisibility;
 use App\Enums\ScoutPipelineStatus;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\DirectionColumn;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\FilamentNotifier;
 use App\Support\FilamentPolling;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
@@ -33,7 +35,7 @@ class ScoutsTable
     public static function configure(Table $table, bool $squadMode = false, string $resourceClass = ScoutResource::class): Table
     {
         $table = $table
-            ->poll(FilamentPolling::INTERVAL)
+            ->poll(FilamentPolling::interval())
             ->columnManager(false)
             ->striped(false)
             ->defaultSort('setup_grade', 'asc')
@@ -207,7 +209,7 @@ class ScoutsTable
                                     $count++;
                                 }
 
-                                \App\Support\FilamentNotifier::send(
+                                FilamentNotifier::send(
                                     title: 'Order Plan bijgewerkt',
                                     body: "{$count} scout(s) toegevoegd.",
                                 );
@@ -234,7 +236,7 @@ class ScoutsTable
                                     $count++;
                                 }
 
-                                \App\Support\FilamentNotifier::send(
+                                FilamentNotifier::send(
                                     title: 'Scouts verwijderd',
                                     body: "{$count} scout(s) weggehaald.",
                                 );
@@ -253,13 +255,13 @@ class ScoutsTable
                                     }
 
                                     $record->update([
-                                        'visibility' => \App\Enums\PositionVisibility::Private,
+                                        'visibility' => PositionVisibility::Private,
                                         'squad_id' => null,
                                     ]);
                                     $count++;
                                 }
 
-                                \App\Support\FilamentNotifier::send(
+                                FilamentNotifier::send(
                                     title: 'Ghost Mode',
                                     body: "{$count} scout(s) privé gezet.",
                                 );

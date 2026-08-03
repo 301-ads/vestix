@@ -9,8 +9,6 @@ use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
 class GradePerformanceChart extends ApexChartWidget
 {
-    protected static bool $isLazy = false;
-
     protected static ?string $chartId = 'strategyGradePerformance';
 
     protected static ?string $heading = 'Winstgevendheid per setup-grade';

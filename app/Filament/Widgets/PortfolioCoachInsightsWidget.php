@@ -10,8 +10,6 @@ class PortfolioCoachInsightsWidget extends Widget
 {
     protected string $view = 'filament.widgets.portfolio-coach-insights-widget';
 
-    protected static bool $isLazy = false;
-
     protected int|string|array $columnSpan = 'full';
 
     /**

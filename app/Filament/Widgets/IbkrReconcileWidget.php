@@ -21,8 +21,6 @@ class IbkrReconcileWidget extends Widget implements HasActions, HasSchemas
 
     protected string $view = 'filament.widgets.ibkr-reconcile-widget';
 
-    protected static bool $isLazy = false;
-
     protected static ?int $sort = 1;
 
     /**

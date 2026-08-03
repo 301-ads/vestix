@@ -8,8 +8,6 @@ use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
 class EquityCurveChart extends ApexChartWidget
 {
-    protected static bool $isLazy = false;
-
     protected static ?string $chartId = 'strategyEquityCurve';
 
     protected static ?string $heading = 'Equity Curve';

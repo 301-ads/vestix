@@ -2,18 +2,16 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Concerns\PollsWithMarketAwareInterval;
 use App\Services\StrategyAnalyticsService;
-use App\Support\FilamentPolling;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class ArchivePostMortemStatsWidget extends StatsOverviewWidget
 {
+    use PollsWithMarketAwareInterval;
+
     protected static bool $isDiscovered = false;
-
-    protected static bool $isLazy = false;
-
-    protected ?string $pollingInterval = FilamentPolling::INTERVAL;
 
     protected int|string|array $columnSpan = 'full';
 

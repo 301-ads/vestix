@@ -3,8 +3,8 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\ScoutPipelineStatus;
+use App\Filament\Concerns\PollsWithMarketAwareInterval;
 use App\Models\Position;
-use App\Support\FilamentPolling;
 use App\Support\ScoutRadarFilters;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -12,11 +12,11 @@ use Livewire\Attributes\Reactive;
 
 class ScoutRadarStatsWidget extends StatsOverviewWidget
 {
-    protected static bool $isDiscovered = false;
+    use PollsWithMarketAwareInterval;
 
     protected static bool $isLazy = false;
 
-    protected ?string $pollingInterval = FilamentPolling::INTERVAL;
+    protected static bool $isDiscovered = false;
 
     protected int|string|array $columnSpan = 'full';
 

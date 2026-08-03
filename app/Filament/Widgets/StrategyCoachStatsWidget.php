@@ -9,8 +9,6 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class StrategyCoachStatsWidget extends StatsOverviewWidget
 {
-    protected static bool $isLazy = false;
-
     protected ?string $pollingInterval = null;
 
     protected int|string|array $columnSpan = 'full';

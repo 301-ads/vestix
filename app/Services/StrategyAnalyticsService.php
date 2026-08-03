@@ -12,6 +12,12 @@ class StrategyAnalyticsService
 {
     public const MIN_TRADES_FOR_COACH = 20;
 
+    /** @var array<string, Collection<int, Position>> */
+    private array $closedTradesMemo = [];
+
+    /** @var array<string, int> */
+    private array $closedTradeCountMemo = [];
+
     public function minTradesForCoach(): int
     {
         return max(0, (int) config('vestix.strategy_coach.min_closed_trades', self::MIN_TRADES_FOR_COACH));
@@ -31,6 +37,16 @@ class StrategyAnalyticsService
         ?TradeDirection $direction = null,
         bool $activeStrategyTagsOnly = false,
     ): Collection {
+        $memoKey = implode(':', [
+            $userId,
+            $direction?->value ?? 'all',
+            $activeStrategyTagsOnly ? '1' : '0',
+        ]);
+
+        if (isset($this->closedTradesMemo[$memoKey])) {
+            return $this->closedTradesMemo[$memoKey];
+        }
+
         $query = Position::query()
             ->closed()
             ->nonLegacy()
@@ -46,19 +62,42 @@ class StrategyAnalyticsService
             $query->where('direction', $direction->value);
         }
 
-        return $query->get();
+        return $this->closedTradesMemo[$memoKey] = $query->get();
     }
 
     public function hasEnoughTrades(int $userId, ?TradeDirection $direction = null): bool
     {
-        return $this->closedTradesForUser($userId, $direction)->count() >= $this->minTradesForCoach();
+        return $this->closedTradeCountForUser($userId, $direction) >= $this->minTradesForCoach();
     }
 
     public function tradesUntilCoach(int $userId, ?TradeDirection $direction = null): int
     {
-        $count = $this->closedTradesForUser($userId, $direction)->count();
+        return max(0, $this->minTradesForCoach() - $this->closedTradeCountForUser($userId, $direction));
+    }
 
-        return max(0, $this->minTradesForCoach() - $count);
+    public function closedTradeCountForUser(int $userId, ?TradeDirection $direction = null): int
+    {
+        $memoKey = implode(':', [$userId, $direction?->value ?? 'all']);
+
+        if (isset($this->closedTradeCountMemo[$memoKey])) {
+            return $this->closedTradeCountMemo[$memoKey];
+        }
+
+        $collectionKey = implode(':', [$userId, $direction?->value ?? 'all', '0']);
+        if (isset($this->closedTradesMemo[$collectionKey])) {
+            return $this->closedTradeCountMemo[$memoKey] = $this->closedTradesMemo[$collectionKey]->count();
+        }
+
+        $query = Position::query()
+            ->closed()
+            ->nonLegacy()
+            ->forUser($userId);
+
+        if ($direction !== null) {
+            $query->where('direction', $direction->value);
+        }
+
+        return $this->closedTradeCountMemo[$memoKey] = $query->count();
     }
 
     /**

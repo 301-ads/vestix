@@ -12,8 +12,6 @@ class BankrollUpdateWidget extends Widget
 {
     protected string $view = 'filament.widgets.bankroll-update-widget';
 
-    protected static bool $isLazy = false;
-
     protected static ?int $sort = 2;
 
     protected int|string|array $columnSpan = 'full';

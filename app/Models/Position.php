@@ -16,6 +16,7 @@ use App\Enums\ScoutSource;
 use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Services\AssetSyncService;
+use App\Services\ProtocolComplianceService;
 use App\Support\EarningsExitSchedule;
 use App\Support\PositionSizing;
 use App\Support\ScoutSetupScorecard;
@@ -36,8 +37,6 @@ class Position extends Model
     use HasFactory;
 
     protected $guarded = [];
-
-    protected $appends = ['new_sl', 'action_command'];
 
     protected function casts(): array
     {
@@ -722,7 +721,7 @@ class Position extends Model
 
         $this->update($data);
 
-        app(\App\Services\ProtocolComplianceService::class)->persistForClosed($this->fresh() ?? $this);
+        app(ProtocolComplianceService::class)->persistForClosed($this->fresh() ?? $this);
     }
 
     public function getEntryChartScreenshotUrlAttribute(): ?string
@@ -1446,13 +1445,82 @@ class Position extends Model
      */
     public static function requiringActionForUser(int $userId): Collection
     {
+        $candidateIds = static::actionableCandidateIdsForUser($userId);
+
+        if ($candidateIds->isEmpty()) {
+            return collect();
+        }
+
         return static::query()
             ->forUser($userId)
             ->open()
+            ->whereIn('id', $candidateIds)
             ->with('asset')
             ->get()
             ->filter(fn (self $position): bool => $position->primaryActionType() !== null)
             ->values();
+    }
+
+    /**
+     * SQL-side candidates for {@see primaryActionType()} — still filtered in PHP for exact rules.
+     *
+     * @return Collection<int, int>
+     */
+    public static function actionableCandidateIdsForUser(int $userId): Collection
+    {
+        $base = static::query()->forUser($userId)->open();
+
+        $ids = collect();
+
+        $ids = $ids->merge((clone $base)->stoppedOut()->pluck('id'));
+
+        $ids = $ids->merge(
+            (clone $base)
+                ->whereNull('initial_sl_placed_at')
+                ->where(function (Builder $query): void {
+                    $query
+                        ->whereNull('broker')
+                        ->orWhere('broker', '!=', Broker::Ibkr->value);
+                })
+                ->pluck('id'),
+        );
+
+        $ids = $ids->merge(
+            (clone $base)
+                ->whereNull('scaled_out_at')
+                ->whereNull('target_1_limit_placed_at')
+                ->whereNotNull('latest_close_price')
+                ->whereNotNull('entry_price')
+                ->where(function (Builder $query): void {
+                    $query->whereNotNull('initial_sl')->orWhereNotNull('current_sl');
+                })
+                ->pluck('id'),
+        );
+
+        if (UsMarketSession::isTrailingStopReviewWindow()) {
+            $ids = $ids->merge((clone $base)->requiresSlUpdate()->pluck('id'));
+        }
+
+        $today = Carbon::today('Europe/Amsterdam')->toDateString();
+        $horizon = Carbon::today('Europe/Amsterdam')->addDays(10)->toDateString();
+
+        $ids = $ids->merge(
+            (clone $base)
+                ->whereHas('asset', function (Builder $query) use ($today, $horizon): void {
+                    $query->where(function (Builder $inner) use ($today, $horizon): void {
+                        $inner
+                            ->whereBetween('earnings_date_override', [$today, $horizon])
+                            ->orWhere(function (Builder $fallback) use ($today, $horizon): void {
+                                $fallback
+                                    ->whereNull('earnings_date_override')
+                                    ->whereBetween('next_earnings_date', [$today, $horizon]);
+                            });
+                    });
+                })
+                ->pluck('id'),
+        );
+
+        return $ids->unique()->values();
     }
 
     public function effectiveEarningsDate(): ?Carbon

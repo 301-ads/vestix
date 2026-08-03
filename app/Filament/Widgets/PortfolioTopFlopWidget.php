@@ -14,8 +14,6 @@ use Illuminate\Database\Eloquent\Builder;
 
 class PortfolioTopFlopWidget extends TableWidget
 {
-    protected static bool $isLazy = false;
-
     protected static ?int $sort = 3;
 
     /**
@@ -31,7 +29,7 @@ class PortfolioTopFlopWidget extends TableWidget
     public function table(Table $table): Table
     {
         return $table
-            ->poll(FilamentPolling::INTERVAL)
+            ->poll(FilamentPolling::interval())
             ->columnManager(false)
             ->striped(false)
             ->heading('Portfolio')
@@ -89,6 +87,6 @@ class PortfolioTopFlopWidget extends TableWidget
             ])
             ->emptyStateHeading('Geen open posities met marktdata')
             ->emptyStateDescription('Voeg posities toe of haal marktdata op via API sync.')
-            ->paginated(false);
+            ->paginated([10, 25]);
     }
 }

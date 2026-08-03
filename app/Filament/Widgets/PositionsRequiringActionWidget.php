@@ -36,15 +36,21 @@ class PositionsRequiringActionWidget extends TableWidget
 
     protected string $view = 'filament.widgets.actions-table-widget';
 
+    /** @var Collection<int, Position>|null */
+    private ?Collection $requiringActionMemo = null;
+
+    /** @var Collection<int, Position>|null */
+    private ?Collection $buyStopReviewMemo = null;
+
     public function getPollingInterval(): ?string
     {
-        return FilamentPolling::INTERVAL;
+        return FilamentPolling::interval();
     }
 
     public function table(Table $table): Table
     {
         return $table
-            ->poll(FilamentPolling::INTERVAL)
+            ->poll(FilamentPolling::interval())
             ->columnManager(false)
             ->striped(false)
             ->heading(fn (): string|HtmlString => $this->buildHeading())
@@ -99,12 +105,32 @@ class PositionsRequiringActionWidget extends TableWidget
             ->paginated(false);
     }
 
+    /**
+     * @return Collection<int, Position>
+     */
+    private function requiringActions(): Collection
+    {
+        $userId = auth()->id() ?? 0;
+
+        return $this->requiringActionMemo ??= Position::requiringActionForUser($userId);
+    }
+
+    /**
+     * @return Collection<int, Position>
+     */
+    private function buyStopReviews(): Collection
+    {
+        $userId = auth()->id() ?? 0;
+
+        return $this->buyStopReviewMemo ??= Position::requiringBuyStopReviewForUser($userId);
+    }
+
     private function actionableQuery(): Builder
     {
         $userId = auth()->id() ?? 0;
-        $ids = Position::requiringActionForUser($userId)
+        $ids = $this->requiringActions()
             ->pluck('id')
-            ->merge(Position::requiringBuyStopReviewForUser($userId)->pluck('id'))
+            ->merge($this->buyStopReviews()->pluck('id'))
             ->unique()
             ->values();
 
@@ -129,13 +155,11 @@ class PositionsRequiringActionWidget extends TableWidget
      */
     public function getStatusColorCountsProperty(): Collection
     {
-        $userId = auth()->id() ?? 0;
-
-        $counts = Position::requiringActionForUser($userId)
+        $counts = $this->requiringActions()
             ->groupBy(fn (Position $position): string => $this->formatActionAccent($position))
             ->map(fn (Collection $group): int => $group->count());
 
-        $buyStopCount = Position::requiringBuyStopReviewForUser($userId)->count();
+        $buyStopCount = $this->buyStopReviews()->count();
 
         if ($buyStopCount > 0) {
             $counts['warning'] = (int) ($counts['warning'] ?? 0) + $buyStopCount;
