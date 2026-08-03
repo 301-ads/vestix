@@ -14,8 +14,6 @@ use Illuminate\Database\Eloquent\Builder;
 
 class PortfolioTopFlopWidget extends TableWidget
 {
-    protected static bool $isLazy = false;
-
     protected static ?int $sort = 3;
 
     /**
