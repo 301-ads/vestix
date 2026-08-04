@@ -8,7 +8,6 @@ use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\DirectionColumn;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
-use App\Services\CloneAttributionService;
 use App\Support\FilamentNotifier;
 use App\Support\FilamentPolling;
 use App\Support\PremarketGatekeeperDisplay;
@@ -88,13 +87,6 @@ class ScoutsTable
                     ->alignCenter()
                     ->width('4.5rem')
                     ->visible($squadMode),
-                TextColumn::make('cloned_from_label')
-                    ->label('Herkomst')
-                    ->state(fn (Position $record): ?string => app(CloneAttributionService::class)->clonedFromLabel($record))
-                    ->placeholder('—')
-                    ->color('gray')
-                    ->wrap()
-                    ->visible(! $squadMode),
                 TextColumn::make('entry_price')
                     ->label('Entry')
                     ->formatStateUsing(fn ($state, Position $record): ?HtmlString => ScoutRadarFilters::entryPriceWithDistanceHtml($record))
