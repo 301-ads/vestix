@@ -41,7 +41,7 @@ class SmartAllocationServiceTest extends TestCase
     {
         $user = $this->userWithBankroll();
         $a = $this->scout($user, 'AAA', score: 10, sector: 'XLV');
-        $b = $this->scout($user, 'BBB', score: 6, sector: 'XLK');
+        $b = $this->scout($user, 'BBB', score: 7, sector: 'XLK');
         $c = $this->scout($user, 'CCC', score: 8, sector: 'XLF');
 
         $result = $this->service->allocate($user, [$a, $b, $c], SmartAllocationService::MODE_EQUAL);
@@ -60,18 +60,18 @@ class SmartAllocationServiceTest extends TestCase
         $user = $this->userWithBankroll();
         $rprx = $this->scout($user, 'RPRX', score: 10, sector: 'XLK');
         $ewtx = $this->scout($user, 'EWTX', score: 8, sector: 'XLF');
-        $coo = $this->scout($user, 'COO', score: 6, sector: 'XLY');
+        $coo = $this->scout($user, 'COO', score: 7, sector: 'XLY');
 
         $result = $this->service->allocate($user, [$rprx, $ewtx, $coo], SmartAllocationService::MODE_SMART);
 
         $byTicker = collect($result['allocations'])->keyBy('ticker');
 
-        $this->assertEqualsWithDelta(10 / 24, $byTicker['RPRX']['weight_share'], 0.001);
-        $this->assertEqualsWithDelta(8 / 24, $byTicker['EWTX']['weight_share'], 0.001);
-        $this->assertEqualsWithDelta(6 / 24, $byTicker['COO']['weight_share'], 0.001);
-        $this->assertEqualsWithDelta(41.67, $byTicker['RPRX']['risk_dollars'], 0.1);
-        $this->assertEqualsWithDelta(33.33, $byTicker['EWTX']['risk_dollars'], 0.1);
-        $this->assertEqualsWithDelta(25.0, $byTicker['COO']['risk_dollars'], 0.1);
+        $this->assertEqualsWithDelta(10 / 25, $byTicker['RPRX']['weight_share'], 0.001);
+        $this->assertEqualsWithDelta(8 / 25, $byTicker['EWTX']['weight_share'], 0.001);
+        $this->assertEqualsWithDelta(7 / 25, $byTicker['COO']['weight_share'], 0.001);
+        $this->assertEqualsWithDelta(40.0, $byTicker['RPRX']['risk_dollars'], 0.1);
+        $this->assertEqualsWithDelta(32.0, $byTicker['EWTX']['risk_dollars'], 0.1);
+        $this->assertEqualsWithDelta(28.0, $byTicker['COO']['risk_dollars'], 0.1);
     }
 
     public function test_smart_mode_boosts_higher_reward_risk(): void
@@ -243,8 +243,8 @@ class SmartAllocationServiceTest extends TestCase
     public function test_excludes_score_below_min(): void
     {
         $user = $this->userWithBankroll();
-        $strong = $this->scout($user, 'GOOD', score: 7, sector: 'XLK');
-        $weak = $this->scout($user, 'WEAK', score: 4, sector: 'XLV');
+        $strong = $this->scout($user, 'GOOD', score: 8, sector: 'XLK');
+        $weak = $this->scout($user, 'WEAK', score: 6, sector: 'XLV');
 
         $result = $this->service->allocate($user, [$strong, $weak], SmartAllocationService::MODE_SMART);
 
@@ -362,6 +362,8 @@ class SmartAllocationServiceTest extends TestCase
             'ibkr_net_liquidation' => 10000,
             'ibkr_available_funds' => 1000,
             'ibkr_settled_cash' => 1000,
+            'ibkr_last_success_at' => now(),
+            'ibkr_data_stale' => false,
             'default_risk_percent' => 1,
         ]);
 
@@ -372,6 +374,7 @@ class SmartAllocationServiceTest extends TestCase
                 'ticker' => 'CASH',
                 'last_setup_score' => 10,
                 'entry_price' => 100.00,
+                'signal_low' => 99.95,
                 'latest_sma_20' => 99.90,
                 'latest_atr_14' => 0.05,
                 'sector_etf' => 'XLK',
@@ -636,16 +639,37 @@ class SmartAllocationServiceTest extends TestCase
             'is_short_enabled' => true,
         ]);
 
-        $long = $this->scout($user, 'LONG', score: 10, sector: 'XLK');
-        $short = Position::factory()->for($user)->scout()->short()->create([
-            'ticker' => 'SHRT',
-            'last_setup_score' => 10,
-            'entry_price' => 100.00,
-            'latest_sma_20' => 102.00,
-            'latest_atr_14' => 2.00,
-            'sector_etf' => 'XLF',
-            'target_1_rr' => 2.0,
-        ]);
+        // Tight structure stops so risk-pie sizing implies more notional than cash.
+        $long = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->scorecardAttributes(10),
+            [
+                'ticker' => 'LONG',
+                'last_setup_score' => 10,
+                'entry_price' => 100.00,
+                'signal_low' => 99.90,
+                'latest_atr_14' => 0.10,
+                'sector_etf' => 'XLK',
+                'target_1_rr' => 2.0,
+            ],
+        ));
+        $short = Position::factory()->for($user)->scout()->short()->create(array_merge(
+            $this->shortScorecardAttributes(10),
+            [
+                'ticker' => 'SHRT',
+                'last_setup_score' => 10,
+                'entry_price' => 100.00,
+                'signal_high' => 100.10,
+                'latest_sma_20' => 100.05,
+                'sma_20_five_days_ago' => 101.00,
+                'sma_20_ten_days_ago' => 102.00,
+                'latest_sma_50' => 105.00,
+                'latest_open_price' => 100.05,
+                'latest_close_price' => 99.90,
+                'latest_atr_14' => 0.10,
+                'sector_etf' => 'XLF',
+                'target_1_rr' => 2.0,
+            ],
+        ));
 
         $result = $this->service->allocate($user, [$long, $short], SmartAllocationService::MODE_EQUAL);
 
@@ -732,14 +756,53 @@ class SmartAllocationServiceTest extends TestCase
     /**
      * @return array<string, mixed>
      */
+    private function shortScorecardAttributes(int $score): array
+    {
+        $base = [
+            // signal_high must sit above entry (100) so structure SL is a valid short stop.
+            'signal_high' => 103.00,
+            'latest_open_price' => 101.00,
+            'latest_close_price' => 100.00,
+            'latest_sma_20' => 102.00,
+            'sma_20_five_days_ago' => 104.00,
+            'sma_20_ten_days_ago' => 106.00,
+            'latest_sma_50' => 110.00,
+            'scout_rsi' => 45.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.50,
+        ];
+
+        return match (true) {
+            $score >= 10 => $base,
+            $score === 9 => array_merge($base, ['pre_bounce_extension_atr' => 1.0]),
+            $score === 8 => array_merge($base, [
+                'pre_bounce_extension_atr' => 1.0,
+                'scout_rsi' => 60.00,
+            ]),
+            default => array_merge($base, [
+                'relative_volume' => 0.82,
+                'bounce_volume_above_average' => false,
+                'pre_bounce_extension_atr' => 1.0,
+            ]),
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function scorecardAttributes(int $score): array
     {
-        if ($score < 5) {
+        if ($score < 6) {
             return [];
         }
 
         $base = [
-            'signal_low' => 101.00,
+            // signal_low must sit below entry (100) so structure SL is a valid long stop.
+            'signal_low' => 97.00,
             'latest_open_price' => 100.00,
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
@@ -766,22 +829,15 @@ class SmartAllocationServiceTest extends TestCase
                 'sector_trend_positive' => false,
                 'pre_bounce_extension_atr' => 1.0,
             ]),
-            default => [
-                'signal_low' => 100.50,
-                'latest_open_price' => 102.00,
-                'latest_close_price' => 100.50,
-                'latest_sma_20' => 100.00,
-                'sma_20_five_days_ago' => 99.50,
-                'sma_20_ten_days_ago' => 98.00,
-                'latest_sma_50' => 98.00,
-                'scout_rsi' => 50.00,
+            // Score 6: green candle but RVol under threshold + weak sector/extension.
+            default => array_merge($base, [
                 'bounce_volume_above_average' => false,
                 'relative_volume' => 0.82,
                 'bounce_day_volume' => 6_000_000,
                 'volume_sma_20' => 10_000_000,
                 'sector_trend_positive' => false,
                 'pre_bounce_extension_atr' => 1.0,
-            ],
+            ]),
         };
     }
 }

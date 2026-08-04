@@ -136,8 +136,8 @@ return [
         'extension_atr_threshold' => (float) env('SNIPER_EXTENSION_ATR_THRESHOLD', 2.0),
         'max_points' => 10,
         'sma_slope_lookback_days' => (int) env('SNIPER_SMA_SLOPE_LOOKBACK_DAYS', 10),
-        'sma_slope_min_pct' => (float) env('SNIPER_SMA_SLOPE_MIN_PCT', 0.0),
-        // Groene bounce net onder SMA 20: voordeel van de twijfel (geen hard fail). Long only.
+        'sma_slope_min_pct' => (float) env('SNIPER_SMA_SLOPE_MIN_PCT', 0.3),
+        // Groene bounce net onder SMA 20: geen hard fail, maar slechts 1/2 trampoline-punt. Long only.
         'trampoline_near_miss_pct' => (float) env('SNIPER_TRAMPOLINE_NEAR_MISS_PCT', 0.25),
         // Short Route 1: SMA vandaag < 5d < 10d verplicht.
         'waterfall_required' => filter_var(env('SNIPER_WATERFALL_REQUIRED', true), FILTER_VALIDATE_BOOL),
@@ -268,7 +268,7 @@ return [
     ],
 
     'smart_sizing' => [
-        'min_score' => (int) env('SMART_SIZING_MIN_SCORE', 5),
+        'min_score' => (int) env('SMART_SIZING_MIN_SCORE', 7),
         'min_quantity' => (int) env('SMART_SIZING_MIN_QUANTITY', 2),
         'default_mode' => env('SMART_SIZING_DEFAULT_MODE', 'smart'),
         'sector_penalty_per_extra' => (float) env('SMART_SIZING_SECTOR_PENALTY_PER_EXTRA', 0.20),

@@ -123,10 +123,10 @@ class ScoutSetupScorecard
                 return self::criterion(
                     'trampoline',
                     'Trampoline-afstand',
+                    1,
                     2,
-                    2,
-                    'pass',
-                    sprintf('Voordeel van de twijfel — close %.2f%% onder SMA 20', $belowPct),
+                    'warn',
+                    sprintf('Voordeel van de twijfel — close %.2f%% onder SMA 20 (1/2 pt)', $belowPct),
                 );
             }
 
@@ -253,14 +253,16 @@ class ScoutSetupScorecard
         $deltaPct = (($latest - $tenDaysAgo) / $tenDaysAgo) * 100;
 
         if ($deltaPct < $minSlopePct) {
-            return self::criterion(
-                'sma_direction',
-                'SMA trend (20/50)',
-                0,
-                2,
-                'fail',
-                sprintf('Dalende SMA over %d dagen — Δ %.2f%%', $lookbackDays, $deltaPct),
-            );
+            $detail = $deltaPct < 0
+                ? sprintf('Dalende SMA over %d dagen — Δ %.2f%%', $lookbackDays, $deltaPct)
+                : sprintf(
+                    'SMA-helling te vlak over %d dagen — Δ %.2f%% (min %.2f%%)',
+                    $lookbackDays,
+                    $deltaPct,
+                    $minSlopePct,
+                );
+
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', $detail);
         }
 
         return self::criterion(
@@ -377,6 +379,23 @@ class ScoutSetupScorecard
                 );
             }
 
+            $threshold = RelativeVolumeCalculator::rvolThreshold();
+
+            if ($rvol < $threshold) {
+                return self::criterion(
+                    'volume',
+                    'Volume-overtuiging',
+                    0,
+                    1,
+                    'warn',
+                    sprintf(
+                        'RVol %s — onder drempel (%s); geen institutionele bevestiging',
+                        RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
+                        RelativeVolumeCalculator::formatThresholdPercent(),
+                    ),
+                );
+            }
+
             return self::criterion(
                 'volume',
                 'Volume-overtuiging',
@@ -420,6 +439,23 @@ class ScoutSetupScorecard
                     1,
                     'warn',
                     'RVol ontbreekt — wacht op data (geen institutionele bevestiging)',
+                );
+            }
+
+            $threshold = RelativeVolumeCalculator::rvolThreshold();
+
+            if ($rvol < $threshold) {
+                return self::criterion(
+                    'volume',
+                    'Volume-overtuiging',
+                    0,
+                    1,
+                    'warn',
+                    sprintf(
+                        'RVol %s — onder drempel (%s); geen institutionele bevestiging',
+                        RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
+                        RelativeVolumeCalculator::formatThresholdPercent(),
+                    ),
                 );
             }
 
@@ -953,7 +989,7 @@ SQL;
 
     public static function smaSlopeMinPct(): float
     {
-        return (float) config('vestix.sniper_scorecard.sma_slope_min_pct', 0.0);
+        return (float) config('vestix.sniper_scorecard.sma_slope_min_pct', 0.3);
     }
 
     /**

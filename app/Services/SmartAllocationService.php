@@ -91,7 +91,7 @@ class SmartAllocationService
         $shortPie = $this->resolvePieBucket($user, $bankroll, TradeDirection::Short);
         $includeShortPie = $user->canUseShort();
 
-        $minScore = (int) config('vestix.smart_sizing.min_score', 5);
+        $minScore = (int) config('vestix.smart_sizing.min_score', 7);
         $minQuantity = $this->minQuantity();
         $candidatesByDirection = [
             TradeDirection::Long->value => [],

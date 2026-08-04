@@ -96,7 +96,7 @@
 
     @if ($result['allocations'] === [])
         <p class="vestix-smart-allocation__empty">
-            Geen allocaties mogelijk. Controleer scores (≥ {{ config('vestix.smart_sizing.min_score', 5) }}),
+            Geen allocaties mogelijk. Controleer scores (≥ {{ config('vestix.smart_sizing.min_score', 7) }}),
             IBKR bankroll en entry/stop-loss.
         </p>
     @else
