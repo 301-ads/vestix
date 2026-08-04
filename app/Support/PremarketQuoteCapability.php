@@ -32,7 +32,7 @@ class PremarketQuoteCapability
                 $polygonRealtime => 'Polygon realtime beschikbaar voor pre-market quotes.',
                 $finnhubIntraday => 'Finnhub intraday candles beschikbaar voor pre-market quotes.',
                 $tradingViewScanner => 'TradingView scanner beschikbaar voor pre-market quotes '
-                    .'(premarket_close; null bij geen extended-hours trades). '
+                    .'(premarket_close; null bij geen/ghost EH trades). '
                     .'Polygon realtime/snapshot en Finnhub 1-min candles geven 403 op het huidige API-plan.',
                 default => 'Geen live pre-market bron beschikbaar op het huidige API-plan. '
                     .'Polygon realtime/snapshot en Finnhub 1-min candles geven 403. '

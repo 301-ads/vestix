@@ -153,6 +153,9 @@ return [
         'gatekeeper_window_end' => env('PREMARKET_GATEKEEPER_WINDOW_END', '15:15'),
         'gap_up_threshold_pct' => (float) env('PREMARKET_GAP_UP_THRESHOLD_PCT', 1.0),
         'landing_distance_pct' => (float) env('PREMARKET_LANDING_DISTANCE_PCT', 1.5),
+        // TradingView scanner often keeps a flat single-lot print (UI: "Pre-market No trades").
+        // Reject flat O=H=L=C quotes below this volume as non-trades.
+        'min_flat_print_volume' => (int) env('PREMARKET_MIN_FLAT_PRINT_VOLUME', 1000),
     ],
 
     'market_open_reminder' => [
