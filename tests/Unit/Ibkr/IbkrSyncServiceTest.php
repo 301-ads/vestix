@@ -3,19 +3,32 @@
 namespace Tests\Unit\Ibkr;
 
 use App\Enums\Broker;
+use App\Models\BankrollSnapshot;
 use App\Models\User;
+use App\Services\BenchmarkCloseResolver;
 use App\Services\Ibkr\IbkrSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Mockery;
 use Tests\TestCase;
 
 class IbkrSyncServiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        Mockery::close();
+
+        parent::tearDown();
+    }
+
     public function test_sync_persists_balances_orders_and_cashflows(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-08-04 08:00:00', 'Europe/Amsterdam'));
+
         config([
             'vestix.ibkr.flex.token' => 'token',
             'vestix.ibkr.flex.query_id' => '123',
@@ -25,6 +38,11 @@ class IbkrSyncServiceTest extends TestCase
             'vestix.ibkr.client_portal.base_url' => 'https://cp.test',
             'vestix.ibkr.sync_bankroll_snapshot' => true,
         ]);
+
+        $this->mock(BenchmarkCloseResolver::class, function ($mock): void {
+            $mock->shouldReceive('benchmarkTicker')->andReturn('SPY');
+            $mock->shouldReceive('resolveTradingDayClose')->andReturn(757.67);
+        });
 
         $user = User::factory()->create([
             'primary_broker' => Broker::Ibkr,
@@ -75,6 +93,13 @@ class IbkrSyncServiceTest extends TestCase
             'user_id' => $user->id,
             'amount' => 10634.60,
         ]);
+
+        $snapshot = BankrollSnapshot::query()->where('user_id', $user->id)->first();
+        $this->assertNotNull($snapshot);
+        // Premarket Tuesday → Alpha Tracker point belongs to Monday's completed session.
+        $this->assertSame('2026-08-03', $snapshot->recorded_on->toDateString());
+        $this->assertSame('757.6700', $snapshot->benchmark_close);
+
         $this->assertDatabaseHas('bankroll_cashflows', [
             'external_id' => 'TX-EUR-DEP-001',
             'amount' => 2287.30,

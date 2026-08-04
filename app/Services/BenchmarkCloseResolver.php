@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\DailyBarProvider;
+use App\Support\UsMarketSession;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -20,45 +21,65 @@ class BenchmarkCloseResolver
     public function resolveCloseForDate(Carbon $date): ?float
     {
         $ticker = $this->benchmarkTicker();
-        $dateString = $date->toDateString();
+        $targetDate = $date->copy()->timezone('America/New_York')->toDateString();
+        $cacheKey = "vestix:benchmark-close:{$ticker}:{$targetDate}";
 
-        return Cache::remember(
-            "vestix:benchmark-close:{$ticker}:{$dateString}",
-            now()->addDay(),
-            function () use ($ticker, $date): ?float {
-                $lookbackDays = max(14, $date->diffInDays(now()) + 10);
-                $barsPayload = $this->dailyBars->fetchRecentBars($ticker, $lookbackDays, 120);
+        $cached = Cache::get($cacheKey);
+        if (is_float($cached) || is_int($cached)) {
+            return (float) $cached;
+        }
 
-                if ($barsPayload === null) {
-                    return null;
-                }
+        $lookbackDays = max(14, (int) $date->diffInDays(now()) + 10);
+        $barsPayload = $this->dailyBars->fetchRecentBars($ticker, $lookbackDays, 120);
 
-                $targetDate = $date->copy()->timezone('America/New_York')->toDateString();
-                $bars = $barsPayload['bars'];
-                $closeOnOrBefore = null;
+        if ($barsPayload === null) {
+            return null;
+        }
 
-                foreach ($bars as $bar) {
-                    if ($bar['date'] <= $targetDate) {
-                        $closeOnOrBefore = (float) $bar['close'];
-                    }
-                }
+        $closeOnOrBefore = null;
+        $matchedDate = null;
 
-                return $closeOnOrBefore;
-            },
-        );
+        foreach ($barsPayload['bars'] as $bar) {
+            if ($bar['date'] <= $targetDate) {
+                $closeOnOrBefore = (float) $bar['close'];
+                $matchedDate = $bar['date'];
+            }
+        }
+
+        if ($closeOnOrBefore === null) {
+            return null;
+        }
+
+        // Only long-cache exact session closes. A fallback to an older bar (holiday /
+        // bar not published yet) must not stick for a full day under today's key.
+        $ttl = $matchedDate === $targetDate
+            ? now()->addDay()
+            : now()->addMinutes(30);
+
+        Cache::put($cacheKey, $closeOnOrBefore, $ttl);
+
+        return $closeOnOrBefore;
     }
 
     /**
-     * Last US trading day on or before the given calendar date (for weekend snapshots).
+     * Close for the last completed US RTH session on/before the given moment.
+     * Before today's close (and on weekends), this is the previous trading day —
+     * never an incomplete "today" bar.
      */
     public function resolveTradingDayClose(Carbon $date): ?float
     {
-        $cursor = $date->copy()->timezone('America/New_York')->startOfDay();
+        $asOf = $date->copy()->timezone('America/New_York');
+        $session = UsMarketSession::expectedLastCompletedSessionDate($asOf);
 
-        while ($cursor->isWeekend()) {
-            $cursor->subDay();
+        $requested = $asOf->copy()->startOfDay();
+        while ($requested->isWeekend()) {
+            $requested->subDay();
         }
 
-        return $this->resolveCloseForDate($cursor);
+        if ($requested->greaterThan($session)) {
+            $requested = $session->copy();
+        }
+
+        return $this->resolveCloseForDate($requested);
     }
 }

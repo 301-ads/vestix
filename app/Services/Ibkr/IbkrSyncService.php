@@ -6,6 +6,7 @@ use App\Data\Ibkr\IbkrAccountSnapshot;
 use App\Enums\Broker;
 use App\Models\User;
 use App\Services\BankrollSnapshotService;
+use App\Support\UsMarketSession;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -86,7 +87,14 @@ class IbkrSyncService
                 $cashflowDetails = [...$cashflowDetails, ...$result->details];
 
                 if ((bool) config('vestix.ibkr.sync_bankroll_snapshot', true)) {
-                    $this->bankrollSnapshots->recordSnapshot($user, $snapshot->netLiquidation);
+                    // Morning Flex reflects the last completed US session — not "today"
+                    // before the open. Dating Alpha Tracker on that session keeps NLV and
+                    // SPY on the same closed trading day (avoids premarket SPY catch-up spikes).
+                    $this->bankrollSnapshots->recordSnapshot(
+                        $user,
+                        $snapshot->netLiquidation,
+                        $this->alphaTrackerSessionDate(),
+                    );
                 }
             }
 
@@ -198,5 +206,20 @@ class IbkrSyncService
         ])->save();
 
         $this->health->refreshStaleFlag($user->fresh() ?? $user, $attemptAt);
+    }
+
+    /**
+     * Alpha Tracker snapshot date: last completed US RTH session (bankroll timezone).
+     */
+    private function alphaTrackerSessionDate(?Carbon $now = null): Carbon
+    {
+        $session = UsMarketSession::expectedLastCompletedSessionDate(
+            ($now ?? now())->copy()->timezone('America/New_York'),
+        );
+
+        return $session
+            ->copy()
+            ->timezone($this->bankrollSnapshots->timezone())
+            ->startOfDay();
     }
 }

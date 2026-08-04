@@ -118,6 +118,7 @@ Schedule::command('vestix:kluis-refresh-thermometer')
 
 // IBKR Flex EOD sync: ochtend — na IBKR Daily Statement mail (~05:20), vóór trading.
 // Avond-sync (22:45) te vroeg: Flex toDate blijft vaak gisteren → stale cash vs live NLV.
+// Alpha Tracker snapshot wordt gedateerd op de laatste afgesloten US-sessie (NLV + SPY close).
 Schedule::command('vestix:sync-ibkr')
     ->weekdays()
     ->dailyAt('08:00')
