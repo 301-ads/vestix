@@ -49,6 +49,32 @@ class StrategyAnalyticsService
         return $query->get();
     }
 
+    /**
+     * @return Collection<int, Position>
+     */
+    public function openTradesForUser(int $userId, ?TradeDirection $direction = null): Collection
+    {
+        $query = Position::query()
+            ->open()
+            ->nonLegacy()
+            ->forUser($userId);
+
+        if ($direction !== null) {
+            $query->where('direction', $direction->value);
+        }
+
+        return $query->get();
+    }
+
+    public function hasTradePnlPositions(int $userId): bool
+    {
+        return Position::query()
+            ->nonLegacy()
+            ->forUser($userId)
+            ->whereIn('status', ['open', 'closed'])
+            ->exists();
+    }
+
     public function hasEnoughTrades(int $userId, ?TradeDirection $direction = null): bool
     {
         return $this->closedTradesForUser($userId, $direction)->count() >= $this->minTradesForCoach();
@@ -129,30 +155,59 @@ class StrategyAnalyticsService
     }
 
     /**
+     * Combined closed + open MTM P&L by direction (journal view on Prestaties).
+     *
      * @return array{
      *     total: float,
      *     long: float,
      *     short: float,
+     *     closed_total: float,
+     *     closed_long: float,
+     *     closed_short: float,
+     *     open_total: float,
+     *     open_long: float,
+     *     open_short: float,
      *     trade_count: int,
+     *     closed_trade_count: int,
+     *     open_trade_count: int,
      * }
      */
     public function pnlSplitByDirection(int $userId): array
     {
-        $trades = $this->closedTradesForUser($userId);
+        $closed = $this->closedTradesForUser($userId);
+        $open = $this->openTradesForUser($userId);
 
-        $long = (float) $trades
+        $closedLong = (float) $closed
             ->filter(fn (Position $p): bool => $p->isLong())
             ->sum(fn (Position $p): float => $p->unrealized_pnl);
-
-        $short = (float) $trades
+        $closedShort = (float) $closed
+            ->filter(fn (Position $p): bool => $p->isShort())
+            ->sum(fn (Position $p): float => $p->unrealized_pnl);
+        $openLong = (float) $open
+            ->filter(fn (Position $p): bool => $p->isLong())
+            ->sum(fn (Position $p): float => $p->unrealized_pnl);
+        $openShort = (float) $open
             ->filter(fn (Position $p): bool => $p->isShort())
             ->sum(fn (Position $p): float => $p->unrealized_pnl);
 
+        $closedTotal = $closedLong + $closedShort;
+        $openTotal = $openLong + $openShort;
+        $long = $closedLong + $openLong;
+        $short = $closedShort + $openShort;
+
         return [
-            'total' => round($long + $short, 2),
+            'total' => round($closedTotal + $openTotal, 2),
             'long' => round($long, 2),
             'short' => round($short, 2),
-            'trade_count' => $trades->count(),
+            'closed_total' => round($closedTotal, 2),
+            'closed_long' => round($closedLong, 2),
+            'closed_short' => round($closedShort, 2),
+            'open_total' => round($openTotal, 2),
+            'open_long' => round($openLong, 2),
+            'open_short' => round($openShort, 2),
+            'trade_count' => $closed->count(),
+            'closed_trade_count' => $closed->count(),
+            'open_trade_count' => $open->count(),
         ];
     }
 

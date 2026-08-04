@@ -254,4 +254,58 @@ class StrategyAnalyticsServiceTest extends TestCase
         $this->assertSame(1, $byGrade[2]['trades']);
         $this->assertSame(100.0, $byGrade[2]['win_rate']);
     }
+
+    public function test_pnl_split_includes_open_mtm_alongside_closed(): void
+    {
+        $user = User::factory()->create();
+
+        Position::factory()->for($user)->closed()->create([
+            'ticker' => 'CLOSED',
+            'entry_price' => 100,
+            'exit_price' => 110,
+            'quantity' => 10,
+        ]);
+        Position::factory()->for($user)->create([
+            'ticker' => 'OPEN',
+            'status' => 'open',
+            'entry_price' => 50,
+            'quantity' => 4,
+            'latest_close_price' => 60,
+            'current_sl' => 45,
+        ]);
+
+        $split = $this->analytics->pnlSplitByDirection($user->id);
+
+        $this->assertEqualsWithDelta(100.0, $split['closed_total'], 0.01);
+        $this->assertEqualsWithDelta(40.0, $split['open_total'], 0.01);
+        $this->assertEqualsWithDelta(140.0, $split['total'], 0.01);
+        $this->assertEqualsWithDelta(140.0, $split['long'], 0.01);
+        $this->assertEqualsWithDelta(0.0, $split['short'], 0.01);
+        $this->assertSame(1, $split['closed_trade_count']);
+        $this->assertSame(1, $split['open_trade_count']);
+        $this->assertTrue($this->analytics->hasTradePnlPositions($user->id));
+    }
+
+    public function test_pnl_split_open_only_still_counts_as_trade_pnl(): void
+    {
+        $user = User::factory()->create();
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'OPEN',
+            'status' => 'open',
+            'entry_price' => 100,
+            'quantity' => 2,
+            'latest_close_price' => 90,
+            'current_sl' => 80,
+        ]);
+
+        $split = $this->analytics->pnlSplitByDirection($user->id);
+
+        $this->assertEqualsWithDelta(0.0, $split['closed_total'], 0.01);
+        $this->assertEqualsWithDelta(-20.0, $split['open_total'], 0.01);
+        $this->assertEqualsWithDelta(-20.0, $split['total'], 0.01);
+        $this->assertSame(0, $split['closed_trade_count']);
+        $this->assertSame(1, $split['open_trade_count']);
+        $this->assertTrue($this->analytics->hasTradePnlPositions($user->id));
+    }
 }

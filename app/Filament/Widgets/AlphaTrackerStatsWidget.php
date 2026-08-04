@@ -43,14 +43,35 @@ class AlphaTrackerStatsWidget extends StatsOverviewWidget
         $ticker = strtoupper((string) config('vestix.bankroll_tracker.benchmark_ticker', 'SPY'));
 
         return [
-            $this->formatPercentStat('Jouw Rendement (YTD)', $portfolioYtd, 'heroicon-m-arrow-trending-up'),
-            $this->formatPercentStat("S&P 500 ({$ticker})", $benchmarkYtd, 'heroicon-m-chart-bar'),
-            $this->formatPercentStat('Jouw Alpha', $alphaYtd, 'heroicon-m-fire', accent: true),
+            $this->formatPercentStat(
+                'Jouw Rendement (YTD)',
+                $portfolioYtd,
+                'heroicon-m-arrow-trending-up',
+                description: 'NLV-groei incl. open MTM sinds YTD-baseline',
+            ),
+            $this->formatPercentStat(
+                "S&P 500 ({$ticker})",
+                $benchmarkYtd,
+                'heroicon-m-chart-bar',
+                description: 'Procentuele groei sinds YTD-baseline',
+            ),
+            $this->formatPercentStat(
+                'Jouw Alpha',
+                $alphaYtd,
+                'heroicon-m-fire',
+                accent: true,
+                description: 'Verschil t.o.v. passief beleggen',
+            ),
         ];
     }
 
-    private function formatPercentStat(string $label, ?float $value, string $icon, bool $accent = false): Stat
-    {
+    private function formatPercentStat(
+        string $label,
+        ?float $value,
+        string $icon,
+        bool $accent = false,
+        ?string $description = null,
+    ): Stat {
         if ($value === null) {
             return Stat::make($label, '—')
                 ->description('Nog onvoldoende data')
@@ -68,7 +89,7 @@ class AlphaTrackerStatsWidget extends StatsOverviewWidget
         }
 
         return Stat::make($label, $prefix.number_format($value, 1).'%')
-            ->description($accent ? 'Verschil t.o.v. passief beleggen' : 'Procentuele groei sinds YTD-baseline')
+            ->description($description ?? ($accent ? 'Verschil t.o.v. passief beleggen' : 'Procentuele groei sinds YTD-baseline'))
             ->descriptionIcon($icon)
             ->color($color)
             ->extraAttributes(['class' => implode(' ', $classes)]);

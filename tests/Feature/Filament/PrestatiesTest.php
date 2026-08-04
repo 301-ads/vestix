@@ -13,6 +13,7 @@ use App\Filament\Widgets\KluisStatsWidget;
 use App\Filament\Widgets\PerformanceComingSoonWidget;
 use App\Filament\Widgets\GradePerformanceChart;
 use App\Models\BankrollSnapshot;
+use App\Models\Position;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -93,7 +94,31 @@ class PrestatiesTest extends TestCase
 
         Livewire::test(Prestaties::class)
             ->assertSee('Jouw Rendement (YTD)')
+            ->assertSee('NLV-groei incl. open MTM')
             ->assertSee('Jouw Alpha')
             ->assertDontSee('Naar dashboard');
+    }
+
+    public function test_direction_pnl_widget_visible_with_open_positions_only(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'OPEN',
+            'status' => 'open',
+            'entry_price' => 100,
+            'quantity' => 5,
+            'latest_close_price' => 110,
+            'current_sl' => 90,
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        $this->assertTrue(DirectionPnlSplitWidget::canView());
+
+        Livewire::test(DirectionPnlSplitWidget::class)
+            ->assertOk()
+            ->assertSee('Totale trading P&L')
+            ->assertSee('Open (MTM)');
     }
 }

@@ -20,9 +20,7 @@ class DirectionPnlSplitWidget extends StatsOverviewWidget
             return false;
         }
 
-        return app(StrategyAnalyticsService::class)
-            ->closedTradesForUser($userId)
-            ->isNotEmpty();
+        return app(StrategyAnalyticsService::class)->hasTradePnlPositions($userId);
     }
 
     protected function getStats(): array
@@ -41,20 +39,32 @@ class DirectionPnlSplitWidget extends StatsOverviewWidget
             return $prefix.'$'.number_format(abs($value), 2);
         };
 
+        $closedCount = (int) $split['closed_trade_count'];
+        $openCount = (int) $split['open_trade_count'];
+
         return [
             Stat::make('Totale trading P&L', $formatSigned($split['total']))
                 ->description(sprintf(
-                    'Long: %s | Short: %s · %d gesloten trades',
-                    $formatSigned($split['long']),
-                    $formatSigned($split['short']),
-                    $split['trade_count'],
+                    'Gesloten: %s · Open: %s · %d gesloten + %d open',
+                    $formatSigned($split['closed_total']),
+                    $formatSigned($split['open_total']),
+                    $closedCount,
+                    $openCount,
                 ))
                 ->color($split['total'] >= 0 ? 'success' : 'danger'),
             Stat::make('Long P&L', $formatSigned($split['long']))
-                ->description('Gesloten long-posities')
+                ->description(sprintf(
+                    'Gesloten: %s · Open (MTM): %s',
+                    $formatSigned($split['closed_long']),
+                    $formatSigned($split['open_long']),
+                ))
                 ->color($split['long'] >= 0 ? 'success' : 'danger'),
             Stat::make('Short P&L', $formatSigned($split['short']))
-                ->description('Gesloten short-posities (Bear Squad)')
+                ->description(sprintf(
+                    'Gesloten: %s · Open (MTM): %s',
+                    $formatSigned($split['closed_short']),
+                    $formatSigned($split['open_short']),
+                ))
                 ->color($split['short'] >= 0 ? 'success' : 'danger'),
         ];
     }
