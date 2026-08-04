@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\TradeDirection;
 use App\Models\Position;
 use App\Models\StrategyTag;
-use App\Support\ScoutSetupScorecard;
 use Illuminate\Support\Collection;
 
 class StrategyAnalyticsService
@@ -279,50 +278,17 @@ class StrategyAnalyticsService
     }
 
     /**
-     * Prefer the buy-stop review snapshot; otherwise derive from stored score + promotions.
+     * Entry-grade freeze only — buy-stop review / last_setup_score are not used for learning.
      */
     public function resolveStoredSetupGrade(Position $position): string
     {
-        $snapshot = $position->buy_stop_review_setup_grade;
+        $grade = $position->entry_setup_grade;
 
-        if (is_string($snapshot) && $snapshot !== '') {
-            return $snapshot;
+        if (is_string($grade) && $grade !== '') {
+            return $grade;
         }
 
-        $score = $position->last_setup_score;
-
-        if ($score === null) {
-            return '—';
-        }
-
-        $maxPoints = ScoutSetupScorecard::maxPoints();
-
-        if ($score >= $maxPoints && $position->trader_promoted_a_plus) {
-            return 'A++';
-        }
-
-        // Perfect score without an explicit A++ promotion still reads as A++ in journals/demo.
-        if ($score >= $maxPoints) {
-            return 'A++';
-        }
-
-        if ($score >= $maxPoints - 1) {
-            return 'A';
-        }
-
-        if ($score >= 8 && $position->trader_promoted_a) {
-            return 'A';
-        }
-
-        if ($score >= 7) {
-            return 'B';
-        }
-
-        if ($score >= 5) {
-            return 'C';
-        }
-
-        return 'NO TRADE';
+        return '—';
     }
 
     /**

@@ -23,9 +23,10 @@ class EdgeAnalyticsWidgetTest extends TestCase
             'entry_price' => 100,
             'exit_price' => 110,
             'quantity' => 10,
-            'last_setup_score' => 10,
-            'trader_promoted_a_plus' => true,
-            'buy_stop_review_setup_grade' => 'A++',
+            'entry_setup_grade' => 'A++',
+            'entry_setup_score' => 10,
+            'entry_setup_captured_at' => now(),
+            'entry_setup_source' => 'live',
         ]);
         Position::factory()->for($user)->closed()->create([
             'strategy_tag_id' => $tagId,

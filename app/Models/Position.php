@@ -17,6 +17,7 @@ use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Services\AssetSyncService;
 use App\Support\EarningsExitSchedule;
+use App\Support\EntrySetupSnapshot;
 use App\Support\PositionSizing;
 use App\Support\ScoutSetupScorecard;
 use App\Support\StopLossProtocol;
@@ -69,6 +70,10 @@ class Position extends Model
             'sector_trend_positive' => 'boolean',
             'pre_bounce_extension_atr' => 'decimal:2',
             'last_setup_score' => 'integer',
+            'entry_setup_score' => 'integer',
+            'entry_setup_promoted_a' => 'boolean',
+            'entry_setup_promoted_a_plus' => 'boolean',
+            'entry_setup_captured_at' => 'datetime',
             'telegram_a_minus_alert_sent_at' => 'datetime',
             'telegram_a_plus_alert_sent_at' => 'datetime',
             'trader_promoted_a_plus' => 'boolean',
@@ -134,7 +139,14 @@ class Position extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Position $position): void {
+            $position->captureEntrySetupSnapshotIfNeeded();
+        });
+
         static::updating(function (Position $position): void {
+            // Freeze entry grade before entry_price dirty-handling clears promotions.
+            $position->captureEntrySetupSnapshotIfNeeded();
+
             if (
                 $position->isDirty('status')
                 && $position->status === 'closed'
@@ -787,6 +799,11 @@ class Position extends Model
 
         $broker = $this->user?->primary_broker?->value ?? $this->broker?->value ?? Broker::Revolut->value;
 
+        // Capture before update: entry_price dirty-handling clears live promotions.
+        $entrySnapshot = EntrySetupSnapshot::alreadyCaptured($this)
+            ? []
+            : EntrySetupSnapshot::attributesFromLivePosition($this);
+
         $attributes = [
             'status' => 'open',
             'entry_price' => $entryPrice,
@@ -801,6 +818,7 @@ class Position extends Model
             'premarket_reference_price' => null,
             'premarket_distance_pct' => null,
             'premarket_checked_at' => null,
+            ...$entrySnapshot,
         ];
 
         // Bracket orders already place the SL at the broker — skip the manual SL todo.
@@ -809,6 +827,29 @@ class Position extends Model
         }
 
         $this->update($attributes);
+    }
+
+    /**
+     * Freeze setup grade when transitioning to (or creating as) open. Never overwrites.
+     */
+    public function captureEntrySetupSnapshotIfNeeded(): void
+    {
+        if ($this->status !== 'open') {
+            return;
+        }
+
+        if (EntrySetupSnapshot::alreadyCaptured($this)) {
+            return;
+        }
+
+        $becomingOpen = ! $this->exists
+            || ($this->isDirty('status') && $this->getOriginal('status') !== 'open');
+
+        if (! $becomingOpen) {
+            return;
+        }
+
+        $this->forceFill(EntrySetupSnapshot::attributesFromLivePosition($this));
     }
 
     public function hasScaledOut(): bool

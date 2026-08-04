@@ -179,7 +179,10 @@ class StrategyAnalyticsServiceTest extends TestCase
             'entry_price' => 100,
             'exit_price' => 110,
             'quantity' => 10,
-            'last_setup_score' => 7,
+            'entry_setup_grade' => 'B',
+            'entry_setup_score' => 7,
+            'entry_setup_captured_at' => now(),
+            'entry_setup_source' => 'live',
         ]);
         Position::factory()->for($user)->closed()->create([
             'ticker' => 'EMA',
@@ -187,9 +190,10 @@ class StrategyAnalyticsServiceTest extends TestCase
             'entry_price' => 100,
             'exit_price' => 50,
             'quantity' => 10,
-            'last_setup_score' => 10,
-            'trader_promoted_a_plus' => true,
-            'trader_promoted_a' => true,
+            'entry_setup_grade' => 'A++',
+            'entry_setup_score' => 10,
+            'entry_setup_captured_at' => now(),
+            'entry_setup_source' => 'live',
         ]);
 
         $byGrade = $this->analytics->statsByGrade($user->id);
@@ -215,33 +219,42 @@ class StrategyAnalyticsServiceTest extends TestCase
             'entry_price' => 100,
             'exit_price' => 110,
             'quantity' => 10,
-            'last_setup_score' => 10,
-            'trader_promoted_a_plus' => true,
-            'trader_promoted_a' => true,
+            'entry_setup_grade' => 'A++',
+            'entry_setup_score' => 10,
+            'entry_setup_captured_at' => now(),
+            'entry_setup_source' => 'live',
         ]);
         Position::factory()->for($user)->closed()->create([
             'strategy_tag_id' => $trampolineId,
             'entry_price' => 100,
             'exit_price' => 90,
             'quantity' => 10,
-            'last_setup_score' => 10,
-            'trader_promoted_a_plus' => true,
-            'trader_promoted_a' => true,
+            'entry_setup_grade' => 'A++',
+            'entry_setup_score' => 10,
+            'entry_setup_captured_at' => now(),
+            'entry_setup_source' => 'live',
         ]);
         Position::factory()->for($user)->closed()->create([
             'strategy_tag_id' => $trampolineId,
             'entry_price' => 100,
             'exit_price' => 108,
             'quantity' => 10,
-            'last_setup_score' => 7,
+            'entry_setup_grade' => 'B',
+            'entry_setup_score' => 7,
+            'entry_setup_captured_at' => now(),
+            'entry_setup_source' => 'live',
         ]);
         Position::factory()->for($user)->closed()->create([
             'strategy_tag_id' => $trampolineId,
             'entry_price' => 100,
             'exit_price' => 112,
             'quantity' => 10,
-            'buy_stop_review_setup_grade' => 'A',
-            'last_setup_score' => null,
+            'entry_setup_grade' => 'A',
+            'entry_setup_score' => 9,
+            'entry_setup_captured_at' => now(),
+            'entry_setup_source' => 'live',
+            'buy_stop_review_setup_grade' => 'C',
+            'last_setup_score' => 5,
         ]);
 
         $byGrade = $this->analytics->statsByGrade($user->id);
@@ -253,6 +266,29 @@ class StrategyAnalyticsServiceTest extends TestCase
         $this->assertSame(100.0, $byGrade[1]['win_rate']);
         $this->assertSame(1, $byGrade[2]['trades']);
         $this->assertSame(100.0, $byGrade[2]['win_rate']);
+    }
+
+    public function test_resolve_stored_setup_grade_ignores_buy_stop_and_last_setup(): void
+    {
+        $user = User::factory()->create();
+
+        $position = Position::factory()->for($user)->closed()->create([
+            'entry_price' => 100,
+            'exit_price' => 110,
+            'quantity' => 10,
+            'buy_stop_review_setup_grade' => 'A++',
+            'last_setup_score' => 10,
+            'trader_promoted_a_plus' => true,
+        ]);
+
+        $this->assertSame('—', $this->analytics->resolveStoredSetupGrade($position));
+
+        $position->forceFill([
+            'entry_setup_grade' => 'B',
+            'entry_setup_captured_at' => now(),
+        ])->saveQuietly();
+
+        $this->assertSame('B', $this->analytics->resolveStoredSetupGrade($position->fresh()));
     }
 
     public function test_pnl_split_includes_open_mtm_alongside_closed(): void
