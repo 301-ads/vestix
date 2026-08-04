@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Jobs\CheckPositionAlertTriggersJob;
 use App\Jobs\RebuildSquadLeaderboardJob;
 use App\Models\Position;
+use App\Services\SquadActivityRecorder;
 use App\Services\SquadCopyAlertService;
 use App\Support\FreerideDetector;
 
@@ -20,19 +21,22 @@ class PositionObserver
         if ($position->wasChanged('status')) {
             $original = $position->getOriginal('status');
             $new = $position->status;
+            $fresh = $position->fresh();
 
-            if ($original === 'scout' && $new === 'open') {
+            if ($original === 'scout' && $new === 'open' && $fresh instanceof Position) {
                 app(SquadCopyAlertService::class)->notifySquadMembers(
-                    $position->fresh(),
+                    $fresh,
                     'een nieuwe positie geopend op',
                 );
+                app(SquadActivityRecorder::class)->recordOpened($fresh);
             }
 
-            if ($original === 'open' && $new === 'closed') {
+            if ($original === 'open' && $new === 'closed' && $fresh instanceof Position) {
                 app(SquadCopyAlertService::class)->notifySquadMembers(
-                    $position->fresh(),
+                    $fresh,
                     'een positie gesloten op',
                 );
+                app(SquadActivityRecorder::class)->recordClosed($fresh);
                 RebuildSquadLeaderboardJob::dispatchSync();
             }
         }

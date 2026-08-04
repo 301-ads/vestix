@@ -10,6 +10,7 @@ use App\Filament\Resources\Positions\Schemas\PositionForm;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Models\Squad;
+use App\Services\SquadActivityRecorder;
 use App\Services\SquadContext;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
@@ -128,6 +129,7 @@ class CreateScout extends CreateRecord
 
         if ($record->visibility === PositionVisibility::Squad) {
             SquadRadarTargetPosted::dispatch($record);
+            app(SquadActivityRecorder::class)->recordShare($record);
         }
     }
 

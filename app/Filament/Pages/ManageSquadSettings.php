@@ -50,7 +50,7 @@ class ManageSquadSettings extends Page implements HasTable
 
     protected static string|\UnitEnum|null $navigationGroup = 'Squads';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 4;
 
     protected static ?string $title = 'Squad instellingen';
 
@@ -281,10 +281,47 @@ class ManageSquadSettings extends Page implements HasTable
                             ->success()
                             ->send();
                     }),
+                Action::make('transfer_ownership')
+                    ->label('Maak eigenaar')
+                    ->icon('heroicon-o-key')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Eigenaarschap overdragen')
+                    ->modalDescription('Deze gebruiker wordt squad-eigenaar en krijgt de Commander-rol.')
+                    ->visible(fn (User $record): bool => $this->activeSquad instanceof Squad
+                        && auth()->user() !== null
+                        && app(SquadManagementService::class)->canTransferOwnership($this->activeSquad, auth()->user())
+                        && $this->activeSquad->owner_id !== $record->id)
+                    ->action(function (User $record, SquadManagementService $management): void {
+                        $squad = $this->activeSquad;
+                        $actor = auth()->user();
+
+                        if (! $squad instanceof Squad || $actor === null) {
+                            return;
+                        }
+
+                        try {
+                            $management->transferOwnership($squad, $actor, $record);
+                        } catch (InvalidArgumentException $exception) {
+                            Notification::make()
+                                ->title($exception->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        $this->activeSquad = $squad->fresh();
+
+                        Notification::make()
+                            ->title('Eigenaarschap overgedragen')
+                            ->success()
+                            ->send();
+                    }),
                 DeleteAction::make('remove_member')
                     ->label('Verwijderen')
                     ->modalHeading('Lid verwijderen uit squad')
-                    ->modalDescription('Deze gebruiker verliest toegang tot de gedeelde radar en squad-dashboard van deze squad.')
+                    ->modalDescription('Deze gebruiker verliest toegang tot de gedeelde radar. Gedeelde scouts van dit lid worden privé (Ghost).')
                     ->visible(fn (User $record): bool => $this->canRemoveMember($record))
                     ->action(function (User $record, SquadManagementService $management): void {
                         $squad = $this->activeSquad;
@@ -312,7 +349,7 @@ class ManageSquadSettings extends Page implements HasTable
             ])
             ->headerActions([
                 Action::make('add_member')
-                    ->label('Lid toevoegen')
+                    ->label('Lid uitnodigen')
                     ->visible(fn (): bool => $this->activeSquad instanceof Squad
                         && auth()->user() !== null
                         && app(SquadContext::class)->userCanInSquad(auth()->user(), $this->activeSquad, 'user.invite'))
@@ -349,22 +386,17 @@ class ManageSquadSettings extends Page implements HasTable
                                 && User::query()->where('email', strtolower(trim((string) $get('email'))))->exists()),
                         TextInput::make('name')
                             ->label('Naam')
+                            ->helperText('Alleen voor nieuwe accounts — zij kiezen zelf een wachtwoord via de uitnodigingslink.')
                             ->required(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'
                                 && filled($get('email'))
                                 && ! User::query()->where('email', strtolower(trim((string) $get('email'))))->exists())
                             ->visible(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'
                                 && filled($get('email'))
                                 && ! User::query()->where('email', strtolower(trim((string) $get('email'))))->exists()),
-                        TextInput::make('password')
-                            ->label('Wachtwoord')
-                            ->password()
-                            ->minLength(8)
-                            ->required(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'
-                                && filled($get('email'))
-                                && ! User::query()->where('email', strtolower(trim((string) $get('email'))))->exists())
-                            ->visible(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'
-                                && filled($get('email'))
-                                && ! User::query()->where('email', strtolower(trim((string) $get('email'))))->exists()),
+                        Placeholder::make('invite_link_hint')
+                            ->label('')
+                            ->content('We sturen een magic invite-link. Geen wachtwoord namens iemand anders.')
+                            ->visible(fn (Get $get): bool => ($get('invite_method') ?? 'search') === 'email'),
                         Select::make('role')
                             ->options(SquadRole::options())
                             ->default(SquadRole::Sniper->value)
@@ -372,8 +404,9 @@ class ManageSquadSettings extends Page implements HasTable
                     ])
                     ->action(function (array $data, SquadManagementService $management): void {
                         $squad = $this->activeSquad;
+                        $actor = auth()->user();
 
-                        if (! $squad instanceof Squad) {
+                        if (! $squad instanceof Squad || $actor === null) {
                             return;
                         }
 
@@ -412,15 +445,14 @@ class ManageSquadSettings extends Page implements HasTable
                         }
 
                         $email = strtolower(trim((string) ($data['email'] ?? '')));
-                        $wasExisting = User::query()->where('email', $email)->exists();
 
                         try {
-                            $management->addMember(
+                            $management->inviteByEmail(
                                 $squad,
+                                $actor,
                                 $email,
                                 $role,
                                 $data['name'] ?? null,
-                                $data['password'] ?? null,
                             );
                         } catch (InvalidArgumentException $exception) {
                             Notification::make()
@@ -432,7 +464,8 @@ class ManageSquadSettings extends Page implements HasTable
                         }
 
                         Notification::make()
-                            ->title($wasExisting ? 'Lid gekoppeld' : 'Account aangemaakt en toegevoegd')
+                            ->title('Uitnodiging verstuurd')
+                            ->body("Magic invite-link gestuurd naar {$email}.")
                             ->success()
                             ->send();
                     }),
@@ -501,8 +534,59 @@ class ManageSquadSettings extends Page implements HasTable
                 ->label('Opslaan')
                 ->submit('save')
                 ->keyBindings(['mod+s']),
+            $this->getLeaveSquadAction(),
             $this->getDeleteSquadAction(),
         ];
+    }
+
+    protected function getLeaveSquadAction(): Action
+    {
+        return Action::make('leave_squad')
+            ->label('Squad verlaten')
+            ->color('gray')
+            ->icon('heroicon-o-arrow-right-start-on-rectangle')
+            ->requiresConfirmation()
+            ->modalHeading('Squad verlaten?')
+            ->modalDescription('Je verliest toegang tot de gedeelde radar. Jouw gedeelde scouts in deze squad worden privé (Ghost).')
+            ->visible(fn (): bool => $this->activeSquad instanceof Squad
+                && auth()->user() !== null
+                && app(SquadManagementService::class)->canLeave($this->activeSquad, auth()->user()))
+            ->action(function (SquadManagementService $management): void {
+                $squad = $this->activeSquad;
+                $user = auth()->user();
+
+                if (! $squad instanceof Squad || $user === null) {
+                    return;
+                }
+
+                try {
+                    $management->leaveSquad($squad, $user);
+                } catch (InvalidArgumentException $exception) {
+                    Notification::make()
+                        ->title($exception->getMessage())
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Squad verlaten')
+                    ->success()
+                    ->send();
+
+                $fallbackSquad = $user->squads()
+                    ->orderBy('squads.id')
+                    ->first();
+
+                if ($fallbackSquad !== null) {
+                    $this->redirect(static::getUrl(['squad' => $fallbackSquad->id]));
+
+                    return;
+                }
+
+                $this->redirect(RegisterSquad::getUrl());
+            });
     }
 
     protected function getDeleteSquadAction(): Action

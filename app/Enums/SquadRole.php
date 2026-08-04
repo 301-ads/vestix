@@ -8,15 +8,24 @@ enum SquadRole: string
     case Sniper = 'sniper';
     case Scout = 'scout';
 
+    public function label(): string
+    {
+        return match ($this) {
+            self::Commander => 'Commander',
+            self::Sniper => 'Sniper',
+            self::Scout => 'Scout',
+        };
+    }
+
     /**
      * @return array<string, string>
      */
     public static function options(): array
     {
         return [
-            self::Commander->value => 'Commander',
-            self::Sniper->value => 'Sniper',
-            self::Scout->value => 'Scout',
+            self::Commander->value => self::Commander->label(),
+            self::Sniper->value => self::Sniper->label(),
+            self::Scout->value => self::Scout->label(),
         ];
     }
 }

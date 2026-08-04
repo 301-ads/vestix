@@ -16,6 +16,8 @@ use App\Enums\ScoutSource;
 use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Services\AssetSyncService;
+use App\Services\ProtocolComplianceService;
+use App\Services\SquadActivityRecorder;
 use App\Support\EarningsExitSchedule;
 use App\Support\EntrySetupSnapshot;
 use App\Support\PositionSizing;
@@ -637,6 +639,8 @@ class Position extends Model
 
         $clone->save();
 
+        app(SquadActivityRecorder::class)->recordClone($this, $user);
+
         return $clone;
     }
 
@@ -735,7 +739,7 @@ class Position extends Model
 
         $this->update($data);
 
-        app(\App\Services\ProtocolComplianceService::class)->persistForClosed($this->fresh() ?? $this);
+        app(ProtocolComplianceService::class)->persistForClosed($this->fresh() ?? $this);
     }
 
     public function getEntryChartScreenshotUrlAttribute(): ?string

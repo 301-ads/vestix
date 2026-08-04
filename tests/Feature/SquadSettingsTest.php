@@ -6,6 +6,7 @@ use App\Enums\SquadRole;
 use App\Filament\Pages\ManageSquadSettings;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -35,7 +36,7 @@ class SquadSettingsTest extends TestCase
             ->assertSee('Squad leden beheren')
             ->assertSet('activeTab', 'settings')
             ->set('activeTab', 'members')
-            ->assertSee('Lid toevoegen');
+            ->assertSee('Lid uitnodigen');
     }
 
     public function test_scout_does_not_see_members_tab(): void
@@ -51,6 +52,7 @@ class SquadSettingsTest extends TestCase
 
     public function test_commander_can_add_existing_user_via_ui(): void
     {
+        Mail::fake();
         $user = $this->authenticateFilament();
         $existing = User::factory()->create(['email' => 'existing@vestix.test']);
 
@@ -61,13 +63,18 @@ class SquadSettingsTest extends TestCase
                 'email' => $existing->email,
                 'role' => SquadRole::Sniper->value,
             ])
-            ->assertNotified('Lid gekoppeld');
+            ->assertNotified('Uitnodiging verstuurd');
 
-        $this->assertTrue($user->squads()->first()->users()->whereKey($existing->id)->exists());
+        $this->assertFalse($user->squads()->first()->users()->whereKey($existing->id)->exists());
+        $this->assertDatabaseHas('squad_invites', [
+            'email' => $existing->email,
+            'squad_id' => $user->squads()->first()->id,
+        ]);
     }
 
-    public function test_commander_can_create_new_user_via_ui(): void
+    public function test_commander_can_send_magic_invite_via_ui(): void
     {
+        Mail::fake();
         $user = $this->authenticateFilament();
 
         Livewire::test(ManageSquadSettings::class)
@@ -76,13 +83,15 @@ class SquadSettingsTest extends TestCase
                 'invite_method' => 'email',
                 'email' => 'newmember@vestix.test',
                 'name' => 'New Member',
-                'password' => 'secret123',
                 'role' => SquadRole::Scout->value,
             ])
-            ->assertNotified('Account aangemaakt en toegevoegd');
+            ->assertNotified('Uitnodiging verstuurd');
 
-        $this->assertDatabaseHas('users', ['email' => 'newmember@vestix.test']);
-        $this->assertTrue($user->squads()->first()->users()->where('email', 'newmember@vestix.test')->exists());
+        $this->assertDatabaseMissing('users', ['email' => 'newmember@vestix.test']);
+        $this->assertDatabaseHas('squad_invites', [
+            'email' => 'newmember@vestix.test',
+            'squad_id' => $user->squads()->first()->id,
+        ]);
     }
 
     public function test_member_without_role_sees_assignment_warning(): void

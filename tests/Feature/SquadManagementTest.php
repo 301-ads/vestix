@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\SquadManagementService;
 use App\Services\SquadPermissionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use InvalidArgumentException;
 use Tests\TestCase;
 
@@ -35,21 +36,14 @@ class SquadManagementTest extends TestCase
         app(SquadPermissionService::class)->setTeamContext(null);
     }
 
-    public function test_add_member_creates_new_user_with_name_and_password(): void
+    public function test_add_member_rejects_unknown_email(): void
     {
         ['squad' => $squad] = $this->createUserWithSquad();
 
-        $member = app(SquadManagementService::class)->addMember(
-            $squad,
-            'new@vestix.test',
-            SquadRole::Scout,
-            'New Trader',
-            'secret123',
-        );
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Geen bestaand account voor dit e-mailadres. Stuur een uitnodigingslink.');
 
-        $this->assertSame('new@vestix.test', $member->email);
-        $this->assertSame('New Trader', $member->name);
-        $this->assertTrue($squad->users()->whereKey($member->id)->exists());
+        app(SquadManagementService::class)->addMember($squad, 'new@vestix.test', SquadRole::Sniper);
     }
 
     public function test_add_member_rejects_duplicate_membership(): void
@@ -61,16 +55,6 @@ class SquadManagementTest extends TestCase
         $this->expectExceptionMessage('Deze gebruiker is al lid van deze squad.');
 
         $management->addMember($squad, $commander->email, SquadRole::Sniper);
-    }
-
-    public function test_add_member_requires_name_and_password_for_new_user(): void
-    {
-        ['squad' => $squad] = $this->createUserWithSquad();
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Naam en wachtwoord zijn verplicht voor een nieuw account.');
-
-        app(SquadManagementService::class)->addMember($squad, 'new@vestix.test', SquadRole::Sniper);
     }
 
     public function test_commander_can_delete_owned_squad_and_shared_scouts_become_private(): void
@@ -117,26 +101,24 @@ class SquadManagementTest extends TestCase
         ['user' => $commander, 'squad' => $squad] = $this->createUserWithSquad();
         $management = app(SquadManagementService::class);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
+
         $management->removeMember($squad, $commander);
     }
 
-    public function test_cannot_demote_last_commander(): void
+    public function test_invite_by_email_requires_name_for_new_user(): void
     {
+        Mail::fake();
         ['user' => $commander, 'squad' => $squad] = $this->createUserWithSquad();
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Naam is verplicht voor een nieuwe uitnodiging.');
 
-        app(SquadManagementService::class)->changeMemberRole($squad, $commander, SquadRole::Sniper);
-    }
-
-    public function test_non_owner_cannot_delete_squad(): void
-    {
-        ['user' => $owner, 'squad' => $squad] = $this->createUserWithSquad();
-        $sniper = User::factory()->create();
-        $squad->users()->attach($sniper);
-        app(SquadPermissionService::class)->assignRole($sniper, $squad, SquadRole::Sniper);
-
-        $this->assertFalse(app(SquadManagementService::class)->canDelete($squad, $sniper));
+        app(SquadManagementService::class)->inviteByEmail(
+            $squad,
+            $commander,
+            'noname@vestix.test',
+            SquadRole::Scout,
+        );
     }
 }

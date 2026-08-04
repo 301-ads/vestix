@@ -81,7 +81,7 @@ enum AlertEventType: string
             self::ExecutionOrderPlan => 'Gap Reality Check na open (15:31)',
             self::ExecutionPrepDigest => 'Daily Execution Digest — Stop-Limit plannen (14:30)',
             self::OrderPlanRevised => 'Order Plan herzien — pre-market onder SMA 20 (14:30)',
-            self::SquadCopyAlert => 'Squad copy-alerts (Ghost Mode)',
+            self::SquadCopyAlert => 'Squad copy-alerts (alleen gedeelde setups)',
             self::SniperScanDigest => 'Sniper ochtendscan digest (06:30)',
             self::SniperScanTarget => 'Nieuw sniper-doelwit met score',
         };

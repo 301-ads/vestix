@@ -15,6 +15,7 @@ use App\Models\Position;
 use App\Models\Squad;
 use App\Services\AssetSyncService;
 use App\Services\CloneAttributionService;
+use App\Services\SquadActivityRecorder;
 use App\Services\SquadContext;
 use App\Support\EarningsExitDisplay;
 use App\Support\FilamentNotifier;
@@ -289,6 +290,7 @@ class EditPosition extends EditRecord
 
         if ($record->wasChanged('visibility') || $record->wasRecentlyCreated) {
             SquadRadarTargetPosted::dispatch($record);
+            app(SquadActivityRecorder::class)->recordShare($record);
         }
     }
 

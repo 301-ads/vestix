@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Alerts\AlertDispatcher;
 use App\Enums\AlertChannelType;
 use App\Enums\AlertEventType;
+use App\Enums\PositionVisibility;
 use App\Models\Position;
 use App\Models\User;
 use App\Models\UserAlertPreference;
@@ -23,14 +24,13 @@ class SquadCopyAlertService
             return;
         }
 
-        $squadIds = $actor->squads()->pluck('squads.id');
-
-        if ($squadIds->isEmpty()) {
+        // Ghost Mode / private setups stay silent — only announce shared squad positions.
+        if ($position->visibility !== PositionVisibility::Squad || $position->squad_id === null) {
             return;
         }
 
         $recipients = User::query()
-            ->whereHas('squads', fn ($q) => $q->whereIn('squads.id', $squadIds))
+            ->whereHas('squads', fn ($q) => $q->where('squads.id', $position->squad_id))
             ->whereKeyNot($actor->id)
             ->get();
 

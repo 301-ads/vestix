@@ -55,6 +55,7 @@ class SquadPermissionService
         $scout = Role::findOrCreate(SquadRole::Scout->value, 'web');
         $scout->syncPermissions([
             'scout.create',
+            'scout.share',
             'radar.view_squad',
         ]);
 

@@ -10,6 +10,7 @@ use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\EditUserProfile;
 use App\Filament\Pages\ManageSquadSettings;
 use App\Filament\Pages\RegisterSquad;
+use App\Filament\Pages\SquadActivity;
 use App\Filament\Pages\SquadLeaderboard;
 use App\Filament\Pages\StrategyCoach;
 use App\Filament\Resources\Positions\Pages\CreateScout;
@@ -92,6 +93,7 @@ class AdminPanelProvider extends PanelProvider
                 Dashboard::class,
                 ManageSquadSettings::class,
                 RegisterSquad::class,
+                SquadActivity::class,
                 SquadLeaderboard::class,
                 StrategyCoach::class,
             ])

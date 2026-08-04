@@ -36,7 +36,7 @@ class SquadLeaderboard extends Page implements HasTable
 
     protected static string|\UnitEnum|null $navigationGroup = 'Squads';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 3;
 
     #[Url(as: 'squad')]
     public ?int $squadId = null;
