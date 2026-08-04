@@ -2,13 +2,16 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\LeaderboardTrack;
 use App\Models\LeaderboardStat;
 use App\Models\Squad;
 use App\Services\PositionStatsAggregator;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Pages\Page;
+use Filament\Resources\Concerns\HasTabs;
 use Filament\Schemas\Components\EmbeddedTable;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -20,6 +23,7 @@ use Livewire\Attributes\Url;
 
 class SquadLeaderboard extends Page implements HasTable
 {
+    use HasTabs;
     use InteractsWithTable;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTrophy;
@@ -37,6 +41,9 @@ class SquadLeaderboard extends Page implements HasTable
     #[Url(as: 'squad')]
     public ?int $squadId = null;
 
+    #[Url(as: 'track')]
+    public ?string $activeTab = null;
+
     public static function canAccess(): bool
     {
         return auth()->user()?->squads()->exists() ?? false;
@@ -44,11 +51,29 @@ class SquadLeaderboard extends Page implements HasTable
 
     public function mount(): void
     {
+        $this->loadDefaultActiveTab();
+
         if ($this->squadId === null) {
             $this->squadId = auth()->user()?->squads()->orderBy('squads.id')->value('squads.id');
         }
 
         $this->rebuildLeaderboardForSelectedSquad();
+    }
+
+    public function getDefaultActiveTab(): string|int|null
+    {
+        return LeaderboardTrack::Executor->value;
+    }
+
+    /**
+     * @return array<string|int, Tab>
+     */
+    public function getTabs(): array
+    {
+        return [
+            LeaderboardTrack::Executor->value => Tab::make(LeaderboardTrack::Executor->label()),
+            LeaderboardTrack::Analyst->value => Tab::make(LeaderboardTrack::Analyst->label()),
+        ];
     }
 
     protected function getHeaderActions(): array
@@ -69,28 +94,39 @@ class SquadLeaderboard extends Page implements HasTable
     {
         return $schema
             ->components([
+                $this->getTabsContentComponent(),
                 EmbeddedTable::make(),
             ]);
     }
 
     public function table(Table $table): Table
     {
+        $track = $this->currentTrack();
+
         $computedAt = LeaderboardStat::query()
             ->where('squad_id', $this->squadId)
+            ->where('track', $track)
             ->max('computed_at');
 
         $squadName = Squad::query()->find($this->squadId)?->name;
 
         $description = $squadName !== null
-            ? "Squad: {$squadName}. Ranking op win rate, freerides secured en gemiddelde ROI % — geen dollarbedragen."
-            : 'Ranking op win rate, freerides secured en gemiddelde ROI % — geen dollarbedragen.';
+            ? "Squad: {$squadName}. {$track->description()}"
+            : $track->description();
+
+        $description .= ' Ranking op win rate, freerides secured en gemiddelde ROI %.';
 
         if ($computedAt) {
             $description .= ' Bijgewerkt '.date('j M Y H:i', strtotime((string) $computedAt)).'.';
         }
 
+        $emptyDescription = match ($track) {
+            LeaderboardTrack::Executor => 'Sluit minimaal '.PositionStatsAggregator::MIN_TRADES_FOR_RANKING.' trades om op het leaderboard te verschijnen.',
+            LeaderboardTrack::Analyst => 'Minimaal '.PositionStatsAggregator::MIN_TRADES_FOR_RANKING.' gesloten clones op jouw gedeelde setups nodig voor ranking.',
+        };
+
         return $table
-            ->heading('Squad Leaderboard')
+            ->heading('Squad Leaderboard · '.$track->label())
             ->description($description)
             ->searchable(false)
             ->paginated(false)
@@ -105,7 +141,7 @@ class SquadLeaderboard extends Page implements HasTable
                         default => 'primary',
                     }),
                 TextColumn::make('name')
-                    ->label('Analist'),
+                    ->label($track === LeaderboardTrack::Analyst ? 'Analyst' : 'Executor'),
                 TextColumn::make('win_rate')
                     ->label('Win rate')
                     ->suffix('%')
@@ -119,11 +155,11 @@ class SquadLeaderboard extends Page implements HasTable
                     ->label('Freerides')
                     ->numeric(),
                 TextColumn::make('closed_trades_count')
-                    ->label('Trades')
+                    ->label($track === LeaderboardTrack::Analyst ? 'Clones' : 'Trades')
                     ->numeric(),
             ])
             ->emptyStateHeading('Nog geen squad-statistieken')
-            ->emptyStateDescription('Sluit minimaal '.PositionStatsAggregator::MIN_TRADES_FOR_RANKING.' trades om op het leaderboard te verschijnen.');
+            ->emptyStateDescription($emptyDescription);
     }
 
     /**
@@ -138,7 +174,7 @@ class SquadLeaderboard extends Page implements HasTable
         }
 
         return app(PositionStatsAggregator::class)
-            ->rankedStatsForSquad($squad->id)
+            ->rankedStatsForSquad($squad->id, $this->currentTrack())
             ->map(fn (LeaderboardStat $stat): array => [
                 'rank' => $stat->rank,
                 'name' => $stat->user?->name ?? '—',
@@ -148,6 +184,12 @@ class SquadLeaderboard extends Page implements HasTable
                 'closed_trades_count' => $stat->closed_trades_count,
             ])
             ->values();
+    }
+
+    private function currentTrack(): LeaderboardTrack
+    {
+        return LeaderboardTrack::tryFrom((string) ($this->activeTab ?? ''))
+            ?? LeaderboardTrack::Executor;
     }
 
     private function rebuildLeaderboardForSelectedSquad(): void

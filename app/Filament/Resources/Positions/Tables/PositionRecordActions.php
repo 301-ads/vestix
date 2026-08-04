@@ -3,11 +3,13 @@
 namespace App\Filament\Resources\Positions\Tables;
 
 use App\Enums\BrokerOrderStatus;
+use App\Enums\GapHerplanAction;
 use App\Enums\ScoutPipelineStatus;
 use App\Events\PositionLiquidated;
 use App\Filament\Resources\Positions\PositionResource;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
+use App\Services\CloneAttributionService;
 use App\Services\MarketDataFetcher;
 use App\Services\SquadContext;
 use App\Support\BrokerOrderTicket;
@@ -568,6 +570,26 @@ class PositionRecordActions
             });
     }
 
+    public static function viewClones(): Action
+    {
+        return Action::make('view_clones')
+            ->label('Clones')
+            ->tooltip('Wie nam deze setup over en hoe liep het')
+            ->icon('heroicon-o-user-group')
+            ->iconButton()
+            ->color('gray')
+            ->visible(fn (Position $record): bool => (int) ($record->clones_count ?? $record->clones()->count()) > 0)
+            ->modalHeading(fn (Position $record): string => "Clones · {$record->ticker}")
+            ->modalDescription('Privacy-safe: namen, status en ROI % — geen dollarbedragen.')
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Sluiten')
+            ->modalContent(fn (Position $record): HtmlString => new HtmlString(
+                view('filament.positions.clone-attribution-modal', [
+                    'rows' => app(CloneAttributionService::class)->cloneOutcomeRows($record),
+                ])->render()
+            ));
+    }
+
     public static function gapHerplanReprice(): Action
     {
         return Action::make('gap_herplan_reprice')
@@ -580,7 +602,7 @@ class PositionRecordActions
                 && $record->execution_digest_status?->isCancelled() === true
                 && $record->gap_herplan_action === null)
             ->action(function (Position $record): void {
-                $record->applyGapHerplan(\App\Enums\GapHerplanAction::Reprice);
+                $record->applyGapHerplan(GapHerplanAction::Reprice);
                 FilamentNotifier::send(title: 'Herplan: herprijs', body: "{$record->ticker} klaar voor buy-stop review.");
             });
     }
@@ -597,7 +619,7 @@ class PositionRecordActions
                 && $record->execution_digest_status?->isCancelled() === true
                 && $record->gap_herplan_action === null)
             ->action(function (Position $record): void {
-                $record->applyGapHerplan(\App\Enums\GapHerplanAction::Skip);
+                $record->applyGapHerplan(GapHerplanAction::Skip);
                 FilamentNotifier::send(title: 'Herplan: skip', body: "{$record->ticker} uit Order Plan voor vandaag.");
             });
     }
@@ -614,7 +636,7 @@ class PositionRecordActions
                 && $record->execution_digest_status?->isCancelled() === true
                 && $record->gap_herplan_action === null)
             ->action(function (Position $record): void {
-                $record->applyGapHerplan(\App\Enums\GapHerplanAction::Wait);
+                $record->applyGapHerplan(GapHerplanAction::Wait);
                 FilamentNotifier::send(title: 'Herplan: wacht', body: "{$record->ticker} blijft in Order Plan.");
             });
     }

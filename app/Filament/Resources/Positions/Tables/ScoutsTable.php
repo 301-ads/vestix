@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
+use App\Enums\PositionVisibility;
 use App\Enums\ScoutPipelineStatus;
 use App\Filament\Resources\Scouts\ScoutResource;
 use App\Filament\Tables\Columns\DirectionColumn;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Services\CloneAttributionService;
+use App\Support\FilamentNotifier;
 use App\Support\FilamentPolling;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
@@ -77,6 +80,21 @@ class ScoutsTable
                     ->html()
                     ->extraCellAttributes(['class' => 'vestix-spotted-by-cell'])
                     ->visible($squadMode),
+                TextColumn::make('clones_count')
+                    ->label('Clones')
+                    ->counts('clones')
+                    ->badge()
+                    ->color(fn (?int $state): string => ($state ?? 0) > 0 ? 'primary' : 'gray')
+                    ->alignCenter()
+                    ->width('4.5rem')
+                    ->visible($squadMode),
+                TextColumn::make('cloned_from_label')
+                    ->label('Herkomst')
+                    ->state(fn (Position $record): ?string => app(CloneAttributionService::class)->clonedFromLabel($record))
+                    ->placeholder('—')
+                    ->color('gray')
+                    ->wrap()
+                    ->visible(! $squadMode),
                 TextColumn::make('entry_price')
                     ->label('Entry')
                     ->formatStateUsing(fn ($state, Position $record): ?HtmlString => ScoutRadarFilters::entryPriceWithDistanceHtml($record))
@@ -166,6 +184,7 @@ class ScoutsTable
                 PositionRecordActions::editBuyStopEntry($resourceClass),
                 PositionRecordActions::cancelBuyStopSetup(),
                 PositionRecordActions::cloneTarget($resourceClass),
+                PositionRecordActions::viewClones(),
                 PositionRecordActions::gapHerplanReprice(),
                 PositionRecordActions::gapHerplanSkip(),
                 PositionRecordActions::gapHerplanWait(),
@@ -207,7 +226,7 @@ class ScoutsTable
                                     $count++;
                                 }
 
-                                \App\Support\FilamentNotifier::send(
+                                FilamentNotifier::send(
                                     title: 'Order Plan bijgewerkt',
                                     body: "{$count} scout(s) toegevoegd.",
                                 );
@@ -234,7 +253,7 @@ class ScoutsTable
                                     $count++;
                                 }
 
-                                \App\Support\FilamentNotifier::send(
+                                FilamentNotifier::send(
                                     title: 'Scouts verwijderd',
                                     body: "{$count} scout(s) weggehaald.",
                                 );
@@ -253,13 +272,13 @@ class ScoutsTable
                                     }
 
                                     $record->update([
-                                        'visibility' => \App\Enums\PositionVisibility::Private,
+                                        'visibility' => PositionVisibility::Private,
                                         'squad_id' => null,
                                     ]);
                                     $count++;
                                 }
 
-                                \App\Support\FilamentNotifier::send(
+                                FilamentNotifier::send(
                                     title: 'Ghost Mode',
                                     body: "{$count} scout(s) privé gezet.",
                                 );

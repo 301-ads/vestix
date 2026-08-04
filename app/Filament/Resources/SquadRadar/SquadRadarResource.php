@@ -41,7 +41,8 @@ class SquadRadarResource extends Resource
         $query = parent::getEloquentQuery()
             ->scout()
             ->where('visibility', PositionVisibility::Squad)
-            ->with(['asset', 'user', 'squad']);
+            ->with(['asset', 'user', 'squad'])
+            ->withCount('clones');
 
         if ($user === null) {
             return $query->whereRaw('0 = 1');

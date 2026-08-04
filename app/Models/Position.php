@@ -615,6 +615,7 @@ class Position extends Model
             'protocol_score',
             'protocol_score_details',
             'gap_herplan_action',
+            'clones_count',
         ]);
 
         $clone->fill([

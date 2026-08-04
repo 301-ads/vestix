@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LeaderboardTrack;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -12,6 +13,7 @@ class LeaderboardStat extends Model
     protected function casts(): array
     {
         return [
+            'track' => LeaderboardTrack::class,
             'win_rate' => 'decimal:2',
             'avg_roi_pct' => 'decimal:2',
             'freeride_count' => 'integer',

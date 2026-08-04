@@ -46,7 +46,10 @@ class ScoutResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->scout()->nonLegacy()->with(['asset', 'user']);
+        $query = parent::getEloquentQuery()
+            ->scout()
+            ->nonLegacy()
+            ->with(['asset', 'user', 'clonedFrom.user']);
 
         $userId = auth()->id();
 

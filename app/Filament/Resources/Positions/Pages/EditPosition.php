@@ -14,6 +14,7 @@ use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\Position;
 use App\Models\Squad;
 use App\Services\AssetSyncService;
+use App\Services\CloneAttributionService;
 use App\Services\SquadContext;
 use App\Support\EarningsExitDisplay;
 use App\Support\FilamentNotifier;
@@ -164,15 +165,23 @@ class EditPosition extends EditRecord
         /** @var Position $record */
         $record = $this->getRecord();
 
-        if ($record->status !== 'closed' || $record->exit_price === null || $record->closed_at === null) {
-            return null;
+        $parts = [];
+
+        $clonedFrom = app(CloneAttributionService::class)->clonedFromLabel($record);
+
+        if ($clonedFrom !== null) {
+            $parts[] = $clonedFrom;
         }
 
-        return sprintf(
-            'Exit: $%s — gesloten op %s',
-            number_format((float) $record->exit_price, 2),
-            $record->closed_at->translatedFormat('j M Y'),
-        );
+        if ($record->status === 'closed' && $record->exit_price !== null && $record->closed_at !== null) {
+            $parts[] = sprintf(
+                'Exit: $%s — gesloten op %s',
+                number_format((float) $record->exit_price, 2),
+                $record->closed_at->translatedFormat('j M Y'),
+            );
+        }
+
+        return $parts === [] ? null : implode(' · ', $parts);
     }
 
     protected function mutateFormDataBeforeFill(array $data): array

@@ -2,11 +2,16 @@
 
 namespace Tests\Unit;
 
+use App\Enums\LeaderboardTrack;
+use App\Enums\PositionVisibility;
+use App\Enums\SquadRole;
+use App\Models\LeaderboardStat;
 use App\Models\Position;
 use App\Models\Squad;
 use App\Models\StrategyTag;
 use App\Models\User;
 use App\Services\PositionStatsAggregator;
+use App\Services\SquadPermissionService;
 use App\Services\StrategyAnalyticsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -51,11 +56,76 @@ class PositionStatsAggregatorTest extends TestCase
         $aggregator = app(PositionStatsAggregator::class);
         $aggregator->rebuildForSquad($squad);
 
-        $ranked = $aggregator->rankedStatsForSquad($squad->id);
+        $ranked = $aggregator->rankedStatsForSquad($squad->id, LeaderboardTrack::Executor);
 
         $this->assertCount(2, $ranked);
         $this->assertEquals($userA->id, $ranked->first()->user_id);
         $this->assertEquals(1, $ranked->first()->rank);
+        $this->assertSame(LeaderboardTrack::Executor, $ranked->first()->track);
+    }
+
+    public function test_analyst_track_credits_spotter_for_closed_clones(): void
+    {
+        ['user' => $analyst, 'squad' => $squad] = $this->createUserWithSquad();
+        $sniper = User::factory()->create();
+        $squad->users()->attach($sniper);
+        app(SquadPermissionService::class)->assignRole($sniper, $squad, SquadRole::Sniper);
+
+        $shared = Position::factory()->for($analyst)->scout()->create([
+            'visibility' => PositionVisibility::Squad,
+            'squad_id' => $squad->id,
+            'ticker' => 'META',
+        ]);
+
+        foreach ([10, 5, -2] as $i => $pnl) {
+            $clone = $shared->cloneForUser($sniper);
+            $clone->update([
+                'status' => 'closed',
+                'entry_price' => 100,
+                'exit_price' => 100 + $pnl,
+                'quantity' => 1,
+                'closed_at' => now()->subDays(3 - $i),
+            ]);
+        }
+
+        // Sniper also has personal closed trades that should NOT inflate Analyst for analyst.
+        Position::factory()->create([
+            'user_id' => $sniper->id,
+            'status' => 'closed',
+            'entry_price' => 100,
+            'exit_price' => 150,
+            'closed_at' => now(),
+            'quantity' => 1,
+        ]);
+
+        $aggregator = app(PositionStatsAggregator::class);
+        $aggregator->rebuildForSquad($squad);
+
+        $analystRow = LeaderboardStat::query()
+            ->where('squad_id', $squad->id)
+            ->where('user_id', $analyst->id)
+            ->where('track', LeaderboardTrack::Analyst)
+            ->firstOrFail();
+
+        $this->assertSame(3, $analystRow->closed_trades_count);
+        $this->assertEquals(1, $analystRow->rank);
+        $this->assertGreaterThan(0, (float) $analystRow->win_rate);
+
+        $sniperAnalyst = LeaderboardStat::query()
+            ->where('squad_id', $squad->id)
+            ->where('user_id', $sniper->id)
+            ->where('track', LeaderboardTrack::Analyst)
+            ->firstOrFail();
+
+        $this->assertSame(0, $sniperAnalyst->closed_trades_count);
+
+        $executorSniper = LeaderboardStat::query()
+            ->where('squad_id', $squad->id)
+            ->where('user_id', $sniper->id)
+            ->where('track', LeaderboardTrack::Executor)
+            ->firstOrFail();
+
+        $this->assertGreaterThanOrEqual(1, $executorSniper->closed_trades_count);
     }
 
     public function test_strategy_analytics_expectancy(): void
