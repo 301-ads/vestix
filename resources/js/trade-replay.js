@@ -161,6 +161,9 @@ function applySeriesData(state, fogged) {
 
 function syncTimeScales(state) {
     const { chart, rsiChart } = state;
+    // Keep empty bars on the right so the last candle isn't covered by SL/Entry/T1 labels.
+    chart.timeScale().applyOptions({ rightOffset: 10 });
+    rsiChart.timeScale().applyOptions({ rightOffset: 10 });
     chart.timeScale().fitContent();
     const range = chart.timeScale().getVisibleLogicalRange();
 
@@ -335,7 +338,10 @@ async function loadReplay(el) {
             crosshair: { mode: CrosshairMode.Normal },
             leftPriceScale: { visible: false },
             rightPriceScale: priceScaleOptions,
-            timeScale: { borderVisible: false },
+            timeScale: {
+                borderVisible: false,
+                rightOffset: 10,
+            },
             height: 420,
             autoSize: true,
             width: chartHost.clientWidth || undefined,
@@ -371,7 +377,10 @@ async function loadReplay(el) {
             },
             leftPriceScale: { visible: false },
             rightPriceScale: { ...priceScaleOptions },
-            timeScale: { borderVisible: false },
+            timeScale: {
+                borderVisible: false,
+                rightOffset: 10,
+            },
             height: 140,
             autoSize: true,
             width: chartHost.clientWidth || rsiHost.clientWidth || undefined,
