@@ -163,16 +163,23 @@ class PositionRecordActions
                 && $record->scoutPipelineStatus() === ScoutPipelineStatus::Active)
             ->disabled(fn (Position $record): bool => self::scoutActivationDisabled($record))
             ->authorize(fn (Position $record): bool => auth()->user()?->can('activate', $record) ?? false)
-            ->requiresConfirmation(fn (Position $record): bool => self::scoutExceedsRiskLimit($record))
-            ->modalHeading(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
-                ? 'Risicomanagement overschreden'
-                : 'Scout activeren als positie')
-            ->modalDescription(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
-                ? self::scoutRiskOverrideDescription($record)
-                : 'Vul je werkelijke fill en aantal in. Bij een partial fill: pas het aantal aan naar wat IBKR echt gevuld heeft (ook later via Edit). Na activatie verschijnt een actie om de stop-loss bij je broker in te stellen.')
-            ->modalSubmitActionLabel(fn (Position $record): string => self::scoutExceedsRiskLimit($record)
-                ? 'Toch doordrukken'
-                : 'Activeren')
+            ->requiresConfirmation(fn (Position $record): bool => self::scoutExceedsRiskLimit($record)
+                || self::scoutEarningsOverrideRequired($record))
+            ->modalHeading(fn (Position $record): string => match (true) {
+                self::scoutExceedsRiskLimit($record) => 'Risicomanagement overschreden',
+                self::scoutEarningsOverrideRequired($record) => 'Earnings-risico: toch activeren?',
+                default => 'Scout activeren als positie',
+            })
+            ->modalDescription(fn (Position $record): string => match (true) {
+                self::scoutExceedsRiskLimit($record) => self::scoutRiskOverrideDescription($record),
+                self::scoutEarningsOverrideRequired($record) => self::scoutEarningsOverrideDescription($record),
+                default => 'Vul je werkelijke fill en aantal in. Bij een partial fill: pas het aantal aan naar wat IBKR echt gevuld heeft (ook later via Edit). Na activatie verschijnt een actie om de stop-loss bij je broker in te stellen.',
+            })
+            ->modalSubmitActionLabel(fn (Position $record): string => match (true) {
+                self::scoutExceedsRiskLimit($record) => 'Toch doordrukken',
+                self::scoutEarningsOverrideRequired($record) => 'Toch activeren',
+                default => 'Activeren',
+            })
             ->schema([
                 TextInput::make('entry_price')
                     ->label('Entry prijs')
@@ -1195,36 +1202,65 @@ class PositionRecordActions
         return ['class' => implode(' ', $classes)];
     }
 
-    public static function scoutActivationDisabled(Position $record): bool
+    public static function scoutEarningsGateBlocks(Position $record): bool
     {
         return $record->isInEarningsEntryQuarantine()
-            || EarningsExitDisplay::isWithinAlertWindow($record)
-            || MarketDataFreshness::isPositionSyncInProgress($record->id)
+            || EarningsExitDisplay::isWithinAlertWindow($record);
+    }
+
+    /**
+     * Soft gate: activation stays enabled, but confirmation warns about earnings risk
+     * (quarantine ±2 trading days and/or 14-day pre-earnings runway).
+     */
+    public static function scoutEarningsOverrideRequired(Position $record): bool
+    {
+        return self::scoutEarningsGateBlocks($record);
+    }
+
+    public static function scoutActivationDisabled(Position $record): bool
+    {
+        return MarketDataFreshness::isPositionSyncInProgress($record->id)
             || MarketDataFreshness::isSyncInProgress();
     }
 
     public static function scoutActivationTooltip(Position $record): string
     {
+        if (MarketDataFreshness::isPositionSyncInProgress($record->id)
+            || MarketDataFreshness::isSyncInProgress()) {
+            return 'Marktdata wordt opgehaald — even geduld';
+        }
+
         if ($record->isInEarningsEntryQuarantine()) {
             $tradingDays = EarningsExitSchedule::quarantineTradingDays();
 
-            return "Promotie geblokkeerd: earnings-quarantaine (±{$tradingDays} handelsdagen)";
+            return "Earnings-risico: quarantaine (±{$tradingDays} handelsdagen) — activeer alleen bewust";
         }
 
         if (EarningsExitDisplay::isWithinAlertWindow($record)) {
             $daysUntil = $record->daysUntilEarnings();
 
             return $daysUntil !== null
-                ? "Promotie geblokkeerd: earnings over {$daysUntil} dagen (dead zone ≤14 dagen)"
-                : 'Promotie geblokkeerd: earnings binnen 14 dagen';
-        }
-
-        if (MarketDataFreshness::isPositionSyncInProgress($record->id)
-            || MarketDataFreshness::isSyncInProgress()) {
-            return 'Marktdata wordt opgehaald — even geduld';
+                ? "Earnings-risico: cijfers over {$daysUntil} dagen (runway ≤14 dagen) — activeer alleen bewust"
+                : 'Earnings-risico: cijfers binnen 14 dagen — activeer alleen bewust';
         }
 
         return 'Zet scout om naar open positie met berekende stop-loss';
+    }
+
+    private static function scoutEarningsOverrideDescription(Position $record): string
+    {
+        if ($record->isInEarningsEntryQuarantine()) {
+            $tradingDays = EarningsExitSchedule::quarantineTradingDays();
+
+            return "{$record->ticker} zit in de earnings-quarantaine (±{$tradingDays} handelsdagen). De trampoline is fundamenteel onbetrouwbaar — activeer alleen als je de fill bewust wilt doorzetten ondanks dat risico.";
+        }
+
+        $daysUntil = $record->daysUntilEarnings();
+        $daysLabel = $daysUntil === null
+            ? 'binnenkort'
+            : ($daysUntil === 0 ? 'vandaag' : "over {$daysUntil} dagen");
+
+        return "Earnings {$daysLabel} laten te weinig runway voor een nieuwe swing. Activeer alleen als je {$record->ticker} bewust wilt doorzetten ondanks dat risico.";
     }
 
     /**

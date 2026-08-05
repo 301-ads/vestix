@@ -17,7 +17,6 @@ use App\Services\AssetSyncService;
 use App\Services\CloneAttributionService;
 use App\Services\SquadActivityRecorder;
 use App\Services\SquadContext;
-use App\Support\EarningsExitDisplay;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupScorecard;
@@ -425,11 +424,9 @@ class EditPosition extends EditRecord
         /** @var Position $record */
         $record = $this->getRecord();
 
-        if (EarningsExitDisplay::isWithinAlertWindow($record)) {
-            return PositionRecordActions::scoutActivationTooltip($record);
-        }
-
-        if (PositionRecordActions::scoutActivationDisabled($record)) {
+        if (PositionRecordActions::scoutEarningsOverrideRequired($record)
+            || PositionRecordActions::scoutActivationDisabled($record)
+            || PositionRecordActions::scoutEarningsGateBlocks($record)) {
             return PositionRecordActions::scoutActivationTooltip($record);
         }
 
