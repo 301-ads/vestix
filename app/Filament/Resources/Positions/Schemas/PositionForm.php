@@ -105,7 +105,6 @@ class PositionForm
                     ->schema([
                         self::setupDetailsSection($isScoutForm),
                         self::tradeReplaySection(),
-                        self::whatIfSection(),
                         self::schildSection(),
                         self::earningsOverrideSection(),
                     ]),
@@ -121,6 +120,7 @@ class PositionForm
             ->schema([
                 self::orderPlanSection(),
                 self::schildStatusSection(),
+                self::whatIfSection(),
                 self::openPositionJournalSection(),
             ]);
     }
@@ -128,7 +128,7 @@ class PositionForm
     private static function tradeReplaySection(): Section
     {
         return Section::make('Replay Engine')
-            ->description('Interactieve historische grafiek op het moment van je shot — geen dode screenshot.')
+            ->description('Interactieve historische grafiek op het moment van je shot — SMA-20, RSI(14) en entry/exit markers.')
             ->compact()
             ->columnSpanFull()
             ->visible(fn (?Position $record): bool => $record?->status === 'closed')
@@ -141,11 +141,10 @@ class PositionForm
 
     private static function whatIfSection(): Section
     {
-        return Section::make('Wat Als Simulator')
-            ->description('Confronteer ongeduld met de wiskunde van een alternatieve stop of exit.')
+        return Section::make('Wat Als')
+            ->description('Alternatieve stop/exit vs jouw echte uitkomst.')
             ->compact()
-            ->collapsed()
-            ->columnSpanFull()
+            ->collapsed(false)
             ->visible(fn (?Position $record): bool => $record?->status === 'closed')
             ->schema([
                 View::make('filament.positions.what-if-simulator')

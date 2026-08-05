@@ -35,33 +35,32 @@
             }
         }"
     >
-        <p class="text-sm text-gray-500 dark:text-gray-400">
-            Wat was er gebeurd met een ruimere stop of latere exit? De machine confronteert je met de wiskunde van ongeduld.
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+            Wat als je stop ruimer was, of je exit later?
         </p>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 gap-2">
             <label class="text-sm">
-                <span class="text-gray-500">Alternatieve stop</span>
+                <span class="text-gray-500">Alt. stop</span>
                 <input type="number" step="0.01" x-model.number="stop" class="fi-input mt-1 w-full rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5" />
             </label>
             <label class="text-sm">
-                <span class="text-gray-500">Alternatieve exit</span>
+                <span class="text-gray-500">Alt. exit</span>
                 <input type="number" step="0.01" x-model.number="exit" class="fi-input mt-1 w-full rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5" />
             </label>
         </div>
-        <button type="button" @click="run()" class="fi-btn fi-btn-color-primary fi-size-sm" x-bind:disabled="loading">
+        <button type="button" @click="run()" class="fi-btn fi-btn-color-primary fi-size-sm w-full justify-center" x-bind:disabled="loading">
             <span x-text="loading ? 'Berekenen…' : 'Simuleer'"></span>
         </button>
         <div class="rounded-lg border border-gray-200 p-3 text-sm dark:border-white/10" x-show="result && !result.error" x-cloak>
-            <div class="grid grid-cols-2 gap-2">
-                <div>Origineel P&amp;L: <strong>${{ number_format($result['original_pnl'], 2) }}</strong></div>
-                <div>Simulatie P&amp;L: <strong x-text="result ? ('$' + Number(result.simulated_pnl).toFixed(2)) : '—'"></strong></div>
-                <div>Δ P&amp;L: <strong x-text="result ? ('$' + Number(result.delta_pnl).toFixed(2)) : '—'"></strong></div>
+            <div class="space-y-1">
+                <div>Sim P&amp;L: <strong x-text="result ? ('$' + Number(result.simulated_pnl).toFixed(2)) : '—'"></strong></div>
+                <div>Δ: <strong x-text="result ? ('$' + Number(result.delta_pnl).toFixed(2)) : '—'"></strong></div>
                 <div>Sim R: <strong x-text="result?.simulated_r ?? '—'"></strong></div>
             </div>
-            <p class="mt-2 text-gray-500" x-text="result?.exit_reason"></p>
+            <p class="mt-2 text-xs text-gray-500" x-text="result?.exit_reason"></p>
         </div>
-        <div class="text-sm text-gray-500" x-show="!result">
-            Baseline (huidige trade): ${{ number_format($result['original_pnl'], 2) }}
+        <div class="text-xs text-gray-500" x-show="!result">
+            Nu: ${{ number_format($result['original_pnl'], 2) }}
             @if ($result['original_r'] !== null)
                 · {{ number_format($result['original_r'], 2) }}R
             @endif

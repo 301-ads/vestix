@@ -1,7 +1,14 @@
-import { createChart, ColorType, CrosshairMode, CandlestickSeries, LineSeries } from 'lightweight-charts';
+import { createChart, ColorType, CrosshairMode, CandlestickSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
 
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+}
+
+function teardown(el) {
+    if (el._vestixReplayCleanup) {
+        el._vestixReplayCleanup();
+        el._vestixReplayCleanup = null;
+    }
 }
 
 async function loadReplay(el) {
@@ -16,11 +23,13 @@ async function loadReplay(el) {
     const rsiHost = el.querySelector('[data-replay-rsi]');
     const status = el.querySelector('[data-replay-status]');
 
-    if (!chartHost || !rsiHost) {
+    if (!chartHost || !rsiHost || !status) {
         return;
     }
 
+    teardown(el);
     status.textContent = 'Koersdata laden…';
+    status.classList.remove('text-amber-500', 'text-rose-400');
 
     try {
         const response = await fetch(url, {
@@ -36,7 +45,18 @@ async function loadReplay(el) {
         }
 
         const payload = await response.json();
-        status.textContent = `${payload.ticker} · ${payload.candles.length} bars · SMA-20 + RSI(14)`;
+
+        if (!payload?.candles?.length) {
+            throw new Error('Empty candles');
+        }
+
+        status.textContent = payload.demo
+            ? `${payload.ticker} · demo-data (API leeg) · SMA-20 + RSI(14)`
+            : `${payload.ticker} · ${payload.candles.length} bars · SMA-20 + RSI(14)`;
+
+        if (payload.demo) {
+            status.classList.add('text-amber-500');
+        }
 
         chartHost.innerHTML = '';
         rsiHost.innerHTML = '';
@@ -53,7 +73,8 @@ async function loadReplay(el) {
             crosshair: { mode: CrosshairMode.Normal },
             rightPriceScale: { borderVisible: false },
             timeScale: { borderVisible: false },
-            height: 320,
+            height: 280,
+            autoSize: true,
         });
 
         const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -69,28 +90,32 @@ async function loadReplay(el) {
             color: '#3b82f6',
             lineWidth: 2,
             title: 'SMA-20',
+            priceLineVisible: false,
+            lastValueVisible: true,
         });
-        smaSeries.setData(payload.sma20);
+        smaSeries.setData(payload.sma20 ?? []);
 
         if (payload.markers?.length) {
-            candleSeries.setMarkers(payload.markers);
+            createSeriesMarkers(candleSeries, payload.markers);
         }
 
         const levels = payload.levels ?? {};
-        for (const [key, color] of [
-            ['entry', '#22c55e'],
-            ['stop', '#ef4444'],
-            ['target1', '#a855f7'],
-            ['exit', '#f59e0b'],
-        ]) {
+        const levelMeta = [
+            ['entry', '#22c55e', 'Entry'],
+            ['stop', '#ef4444', 'SL'],
+            ['target1', '#a855f7', 'T1'],
+            ['exit', '#f59e0b', 'Exit'],
+        ];
+
+        for (const [key, color, title] of levelMeta) {
             if (levels[key] != null) {
                 candleSeries.createPriceLine({
-                    price: levels[key],
+                    price: Number(levels[key]),
                     color,
                     lineWidth: 1,
                     lineStyle: 2,
                     axisLabelVisible: true,
-                    title: key,
+                    title,
                 });
             }
         }
@@ -106,51 +131,73 @@ async function loadReplay(el) {
             },
             rightPriceScale: { borderVisible: false },
             timeScale: { borderVisible: false },
-            height: 120,
+            height: 110,
+            autoSize: true,
         });
 
         const rsiSeries = rsiChart.addSeries(LineSeries, {
             color: '#f59e0b',
             lineWidth: 2,
             title: 'RSI(14)',
+            priceLineVisible: false,
         });
-        rsiSeries.setData(payload.rsi14);
-        rsiSeries.createPriceLine({ price: 70, color: '#ef4444', lineWidth: 1, lineStyle: 2, axisLabelVisible: false });
-        rsiSeries.createPriceLine({ price: 30, color: '#22c55e', lineWidth: 1, lineStyle: 2, axisLabelVisible: false });
+        rsiSeries.setData(payload.rsi14 ?? []);
+        rsiSeries.createPriceLine({ price: 70, color: '#ef4444', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '70' });
+        rsiSeries.createPriceLine({ price: 30, color: '#22c55e', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '30' });
 
         chart.timeScale().fitContent();
         rsiChart.timeScale().fitContent();
 
-        chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+        const syncRange = (range) => {
             if (range) {
                 rsiChart.timeScale().setVisibleLogicalRange(range);
             }
-        });
-
-        const resize = () => {
-            chart.applyOptions({ width: chartHost.clientWidth });
-            rsiChart.applyOptions({ width: rsiHost.clientWidth });
         };
-        resize();
-        window.addEventListener('resize', resize);
+        chart.timeScale().subscribeVisibleLogicalRangeChange(syncRange);
+
+        el._vestixReplayCleanup = () => {
+            chart.timeScale().unsubscribeVisibleLogicalRangeChange(syncRange);
+            chart.remove();
+            rsiChart.remove();
+        };
     } catch (error) {
         status.textContent = 'Replay niet beschikbaar (geen historische data).';
+        status.classList.add('text-rose-400');
         console.warn('Trade replay failed', error);
     }
 }
 
 function boot() {
     document.querySelectorAll('[data-trade-replay]').forEach((el) => {
-        if (el.dataset.replayBooted === '1') {
+        // Livewire remorphs replace nodes; always (re)load on each boot pass for fresh nodes.
+        if (el.dataset.replayLoading === '1') {
             return;
         }
-        el.dataset.replayBooted = '1';
-        loadReplay(el);
+
+        const signature = `${el.dataset.positionId}:${el.dataset.replayUrl}`;
+        if (el.dataset.replaySignature === signature && el.dataset.replayReady === '1') {
+            return;
+        }
+
+        el.dataset.replaySignature = signature;
+        el.dataset.replayLoading = '1';
+        loadReplay(el).finally(() => {
+            el.dataset.replayLoading = '0';
+            el.dataset.replayReady = '1';
+        });
     });
 }
 
 document.addEventListener('DOMContentLoaded', boot);
 document.addEventListener('livewire:navigated', boot);
 document.addEventListener('livewire:init', () => {
-    Livewire.hook('morphed', () => boot());
+    Livewire.hook('morphed', () => {
+        // Allow remorphed nodes (without ready flag) to boot; clear stale charts first.
+        document.querySelectorAll('[data-trade-replay]').forEach((el) => {
+            if (!el.isConnected) {
+                teardown(el);
+            }
+        });
+        boot();
+    });
 });

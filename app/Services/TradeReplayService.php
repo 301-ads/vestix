@@ -6,6 +6,7 @@ use App\Contracts\DailyBarProvider;
 use App\Models\Position;
 use App\Models\SniperDailyBar;
 use App\Support\TechnicalIndicators;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 class TradeReplayService
@@ -22,18 +23,13 @@ class TradeReplayService
      *     rsi14: list<array{time: string, value: float}>,
      *     markers: list<array{time: string, position: string, color: string, shape: string, text: string}>,
      *     levels: array{entry: ?float, stop: ?float, target1: ?float, exit: ?float},
+     *     demo: bool,
      * }|null
      */
-    public function build(Position $position): ?array
+    public function build(Position $position, bool $allowDemoFallback = true): ?array
     {
         $lookback = (int) config('vestix.academy.replay_lookback_bars', 120);
         $forward = (int) config('vestix.academy.replay_forward_bars', 20);
-
-        $bars = $this->resolveBars($position->ticker, $lookback + $forward + 30);
-
-        if ($bars === null || count($bars) < 30) {
-            return null;
-        }
 
         $anchorDate = optional($position->signal_bar_date ?? $position->detected_signal_bar_date)
             ?->toDateString();
@@ -42,14 +38,22 @@ class TradeReplayService
             $anchorDate = $position->closed_at->toDateString();
         }
 
-        if ($anchorDate !== null) {
-            $anchorIndex = null;
+        $needed = $lookback + $forward + 40;
+        $bars = $this->resolveBars($position->ticker, $needed, $anchorDate);
+        $demo = false;
 
-            foreach ($bars as $index => $bar) {
-                if ($bar['date'] <= $anchorDate) {
-                    $anchorIndex = $index;
-                }
+        if ($bars === null || count($bars) < 30) {
+            if (! $allowDemoFallback) {
+                return null;
             }
+
+            $bars = $this->demoBars($position, $lookback, $forward);
+            $demo = true;
+            $anchorDate = $bars[min(count($bars) - 1 - max(0, $forward), max(0, count($bars) - 1))]['date'] ?? $anchorDate;
+        }
+
+        if ($anchorDate !== null) {
+            $anchorIndex = $this->indexAtOrBefore($bars, $anchorDate);
 
             if ($anchorIndex !== null) {
                 $start = max(0, $anchorIndex - $lookback + 1);
@@ -87,8 +91,12 @@ class TradeReplayService
             }
         }
 
-        $entryTime = $anchorDate ?? ($candles[array_key_last($candles)]['time'] ?? null);
-        $exitTime = optional($position->closed_at)?->toDateString();
+        $candleTimes = array_column($candles, 'time');
+        $entryTime = $this->snapToCandleTime($candleTimes, $anchorDate);
+        $exitTime = $this->snapToCandleTime(
+            $candleTimes,
+            optional($position->closed_at)?->toDateString(),
+        );
 
         $markers = [];
 
@@ -105,7 +113,7 @@ class TradeReplayService
         if ($exitTime !== null && $position->exit_price !== null) {
             $markers[] = [
                 'time' => $exitTime,
-                'position' => 'aboveBar',
+                'position' => $position->isShort() ? 'belowBar' : 'aboveBar',
                 'color' => '#ef4444',
                 'shape' => 'circle',
                 'text' => 'Exit',
@@ -126,40 +134,80 @@ class TradeReplayService
                 'target1' => $position->plannedBracketTarget1Price(),
                 'exit' => $position->exit_price !== null ? (float) $position->exit_price : null,
             ],
+            'demo' => $demo,
         ];
+    }
+
+    /**
+     * @param  list<array{open: float, high: float, low: float, close: float, volume: float, date: string}>  $bars
+     */
+    private function indexAtOrBefore(array $bars, string $date): ?int
+    {
+        $anchorIndex = null;
+
+        foreach ($bars as $index => $bar) {
+            if ($bar['date'] <= $date) {
+                $anchorIndex = $index;
+            }
+        }
+
+        return $anchorIndex;
+    }
+
+    /**
+     * @param  list<string>  $candleTimes
+     */
+    private function snapToCandleTime(array $candleTimes, ?string $date): ?string
+    {
+        if ($date === null || $candleTimes === []) {
+            return null;
+        }
+
+        if (in_array($date, $candleTimes, true)) {
+            return $date;
+        }
+
+        $best = null;
+
+        foreach ($candleTimes as $time) {
+            if ($time <= $date) {
+                $best = $time;
+            }
+        }
+
+        return $best ?? $candleTimes[0];
     }
 
     /**
      * @return list<array{open: float, high: float, low: float, close: float, volume: float, date: string}>|null
      */
-    private function resolveBars(string $ticker, int $limit): ?array
+    private function resolveBars(string $ticker, int $limit, ?string $anchorDate): ?array
     {
-        $cacheKey = 'trade-replay:'.strtoupper($ticker).':'.$limit;
+        $cacheKey = 'trade-replay:v2:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
 
-        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit): ?array {
-            $local = SniperDailyBar::query()
-                ->where('ticker', strtoupper(trim($ticker)))
-                ->orderByDesc('date')
-                ->limit($limit)
-                ->get()
-                ->sortBy('date')
-                ->values();
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit, $anchorDate): ?array {
+            $local = $this->localBars($ticker, max($limit, 200));
 
-            if ($local->count() >= 30) {
-                return $local->map(fn (SniperDailyBar $bar): array => [
-                    'open' => (float) $bar->open,
-                    'high' => (float) $bar->high,
-                    'low' => (float) $bar->low,
-                    'close' => (float) $bar->close,
-                    'volume' => (float) $bar->volume,
-                    'date' => $bar->date->toDateString(),
-                ])->all();
+            if ($this->coversAnchor($local, $anchorDate, minBars: 40)) {
+                return $local;
             }
 
-            $remote = $this->dailyBars->fetchRecentBars($ticker, lookbackDays: max(90, $limit + 20), limit: $limit);
+            // Archive trades often need history beyond the sniper cache window.
+            $lookbackDays = max(180, $limit + 60);
+            if ($anchorDate !== null) {
+                $daysSinceAnchor = Carbon::parse($anchorDate, 'America/New_York')
+                    ->diffInDays(Carbon::today('America/New_York'));
+                $lookbackDays = max($lookbackDays, $daysSinceAnchor + $limit + 10);
+            }
+
+            $remote = $this->dailyBars->fetchRecentBars(
+                $ticker,
+                lookbackDays: (int) min(500, $lookbackDays),
+                limit: max($limit, 200),
+            );
 
             if ($remote === null) {
-                return null;
+                return $this->coversAnchor($local, $anchorDate, minBars: 30) ? $local : null;
             }
 
             return array_values(array_map(
@@ -174,5 +222,100 @@ class TradeReplayService
                 $remote['bars'],
             ));
         });
+    }
+
+    /**
+     * @return list<array{open: float, high: float, low: float, close: float, volume: float, date: string}>
+     */
+    private function localBars(string $ticker, int $limit): array
+    {
+        return SniperDailyBar::query()
+            ->where('ticker', strtoupper(trim($ticker)))
+            ->orderByDesc('date')
+            ->limit($limit)
+            ->get()
+            ->sortBy('date')
+            ->values()
+            ->map(fn (SniperDailyBar $bar): array => [
+                'open' => (float) $bar->open,
+                'high' => (float) $bar->high,
+                'low' => (float) $bar->low,
+                'close' => (float) $bar->close,
+                'volume' => (float) $bar->volume,
+                'date' => $bar->date->toDateString(),
+            ])
+            ->all();
+    }
+
+    /**
+     * @param  list<array{date: string}>  $bars
+     */
+    private function coversAnchor(array $bars, ?string $anchorDate, int $minBars): bool
+    {
+        if (count($bars) < $minBars) {
+            return false;
+        }
+
+        if ($anchorDate === null) {
+            return true;
+        }
+
+        return $this->indexAtOrBefore($bars, $anchorDate) !== null;
+    }
+
+    /**
+     * Synthetic OHLC so the UI can be reviewed when market APIs are empty.
+     *
+     * @return list<array{open: float, high: float, low: float, close: float, volume: float, date: string}>
+     */
+    private function demoBars(Position $position, int $lookback, int $forward): array
+    {
+        $entry = (float) ($position->entry_price ?? $position->latest_close_price ?? 100);
+        $exit = (float) ($position->exit_price ?? $entry);
+        $stop = (float) ($position->initial_sl ?? $position->current_sl ?? ($entry * 0.97));
+        $short = $position->isShort();
+        $anchor = optional($position->signal_bar_date ?? $position->closed_at)?->toDateString()
+            ?? Carbon::today('America/New_York')->toDateString();
+
+        $total = $lookback + $forward;
+        $start = Carbon::parse($anchor, 'America/New_York')->subWeekdays($lookback - 1);
+        $price = $entry * ($short ? 1.08 : 0.92);
+        $bars = [];
+
+        for ($i = 0; $i < $total; $i++) {
+            $date = $start->copy()->addWeekdays($i)->toDateString();
+            $noise = sin($i / 3) * ($entry * 0.004);
+
+            if ($i < $lookback - 1) {
+                $target = $entry;
+            } elseif ($i === $lookback - 1) {
+                $target = $entry;
+            } else {
+                $target = $exit;
+            }
+
+            $close = $price + (($target - $price) * 0.18) + $noise;
+            $open = $price;
+            $high = max($open, $close) + abs($noise);
+            $low = min($open, $close) - abs($noise);
+
+            if ($i === $lookback - 1) {
+                $low = min($low, $short ? $entry : min($entry, $stop));
+                $high = max($high, $short ? max($entry, $stop) : $entry);
+                $close = $entry;
+            }
+
+            $bars[] = [
+                'open' => round($open, 4),
+                'high' => round($high, 4),
+                'low' => round($low, 4),
+                'close' => round($close, 4),
+                'volume' => 1_000_000 + ($i * 10_000),
+                'date' => $date,
+            ];
+            $price = $close;
+        }
+
+        return $bars;
     }
 }
