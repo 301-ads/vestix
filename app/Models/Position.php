@@ -1517,6 +1517,22 @@ class Position extends Model
         return EarningsExitSchedule::daysUntilEarnings($earningsDate, $today);
     }
 
+    public function effectiveLastEarningsDate(): ?Carbon
+    {
+        return $this->asset?->effectiveLastEarningsDate();
+    }
+
+    public function isInEarningsEntryQuarantine(?Carbon $today = null): bool
+    {
+        $this->loadMissing('asset');
+
+        return EarningsExitSchedule::isInEntryQuarantine(
+            $this->effectiveLastEarningsDate(),
+            $this->effectiveEarningsDate(),
+            $today,
+        );
+    }
+
     public function heldThroughEarningsForCurrentCycle(): bool
     {
         $earningsDate = $this->effectiveEarningsDate();
@@ -2085,6 +2101,7 @@ class Position extends Model
             'sector_trend_positive' => $overrides['sector_trend_positive'] ?? $this->sector_trend_positive,
             'pre_bounce_extension_atr' => $overrides['pre_bounce_extension_atr'] ?? $this->pre_bounce_extension_atr,
             'days_until_earnings' => $overrides['days_until_earnings'] ?? $this->daysUntilEarnings(),
+            'in_earnings_quarantine' => $overrides['in_earnings_quarantine'] ?? $this->isInEarningsEntryQuarantine(),
         ];
 
         $result = ScoutSetupScorecard::evaluate($inputs);

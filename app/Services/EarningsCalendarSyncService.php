@@ -58,25 +58,32 @@ class EarningsCalendarSyncService
         }
 
         $asset = $this->assetSyncService->ensureForTicker($ticker);
-        $earnings = $this->finnhubService->fetchNextEarnings($ticker);
+        $window = $this->finnhubService->fetchEarningsWindow($ticker);
 
         Cache::put($cacheKey, true, now()->addDay());
 
-        if ($earnings === null) {
-            Log::info('No upcoming earnings found for ticker.', ['ticker' => $ticker]);
+        if ($window === null) {
+            Log::info('Earnings calendar request failed for ticker.', ['ticker' => $ticker]);
 
             $asset->update([
-                'next_earnings_date' => null,
-                'next_earnings_hour' => null,
                 'earnings_fetched_at' => now(),
             ]);
 
-            return 'synced';
+            return 'failed';
+        }
+
+        $last = $window['last'];
+        $next = $window['next'];
+
+        if ($next === null) {
+            Log::info('No upcoming earnings found for ticker.', ['ticker' => $ticker]);
         }
 
         $asset->update([
-            'next_earnings_date' => $earnings['date'],
-            'next_earnings_hour' => $earnings['hour'],
+            'next_earnings_date' => $next['date'] ?? null,
+            'next_earnings_hour' => $next['hour'] ?? null,
+            'last_earnings_date' => $last['date'] ?? null,
+            'last_earnings_hour' => $last['hour'] ?? null,
             'earnings_fetched_at' => now(),
         ]);
 

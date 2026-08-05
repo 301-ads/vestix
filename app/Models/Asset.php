@@ -21,6 +21,8 @@ class Asset extends Model
             'fetched_at' => 'datetime',
             'next_earnings_date' => 'date',
             'next_earnings_hour' => EarningsReleaseHour::class,
+            'last_earnings_date' => 'date',
+            'last_earnings_hour' => EarningsReleaseHour::class,
             'earnings_date_override' => 'date',
             'earnings_hour_override' => EarningsReleaseHour::class,
             'earnings_fetched_at' => 'datetime',
@@ -71,5 +73,21 @@ class Asset extends Model
         return $this->earnings_hour_override
             ?? $this->next_earnings_hour
             ?? EarningsReleaseHour::Unknown;
+    }
+
+    public function effectiveLastEarningsDate(): ?Carbon
+    {
+        $date = $this->last_earnings_date;
+
+        if ($date === null) {
+            return null;
+        }
+
+        return $date instanceof Carbon ? $date->copy()->startOfDay() : Carbon::parse($date)->startOfDay();
+    }
+
+    public function effectiveLastEarningsHour(): EarningsReleaseHour
+    {
+        return $this->last_earnings_hour ?? EarningsReleaseHour::Unknown;
     }
 }

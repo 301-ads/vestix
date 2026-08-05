@@ -18,6 +18,7 @@ use App\Services\SniperGroupedDailyIngestService;
 use App\Services\SniperScanService;
 use App\Support\SniperLocalIndicators;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Mockery;
 use Mockery\MockInterface;
@@ -349,6 +350,59 @@ class SniperScanServiceTest extends TestCase
             Asset::query()->create([
                 'ticker' => 'EARN',
                 'next_earnings_date' => now('Europe/Amsterdam')->addDays(5)->toDateString(),
+            ])
+        );
+
+        $service = $this->makeService(
+            $indicators,
+            $earnings,
+            $assets,
+            Mockery::mock(MarketDataFetcher::class),
+            Mockery::mock(AlertDispatcher::class),
+        );
+        $result = $service->run(dryRun: false, skipIngest: true);
+
+        $this->assertSame(1, $result['earnings_blocked']);
+        $this->assertSame(0, $result['created']);
+    }
+
+    public function test_blocks_post_earnings_quarantine_even_when_next_is_far(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-05', 'Europe/Amsterdam'));
+
+        $user = User::factory()->create(['is_short_enabled' => true]);
+
+        config([
+            'vestix.sniper_scanner.enabled' => true,
+            'vestix.sniper_scanner.owner_user_id' => $user->id,
+            'vestix.sniper_scanner.earnings_cutoff_days' => 14,
+            'vestix.earnings_quarantine.trading_days' => 2,
+            'vestix.finnhub.rate_limit_delay' => 0,
+            'vestix.polygon.rate_limit_delay' => 0,
+        ]);
+
+        SniperLiquidityCache::query()->create([
+            'ticker' => 'EC',
+            'asset_type' => 'CS',
+            'avg_volume_30d' => 2_000_000,
+            'last_volume' => 2_000_000,
+            'market_cap' => 5_000_000_000,
+            'enabled' => true,
+            'bars_ready' => true,
+        ]);
+
+        $indicators = Mockery::mock(SniperLocalIndicators::class);
+        $indicators->shouldReceive('forTicker')->andReturn($this->longHitIndicators());
+
+        $earnings = Mockery::mock(EarningsCalendarSyncService::class);
+        $assets = Mockery::mock(AssetSyncService::class);
+
+        $earnings->shouldReceive('syncTicker')->once()->andReturn('synced');
+        $assets->shouldReceive('ensureForTicker')->once()->andReturn(
+            Asset::query()->create([
+                'ticker' => 'EC',
+                'last_earnings_date' => '2026-08-04',
+                'next_earnings_date' => '2026-11-04',
             ])
         );
 

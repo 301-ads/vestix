@@ -575,6 +575,43 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame([], $result['hardFailReasons']);
     }
 
+    public function test_post_earnings_quarantine_is_hard_fail_despite_perfect_score(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'days_until_earnings' => 90,
+            'in_earnings_quarantine' => true,
+        ]));
+
+        $this->assertSame(10, $result['totalPoints']);
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertContains(
+            'Earnings-quarantaine: binnen 2 handelsdagen van cijfers (trampolinesignaal onbetrouwbaar)',
+            $result['hardFailReasons'],
+        );
+    }
+
+    public function test_quarantine_hard_fail_takes_precedence_over_runway_message(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'days_until_earnings' => 1,
+            'in_earnings_quarantine' => true,
+        ]));
+
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertContains(
+            'Earnings-quarantaine: binnen 2 handelsdagen van cijfers (trampolinesignaal onbetrouwbaar)',
+            $result['hardFailReasons'],
+        );
+        $this->assertNotContains(
+            'Earnings over 1 dagen — te weinig runway voor entry',
+            $result['hardFailReasons'],
+        );
+    }
+
     public function test_missing_earnings_data_is_not_hard_fail(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([

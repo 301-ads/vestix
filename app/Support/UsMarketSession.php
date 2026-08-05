@@ -188,6 +188,17 @@ class UsMarketSession
         return $candidate;
     }
 
+    public static function addTradingDays(Carbon $date, int $days): Carbon
+    {
+        $candidate = $date->copy()->startOfDay();
+
+        for ($i = 0; $i < $days; $i++) {
+            $candidate = self::nextTradingDay($candidate);
+        }
+
+        return $candidate;
+    }
+
     public static function isIntradayTargetWatchWindow(?Carbon $now = null): bool
     {
         $now ??= Carbon::now('America/New_York');

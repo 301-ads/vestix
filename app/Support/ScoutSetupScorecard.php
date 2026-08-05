@@ -31,6 +31,7 @@ class ScoutSetupScorecard
      *     sector_trend_positive?: bool|null,
      *     pre_bounce_extension_atr?: float|null,
      *     days_until_earnings?: int|null,
+     *     in_earnings_quarantine?: bool|null,
      * }  $inputs
      * @return array{
      *     totalPoints: int,
@@ -764,6 +765,10 @@ class ScoutSetupScorecard
      */
     private static function resolveEarningsHardFail(array $inputs): array
     {
+        if (($inputs['in_earnings_quarantine'] ?? false) === true) {
+            return [EarningsExitSchedule::entryQuarantineHardFailMessage()];
+        }
+
         $daysUntil = array_key_exists('days_until_earnings', $inputs)
             ? $inputs['days_until_earnings']
             : null;

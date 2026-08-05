@@ -103,6 +103,10 @@ class EarningsExitDisplay
             return false;
         }
 
+        if ($position->isInEarningsEntryQuarantine()) {
+            return true;
+        }
+
         return $position->effectiveEarningsDate() !== null
             && self::isWithinAlertWindow($position);
     }
@@ -112,6 +116,17 @@ class EarningsExitDisplay
      */
     public static function scoutEntryAlertViewData(Position $position): array
     {
+        if ($position->isInEarningsEntryQuarantine()) {
+            $tradingDays = EarningsExitSchedule::quarantineTradingDays();
+
+            return [
+                'daysLabel' => "{$tradingDays} handelsdagen",
+                'subtitle' => EarningsExitSchedule::entryQuarantineHardFailMessage($tradingDays).' — setup wordt NO TRADE.',
+                'trailingNote' => null,
+                'isDanger' => true,
+            ];
+        }
+
         $daysUntil = (int) $position->daysUntilEarnings();
 
         $daysLabel = match (true) {

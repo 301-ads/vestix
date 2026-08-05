@@ -177,6 +177,15 @@ class SniperScanService
             $asset = $this->assetSync->ensureForTicker($hit['ticker']);
             $earningsDate = $asset->effectiveEarningsDate();
 
+            if (EarningsExitSchedule::isInEntryQuarantine(
+                $asset->effectiveLastEarningsDate(),
+                $earningsDate,
+            )) {
+                $earningsBlocked++;
+
+                continue;
+            }
+
             if ($earningsDate !== null) {
                 $days = EarningsExitSchedule::daysUntilEarnings($earningsDate);
 

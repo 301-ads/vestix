@@ -138,8 +138,23 @@ class FinnhubService
      */
     public function fetchNextEarnings(string $ticker): ?array
     {
-        $from = Carbon::today('America/New_York');
-        $to = $from->copy()->addDays(90);
+        $window = $this->fetchEarningsWindow($ticker);
+
+        return $window['next'] ?? null;
+    }
+
+    /**
+     * @return array{
+     *     last: array{date: string, hour: EarningsReleaseHour}|null,
+     *     next: array{date: string, hour: EarningsReleaseHour}|null,
+     * }|null
+     */
+    public function fetchEarningsWindow(string $ticker): ?array
+    {
+        $today = Carbon::today('America/New_York');
+        $lookback = max(1, (int) config('vestix.earnings_quarantine.lookback_calendar_days', 14));
+        $from = $today->copy()->subDays($lookback);
+        $to = $today->copy()->addDays(90);
 
         $data = $this->request('/calendar/earnings', [
             'from' => $from->toDateString(),
@@ -151,24 +166,35 @@ class FinnhubService
             return null;
         }
 
-        $upcoming = collect($data['earningsCalendar'])
-            ->filter(function (array $entry) use ($from): bool {
-                if (! isset($entry['date'])) {
-                    return false;
-                }
+        $entries = collect($data['earningsCalendar'])
+            ->filter(fn (mixed $entry): bool => is_array($entry) && isset($entry['date']))
+            ->map(function (array $entry) {
+                return [
+                    'date' => (string) $entry['date'],
+                    'hour' => EarningsReleaseHour::tryFromApi($entry['hour'] ?? null),
+                    'parsed' => Carbon::parse((string) $entry['date'], 'America/New_York')->startOfDay(),
+                ];
+            });
 
-                return Carbon::parse($entry['date'], 'America/New_York')->greaterThanOrEqualTo($from);
-            })
-            ->sortBy('date')
+        $last = $entries
+            ->filter(fn (array $entry): bool => $entry['parsed']->lessThan($today))
+            ->sortByDesc(fn (array $entry): string => $entry['parsed']->toDateString())
             ->first();
 
-        if ($upcoming === null) {
-            return null;
-        }
+        $next = $entries
+            ->filter(fn (array $entry): bool => $entry['parsed']->greaterThanOrEqualTo($today))
+            ->sortBy(fn (array $entry): string => $entry['parsed']->toDateString())
+            ->first();
 
         return [
-            'date' => (string) $upcoming['date'],
-            'hour' => EarningsReleaseHour::tryFromApi($upcoming['hour'] ?? null),
+            'last' => $last === null ? null : [
+                'date' => $last['date'],
+                'hour' => $last['hour'],
+            ],
+            'next' => $next === null ? null : [
+                'date' => $next['date'],
+                'hour' => $next['hour'],
+            ],
         ];
     }
 

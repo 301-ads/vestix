@@ -2803,6 +2803,7 @@ class PositionForm
             'sector_trend_positive' => (bool) ($get('sector_trend_positive') ?? $record?->sector_trend_positive),
             'pre_bounce_extension_atr' => $get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr,
             'days_until_earnings' => $record?->daysUntilEarnings(),
+            'in_earnings_quarantine' => $record?->isInEarningsEntryQuarantine() ?? false,
         ];
     }
 }

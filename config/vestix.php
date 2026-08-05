@@ -267,6 +267,12 @@ return [
         'prior_day_buffer_pct' => (float) env('PRE_EARNINGS_TRAILING_PRIOR_DAY_BUFFER_PCT', 0.1),
     ],
 
+    // Entry quarantine around earnings: SMA trampoline is unreliable while whales reprice.
+    'earnings_quarantine' => [
+        'trading_days' => (int) env('VESTIX_EARNINGS_QUARANTINE_TRADING_DAYS', 2),
+        'lookback_calendar_days' => (int) env('VESTIX_EARNINGS_QUARANTINE_LOOKBACK_DAYS', 14),
+    ],
+
     'smart_sizing' => [
         'min_score' => (int) env('SMART_SIZING_MIN_SCORE', 7),
         'min_quantity' => (int) env('SMART_SIZING_MIN_QUANTITY', 2),

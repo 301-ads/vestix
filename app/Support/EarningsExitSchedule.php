@@ -104,4 +104,45 @@ class EarningsExitSchedule
 
         return null;
     }
+
+    public static function quarantineTradingDays(): int
+    {
+        return max(0, (int) config('vestix.earnings_quarantine.trading_days', 2));
+    }
+
+    public static function isDateInEntryQuarantine(Carbon $earningsDate, ?Carbon $today = null, ?int $tradingDays = null): bool
+    {
+        $today = ($today ?? Carbon::today('Europe/Amsterdam'))->copy()->startOfDay();
+        $event = $earningsDate->copy()->startOfDay();
+        $tradingDays ??= self::quarantineTradingDays();
+
+        if ($tradingDays === 0) {
+            return $today->equalTo($event);
+        }
+
+        $windowStart = UsMarketSession::subtractTradingDays($event, $tradingDays);
+        $windowEnd = UsMarketSession::addTradingDays($event, $tradingDays);
+
+        return $today->betweenIncluded($windowStart, $windowEnd);
+    }
+
+    public static function isInEntryQuarantine(?Carbon $lastEarningsDate, ?Carbon $nextEarningsDate, ?Carbon $today = null, ?int $tradingDays = null): bool
+    {
+        if ($lastEarningsDate !== null && self::isDateInEntryQuarantine($lastEarningsDate, $today, $tradingDays)) {
+            return true;
+        }
+
+        if ($nextEarningsDate !== null && self::isDateInEntryQuarantine($nextEarningsDate, $today, $tradingDays)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public static function entryQuarantineHardFailMessage(?int $tradingDays = null): string
+    {
+        $tradingDays ??= self::quarantineTradingDays();
+
+        return "Earnings-quarantaine: binnen {$tradingDays} handelsdagen van cijfers (trampolinesignaal onbetrouwbaar)";
+    }
 }

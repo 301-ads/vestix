@@ -163,4 +163,88 @@ class EarningsExitScheduleTest extends TestCase
             EarningsReleaseHour::Bmo,
         ));
     }
+
+    public function test_entry_quarantine_covers_two_trading_days_before_and_after(): void
+    {
+        config(['vestix.earnings_quarantine.trading_days' => 2]);
+
+        $earnings = Carbon::parse('2026-08-04', 'Europe/Amsterdam'); // Tuesday
+
+        $this->assertTrue(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-08-04', 'Europe/Amsterdam'),
+        ));
+        $this->assertTrue(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-08-05', 'Europe/Amsterdam'),
+        ));
+        $this->assertTrue(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-08-06', 'Europe/Amsterdam'),
+        ));
+        $this->assertTrue(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-08-03', 'Europe/Amsterdam'),
+        ));
+        $this->assertTrue(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-07-31', 'Europe/Amsterdam'),
+        ));
+        $this->assertFalse(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-08-07', 'Europe/Amsterdam'),
+        ));
+        $this->assertFalse(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-07-30', 'Europe/Amsterdam'),
+        ));
+    }
+
+    public function test_entry_quarantine_skips_weekend_when_measuring_trading_days(): void
+    {
+        config(['vestix.earnings_quarantine.trading_days' => 2]);
+
+        // Friday earnings: +1 trading day = Monday, +2 = Tuesday
+        $earnings = Carbon::parse('2026-08-07', 'Europe/Amsterdam'); // Friday
+
+        $this->assertTrue(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-08-10', 'Europe/Amsterdam'), // Monday
+        ));
+        $this->assertTrue(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-08-11', 'Europe/Amsterdam'), // Tuesday
+        ));
+        $this->assertFalse(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-08-12', 'Europe/Amsterdam'), // Wednesday
+        ));
+        // Saturday/Sunday are calendar-inside the window start/end? 
+        // windowEnd = Aug 11, windowStart = Aug 5 (Wed). Sat Aug 8 is betweenIncluded → true
+        $this->assertTrue(EarningsExitSchedule::isDateInEntryQuarantine(
+            $earnings,
+            Carbon::parse('2026-08-08', 'Europe/Amsterdam'),
+        ));
+    }
+
+    public function test_is_in_entry_quarantine_checks_last_and_next(): void
+    {
+        config(['vestix.earnings_quarantine.trading_days' => 2]);
+
+        $last = Carbon::parse('2026-08-04', 'Europe/Amsterdam');
+        $next = Carbon::parse('2026-11-04', 'Europe/Amsterdam');
+        $today = Carbon::parse('2026-08-05', 'Europe/Amsterdam');
+
+        $this->assertTrue(EarningsExitSchedule::isInEntryQuarantine($last, $next, $today));
+        $this->assertFalse(EarningsExitSchedule::isInEntryQuarantine(
+            $last,
+            $next,
+            Carbon::parse('2026-08-10', 'Europe/Amsterdam'),
+        ));
+        $this->assertTrue(EarningsExitSchedule::isInEntryQuarantine(
+            null,
+            Carbon::parse('2026-08-06', 'Europe/Amsterdam'),
+            Carbon::parse('2026-08-05', 'Europe/Amsterdam'),
+        ));
+    }
 }

@@ -15,6 +15,7 @@ use App\Services\SquadContext;
 use App\Support\BrokerOrderTicket;
 use App\Support\ChartScreenshotUpload;
 use App\Support\EarningsExitDisplay;
+use App\Support\EarningsExitSchedule;
 use App\Support\FilamentNotifier;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
@@ -794,6 +795,7 @@ class PositionRecordActions
             'sector_trend_positive' => $record->sector_trend_positive,
             'pre_bounce_extension_atr' => $record->pre_bounce_extension_atr,
             'days_until_earnings' => $record->daysUntilEarnings(),
+            'in_earnings_quarantine' => $record->isInEarningsEntryQuarantine(),
         ];
     }
 
@@ -1195,13 +1197,20 @@ class PositionRecordActions
 
     public static function scoutActivationDisabled(Position $record): bool
     {
-        return EarningsExitDisplay::isWithinAlertWindow($record)
+        return $record->isInEarningsEntryQuarantine()
+            || EarningsExitDisplay::isWithinAlertWindow($record)
             || MarketDataFreshness::isPositionSyncInProgress($record->id)
             || MarketDataFreshness::isSyncInProgress();
     }
 
     public static function scoutActivationTooltip(Position $record): string
     {
+        if ($record->isInEarningsEntryQuarantine()) {
+            $tradingDays = EarningsExitSchedule::quarantineTradingDays();
+
+            return "Promotie geblokkeerd: earnings-quarantaine (±{$tradingDays} handelsdagen)";
+        }
+
         if (EarningsExitDisplay::isWithinAlertWindow($record)) {
             $daysUntil = $record->daysUntilEarnings();
 

@@ -156,7 +156,8 @@ class EarningsExitDisplayTest extends TestCase
 
     public function test_scout_entry_alert_visible_within_fourteen_days(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-03-05', 'Europe/Amsterdam'));
+        // Inside 14d runway, outside ±2 trading-day quarantine (earnings in 8 calendar days).
+        Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
 
         $asset = Asset::factory()->withoutIcon()->create([
             'ticker' => 'AAPL',
@@ -170,12 +171,13 @@ class EarningsExitDisplayTest extends TestCase
             'status' => 'scout',
         ]);
 
+        $this->assertFalse($position->isInEarningsEntryQuarantine());
         $this->assertTrue(EarningsExitDisplay::isScoutEntryAlertVisible($position, 'edit'));
         $this->assertFalse(EarningsExitDisplay::isSmartAlertVisible($position, 'edit'));
 
         $data = EarningsExitDisplay::scoutEntryAlertViewData($position);
 
-        $this->assertSame('4 dagen', $data['daysLabel']);
+        $this->assertSame('8 dagen', $data['daysLabel']);
         $this->assertSame('Te weinig runway voor een nieuwe entry — setup wordt NO TRADE.', $data['subtitle']);
         $this->assertNull($data['trailingNote']);
         $this->assertFalse($data['isDanger']);
@@ -218,9 +220,36 @@ class EarningsExitDisplayTest extends TestCase
         $this->assertFalse(EarningsExitDisplay::isScoutEntryAlertVisible($position, 'edit'));
     }
 
+    public function test_scout_entry_alert_visible_during_post_earnings_quarantine(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-05', 'Europe/Amsterdam'));
+        config(['vestix.earnings_quarantine.trading_days' => 2]);
+
+        $asset = Asset::factory()->withoutIcon()->create([
+            'ticker' => 'EC',
+            'last_earnings_date' => '2026-08-04',
+            'next_earnings_date' => '2026-11-04',
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'EC',
+            'asset_id' => $asset->id,
+            'status' => 'scout',
+        ]);
+
+        $this->assertTrue($position->isInEarningsEntryQuarantine());
+        $this->assertTrue(EarningsExitDisplay::isScoutEntryAlertVisible($position, 'edit'));
+
+        $data = EarningsExitDisplay::scoutEntryAlertViewData($position);
+
+        $this->assertTrue($data['isDanger']);
+        $this->assertStringContainsString('Earnings-quarantaine', $data['subtitle']);
+    }
+
     public function test_scout_entry_alert_uses_danger_styling_within_three_days(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-08', 'Europe/Amsterdam'));
+        config(['vestix.earnings_quarantine.trading_days' => 2]);
 
         $asset = Asset::factory()->withoutIcon()->create([
             'ticker' => 'AAPL',
@@ -233,10 +262,13 @@ class EarningsExitDisplayTest extends TestCase
             'status' => 'scout',
         ]);
 
+        $this->assertTrue($position->isInEarningsEntryQuarantine());
+
         $data = EarningsExitDisplay::scoutEntryAlertViewData($position);
 
         $this->assertTrue($data['isDanger']);
-        $this->assertSame('1 dag', $data['daysLabel']);
+        $this->assertSame('2 handelsdagen', $data['daysLabel']);
+        $this->assertStringContainsString('Earnings-quarantaine', $data['subtitle']);
     }
 
     public function test_dashboard_instruction_warns_before_bmo_exit_deadline(): void
