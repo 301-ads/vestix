@@ -41,6 +41,21 @@ function sliceThrough(rows, time) {
     return rows.slice(0, index + 1);
 }
 
+/**
+ * Pad indicator series with LWC whitespace ({ time } only) so both panes share
+ * the same bar count / time axis. RSI(14) otherwise starts ~14 bars later and
+ * fitContent desyncs the panes.
+ */
+function alignSeriesToCandles(candles, seriesRows) {
+    const byTime = new Map((seriesRows ?? []).map((row) => [row.time, row]));
+
+    return candles.map((candle) => {
+        const row = byTime.get(candle.time);
+
+        return row ?? { time: candle.time };
+    });
+}
+
 function candleAt(candles, time) {
     if (!candles?.length || !time) {
         return null;
@@ -135,13 +150,25 @@ function syncArrowLayer(state) {
 function applySeriesData(state, fogged) {
     const { candleSeries, smaSeries, rsiSeries, payload, entryTime } = state;
     const candles = fogged ? sliceThrough(payload.candles, entryTime) : payload.candles;
-    const sma20 = fogged ? sliceThrough(payload.sma20 ?? [], entryTime) : (payload.sma20 ?? []);
-    const rsi14 = fogged ? sliceThrough(payload.rsi14 ?? [], entryTime) : (payload.rsi14 ?? []);
+    const smaSource = fogged ? sliceThrough(payload.sma20 ?? [], entryTime) : (payload.sma20 ?? []);
+    const rsiSource = fogged ? sliceThrough(payload.rsi14 ?? [], entryTime) : (payload.rsi14 ?? []);
 
     candleSeries.setData(candles);
-    smaSeries.setData(sma20);
-    rsiSeries.setData(rsi14);
+    smaSeries.setData(alignSeriesToCandles(candles, smaSource));
+    rsiSeries.setData(alignSeriesToCandles(candles, rsiSource));
     state.visibleCandles = candles;
+}
+
+function syncTimeScales(state) {
+    const { chart, rsiChart } = state;
+    chart.timeScale().fitContent();
+    const range = chart.timeScale().getVisibleLogicalRange();
+
+    if (range) {
+        rsiChart.timeScale().setVisibleLogicalRange(range);
+    }
+
+    alignPaneWidths(chart, rsiChart);
 }
 
 function applyPriceLines(state, includeExit) {
@@ -200,13 +227,7 @@ function revealOutcome(state) {
     applySeriesData(state, false);
     applyPriceLines(state, true);
     syncArrowLayer(state);
-    state.chart.timeScale().fitContent();
-    state.rsiChart.timeScale().fitContent();
-    alignPaneWidths(state.chart, state.rsiChart);
-    const range = state.chart.timeScale().getVisibleLogicalRange();
-    if (range) {
-        state.rsiChart.timeScale().setVisibleLogicalRange(range);
-    }
+    syncTimeScales(state);
     setRevealOnlyVisible(state.root, true);
 
     if (state.revealHost) {
@@ -389,18 +410,11 @@ async function loadReplay(el) {
         applySeriesData(state, hasFog);
         applyPriceLines(state, !hasFog);
         syncArrowLayer(state);
-
-        chart.timeScale().fitContent();
-        rsiChart.timeScale().fitContent();
-        alignPaneWidths(chart, rsiChart);
+        syncTimeScales(state);
 
         // Keep panes locked after scale labels settle.
         requestAnimationFrame(() => {
-            alignPaneWidths(chart, rsiChart);
-            const range = chart.timeScale().getVisibleLogicalRange();
-            if (range) {
-                rsiChart.timeScale().setVisibleLogicalRange(range);
-            }
+            syncTimeScales(state);
             positionArrows(state);
         });
 
@@ -440,7 +454,7 @@ async function loadReplay(el) {
         // Reposition after first paint (autoSize may settle late).
         requestAnimationFrame(() => positionArrows(state));
         setTimeout(() => {
-            alignPaneWidths(chart, rsiChart);
+            syncTimeScales(state);
             positionArrows(state);
         }, 50);
 
