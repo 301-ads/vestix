@@ -13,7 +13,7 @@
         </div>
         <div data-replay-rsi class="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-white/10" style="min-height: 110px;"></div>
         <p class="text-xs text-gray-500 dark:text-gray-400">
-            Groene pijl op de Entry-lijn = fill · rode stip op Exit-prijs · stippellijnen = SL / T1. Geen API-data? Dan toont Vestix demo-bars.
+            Subtiele pijl = entry-fill (buy/sell-stop dag) · stip = exit. Stippellijnen = Entry / SL / T1.
         </p>
     </div>
 @endif

@@ -93,20 +93,15 @@ class TradeReplayService
 
         $entryPrice = $position->entry_price !== null ? (float) $position->entry_price : null;
         $exitPrice = $position->exit_price !== null ? (float) $position->exit_price : null;
+        $short = $position->isShort();
 
-        // Prefer the bar whose range actually contains the fill — not merely the signal date
-        // (signal candle can sit well above/below the eventual entry price).
-        $entryTime = $this->resolveMarkerTime(
-            $candles,
-            $entryPrice,
-            $anchorDate,
-            preferFromDate: $anchorDate,
-        );
-        $exitTime = $this->resolveMarkerTime(
+        $entryTime = $this->resolveEntryFillTime($candles, $entryPrice, $anchorDate, $short);
+        $exitTime = $this->resolveExitTime(
             $candles,
             $exitPrice,
             optional($position->closed_at)?->toDateString(),
-            preferFromDate: $entryTime,
+            $entryTime,
+            $short,
         );
 
         $markers = [];
@@ -114,23 +109,30 @@ class TradeReplayService
         if ($entryTime !== null && $entryPrice !== null) {
             $markers[] = [
                 'time' => $entryTime,
-                // Price-based marker so the arrow sits on the Entry line, not on the candle wick.
-                'position' => $position->isShort() ? 'atPriceTop' : 'atPriceBottom',
-                'color' => '#22c55e',
-                'shape' => $position->isShort() ? 'arrowDown' : 'arrowUp',
-                'text' => 'Entry',
-                'price' => $entryPrice,
+                // Subtle TradingView-style arrow on the fill bar (not a chunky price badge).
+                'position' => $short ? 'aboveBar' : 'belowBar',
+                'color' => '#089981',
+                'shape' => $short ? 'arrowDown' : 'arrowUp',
+                'size' => 0.75,
             ];
         }
 
-        if ($exitTime !== null && $exitPrice !== null) {
+        if ($exitTime !== null && $exitPrice !== null && $exitTime !== $entryTime) {
             $markers[] = [
                 'time' => $exitTime,
-                'position' => 'atPriceMiddle',
-                'color' => '#ef4444',
+                'position' => $short ? 'belowBar' : 'aboveBar',
+                'color' => '#f23645',
                 'shape' => 'circle',
-                'text' => 'Exit',
-                'price' => $exitPrice,
+                'size' => 0.6,
+            ];
+        } elseif ($exitTime !== null && $exitPrice !== null && $exitTime === $entryTime) {
+            // Same-day round trip: keep a small exit mark without replacing the entry arrow.
+            $markers[] = [
+                'time' => $exitTime,
+                'position' => 'inBar',
+                'color' => '#f23645',
+                'shape' => 'circle',
+                'size' => 0.5,
             ];
         }
 
@@ -169,64 +171,118 @@ class TradeReplayService
     }
 
     /**
+     * Buy-stop / sell-stop fill day: first session that actually reaches the trigger.
+     * Do NOT use "price inside candle range" — a long wick on the signal day falsely matches.
+     *
      * @param  list<array{time: string, open: float, high: float, low: float, close: float}>  $candles
      */
-    private function resolveMarkerTime(
+    private function resolveEntryFillTime(
         array $candles,
-        ?float $price,
-        ?string $preferredDate,
-        ?string $preferFromDate = null,
+        ?float $entryPrice,
+        ?string $signalDate,
+        bool $short,
+    ): ?string {
+        if ($candles === [] || $entryPrice === null) {
+            return $this->snapToCandleTime(array_column($candles, 'time'), $signalDate);
+        }
+
+        $searchFrom = $signalDate;
+        $signalCandle = null;
+
+        foreach ($candles as $candle) {
+            if ($signalDate !== null && $candle['time'] === $signalDate) {
+                $signalCandle = $candle;
+                break;
+            }
+        }
+
+        // Vestix default: long buy-stop above signal high / short sell-stop below signal low.
+        // Fill cannot be on the signal bar in that case — start the day after.
+        if ($signalCandle !== null) {
+            $signalBlocksSameDay = $short
+                ? ((float) $signalCandle['low'] > $entryPrice)
+                : ((float) $signalCandle['high'] < $entryPrice);
+
+            if ($signalBlocksSameDay) {
+                $searchFrom = $this->nextCandleTime($candles, $signalDate);
+            }
+        }
+
+        foreach ($candles as $candle) {
+            if ($searchFrom !== null && $candle['time'] < $searchFrom) {
+                continue;
+            }
+
+            if ($short) {
+                if ((float) $candle['low'] <= $entryPrice) {
+                    return $candle['time'];
+                }
+            } elseif ((float) $candle['high'] >= $entryPrice) {
+                return $candle['time'];
+            }
+        }
+
+        return $this->snapToCandleTime(array_column($candles, 'time'), $signalDate);
+    }
+
+    /**
+     * @param  list<array{time: string, open: float, high: float, low: float, close: float}>  $candles
+     */
+    private function resolveExitTime(
+        array $candles,
+        ?float $exitPrice,
+        ?string $closedDate,
+        ?string $entryTime,
+        bool $short,
     ): ?string {
         if ($candles === []) {
             return null;
         }
 
-        if ($price !== null) {
-            $match = $this->firstBarContainingPrice($candles, $price, $preferFromDate ?? $preferredDate);
+        $times = array_column($candles, 'time');
+        $snappedClose = $this->snapToCandleTime($times, $closedDate);
 
-            if ($match !== null) {
-                return $match;
-            }
+        if ($snappedClose !== null) {
+            return $snappedClose;
         }
 
-        $times = array_column($candles, 'time');
+        if ($exitPrice === null) {
+            return null;
+        }
 
-        return $this->snapToCandleTime($times, $preferredDate);
-    }
+        $searchFrom = $entryTime;
 
-    /**
-     * @param  list<array{time: string, high: float, low: float}>  $candles
-     */
-    private function firstBarContainingPrice(array $candles, float $price, ?string $notBefore): ?string
-    {
         foreach ($candles as $candle) {
-            if ($notBefore !== null && $candle['time'] < $notBefore) {
+            if ($searchFrom !== null && $candle['time'] < $searchFrom) {
                 continue;
             }
 
-            if ($price >= (float) $candle['low'] && $price <= (float) $candle['high']) {
+            if ($exitPrice >= (float) $candle['low'] && $exitPrice <= (float) $candle['high']) {
                 return $candle['time'];
             }
         }
 
-        // Fallback: closest close to the fill price (still after notBefore when set).
-        $bestTime = null;
-        $bestDistance = null;
+        return $entryTime;
+    }
+
+    /**
+     * @param  list<array{time: string}>  $candles
+     */
+    private function nextCandleTime(array $candles, string $date): ?string
+    {
+        $found = false;
 
         foreach ($candles as $candle) {
-            if ($notBefore !== null && $candle['time'] < $notBefore) {
-                continue;
+            if ($found) {
+                return $candle['time'];
             }
 
-            $distance = abs((float) $candle['close'] - $price);
-
-            if ($bestDistance === null || $distance < $bestDistance) {
-                $bestDistance = $distance;
-                $bestTime = $candle['time'];
+            if ($candle['time'] === $date) {
+                $found = true;
             }
         }
 
-        return $bestTime;
+        return null;
     }
 
     /**
@@ -258,7 +314,7 @@ class TradeReplayService
      */
     private function resolveBars(string $ticker, int $limit, ?string $anchorDate): ?array
     {
-        $cacheKey = 'trade-replay:v2:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
+        $cacheKey = 'trade-replay:v3:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
 
         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit, $anchorDate): ?array {
             $local = $this->localBars($ticker, max($limit, 200));

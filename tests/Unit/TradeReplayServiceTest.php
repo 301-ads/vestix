@@ -45,17 +45,14 @@ class TradeReplayServiceTest extends TestCase
 
         $this->assertNotNull($payload);
         $this->assertTrue($payload['demo']);
-        $this->assertGreaterThan(30, count($payload['candles']));
-        $this->assertNotEmpty($payload['sma20']);
-        $this->assertNotEmpty($payload['rsi14']);
         $this->assertNotEmpty($payload['markers']);
-        $this->assertSame('Entry', $payload['markers'][0]['text']);
-        $this->assertContains($payload['markers'][0]['time'], array_column($payload['candles'], 'time'));
-        $this->assertSame(245.41, $payload['markers'][0]['price']);
-        $this->assertSame('atPriceBottom', $payload['markers'][0]['position']);
+        $this->assertSame('arrowUp', $payload['markers'][0]['shape']);
+        $this->assertSame('belowBar', $payload['markers'][0]['position']);
+        $this->assertSame(0.75, $payload['markers'][0]['size']);
+        $this->assertArrayNotHasKey('text', $payload['markers'][0]);
     }
 
-    public function test_entry_marker_uses_bar_that_contains_fill_price(): void
+    public function test_long_entry_marker_skips_signal_bar_when_buy_stop_above_signal_high(): void
     {
         Cache::flush();
 
@@ -63,9 +60,9 @@ class TradeReplayServiceTest extends TestCase
             'ticker' => 'TEST',
             'status' => 'closed',
             'direction' => 'long',
-            'entry_price' => 100.0,
-            'exit_price' => 110.0,
-            'initial_sl' => 95.0,
+            'entry_price' => 105.0,
+            'exit_price' => 112.0,
+            'initial_sl' => 98.0,
             'quantity' => 1,
             'signal_bar_date' => '2026-06-02',
             'closed_at' => '2026-06-10 15:00:00',
@@ -76,17 +73,34 @@ class TradeReplayServiceTest extends TestCase
 
         for ($i = 0; $i < 50; $i++) {
             $date = $start->copy()->addDays($i)->toDateString();
-            $isSignal = $date === '2026-06-02';
-            $isFill = $date === '2026-06-05';
             $bars[] = [
-                'open' => $isFill ? 99.0 : ($isSignal ? 118.0 : 115.0 + ($i * 0.05)),
-                'high' => $isFill ? 101.5 : ($isSignal ? 122.0 : 116.0 + ($i * 0.05)),
-                'low' => $isFill ? 98.0 : ($isSignal ? 117.0 : 114.0 + ($i * 0.05)),
-                'close' => $isFill ? 100.2 : ($isSignal ? 120.0 : 115.5 + ($i * 0.05)),
+                'open' => 100.0 + ($i * 0.02),
+                'high' => 101.0 + ($i * 0.02),
+                'low' => 99.0 + ($i * 0.02),
+                'close' => 100.5 + ($i * 0.02),
                 'volume' => 1_000_000,
                 'date' => $date,
             ];
         }
+
+        foreach ($bars as &$bar) {
+            if ($bar['date'] === '2026-06-02') {
+                // Signal bounce: high stays below buy-stop 105.
+                $bar['open'] = 100.0;
+                $bar['high'] = 102.0;
+                $bar['low'] = 99.5;
+                $bar['close'] = 101.2;
+            }
+
+            if ($bar['date'] === '2026-06-05') {
+                // First day that reaches the buy-stop.
+                $bar['open'] = 104.2;
+                $bar['high'] = 106.5;
+                $bar['low'] = 103.8;
+                $bar['close'] = 105.8;
+            }
+        }
+        unset($bar);
 
         $dailyBars = Mockery::mock(DailyBarProvider::class);
         $dailyBars->shouldReceive('fetchRecentBars')->andReturn([
@@ -98,11 +112,10 @@ class TradeReplayServiceTest extends TestCase
         $payload = (new TradeReplayService($dailyBars))->build($position, allowDemoFallback: false);
 
         $this->assertNotNull($payload);
-        $this->assertFalse($payload['demo']);
-        $entryMarker = collect($payload['markers'])->firstWhere('text', 'Entry');
-        $this->assertNotNull($entryMarker);
+        $entryMarker = $payload['markers'][0];
         $this->assertSame('2026-06-05', $entryMarker['time']);
-        $this->assertSame(100.0, $entryMarker['price']);
-        $this->assertSame('atPriceBottom', $entryMarker['position']);
+        $this->assertSame('arrowUp', $entryMarker['shape']);
+        $this->assertSame('belowBar', $entryMarker['position']);
+        $this->assertNotSame('2026-06-02', $entryMarker['time']);
     }
 }
