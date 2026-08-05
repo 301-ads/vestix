@@ -47,12 +47,12 @@ function createArrowElement(marker) {
     el.style.color = marker.color;
     el.style.visibility = 'hidden';
 
-    // Slim TradingView-like triangle (not a chunky LWC series marker block).
+    // TradingView-style: thin stem + open chevron head (not a filled triangle block).
     const path = marker.direction === 'up'
-        ? 'M6 1.5 L11 11.5 L1 11.5 Z'
-        : 'M6 12.5 L1 2.5 L11 2.5 Z';
+        ? 'M8 18 V5.5 M8 5.5 L3.5 11 M8 5.5 L12.5 11'
+        : 'M8 2 V14.5 M8 14.5 L3.5 9 M8 14.5 L12.5 9';
 
-    el.innerHTML = `<svg viewBox="0 0 12 14" width="11" height="13" aria-hidden="true"><path d="${path}" fill="currentColor"/></svg>`;
+    el.innerHTML = `<svg viewBox="0 0 16 20" width="12" height="15" aria-hidden="true"><path d="${path}" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
     return el;
 }
@@ -89,8 +89,8 @@ function positionArrows(state) {
             return;
         }
 
-        const offset = 6;
-        const top = position === 'aboveBar' ? y - 13 - offset : y + offset;
+        const offset = 4;
+        const top = position === 'aboveBar' ? y - 15 - offset : y + offset;
 
         if (x < -20 || x > width + 20 || top < -20 || top > height + 20) {
             arrow.style.visibility = 'hidden';
@@ -99,7 +99,7 @@ function positionArrows(state) {
         }
 
         arrow.style.visibility = 'visible';
-        arrow.style.transform = `translate(${Math.round(x - 5.5)}px, ${Math.round(top)}px)`;
+        arrow.style.transform = `translate(${Math.round(x - 6)}px, ${Math.round(top)}px)`;
     });
 }
 
