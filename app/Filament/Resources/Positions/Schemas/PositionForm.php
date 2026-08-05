@@ -1977,8 +1977,7 @@ class PositionForm
     {
         return Section::make()
             ->visible(fn (string $operation, ?Position $record): bool => $operation === 'edit'
-                && $record?->status !== 'scout'
-                && $record?->status !== 'closed')
+                && $record?->status !== 'scout')
             ->columnSpanFull()
             ->contained(false)
             ->schema([

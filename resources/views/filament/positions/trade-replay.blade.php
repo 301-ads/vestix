@@ -13,12 +13,6 @@
                 <div data-replay-arrows class="vestix-replay-arrows pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true"></div>
             </div>
 
-            <div class="flex items-center gap-2">
-                <span class="text-[10px] uppercase tracking-wide text-gray-500">RSI(14)</span>
-                <span class="h-px flex-1 bg-gray-200/80 dark:bg-white/10"></span>
-            </div>
-            <div data-replay-rsi class="w-full overflow-hidden rounded-lg" style="min-height: 140px;"></div>
-
             <div data-replay-reveal-host class="vestix-replay-reveal-host">
                 <button
                     type="button"
@@ -28,6 +22,12 @@
                     Onthul Uitkomst
                 </button>
             </div>
+
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] uppercase tracking-wide text-gray-500">RSI(14)</span>
+                <span class="h-px flex-1 bg-gray-200/80 dark:bg-white/10"></span>
+            </div>
+            <div data-replay-rsi class="w-full overflow-hidden rounded-lg" style="min-height: 140px;"></div>
 
             <p data-replay-legend class="text-xs text-gray-500 dark:text-gray-400">
                 Fog of War: alleen tot je entry. Groene ▲ = entry · Rode ▼ = exit (na onthullen). Stippellijnen = Entry / SL / T1.

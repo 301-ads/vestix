@@ -4784,16 +4784,14 @@
 
 .vestix-position-edit--archive .vestix-replay-chart-wrap,
 .vestix-position-edit--archive [data-replay-rsi] {
-    border: 1px solid rgb(148 163 184 / 0.16);
-    background:
-        linear-gradient(180deg, rgb(24 24 27 / 0.55), rgb(24 24 27 / 0.28));
+    border: 1px solid rgb(212 212 216 / 0.9);
+    background: linear-gradient(180deg, rgb(250 250 250), rgb(244 244 245));
 }
 
-:not(.dark) .vestix-position-edit--archive .vestix-replay-chart-wrap,
-:not(.dark) .vestix-position-edit--archive [data-replay-rsi] {
-    background:
-        linear-gradient(180deg, rgb(250 250 250), rgb(244 244 245));
-    border-color: rgb(212 212 216 / 0.9);
+.dark .vestix-position-edit--archive .vestix-replay-chart-wrap,
+.dark .vestix-position-edit--archive [data-replay-rsi] {
+    border-color: rgb(148 163 184 / 0.16);
+    background: linear-gradient(180deg, rgb(24 24 27), rgb(9 9 11));
 }
 
 .vestix-position-edit--archive [data-replay-status] {

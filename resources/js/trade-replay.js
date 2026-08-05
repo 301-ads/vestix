@@ -30,6 +30,10 @@ function sliceThrough(rows, time) {
 }
 
 function candleAt(candles, time) {
+    if (!candles?.length || !time) {
+        return null;
+    }
+
     return candles.find((candle) => candle.time === time) ?? null;
 }
 
@@ -41,6 +45,7 @@ function createArrowElement(marker) {
     el.dataset.position = marker.position;
     el.dataset.direction = marker.direction;
     el.style.color = marker.color;
+    el.style.visibility = 'hidden';
 
     // Slim TradingView-like triangle (not a chunky LWC series marker block).
     const path = marker.direction === 'up'
@@ -52,8 +57,11 @@ function createArrowElement(marker) {
     return el;
 }
 
-function positionArrows({ chart, candleSeries, chartHost, arrowsHost, markers, candles }) {
-    if (!arrowsHost) {
+function positionArrows(state) {
+    const { chart, candleSeries, chartHost, arrowsHost } = state;
+    const candles = state.visibleCandles ?? state.payload?.candles ?? [];
+
+    if (!arrowsHost || !chartHost || !chart || !candleSeries) {
         return;
     }
 
@@ -270,12 +278,15 @@ async function loadReplay(el) {
 
         const chart = createChart(chartHost, {
             layout: {
-                background: { type: ColorType.Solid, color: 'transparent' },
-                textColor: '#94a3b8',
+                background: {
+                    type: ColorType.Solid,
+                    color: document.documentElement.classList.contains('dark') ? '#09090b' : '#fafafa',
+                },
+                textColor: document.documentElement.classList.contains('dark') ? '#a1a1aa' : '#71717a',
             },
             grid: {
-                vertLines: { color: 'rgba(148,163,184,0.08)' },
-                horzLines: { color: 'rgba(148,163,184,0.08)' },
+                vertLines: { color: document.documentElement.classList.contains('dark') ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
+                horzLines: { color: document.documentElement.classList.contains('dark') ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
             },
             crosshair: { mode: CrosshairMode.Normal },
             rightPriceScale: { borderVisible: false },
@@ -300,14 +311,18 @@ async function loadReplay(el) {
             lastValueVisible: true,
         });
 
+        const isDark = document.documentElement.classList.contains('dark');
         const rsiChart = createChart(rsiHost, {
             layout: {
-                background: { type: ColorType.Solid, color: 'transparent' },
-                textColor: '#94a3b8',
+                background: {
+                    type: ColorType.Solid,
+                    color: isDark ? '#09090b' : '#fafafa',
+                },
+                textColor: isDark ? '#a1a1aa' : '#71717a',
             },
             grid: {
-                vertLines: { color: 'rgba(148,163,184,0.06)' },
-                horzLines: { color: 'rgba(148,163,184,0.06)' },
+                vertLines: { color: isDark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
+                horzLines: { color: isDark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
             },
             rightPriceScale: { borderVisible: false },
             timeScale: { borderVisible: false },
@@ -363,22 +378,27 @@ async function loadReplay(el) {
             if (range) {
                 rsiChart.timeScale().setVisibleLogicalRange(range);
             }
-            positionArrows({ ...state, candles: state.visibleCandles });
+            positionArrows(state);
         };
         chart.timeScale().subscribeVisibleLogicalRangeChange(syncRange);
 
-        const onResize = () => positionArrows({ ...state, candles: state.visibleCandles });
+        const onResize = () => positionArrows(state);
         const resizeObserver = typeof ResizeObserver !== 'undefined'
             ? new ResizeObserver(onResize)
             : null;
         resizeObserver?.observe(chartHost);
         window.addEventListener('resize', onResize);
 
-        const onReveal = () => revealOutcome(state);
+        const onReveal = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            revealOutcome(state);
+        };
         revealBtn?.addEventListener('click', onReveal);
 
         // Reposition after first paint (autoSize may settle late).
-        requestAnimationFrame(() => positionArrows({ ...state, candles: state.visibleCandles }));
+        requestAnimationFrame(() => positionArrows(state));
+        setTimeout(() => positionArrows(state), 50);
 
         el._vestixReplayCleanup = () => {
             chart.timeScale().unsubscribeVisibleLogicalRangeChange(syncRange);
@@ -392,6 +412,15 @@ async function loadReplay(el) {
             }
         };
     } catch (error) {
+        teardown(el);
+        chartHost.innerHTML = '';
+        rsiHost.innerHTML = '';
+        if (arrowsHost) {
+            arrowsHost.innerHTML = '';
+        }
+        if (revealHost) {
+            revealHost.hidden = true;
+        }
         status.textContent = 'Replay niet beschikbaar (geen historische data).';
         status.classList.add('text-rose-400');
         console.warn('Trade replay failed', error);
