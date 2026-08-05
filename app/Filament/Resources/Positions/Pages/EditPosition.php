@@ -43,10 +43,13 @@ class EditPosition extends EditRecord
      */
     public function getPageClasses(): array
     {
-        return [
+        $record = $this->record instanceof Position ? $this->record : null;
+
+        return array_values(array_filter([
             'fi-resource-edit-record-page',
             'vestix-position-edit',
-        ];
+            $record?->status === 'closed' ? 'vestix-position-edit--archive' : null,
+        ]));
     }
 
     public function mountCanAuthorizeAccess(): void

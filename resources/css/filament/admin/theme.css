@@ -4706,6 +4706,56 @@
     .position-form-chart-upload .filepond--image-preview-wrapper {
         display: none;
     }
+
+    .position-form-columns--archive.fi-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .position-form-setup-grid--archive {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Archive analysis — full-width Replay Engine                                */
+/* -------------------------------------------------------------------------- */
+
+.vestix-position-edit .vestix-replay-engine-section.fi-sc-section,
+.vestix-position-edit .vestix-replay-engine-section .fi-section-content,
+.vestix-position-edit .vestix-replay-engine-section .fi-section-content-ctn {
+    width: 100%;
+    max-width: none;
+}
+
+.vestix-position-edit .vestix-trade-replay,
+.vestix-position-edit .vestix-replay-stack {
+    width: 100%;
+}
+
+.vestix-position-edit .vestix-trade-replay [data-replay-chart],
+.vestix-position-edit .vestix-trade-replay [data-replay-rsi] {
+    width: 100%;
+}
+
+.vestix-position-edit .vestix-archive-snapshot .scout-telemetry-readonly .fi-input,
+.vestix-position-edit .vestix-archive-snapshot .scout-readonly-computed-input {
+    cursor: default;
+}
+
+.vestix-position-edit .vestix-what-if__toggle {
+    background: transparent;
+}
+
+.vestix-position-edit--archive .fi-page-main,
+.vestix-position-edit--archive .fi-main,
+.vestix-position-edit--archive .fi-sc-form {
+    width: 100%;
+    max-width: none;
+}
+
+.vestix-position-edit--archive .position-form-columns--archive {
+    width: 100%;
 }
 
 /* -------------------------------------------------------------------------- */

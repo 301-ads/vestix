@@ -107,32 +107,24 @@ class TradeReplayService
         $markers = [];
 
         if ($entryTime !== null && $entryPrice !== null) {
+            // TradingView-style: long entry = green ▲ below bar; short entry = red ▼ above bar.
             $markers[] = [
                 'time' => $entryTime,
-                // Subtle TradingView-style arrow on the fill bar (not a chunky price badge).
                 'position' => $short ? 'aboveBar' : 'belowBar',
-                'color' => '#089981',
+                'color' => $short ? '#ef4444' : '#22c55e',
                 'shape' => $short ? 'arrowDown' : 'arrowUp',
-                'size' => 0.75,
+                'size' => 1,
             ];
         }
 
-        if ($exitTime !== null && $exitPrice !== null && $exitTime !== $entryTime) {
+        if ($exitTime !== null && $exitPrice !== null) {
+            // TradingView-style: long exit = red ▼ above bar; short cover = green ▲ below bar.
             $markers[] = [
                 'time' => $exitTime,
                 'position' => $short ? 'belowBar' : 'aboveBar',
-                'color' => '#f23645',
-                'shape' => 'circle',
-                'size' => 0.6,
-            ];
-        } elseif ($exitTime !== null && $exitPrice !== null && $exitTime === $entryTime) {
-            // Same-day round trip: keep a small exit mark without replacing the entry arrow.
-            $markers[] = [
-                'time' => $exitTime,
-                'position' => 'inBar',
-                'color' => '#f23645',
-                'shape' => 'circle',
-                'size' => 0.5,
+                'color' => $short ? '#22c55e' : '#ef4444',
+                'shape' => $short ? 'arrowUp' : 'arrowDown',
+                'size' => 1,
             ];
         }
 
@@ -314,7 +306,7 @@ class TradeReplayService
      */
     private function resolveBars(string $ticker, int $limit, ?string $anchorDate): ?array
     {
-        $cacheKey = 'trade-replay:v3:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
+        $cacheKey = 'trade-replay:v5:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
 
         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit, $anchorDate): ?array {
             $local = $this->localBars($ticker, max($limit, 200));

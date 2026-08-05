@@ -48,8 +48,16 @@ class TradeReplayServiceTest extends TestCase
         $this->assertNotEmpty($payload['markers']);
         $this->assertSame('arrowUp', $payload['markers'][0]['shape']);
         $this->assertSame('belowBar', $payload['markers'][0]['position']);
-        $this->assertSame(0.75, $payload['markers'][0]['size']);
+        $this->assertSame('#22c55e', $payload['markers'][0]['color']);
+        $this->assertSame(1, $payload['markers'][0]['size']);
         $this->assertArrayNotHasKey('text', $payload['markers'][0]);
+
+        $this->assertGreaterThanOrEqual(2, count($payload['markers']));
+        $exitMarker = $payload['markers'][1];
+        $this->assertSame('arrowDown', $exitMarker['shape']);
+        $this->assertSame('aboveBar', $exitMarker['position']);
+        $this->assertSame('#ef4444', $exitMarker['color']);
+        $this->assertArrayNotHasKey('text', $exitMarker);
     }
 
     public function test_long_entry_marker_skips_signal_bar_when_buy_stop_above_signal_high(): void

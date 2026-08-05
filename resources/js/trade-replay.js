@@ -73,7 +73,7 @@ async function loadReplay(el) {
             crosshair: { mode: CrosshairMode.Normal },
             rightPriceScale: { borderVisible: false },
             timeScale: { borderVisible: false },
-            height: 280,
+            height: 420,
             autoSize: true,
         });
 
@@ -131,7 +131,7 @@ async function loadReplay(el) {
             },
             rightPriceScale: { borderVisible: false },
             timeScale: { borderVisible: false },
-            height: 110,
+            height: 140,
             autoSize: true,
         });
 

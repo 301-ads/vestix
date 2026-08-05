@@ -96,12 +96,22 @@ class PositionForm
     {
         return Grid::make(['default' => 1, 'lg' => 3])
             ->columnSpanFull()
-            ->extraAttributes(['class' => 'position-cockpit-grid position-form-columns'])
+            ->extraAttributes(fn (?Position $record): array => [
+                'class' => $record?->status === 'closed'
+                    ? 'position-cockpit-grid position-form-columns position-form-columns--archive'
+                    : 'position-cockpit-grid position-form-columns',
+            ])
             ->visible(fn (?Position $record, string $operation): bool => ! $isScoutForm($record, $operation))
             ->schema([
                 Grid::make(1)
-                    ->columnSpan(['lg' => 2])
-                    ->extraAttributes(['class' => 'position-cockpit-motor position-form-setup-grid'])
+                    ->columnSpan(fn (?Position $record): array|int => $record?->status === 'closed'
+                        ? 'full'
+                        : ['lg' => 2])
+                    ->extraAttributes(fn (?Position $record): array => [
+                        'class' => $record?->status === 'closed'
+                            ? 'position-cockpit-motor position-form-setup-grid position-form-setup-grid--archive'
+                            : 'position-cockpit-motor position-form-setup-grid',
+                    ])
                     ->schema([
                         self::setupDetailsSection($isScoutForm),
                         self::tradeReplaySection(),
@@ -117,10 +127,10 @@ class PositionForm
         return Grid::make(1)
             ->columnSpan(['lg' => 1])
             ->extraAttributes(['class' => 'position-cockpit-telemetry'])
+            ->visible(fn (?Position $record): bool => $record?->status !== 'closed')
             ->schema([
                 self::orderPlanSection(),
                 self::schildStatusSection(),
-                self::whatIfSection(),
                 self::openPositionJournalSection(),
             ]);
     }
@@ -128,9 +138,10 @@ class PositionForm
     private static function tradeReplaySection(): Section
     {
         return Section::make('Replay Engine')
-            ->description('Interactieve historische grafiek op het moment van je shot — SMA-20, RSI(14) en entry/exit markers.')
+            ->description('Full-width autopsie: SMA-20, RSI(14) en entry/exit markers. Analyseer — niet bewerken.')
             ->compact()
             ->columnSpanFull()
+            ->extraAttributes(['class' => 'vestix-replay-engine-section'])
             ->visible(fn (?Position $record): bool => $record?->status === 'closed')
             ->schema([
                 View::make('filament.positions.trade-replay')
@@ -139,18 +150,9 @@ class PositionForm
             ]);
     }
 
-    private static function whatIfSection(): Section
+    private static function isArchiveAnalysis(?Position $record): bool
     {
-        return Section::make('Wat Als')
-            ->description('Alternatieve stop/exit vs jouw echte uitkomst.')
-            ->compact()
-            ->collapsed(false)
-            ->visible(fn (?Position $record): bool => $record?->status === 'closed')
-            ->schema([
-                View::make('filament.positions.what-if-simulator')
-                    ->viewData(fn (?Position $record): array => ['record' => $record])
-                    ->columnSpanFull(),
-            ]);
+        return $record?->status === 'closed';
     }
 
     private static function orderPlanSection(): Section
@@ -185,7 +187,7 @@ class PositionForm
         return self::collapsedTradeJournalSection('position-journal-kelder')
             ->columnSpanFull()
             ->visible(fn (?Position $record, string $operation): bool => TradeJournal::enabled()
-                && $isScoutForm($record, $operation));
+                && ($isScoutForm($record, $operation) || self::isArchiveAnalysis($record)));
     }
 
     private static function openPositionJournalSection(): Section
@@ -760,30 +762,45 @@ class PositionForm
     private static function setupDetailsSection(callable $isScoutForm): Section
     {
         return Section::make()
-            ->heading(fn (?Position $record, string $operation): ?string => $isScoutForm($record, $operation) ? 'Setup' : null)
+            ->heading(function (?Position $record, string $operation) use ($isScoutForm): ?string {
+                if (self::isArchiveAnalysis($record)) {
+                    return 'Shot-gegevens';
+                }
+
+                return $isScoutForm($record, $operation) ? 'Setup' : null;
+            })
+            ->description(fn (?Position $record): ?string => self::isArchiveAnalysis($record)
+                ? 'Alleen-lezen — hier analyseer je, je bewerkt niet.'
+                : null)
             ->compact()
             ->divided()
+            ->extraAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
+                ? ['class' => 'vestix-archive-snapshot']
+                : [])
             ->schema([
                 Grid::make(3)
                     ->schema([
-                        self::tickerField(),
+                        self::tickerField()
+                            ->disabled(fn (?Position $record): bool => self::isArchiveAnalysis($record))
+                            ->dehydrated(),
                         self::plannedInvestmentField($isScoutForm),
                         TextInput::make('quantity')
                             ->label(function (?Position $record, string $operation) use ($isScoutForm): string {
                                 return $isScoutForm($record, $operation) ? 'Gepland aantal' : 'Aantal';
                             })
                             ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
-                                return ! $isScoutForm($record, $operation);
+                                return ! $isScoutForm($record, $operation) && ! self::isArchiveAnalysis($record);
                             })
                             ->numeric()
                             ->inputMode('decimal')
                             ->step('any')
                             ->minValue(0.000001)
-                            ->readOnly(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation))
-                            ->extraFieldWrapperAttributes(fn (?Position $record, string $operation): array => $isScoutForm($record, $operation)
+                            ->readOnly(fn (?Position $record, string $operation): bool => $isScoutForm($record, $operation)
+                                || self::isArchiveAnalysis($record))
+                            ->extraFieldWrapperAttributes(fn (?Position $record, string $operation): array => ($isScoutForm($record, $operation) || self::isArchiveAnalysis($record))
                                 ? self::scoutTelemetryReadonlyWrapperAttributes()
                                 : [])
-                            ->extraInputAttributes(fn (?Position $record, string $operation): array => $isScoutForm($record, $operation)
+                            ->extraInputAttributes(fn (?Position $record, string $operation): array => ($isScoutForm($record, $operation) || self::isArchiveAnalysis($record))
                                 ? ['class' => 'scout-readonly-computed-input', 'tabindex' => '-1']
                                 : [])
                             ->hintIcon(fn (?Position $record, string $operation): ?string => $isScoutForm($record, $operation)
@@ -817,11 +834,18 @@ class PositionForm
                                 return $isScoutForm($record, $operation) ? 'Geplande entry' : 'Entry prijs';
                             })
                             ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
-                                return ! $isScoutForm($record, $operation);
+                                return ! $isScoutForm($record, $operation) && ! self::isArchiveAnalysis($record);
                             })
                             ->numeric()
                             ->prefix('$')
                             ->minValue(0.01)
+                            ->readOnly(fn (?Position $record): bool => self::isArchiveAnalysis($record))
+                            ->extraFieldWrapperAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
+                                ? self::scoutTelemetryReadonlyWrapperAttributes()
+                                : [])
+                            ->extraInputAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
+                                ? ['class' => 'scout-readonly-computed-input', 'tabindex' => '-1']
+                                : [])
                             ->rules(function (?Position $record, string $operation) use ($isScoutForm): array {
                                 return $isScoutForm($record, $operation)
                                     ? ['nullable', 'numeric', 'min:0.01']
@@ -851,13 +875,21 @@ class PositionForm
                                 return $operation === 'edit' && $isScoutForm($record, $operation);
                             }),
                         TextInput::make('current_sl')
-                            ->label('Huidige stop-loss')
-                            ->hint(fn (Get $get, ?Position $record): ?string => self::currentSlStatusLabel($get, $record))
-                            ->hintIcon(fn (Get $get, ?Position $record): ?string => self::currentSlStatusIcon($get, $record))
-                            ->hintIconTooltip(fn (Get $get, ?Position $record): ?string => self::currentSlStatusTooltip($get, $record))
+                            ->label(fn (?Position $record): string => self::isArchiveAnalysis($record)
+                                ? 'Stop-loss'
+                                : 'Huidige stop-loss')
+                            ->hint(fn (Get $get, ?Position $record): ?string => self::isArchiveAnalysis($record)
+                                ? null
+                                : self::currentSlStatusLabel($get, $record))
+                            ->hintIcon(fn (Get $get, ?Position $record): ?string => self::isArchiveAnalysis($record)
+                                ? null
+                                : self::currentSlStatusIcon($get, $record))
+                            ->hintIconTooltip(fn (Get $get, ?Position $record): ?string => self::isArchiveAnalysis($record)
+                                ? null
+                                : self::currentSlStatusTooltip($get, $record))
                             ->hintColor(fn (Get $get, ?Position $record): string => self::currentSlStatusColor($get, $record))
                             ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
-                                return ! $isScoutForm($record, $operation);
+                                return ! $isScoutForm($record, $operation) && ! self::isArchiveAnalysis($record);
                             })
                             ->visible(function (?Position $record, string $operation) use ($isScoutForm): bool {
                                 return ! $isScoutForm($record, $operation);
@@ -865,6 +897,13 @@ class PositionForm
                             ->numeric()
                             ->prefix('$')
                             ->minValue(0.01)
+                            ->readOnly(fn (?Position $record): bool => self::isArchiveAnalysis($record))
+                            ->extraFieldWrapperAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
+                                ? self::scoutTelemetryReadonlyWrapperAttributes()
+                                : [])
+                            ->extraInputAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
+                                ? ['class' => 'scout-readonly-computed-input', 'tabindex' => '-1']
+                                : [])
                             ->live(onBlur: true),
                     ]),
                 Grid::make(2)
@@ -878,7 +917,16 @@ class PositionForm
                             ->prefix('$')
                             ->minValue(0.01)
                             ->dehydrated(false)
-                            ->helperText('Limit-prijs voor Target 1 — past R/R automatisch aan.')
+                            ->readOnly(fn (?Position $record): bool => self::isArchiveAnalysis($record))
+                            ->helperText(fn (?Position $record): ?string => self::isArchiveAnalysis($record)
+                                ? null
+                                : 'Limit-prijs voor Target 1 — past R/R automatisch aan.')
+                            ->extraFieldWrapperAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
+                                ? self::scoutTelemetryReadonlyWrapperAttributes()
+                                : [])
+                            ->extraInputAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
+                                ? ['class' => 'scout-readonly-computed-input', 'tabindex' => '-1']
+                                : [])
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTarget1RrFromTakeProfit($set, $get, $record)),
                         TextInput::make('target_1_rr')
@@ -886,7 +934,16 @@ class PositionForm
                             ->numeric()
                             ->minValue(0.1)
                             ->step(0.1)
-                            ->helperText('1:2 = standaard — Take Profit herberekent mee.')
+                            ->readOnly(fn (?Position $record): bool => self::isArchiveAnalysis($record))
+                            ->helperText(fn (?Position $record): ?string => self::isArchiveAnalysis($record)
+                                ? null
+                                : '1:2 = standaard — Take Profit herberekent mee.')
+                            ->extraFieldWrapperAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
+                                ? self::scoutTelemetryReadonlyWrapperAttributes()
+                                : [])
+                            ->extraInputAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
+                                ? ['class' => 'scout-readonly-computed-input', 'tabindex' => '-1']
+                                : [])
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn (Set $set, Get $get, ?Position $record): mixed => self::syncTakeProfitPriceFromRr($set, $get, $record))
                             ->afterStateHydrated(fn (Set $set, Get $get, ?Position $record): mixed => self::hydrateTarget1Fields($set, $get, $record)),
