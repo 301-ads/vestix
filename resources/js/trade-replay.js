@@ -1,5 +1,17 @@
 import { createChart, ColorType, CrosshairMode, CandlestickSeries, LineSeries } from 'lightweight-charts';
 
+function alignPaneWidths(chart, rsiChart) {
+    const minWidth = 72;
+    const width = Math.max(
+        chart.priceScale('right').width(),
+        rsiChart.priceScale('right').width(),
+        minWidth,
+    );
+
+    chart.priceScale('right').applyOptions({ minimumWidth: width });
+    rsiChart.priceScale('right').applyOptions({ minimumWidth: width });
+}
+
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 }
@@ -190,6 +202,11 @@ function revealOutcome(state) {
     syncArrowLayer(state);
     state.chart.timeScale().fitContent();
     state.rsiChart.timeScale().fitContent();
+    alignPaneWidths(state.chart, state.rsiChart);
+    const range = state.chart.timeScale().getVisibleLogicalRange();
+    if (range) {
+        state.rsiChart.timeScale().setVisibleLogicalRange(range);
+    }
     setRevealOnlyVisible(state.root, true);
 
     if (state.revealHost) {
@@ -276,23 +293,31 @@ async function loadReplay(el) {
             arrowsHost.innerHTML = '';
         }
 
+        const isDark = document.documentElement.classList.contains('dark');
+        const priceScaleOptions = {
+            borderVisible: false,
+            minimumWidth: 72,
+        };
+
         const chart = createChart(chartHost, {
             layout: {
                 background: {
                     type: ColorType.Solid,
-                    color: document.documentElement.classList.contains('dark') ? '#09090b' : '#fafafa',
+                    color: isDark ? '#09090b' : '#fafafa',
                 },
-                textColor: document.documentElement.classList.contains('dark') ? '#a1a1aa' : '#71717a',
+                textColor: isDark ? '#a1a1aa' : '#71717a',
             },
             grid: {
-                vertLines: { color: document.documentElement.classList.contains('dark') ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
-                horzLines: { color: document.documentElement.classList.contains('dark') ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
+                vertLines: { color: isDark ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
+                horzLines: { color: isDark ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
             },
             crosshair: { mode: CrosshairMode.Normal },
-            rightPriceScale: { borderVisible: false },
+            leftPriceScale: { visible: false },
+            rightPriceScale: priceScaleOptions,
             timeScale: { borderVisible: false },
             height: 420,
             autoSize: true,
+            width: chartHost.clientWidth || undefined,
         });
 
         const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -311,7 +336,6 @@ async function loadReplay(el) {
             lastValueVisible: true,
         });
 
-        const isDark = document.documentElement.classList.contains('dark');
         const rsiChart = createChart(rsiHost, {
             layout: {
                 background: {
@@ -324,10 +348,12 @@ async function loadReplay(el) {
                 vertLines: { color: isDark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
                 horzLines: { color: isDark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
             },
-            rightPriceScale: { borderVisible: false },
+            leftPriceScale: { visible: false },
+            rightPriceScale: { ...priceScaleOptions },
             timeScale: { borderVisible: false },
             height: 140,
             autoSize: true,
+            width: chartHost.clientWidth || rsiHost.clientWidth || undefined,
         });
 
         const rsiSeries = rsiChart.addSeries(LineSeries, {
@@ -366,6 +392,17 @@ async function loadReplay(el) {
 
         chart.timeScale().fitContent();
         rsiChart.timeScale().fitContent();
+        alignPaneWidths(chart, rsiChart);
+
+        // Keep panes locked after scale labels settle.
+        requestAnimationFrame(() => {
+            alignPaneWidths(chart, rsiChart);
+            const range = chart.timeScale().getVisibleLogicalRange();
+            if (range) {
+                rsiChart.timeScale().setVisibleLogicalRange(range);
+            }
+            positionArrows(state);
+        });
 
         if (!hasFog) {
             setRevealOnlyVisible(el, true);
@@ -382,11 +419,15 @@ async function loadReplay(el) {
         };
         chart.timeScale().subscribeVisibleLogicalRangeChange(syncRange);
 
-        const onResize = () => positionArrows(state);
+        const onResize = () => {
+            alignPaneWidths(chart, rsiChart);
+            positionArrows(state);
+        };
         const resizeObserver = typeof ResizeObserver !== 'undefined'
             ? new ResizeObserver(onResize)
             : null;
         resizeObserver?.observe(chartHost);
+        resizeObserver?.observe(rsiHost);
         window.addEventListener('resize', onResize);
 
         const onReveal = (event) => {
@@ -398,7 +439,10 @@ async function loadReplay(el) {
 
         // Reposition after first paint (autoSize may settle late).
         requestAnimationFrame(() => positionArrows(state));
-        setTimeout(() => positionArrows(state), 50);
+        setTimeout(() => {
+            alignPaneWidths(chart, rsiChart);
+            positionArrows(state);
+        }, 50);
 
         el._vestixReplayCleanup = () => {
             chart.timeScale().unsubscribeVisibleLogicalRangeChange(syncRange);

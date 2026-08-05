@@ -4783,13 +4783,20 @@
 }
 
 .vestix-position-edit--archive .vestix-replay-chart-wrap,
-.vestix-position-edit--archive [data-replay-rsi] {
+.vestix-position-edit--archive .vestix-replay-rsi-wrap {
     border: 1px solid rgb(212 212 216 / 0.9);
     background: linear-gradient(180deg, rgb(250 250 250), rgb(244 244 245));
+    width: 100%;
+}
+
+.vestix-position-edit--archive .vestix-replay-chart-wrap [data-replay-chart],
+.vestix-position-edit--archive .vestix-replay-rsi-wrap [data-replay-rsi] {
+    width: 100%;
+    display: block;
 }
 
 .dark .vestix-position-edit--archive .vestix-replay-chart-wrap,
-.dark .vestix-position-edit--archive [data-replay-rsi] {
+.dark .vestix-position-edit--archive .vestix-replay-rsi-wrap {
     border-color: rgb(148 163 184 / 0.16);
     background: linear-gradient(180deg, rgb(24 24 27), rgb(9 9 11));
 }
