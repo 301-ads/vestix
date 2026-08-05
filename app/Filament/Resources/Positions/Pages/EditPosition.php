@@ -176,10 +176,9 @@ class EditPosition extends EditRecord
             $parts[] = $clonedFrom;
         }
 
-        if ($record->status === 'closed' && $record->exit_price !== null && $record->closed_at !== null) {
+        if ($record->status === 'closed' && $record->closed_at !== null) {
             $parts[] = sprintf(
-                'Exit: $%s — gesloten op %s',
-                number_format((float) $record->exit_price, 2),
+                'Gesloten op %s',
                 $record->closed_at->translatedFormat('j M Y'),
             );
         }

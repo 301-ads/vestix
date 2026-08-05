@@ -21,8 +21,11 @@ class TradeReplayService
      *     candles: list<array{time: string, open: float, high: float, low: float, close: float}>,
      *     sma20: list<array{time: string, value: float}>,
      *     rsi14: list<array{time: string, value: float}>,
-     *     markers: list<array{time: string, position: string, color: string, shape: string, text: string}>,
+     *     markers: list<array{time: string, role: string, position: string, color: string, direction: string}>,
      *     levels: array{entry: ?float, stop: ?float, target1: ?float, exit: ?float},
+     *     entry_time: ?string,
+     *     exit_time: ?string,
+     *     short: bool,
      *     demo: bool,
      * }|null
      */
@@ -107,24 +110,24 @@ class TradeReplayService
         $markers = [];
 
         if ($entryTime !== null && $entryPrice !== null) {
-            // TradingView-style: long entry = green ▲ below bar; short entry = red ▼ above bar.
+            // Long entry = green ▲ below bar; short entry = red ▼ above bar.
             $markers[] = [
                 'time' => $entryTime,
+                'role' => 'entry',
                 'position' => $short ? 'aboveBar' : 'belowBar',
                 'color' => $short ? '#ef4444' : '#22c55e',
-                'shape' => $short ? 'arrowDown' : 'arrowUp',
-                'size' => 1,
+                'direction' => $short ? 'down' : 'up',
             ];
         }
 
         if ($exitTime !== null && $exitPrice !== null) {
-            // TradingView-style: long exit = red ▼ above bar; short cover = green ▲ below bar.
+            // Long exit = red ▼ above bar; short cover = green ▲ below bar.
             $markers[] = [
                 'time' => $exitTime,
+                'role' => 'exit',
                 'position' => $short ? 'belowBar' : 'aboveBar',
                 'color' => $short ? '#22c55e' : '#ef4444',
-                'shape' => $short ? 'arrowUp' : 'arrowDown',
-                'size' => 1,
+                'direction' => $short ? 'up' : 'down',
             ];
         }
 
@@ -142,6 +145,9 @@ class TradeReplayService
                 'target1' => $position->plannedBracketTarget1Price(),
                 'exit' => $position->exit_price !== null ? (float) $position->exit_price : null,
             ],
+            'entry_time' => $entryTime,
+            'exit_time' => $exitTime,
+            'short' => $short,
             'demo' => $demo,
         ];
     }
@@ -306,7 +312,7 @@ class TradeReplayService
      */
     private function resolveBars(string $ticker, int $limit, ?string $anchorDate): ?array
     {
-        $cacheKey = 'trade-replay:v5:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
+        $cacheKey = 'trade-replay:v6:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
 
         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit, $anchorDate): ?array {
             $local = $this->localBars($ticker, max($limit, 200));

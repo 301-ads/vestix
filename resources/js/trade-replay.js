@@ -1,4 +1,4 @@
-import { createChart, ColorType, CrosshairMode, CandlestickSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
+import { createChart, ColorType, CrosshairMode, CandlestickSeries, LineSeries } from 'lightweight-charts';
 
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
@@ -11,6 +11,194 @@ function teardown(el) {
     }
 }
 
+function indexAtTime(rows, time) {
+    if (!time || !rows?.length) {
+        return -1;
+    }
+
+    return rows.findIndex((row) => row.time === time);
+}
+
+function sliceThrough(rows, time) {
+    const index = indexAtTime(rows, time);
+
+    if (index < 0) {
+        return rows ?? [];
+    }
+
+    return rows.slice(0, index + 1);
+}
+
+function candleAt(candles, time) {
+    return candles.find((candle) => candle.time === time) ?? null;
+}
+
+function createArrowElement(marker) {
+    const el = document.createElement('div');
+    el.className = `vestix-replay-arrow vestix-replay-arrow--${marker.direction}`;
+    el.dataset.role = marker.role;
+    el.dataset.time = marker.time;
+    el.dataset.position = marker.position;
+    el.dataset.direction = marker.direction;
+    el.style.color = marker.color;
+
+    // Slim TradingView-like triangle (not a chunky LWC series marker block).
+    const path = marker.direction === 'up'
+        ? 'M6 1.5 L11 11.5 L1 11.5 Z'
+        : 'M6 12.5 L1 2.5 L11 2.5 Z';
+
+    el.innerHTML = `<svg viewBox="0 0 12 14" width="11" height="13" aria-hidden="true"><path d="${path}" fill="currentColor"/></svg>`;
+
+    return el;
+}
+
+function positionArrows({ chart, candleSeries, chartHost, arrowsHost, markers, candles }) {
+    if (!arrowsHost) {
+        return;
+    }
+
+    const width = chartHost.clientWidth;
+    const height = chartHost.clientHeight;
+
+    arrowsHost.querySelectorAll('.vestix-replay-arrow').forEach((arrow) => {
+        const time = arrow.dataset.time;
+        const position = arrow.dataset.position;
+        const candle = candleAt(candles, time);
+
+        if (!candle) {
+            arrow.style.visibility = 'hidden';
+
+            return;
+        }
+
+        const x = chart.timeScale().timeToCoordinate(time);
+        const price = position === 'aboveBar' ? candle.high : candle.low;
+        const y = candleSeries.priceToCoordinate(price);
+
+        if (x === null || y === null || Number.isNaN(x) || Number.isNaN(y)) {
+            arrow.style.visibility = 'hidden';
+
+            return;
+        }
+
+        const offset = 6;
+        const top = position === 'aboveBar' ? y - 13 - offset : y + offset;
+
+        if (x < -20 || x > width + 20 || top < -20 || top > height + 20) {
+            arrow.style.visibility = 'hidden';
+
+            return;
+        }
+
+        arrow.style.visibility = 'visible';
+        arrow.style.transform = `translate(${Math.round(x - 5.5)}px, ${Math.round(top)}px)`;
+    });
+}
+
+function syncArrowLayer(state) {
+    const { arrowsHost, revealed, markers } = state;
+    if (!arrowsHost) {
+        return;
+    }
+
+    arrowsHost.innerHTML = '';
+
+    const visible = (markers ?? []).filter((marker) => marker.role === 'entry' || revealed);
+
+    visible.forEach((marker) => {
+        arrowsHost.appendChild(createArrowElement(marker));
+    });
+
+    positionArrows(state);
+}
+
+function applySeriesData(state, fogged) {
+    const { candleSeries, smaSeries, rsiSeries, payload, entryTime } = state;
+    const candles = fogged ? sliceThrough(payload.candles, entryTime) : payload.candles;
+    const sma20 = fogged ? sliceThrough(payload.sma20 ?? [], entryTime) : (payload.sma20 ?? []);
+    const rsi14 = fogged ? sliceThrough(payload.rsi14 ?? [], entryTime) : (payload.rsi14 ?? []);
+
+    candleSeries.setData(candles);
+    smaSeries.setData(sma20);
+    rsiSeries.setData(rsi14);
+    state.visibleCandles = candles;
+}
+
+function applyPriceLines(state, includeExit) {
+    const { candleSeries, priceLines, levels } = state;
+
+    Object.values(priceLines).forEach((line) => {
+        try {
+            candleSeries.removePriceLine(line);
+        } catch {
+            // already removed
+        }
+    });
+    state.priceLines = {};
+
+    const levelMeta = [
+        ['entry', '#22c55e', 'Entry'],
+        ['stop', '#ef4444', 'SL'],
+        ['target1', '#a855f7', 'T1'],
+    ];
+
+    if (includeExit) {
+        levelMeta.push(['exit', '#f59e0b', 'Exit']);
+    }
+
+    for (const [key, color, title] of levelMeta) {
+        if (levels[key] != null) {
+            state.priceLines[key] = candleSeries.createPriceLine({
+                price: Number(levels[key]),
+                color,
+                lineWidth: 1,
+                lineStyle: 2,
+                axisLabelVisible: true,
+                title,
+            });
+        }
+    }
+}
+
+function setRevealOnlyVisible(el, visible) {
+    const stack = el.closest('.vestix-replay-stack') ?? el.parentElement;
+    stack?.querySelectorAll('[data-reveal-only]').forEach((node) => {
+        if (visible) {
+            node.hidden = false;
+        } else {
+            node.hidden = true;
+        }
+    });
+}
+
+function revealOutcome(state) {
+    if (state.revealed) {
+        return;
+    }
+
+    state.revealed = true;
+    applySeriesData(state, false);
+    applyPriceLines(state, true);
+    syncArrowLayer(state);
+    state.chart.timeScale().fitContent();
+    state.rsiChart.timeScale().fitContent();
+    setRevealOnlyVisible(state.root, true);
+
+    if (state.revealHost) {
+        state.revealHost.hidden = true;
+    }
+
+    const exit = state.levels.exit;
+    state.status.textContent = state.payload.demo
+        ? `${state.payload.ticker} · uitkomst onthuld (demo)`
+        : `${state.payload.ticker} · uitkomst onthuld${exit != null ? ` · exit $${Number(exit).toFixed(2)}` : ''}`;
+    state.status.classList.remove('text-amber-500');
+
+    if (state.legend) {
+        state.legend.textContent = 'Groene ▲ = entry · Rode ▼ = exit. Stippellijnen = Entry / SL / T1 / Exit.';
+    }
+}
+
 async function loadReplay(el) {
     const positionId = el.dataset.positionId;
     const url = el.dataset.replayUrl;
@@ -20,8 +208,12 @@ async function loadReplay(el) {
     }
 
     const chartHost = el.querySelector('[data-replay-chart]');
+    const arrowsHost = el.querySelector('[data-replay-arrows]');
     const rsiHost = el.querySelector('[data-replay-rsi]');
     const status = el.querySelector('[data-replay-status]');
+    const revealBtn = el.querySelector('[data-replay-reveal]');
+    const revealHost = el.querySelector('[data-replay-reveal-host]');
+    const legend = el.querySelector('[data-replay-legend]');
 
     if (!chartHost || !rsiHost || !status) {
         return;
@@ -30,6 +222,10 @@ async function loadReplay(el) {
     teardown(el);
     status.textContent = 'Koersdata laden…';
     status.classList.remove('text-amber-500', 'text-rose-400');
+    setRevealOnlyVisible(el, false);
+    if (revealHost) {
+        revealHost.hidden = false;
+    }
 
     try {
         const response = await fetch(url, {
@@ -50,9 +246,17 @@ async function loadReplay(el) {
             throw new Error('Empty candles');
         }
 
+        const entryTime = payload.entry_time
+            ?? payload.markers?.find((marker) => marker.role === 'entry')?.time
+            ?? null;
+
+        const hasFog = entryTime != null && indexAtTime(payload.candles, entryTime) >= 0;
+
         status.textContent = payload.demo
-            ? `${payload.ticker} · demo-data (API leeg) · SMA-20 + RSI(14)`
-            : `${payload.ticker} · ${payload.candles.length} bars · SMA-20 + RSI(14)`;
+            ? `${payload.ticker} · demo-data · setup tot entry`
+            : hasFog
+                ? `${payload.ticker} · Fog of War · beoordeel de setup tot je entry`
+                : `${payload.ticker} · ${payload.candles.length} bars · SMA-20 + RSI(14)`;
 
         if (payload.demo) {
             status.classList.add('text-amber-500');
@@ -60,6 +264,9 @@ async function loadReplay(el) {
 
         chartHost.innerHTML = '';
         rsiHost.innerHTML = '';
+        if (arrowsHost) {
+            arrowsHost.innerHTML = '';
+        }
 
         const chart = createChart(chartHost, {
             layout: {
@@ -67,8 +274,8 @@ async function loadReplay(el) {
                 textColor: '#94a3b8',
             },
             grid: {
-                vertLines: { color: 'rgba(148,163,184,0.12)' },
-                horzLines: { color: 'rgba(148,163,184,0.12)' },
+                vertLines: { color: 'rgba(148,163,184,0.08)' },
+                horzLines: { color: 'rgba(148,163,184,0.08)' },
             },
             crosshair: { mode: CrosshairMode.Normal },
             rightPriceScale: { borderVisible: false },
@@ -84,7 +291,6 @@ async function loadReplay(el) {
             wickUpColor: '#22c55e',
             wickDownColor: '#ef4444',
         });
-        candleSeries.setData(payload.candles);
 
         const smaSeries = chart.addSeries(LineSeries, {
             color: '#3b82f6',
@@ -93,32 +299,6 @@ async function loadReplay(el) {
             priceLineVisible: false,
             lastValueVisible: true,
         });
-        smaSeries.setData(payload.sma20 ?? []);
-
-        if (payload.markers?.length) {
-            createSeriesMarkers(candleSeries, payload.markers);
-        }
-
-        const levels = payload.levels ?? {};
-        const levelMeta = [
-            ['entry', '#22c55e', 'Entry'],
-            ['stop', '#ef4444', 'SL'],
-            ['target1', '#a855f7', 'T1'],
-            ['exit', '#f59e0b', 'Exit'],
-        ];
-
-        for (const [key, color, title] of levelMeta) {
-            if (levels[key] != null) {
-                candleSeries.createPriceLine({
-                    price: Number(levels[key]),
-                    color,
-                    lineWidth: 1,
-                    lineStyle: 2,
-                    axisLabelVisible: true,
-                    title,
-                });
-            }
-        }
 
         const rsiChart = createChart(rsiHost, {
             layout: {
@@ -126,8 +306,8 @@ async function loadReplay(el) {
                 textColor: '#94a3b8',
             },
             grid: {
-                vertLines: { color: 'rgba(148,163,184,0.08)' },
-                horzLines: { color: 'rgba(148,163,184,0.08)' },
+                vertLines: { color: 'rgba(148,163,184,0.06)' },
+                horzLines: { color: 'rgba(148,163,184,0.06)' },
             },
             rightPriceScale: { borderVisible: false },
             timeScale: { borderVisible: false },
@@ -141,24 +321,75 @@ async function loadReplay(el) {
             title: 'RSI(14)',
             priceLineVisible: false,
         });
-        rsiSeries.setData(payload.rsi14 ?? []);
         rsiSeries.createPriceLine({ price: 70, color: '#ef4444', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '70' });
         rsiSeries.createPriceLine({ price: 30, color: '#22c55e', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '30' });
 
+        const state = {
+            root: el,
+            payload,
+            entryTime,
+            levels: payload.levels ?? {},
+            markers: payload.markers ?? [],
+            chart,
+            rsiChart,
+            candleSeries,
+            smaSeries,
+            rsiSeries,
+            chartHost,
+            arrowsHost,
+            status,
+            legend,
+            revealHost,
+            priceLines: {},
+            revealed: !hasFog,
+            visibleCandles: payload.candles,
+        };
+
+        applySeriesData(state, hasFog);
+        applyPriceLines(state, !hasFog);
+        syncArrowLayer(state);
+
         chart.timeScale().fitContent();
         rsiChart.timeScale().fitContent();
+
+        if (!hasFog) {
+            setRevealOnlyVisible(el, true);
+            if (revealHost) {
+                revealHost.hidden = true;
+            }
+        }
 
         const syncRange = (range) => {
             if (range) {
                 rsiChart.timeScale().setVisibleLogicalRange(range);
             }
+            positionArrows({ ...state, candles: state.visibleCandles });
         };
         chart.timeScale().subscribeVisibleLogicalRangeChange(syncRange);
 
+        const onResize = () => positionArrows({ ...state, candles: state.visibleCandles });
+        const resizeObserver = typeof ResizeObserver !== 'undefined'
+            ? new ResizeObserver(onResize)
+            : null;
+        resizeObserver?.observe(chartHost);
+        window.addEventListener('resize', onResize);
+
+        const onReveal = () => revealOutcome(state);
+        revealBtn?.addEventListener('click', onReveal);
+
+        // Reposition after first paint (autoSize may settle late).
+        requestAnimationFrame(() => positionArrows({ ...state, candles: state.visibleCandles }));
+
         el._vestixReplayCleanup = () => {
             chart.timeScale().unsubscribeVisibleLogicalRangeChange(syncRange);
+            revealBtn?.removeEventListener('click', onReveal);
+            window.removeEventListener('resize', onResize);
+            resizeObserver?.disconnect();
             chart.remove();
             rsiChart.remove();
+            if (arrowsHost) {
+                arrowsHost.innerHTML = '';
+            }
         };
     } catch (error) {
         status.textContent = 'Replay niet beschikbaar (geen historische data).';
@@ -169,7 +400,6 @@ async function loadReplay(el) {
 
 function boot() {
     document.querySelectorAll('[data-trade-replay]').forEach((el) => {
-        // Livewire remorphs replace nodes; always (re)load on each boot pass for fresh nodes.
         if (el.dataset.replayLoading === '1') {
             return;
         }
@@ -192,7 +422,6 @@ document.addEventListener('DOMContentLoaded', boot);
 document.addEventListener('livewire:navigated', boot);
 document.addEventListener('livewire:init', () => {
     Livewire.hook('morphed', () => {
-        // Allow remorphed nodes (without ready flag) to boot; clear stale charts first.
         document.querySelectorAll('[data-trade-replay]').forEach((el) => {
             if (!el.isConnected) {
                 teardown(el);

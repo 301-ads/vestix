@@ -4758,6 +4758,77 @@
     width: 100%;
 }
 
+.vestix-position-edit--archive .vestix-archive-snapshot.fi-sc-section {
+    border-color: rgb(148 163 184 / 0.18);
+    box-shadow: none;
+}
+
+.vestix-position-edit--archive .vestix-archive-snapshot .fi-section-header {
+    padding-block: 0.65rem;
+}
+
+.vestix-position-edit--archive .vestix-archive-snapshot .fi-section-header-heading {
+    font-size: 0.875rem;
+    font-weight: 550;
+}
+
+.vestix-position-edit--archive .vestix-archive-snapshot .fi-section-header-description {
+    font-size: 0.75rem;
+    color: rgb(113 113 122);
+}
+
+.vestix-position-edit--archive .vestix-replay-engine-section.fi-sc-section {
+    border-color: rgb(148 163 184 / 0.2);
+    background: transparent;
+}
+
+.vestix-position-edit--archive .vestix-replay-chart-wrap,
+.vestix-position-edit--archive [data-replay-rsi] {
+    border: 1px solid rgb(148 163 184 / 0.16);
+    background:
+        linear-gradient(180deg, rgb(24 24 27 / 0.55), rgb(24 24 27 / 0.28));
+}
+
+:not(.dark) .vestix-position-edit--archive .vestix-replay-chart-wrap,
+:not(.dark) .vestix-position-edit--archive [data-replay-rsi] {
+    background:
+        linear-gradient(180deg, rgb(250 250 250), rgb(244 244 245));
+    border-color: rgb(212 212 216 / 0.9);
+}
+
+.vestix-position-edit--archive [data-replay-status] {
+    font-size: 0.8125rem;
+    letter-spacing: 0.01em;
+}
+
+.vestix-replay-arrows {
+    z-index: 2;
+}
+
+.vestix-replay-arrow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 11px;
+    height: 13px;
+    line-height: 0;
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35));
+    will-change: transform;
+}
+
+.vestix-replay-arrow svg {
+    display: block;
+}
+
+.vestix-replay-reveal-host {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.vestix-replay-reveal-btn {
+    min-width: 11rem;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Share cards                                                                */
 /* -------------------------------------------------------------------------- */

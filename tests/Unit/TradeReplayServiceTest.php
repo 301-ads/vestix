@@ -45,19 +45,23 @@ class TradeReplayServiceTest extends TestCase
 
         $this->assertNotNull($payload);
         $this->assertTrue($payload['demo']);
+        $this->assertTrue($payload['short'] === false);
+        $this->assertNotNull($payload['entry_time']);
         $this->assertNotEmpty($payload['markers']);
-        $this->assertSame('arrowUp', $payload['markers'][0]['shape']);
+        $this->assertSame('entry', $payload['markers'][0]['role']);
+        $this->assertSame('up', $payload['markers'][0]['direction']);
         $this->assertSame('belowBar', $payload['markers'][0]['position']);
         $this->assertSame('#22c55e', $payload['markers'][0]['color']);
-        $this->assertSame(1, $payload['markers'][0]['size']);
+        $this->assertArrayNotHasKey('shape', $payload['markers'][0]);
         $this->assertArrayNotHasKey('text', $payload['markers'][0]);
 
         $this->assertGreaterThanOrEqual(2, count($payload['markers']));
         $exitMarker = $payload['markers'][1];
-        $this->assertSame('arrowDown', $exitMarker['shape']);
+        $this->assertSame('exit', $exitMarker['role']);
+        $this->assertSame('down', $exitMarker['direction']);
         $this->assertSame('aboveBar', $exitMarker['position']);
         $this->assertSame('#ef4444', $exitMarker['color']);
-        $this->assertArrayNotHasKey('text', $exitMarker);
+        $this->assertSame($payload['exit_time'], $exitMarker['time']);
     }
 
     public function test_long_entry_marker_skips_signal_bar_when_buy_stop_above_signal_high(): void
@@ -120,9 +124,11 @@ class TradeReplayServiceTest extends TestCase
         $payload = (new TradeReplayService($dailyBars))->build($position, allowDemoFallback: false);
 
         $this->assertNotNull($payload);
+        $this->assertSame('2026-06-05', $payload['entry_time']);
         $entryMarker = $payload['markers'][0];
         $this->assertSame('2026-06-05', $entryMarker['time']);
-        $this->assertSame('arrowUp', $entryMarker['shape']);
+        $this->assertSame('entry', $entryMarker['role']);
+        $this->assertSame('up', $entryMarker['direction']);
         $this->assertSame('belowBar', $entryMarker['position']);
         $this->assertNotSame('2026-06-02', $entryMarker['time']);
     }

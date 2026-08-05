@@ -268,8 +268,8 @@ class PositionResourceTest extends TestCase
 
         Livewire::test(EditPosition::class, ['record' => $position->getKey()])
             ->assertSee('Gesloten')
-            ->assertSee('Exit: $90.00')
-            ->assertSee('gesloten op')
+            ->assertSee('Gesloten op')
+            ->assertDontSee('Exit: $90.00')
             ->assertDontSee('Close prijs')
             ->assertDontSee('Archiveer Positie');
     }

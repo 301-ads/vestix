@@ -138,7 +138,7 @@ class PositionForm
     private static function tradeReplaySection(): Section
     {
         return Section::make('Replay Engine')
-            ->description('Full-width autopsie: SMA-20, RSI(14) en entry/exit markers. Analyseer — niet bewerken.')
+            ->description('Fog of War: beoordeel de setup tot je entry. Onthul daarna pas de uitkomst.')
             ->compact()
             ->columnSpanFull()
             ->extraAttributes(['class' => 'vestix-replay-engine-section'])
@@ -774,6 +774,8 @@ class PositionForm
                 : null)
             ->compact()
             ->divided()
+            ->collapsible(fn (?Position $record): bool => self::isArchiveAnalysis($record))
+            ->collapsed(fn (?Position $record): bool => self::isArchiveAnalysis($record))
             ->extraAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
                 ? ['class' => 'vestix-archive-snapshot']
                 : [])
@@ -1975,7 +1977,8 @@ class PositionForm
     {
         return Section::make()
             ->visible(fn (string $operation, ?Position $record): bool => $operation === 'edit'
-                && $record?->status !== 'scout')
+                && $record?->status !== 'scout'
+                && $record?->status !== 'closed')
             ->columnSpanFull()
             ->contained(false)
             ->schema([
