@@ -104,7 +104,7 @@ class PositionForm
             ->visible(fn (?Position $record, string $operation): bool => ! $isScoutForm($record, $operation))
             ->schema([
                 Grid::make(1)
-                    ->columnSpan(fn (?Position $record): array|int => $record?->status === 'closed'
+                    ->columnSpan(fn (?Position $record): array|int|string => $record?->status === 'closed'
                         ? 'full'
                         : ['lg' => 2])
                     ->extraAttributes(fn (?Position $record): array => [
