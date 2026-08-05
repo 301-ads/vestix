@@ -91,32 +91,46 @@ class TradeReplayService
             }
         }
 
-        $candleTimes = array_column($candles, 'time');
-        $entryTime = $this->snapToCandleTime($candleTimes, $anchorDate);
-        $exitTime = $this->snapToCandleTime(
-            $candleTimes,
+        $entryPrice = $position->entry_price !== null ? (float) $position->entry_price : null;
+        $exitPrice = $position->exit_price !== null ? (float) $position->exit_price : null;
+
+        // Prefer the bar whose range actually contains the fill — not merely the signal date
+        // (signal candle can sit well above/below the eventual entry price).
+        $entryTime = $this->resolveMarkerTime(
+            $candles,
+            $entryPrice,
+            $anchorDate,
+            preferFromDate: $anchorDate,
+        );
+        $exitTime = $this->resolveMarkerTime(
+            $candles,
+            $exitPrice,
             optional($position->closed_at)?->toDateString(),
+            preferFromDate: $entryTime,
         );
 
         $markers = [];
 
-        if ($entryTime !== null && $position->entry_price !== null) {
+        if ($entryTime !== null && $entryPrice !== null) {
             $markers[] = [
                 'time' => $entryTime,
-                'position' => $position->isShort() ? 'aboveBar' : 'belowBar',
+                // Price-based marker so the arrow sits on the Entry line, not on the candle wick.
+                'position' => $position->isShort() ? 'atPriceTop' : 'atPriceBottom',
                 'color' => '#22c55e',
                 'shape' => $position->isShort() ? 'arrowDown' : 'arrowUp',
                 'text' => 'Entry',
+                'price' => $entryPrice,
             ];
         }
 
-        if ($exitTime !== null && $position->exit_price !== null) {
+        if ($exitTime !== null && $exitPrice !== null) {
             $markers[] = [
                 'time' => $exitTime,
-                'position' => $position->isShort() ? 'belowBar' : 'aboveBar',
+                'position' => 'atPriceMiddle',
                 'color' => '#ef4444',
                 'shape' => 'circle',
                 'text' => 'Exit',
+                'price' => $exitPrice,
             ];
         }
 
@@ -152,6 +166,67 @@ class TradeReplayService
         }
 
         return $anchorIndex;
+    }
+
+    /**
+     * @param  list<array{time: string, open: float, high: float, low: float, close: float}>  $candles
+     */
+    private function resolveMarkerTime(
+        array $candles,
+        ?float $price,
+        ?string $preferredDate,
+        ?string $preferFromDate = null,
+    ): ?string {
+        if ($candles === []) {
+            return null;
+        }
+
+        if ($price !== null) {
+            $match = $this->firstBarContainingPrice($candles, $price, $preferFromDate ?? $preferredDate);
+
+            if ($match !== null) {
+                return $match;
+            }
+        }
+
+        $times = array_column($candles, 'time');
+
+        return $this->snapToCandleTime($times, $preferredDate);
+    }
+
+    /**
+     * @param  list<array{time: string, high: float, low: float}>  $candles
+     */
+    private function firstBarContainingPrice(array $candles, float $price, ?string $notBefore): ?string
+    {
+        foreach ($candles as $candle) {
+            if ($notBefore !== null && $candle['time'] < $notBefore) {
+                continue;
+            }
+
+            if ($price >= (float) $candle['low'] && $price <= (float) $candle['high']) {
+                return $candle['time'];
+            }
+        }
+
+        // Fallback: closest close to the fill price (still after notBefore when set).
+        $bestTime = null;
+        $bestDistance = null;
+
+        foreach ($candles as $candle) {
+            if ($notBefore !== null && $candle['time'] < $notBefore) {
+                continue;
+            }
+
+            $distance = abs((float) $candle['close'] - $price);
+
+            if ($bestDistance === null || $distance < $bestDistance) {
+                $bestDistance = $distance;
+                $bestTime = $candle['time'];
+            }
+        }
+
+        return $bestTime;
     }
 
     /**
