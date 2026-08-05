@@ -91,6 +91,7 @@ class PolygonMarketDataService
         $sma20FiveDaysAgo = TechnicalIndicators::smaAtOffset($closes, 20, 5);
         $sma20TenDaysAgo = TechnicalIndicators::smaAtOffset($closes, 20, ScoutSetupScorecard::smaSlopeLookbackDays());
         $sma50 = TechnicalIndicators::smaAtOffset($closes, 50, 0);
+        $sma200 = TechnicalIndicators::smaAtOffset($closes, 200, 0);
         $atr = TechnicalIndicators::wilderAtr($ohlcBars, 14);
         $rsi = TechnicalIndicators::wilderRsi($closes, 14);
 
@@ -106,6 +107,7 @@ class PolygonMarketDataService
             'sma_20_five_days_ago' => $sma20FiveDaysAgo,
             'sma_20_ten_days_ago' => $sma20TenDaysAgo,
             'latest_sma_50' => $sma50,
+            'latest_sma_200' => $sma200,
             'latest_atr_14' => $atr,
             'scout_rsi' => $rsi,
             'prior_day_low' => self::extractPriorDayLow($bars['bars']),

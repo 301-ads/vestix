@@ -3,7 +3,7 @@
 namespace Tests\Unit;
 
 use App\Support\SniperSetupFilter;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class SniperSetupFilterTest extends TestCase
 {

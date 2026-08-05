@@ -8,6 +8,8 @@ class SniperSetupFilter
      * @param  array{
      *     open: float,
      *     close: float,
+     *     high?: float,
+     *     low?: float,
      *     sma10: float,
      *     sma20: float,
      *     sma50: float,
@@ -29,7 +31,7 @@ class SniperSetupFilter
     }
 
     /**
-     * @param  array{open: float, close: float, sma10: float, sma20: float, sma50: float, rsi14: float}  $inputs
+     * @param  array{open: float, close: float, high?: float, low?: float, sma10: float, sma20: float, sma50: float, rsi14: float}  $inputs
      */
     public static function passesLong(array $inputs): bool
     {
@@ -56,11 +58,15 @@ class SniperSetupFilter
             return false;
         }
 
+        if (! self::passesCandleAnatomy($inputs, short: false)) {
+            return false;
+        }
+
         return true;
     }
 
     /**
-     * @param  array{open: float, close: float, sma10: float, sma20: float, sma50: float, rsi14: float}  $inputs
+     * @param  array{open: float, close: float, high?: float, low?: float, sma10: float, sma20: float, sma50: float, rsi14: float}  $inputs
      */
     public static function passesShort(array $inputs): bool
     {
@@ -87,6 +93,45 @@ class SniperSetupFilter
             return false;
         }
 
+        if (! self::passesCandleAnatomy($inputs, short: true)) {
+            return false;
+        }
+
         return true;
+    }
+
+    public static function minPrice(): float
+    {
+        return (float) config('vestix.sniper_scanner.min_price', 10.0);
+    }
+
+    public static function passesMinPrice(float $close): bool
+    {
+        return $close >= self::minPrice();
+    }
+
+    /**
+     * @param  array{open: float, close: float, high?: float, low?: float}  $inputs
+     */
+    private static function passesCandleAnatomy(array $inputs, bool $short): bool
+    {
+        if (! CandleAnatomy::enabled()) {
+            return true;
+        }
+
+        $high = isset($inputs['high']) ? (float) $inputs['high'] : null;
+        $low = isset($inputs['low']) ? (float) $inputs['low'] : null;
+
+        if ($high === null || $low === null) {
+            // Legacy callers without OHLC high/low keep prior math behavior.
+            return true;
+        }
+
+        return CandleAnatomy::passesBar([
+            'open' => (float) $inputs['open'],
+            'high' => $high,
+            'low' => $low,
+            'close' => (float) $inputs['close'],
+        ], $short);
     }
 }

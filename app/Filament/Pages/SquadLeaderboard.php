@@ -114,19 +114,22 @@ class SquadLeaderboard extends Page implements HasTable
             ? "Squad: {$squadName}. {$track->description()}"
             : $track->description();
 
-        $description .= ' Ranking op win rate, freerides secured en gemiddelde ROI %.';
+        $description .= ' Elite ranking op total R (tie-break avg R / win rate). Discipline Score ≥ '
+            .number_format(app(PositionStatsAggregator::class)->eliteDisciplineMinPct(), 0)
+            .'% vereist.';
 
         if ($computedAt) {
             $description .= ' Bijgewerkt '.date('j M Y H:i', strtotime((string) $computedAt)).'.';
         }
 
         $emptyDescription = match ($track) {
-            LeaderboardTrack::Executor => 'Sluit minimaal '.PositionStatsAggregator::MIN_TRADES_FOR_RANKING.' trades om op het leaderboard te verschijnen.',
-            LeaderboardTrack::Analyst => 'Minimaal '.PositionStatsAggregator::MIN_TRADES_FOR_RANKING.' gesloten clones op jouw gedeelde setups nodig voor ranking.',
+            LeaderboardTrack::Executor => 'Sluit minimaal '.PositionStatsAggregator::MIN_TRADES_FOR_RANKING.' trades met Discipline ≥ '
+                .number_format(app(PositionStatsAggregator::class)->eliteDisciplineMinPct(), 0).'% om op het Elite-bord te staan.',
+            LeaderboardTrack::Analyst => 'Minimaal '.PositionStatsAggregator::MIN_TRADES_FOR_RANKING.' gesloten clones + Discipline-poort nodig voor Elite ranking.',
         };
 
         return $table
-            ->heading('Squad Leaderboard · '.$track->label())
+            ->heading('Vestix Elite Leaderboard · '.$track->label())
             ->description($description)
             ->searchable(false)
             ->paginated(false)
@@ -142,23 +145,29 @@ class SquadLeaderboard extends Page implements HasTable
                     }),
                 TextColumn::make('name')
                     ->label($track === LeaderboardTrack::Analyst ? 'Analyst' : 'Executor'),
+                TextColumn::make('total_r')
+                    ->label('Total R')
+                    ->numeric(decimalPlaces: 2)
+                    ->color(fn (array $record): string => ($record['total_r'] ?? 0) >= 0 ? 'success' : 'danger'),
+                TextColumn::make('avg_r')
+                    ->label('Avg R')
+                    ->numeric(decimalPlaces: 2),
+                TextColumn::make('discipline_score_30d')
+                    ->label('Discipline')
+                    ->suffix('%')
+                    ->numeric(decimalPlaces: 0)
+                    ->color(fn (array $record): string => ($record['discipline_score_30d'] ?? 0) >= app(PositionStatsAggregator::class)->eliteDisciplineMinPct()
+                        ? 'success'
+                        : 'danger'),
                 TextColumn::make('win_rate')
                     ->label('Win rate')
                     ->suffix('%')
                     ->numeric(decimalPlaces: 1),
-                TextColumn::make('avg_roi_pct')
-                    ->label('ROI %')
-                    ->suffix('%')
-                    ->numeric(decimalPlaces: 2)
-                    ->color(fn (array $record): string => ($record['avg_roi_pct'] ?? 0) >= 0 ? 'success' : 'danger'),
-                TextColumn::make('freeride_count')
-                    ->label('Freerides')
-                    ->numeric(),
                 TextColumn::make('closed_trades_count')
                     ->label($track === LeaderboardTrack::Analyst ? 'Clones' : 'Trades')
                     ->numeric(),
             ])
-            ->emptyStateHeading('Nog geen squad-statistieken')
+            ->emptyStateHeading('Nog geen Elite-ranking')
             ->emptyStateDescription($emptyDescription);
     }
 
@@ -173,11 +182,17 @@ class SquadLeaderboard extends Page implements HasTable
             return collect();
         }
 
-        return app(PositionStatsAggregator::class)
-            ->rankedStatsForSquad($squad->id, $this->currentTrack())
+        $aggregator = app(PositionStatsAggregator::class);
+        $track = $this->currentTrack();
+
+        return $aggregator
+            ->rankedStatsForSquad($squad->id, $track)
             ->map(fn (LeaderboardStat $stat): array => [
                 'rank' => $stat->rank,
                 'name' => $stat->user?->name ?? '—',
+                'total_r' => (float) $stat->total_r,
+                'avg_r' => (float) $stat->avg_r,
+                'discipline_score_30d' => (float) $stat->discipline_score_30d,
                 'win_rate' => (float) $stat->win_rate,
                 'avg_roi_pct' => (float) $stat->avg_roi_pct,
                 'freeride_count' => $stat->freeride_count,

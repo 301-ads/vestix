@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Positions\Tables;
 
+use App\Enums\AutopsyTag;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\GapHerplanAction;
 use App\Enums\ScoutPipelineStatus;
@@ -29,6 +30,7 @@ use App\Support\TradeJournal;
 use App\Support\UsMarketSession;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Illuminate\Support\HtmlString;
@@ -1072,7 +1074,7 @@ class PositionRecordActions
             ->modalHeading(fn (Position $record): string => $record->action_command === 'STOPPED OUT'
                 ? 'Positie sluiten na stop-loss'
                 : 'Positie archiveren')
-            ->modalDescription('Voor welke prijs is de trade definitief gesloten bij je broker?')
+            ->modalDescription('Voor welke prijs is de trade definitief gesloten bij je broker? Voer daarna de verplichte Autopsie uit.')
             ->schema([
                 TextInput::make('exit_price')
                     ->label('Werkelijke verkoopprijs')
@@ -1081,6 +1083,12 @@ class PositionRecordActions
                     ->prefix('$')
                     ->minValue(0.01)
                     ->default(fn (Position $record): ?float => self::defaultExitPrice($record)),
+                Select::make('autopsy_tag')
+                    ->label('Autopsie')
+                    ->options(AutopsyTag::options())
+                    ->required()
+                    ->native(false)
+                    ->helperText('Trek procesdiscipline los van de financiële uitkomst.'),
                 ChartScreenshotUpload::make('exit_chart_screenshot_path')
                     ->label('TradingView — exit')
                     ->imagePreviewHeight('160')
@@ -1090,9 +1098,12 @@ class PositionRecordActions
             ->action(function (Position $record, array $data): void {
                 $wasStoppedOut = $record->action_command === 'STOPPED OUT';
 
+                $autopsy = AutopsyTag::from((string) $data['autopsy_tag']);
+
                 $record->archiveWithExitPrice(
                     (float) $data['exit_price'],
                     $data['exit_chart_screenshot_path'] ?? null,
+                    $autopsy,
                 );
 
                 if ($wasStoppedOut) {
@@ -1209,18 +1220,22 @@ class PositionRecordActions
     }
 
     /**
-     * Soft gate: activation stays enabled, but confirmation warns about earnings risk
-     * (quarantine ±2 trading days and/or 14-day pre-earnings runway).
+     * Soft override removed (Vestix 2.0): earnings quarantine / runway is a hard NO TRADE gate.
+     * Kept for backwards-compatible call sites; always false.
      */
     public static function scoutEarningsOverrideRequired(Position $record): bool
     {
-        return self::scoutEarningsGateBlocks($record);
+        return false;
     }
 
     public static function scoutActivationDisabled(Position $record): bool
     {
-        return MarketDataFreshness::isPositionSyncInProgress($record->id)
-            || MarketDataFreshness::isSyncInProgress();
+        if (MarketDataFreshness::isPositionSyncInProgress($record->id)
+            || MarketDataFreshness::isSyncInProgress()) {
+            return true;
+        }
+
+        return self::scoutEarningsGateBlocks($record);
     }
 
     public static function scoutActivationTooltip(Position $record): string
@@ -1233,15 +1248,15 @@ class PositionRecordActions
         if ($record->isInEarningsEntryQuarantine()) {
             $tradingDays = EarningsExitSchedule::quarantineTradingDays();
 
-            return "Earnings-risico: quarantaine (±{$tradingDays} handelsdagen) — activeer alleen bewust";
+            return "NO TRADE — earnings-quarantaine (±{$tradingDays} handelsdagen). Activatie geblokkeerd.";
         }
 
         if (EarningsExitDisplay::isWithinAlertWindow($record)) {
             $daysUntil = $record->daysUntilEarnings();
 
             return $daysUntil !== null
-                ? "Earnings-risico: cijfers over {$daysUntil} dagen (runway ≤14 dagen) — activeer alleen bewust"
-                : 'Earnings-risico: cijfers binnen 14 dagen — activeer alleen bewust';
+                ? "NO TRADE — earnings over {$daysUntil} dagen (runway ≤14 dagen). Activatie geblokkeerd."
+                : 'NO TRADE — earnings binnen 14 dagen. Activatie geblokkeerd.';
         }
 
         return 'Zet scout om naar open positie met berekende stop-loss';
@@ -1252,7 +1267,7 @@ class PositionRecordActions
         if ($record->isInEarningsEntryQuarantine()) {
             $tradingDays = EarningsExitSchedule::quarantineTradingDays();
 
-            return "{$record->ticker} zit in de earnings-quarantaine (±{$tradingDays} handelsdagen). De trampoline is fundamenteel onbetrouwbaar — activeer alleen als je de fill bewust wilt doorzetten ondanks dat risico.";
+            return "{$record->ticker} zit in de earnings-quarantaine (±{$tradingDays} handelsdagen). De trampoline is fundamenteel onbetrouwbaar.";
         }
 
         $daysUntil = $record->daysUntilEarnings();
@@ -1260,7 +1275,7 @@ class PositionRecordActions
             ? 'binnenkort'
             : ($daysUntil === 0 ? 'vandaag' : "over {$daysUntil} dagen");
 
-        return "Earnings {$daysLabel} laten te weinig runway voor een nieuwe swing. Activeer alleen als je {$record->ticker} bewust wilt doorzetten ondanks dat risico.";
+        return "Earnings {$daysLabel} laten te weinig runway voor een nieuwe swing.";
     }
 
     /**

@@ -145,6 +145,20 @@ return [
         'upper_wick_min_body_ratio' => (float) env('SNIPER_UPPER_WICK_MIN_BODY_RATIO', 1.5),
         // Minimum body floor as % of close so dojis cannot pass the wick check.
         'upper_wick_body_floor_pct' => (float) env('SNIPER_UPPER_WICK_BODY_FLOOR_PCT', 0.1),
+        // Vrije Luchtruim: SMA-50/200 tussen entry en Target 1.
+        'free_airspace_enabled' => filter_var(env('SNIPER_FREE_AIRSPACE_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'free_airspace_hard_fail' => filter_var(env('SNIPER_FREE_AIRSPACE_HARD_FAIL', true), FILTER_VALIDATE_BOOL),
+        // Röntgenfoto: close in dominant quartile van de signaalkaars.
+        'candle_anatomy_enabled' => filter_var(env('SNIPER_CANDLE_ANATOMY_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'candle_anatomy_hard_fail' => filter_var(env('SNIPER_CANDLE_ANATOMY_HARD_FAIL', true), FILTER_VALIDATE_BOOL),
+        'candle_anatomy_min_closing_pct' => (float) env('SNIPER_CANDLE_ANATOMY_MIN_CLOSING_PCT', 75.0),
+    ],
+
+    'academy' => [
+        'discipline_window_days' => (int) env('VESTIX_DISCIPLINE_WINDOW_DAYS', 30),
+        'discipline_elite_min_pct' => (float) env('VESTIX_DISCIPLINE_ELITE_MIN_PCT', 85.0),
+        'replay_lookback_bars' => (int) env('VESTIX_REPLAY_LOOKBACK_BARS', 120),
+        'replay_forward_bars' => (int) env('VESTIX_REPLAY_FORWARD_BARS', 20),
     ],
 
     'premarket' => [
@@ -324,6 +338,8 @@ return [
         'min_volume' => (int) env('VESTIX_SNIPER_MIN_VOLUME', 1_000_000),
         'min_avg_volume_30d' => (int) env('VESTIX_SNIPER_MIN_AVG_VOLUME_30D', 1_000_000),
         'min_market_cap' => (float) env('VESTIX_SNIPER_MIN_MARKET_CAP', 2_000_000_000),
+        // Penny-stock blocker: hard floor on last close.
+        'min_price' => (float) env('VESTIX_SNIPER_MIN_PRICE', 10.0),
         // Morning after US session: Polygon Basic Grouped Daily often 403's same evening.
         'schedule_time' => env('VESTIX_SNIPER_SCAN_TIME', '06:30'),
         // Warm market caps the evening before the morning scan.
@@ -331,6 +347,8 @@ return [
         'split_gap_pct' => (float) env('VESTIX_SNIPER_SPLIT_GAP_PCT', 40.0),
         'bars_retention_days' => (int) env('VESTIX_SNIPER_BARS_RETENTION_DAYS', 90),
         'min_bars_for_ready' => (int) env('VESTIX_SNIPER_MIN_BARS_FOR_READY', 50),
+        // Prefer ≥200 bars when available so SMA-200 airspace can evaluate.
+        'min_bars_for_sma_200' => (int) env('VESTIX_SNIPER_MIN_BARS_FOR_SMA_200', 200),
         'profile_refresh_per_run' => (int) env('VESTIX_SNIPER_PROFILE_REFRESH_PER_RUN', 150),
         'etf_allowlist' => array_values(array_filter(array_map(
             static fn (string $ticker): string => strtoupper(trim($ticker)),

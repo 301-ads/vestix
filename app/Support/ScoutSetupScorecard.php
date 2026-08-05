@@ -608,7 +608,12 @@ class ScoutSetupScorecard
             $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
         }
 
-        return array_merge($reasons, self::resolveEarningsHardFail($inputs));
+        return array_merge(
+            $reasons,
+            self::resolveCandleAnatomyHardFail($inputs),
+            self::resolveFreeAirspaceHardFail($inputs),
+            self::resolveEarningsHardFail($inputs),
+        );
     }
 
     /**
@@ -653,7 +658,12 @@ class ScoutSetupScorecard
             $reasons[] = 'Stijgende raket — hoog volume maar slotkoers boven openingskoers';
         }
 
-        return array_merge($reasons, self::resolveEarningsHardFail($inputs));
+        return array_merge(
+            $reasons,
+            self::resolveCandleAnatomyHardFail($inputs),
+            self::resolveFreeAirspaceHardFail($inputs),
+            self::resolveEarningsHardFail($inputs),
+        );
     }
 
     /**
@@ -757,6 +767,36 @@ class ScoutSetupScorecard
     public static function upperWickBodyFloorPct(): float
     {
         return (float) config('vestix.sniper_scorecard.upper_wick_body_floor_pct', 0.1);
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array<int, string>
+     */
+    private static function resolveCandleAnatomyHardFail(array $inputs): array
+    {
+        if (! CandleAnatomy::hardFail()) {
+            return [];
+        }
+
+        $reason = CandleAnatomy::failReason($inputs);
+
+        return $reason !== null ? [$reason] : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array<int, string>
+     */
+    private static function resolveFreeAirspaceHardFail(array $inputs): array
+    {
+        if (! FreeAirspaceScanner::hardFail()) {
+            return [];
+        }
+
+        $reason = FreeAirspaceScanner::blockadeReason($inputs);
+
+        return $reason !== null ? [$reason] : [];
     }
 
     /**

@@ -18,6 +18,7 @@ class SniperLocalIndicators
      *     sma10: float,
      *     sma20: float,
      *     sma50: float,
+     *     sma200: float|null,
      *     rsi14: float,
      * }|null
      */
@@ -41,6 +42,7 @@ class SniperLocalIndicators
         $sma10 = TechnicalIndicators::sma($closes, 10);
         $sma20 = TechnicalIndicators::sma($closes, 20);
         $sma50 = TechnicalIndicators::sma($closes, 50);
+        $sma200 = TechnicalIndicators::sma($closes, 200);
         $rsi14 = TechnicalIndicators::wilderRsi($closes, 14);
 
         if ($sma10 === null || $sma20 === null || $sma50 === null || $rsi14 === null || $latest === null) {
@@ -57,6 +59,7 @@ class SniperLocalIndicators
             'sma10' => $sma10,
             'sma20' => $sma20,
             'sma50' => $sma50,
+            'sma200' => $sma200,
             'rsi14' => $rsi14,
         ];
     }

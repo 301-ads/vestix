@@ -305,6 +305,9 @@ class MarketDataFetcher
                 )
                 : null,
             'latest_sma_50' => $sma50,
+            'latest_sma_200' => $bars !== null
+                ? TechnicalIndicators::smaAtOffset(array_column($bars['bars'], 'close'), 200, 0)
+                : null,
             'latest_atr_14' => $atr,
             'scout_rsi' => $rsi,
             'prior_day_low' => $priorDayLow,

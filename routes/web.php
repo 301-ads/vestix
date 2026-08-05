@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\SquadInviteController;
+use App\Http\Controllers\TradeReplayController;
 use App\Http\Controllers\WebPushSubscriptionController;
+use App\Http\Controllers\WhatIfSimulatorController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome');
@@ -13,6 +15,14 @@ Route::post('/squad-invites/{token}', [SquadInviteController::class, 'accept'])
     ->where('token', '[A-Za-z0-9]+')
     ->middleware('throttle:10,1')
     ->name('squad-invites.accept');
+
+Route::middleware(['web', 'auth'])->group(function (): void {
+    Route::get('/positions/{position}/trade-replay', TradeReplayController::class)
+        ->name('positions.trade-replay');
+    Route::post('/positions/{position}/what-if', WhatIfSimulatorController::class)
+        ->middleware('throttle:30,1')
+        ->name('positions.what-if');
+});
 
 Route::middleware(['web', 'auth'])->prefix('admin/webpush')->group(function (): void {
     Route::get('/vapid-public-key', [WebPushSubscriptionController::class, 'vapidPublicKey'])

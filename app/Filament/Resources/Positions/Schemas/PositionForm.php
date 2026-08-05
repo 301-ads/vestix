@@ -104,6 +104,8 @@ class PositionForm
                     ->extraAttributes(['class' => 'position-cockpit-motor position-form-setup-grid'])
                     ->schema([
                         self::setupDetailsSection($isScoutForm),
+                        self::tradeReplaySection(),
+                        self::whatIfSection(),
                         self::schildSection(),
                         self::earningsOverrideSection(),
                     ]),
@@ -120,6 +122,35 @@ class PositionForm
                 self::orderPlanSection(),
                 self::schildStatusSection(),
                 self::openPositionJournalSection(),
+            ]);
+    }
+
+    private static function tradeReplaySection(): Section
+    {
+        return Section::make('Replay Engine')
+            ->description('Interactieve historische grafiek op het moment van je shot — geen dode screenshot.')
+            ->compact()
+            ->columnSpanFull()
+            ->visible(fn (?Position $record): bool => $record?->status === 'closed')
+            ->schema([
+                View::make('filament.positions.trade-replay')
+                    ->viewData(fn (?Position $record): array => ['record' => $record])
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    private static function whatIfSection(): Section
+    {
+        return Section::make('Wat Als Simulator')
+            ->description('Confronteer ongeduld met de wiskunde van een alternatieve stop of exit.')
+            ->compact()
+            ->collapsed()
+            ->columnSpanFull()
+            ->visible(fn (?Position $record): bool => $record?->status === 'closed')
+            ->schema([
+                View::make('filament.positions.what-if-simulator')
+                    ->viewData(fn (?Position $record): array => ['record' => $record])
+                    ->columnSpanFull(),
             ]);
     }
 

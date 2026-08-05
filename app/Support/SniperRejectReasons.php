@@ -80,6 +80,17 @@ class SniperRejectReasons
             $reasons[] = 'Close >3% boven SMA20 (te extended)';
         }
 
+        if (isset($inputs['high'], $inputs['low']) && CandleAnatomy::enabled()) {
+            if (! CandleAnatomy::passesBar([
+                'open' => $open,
+                'high' => (float) $inputs['high'],
+                'low' => (float) $inputs['low'],
+                'close' => $close,
+            ], short: false)) {
+                $reasons[] = 'Röntgenfoto: close niet in bovenste 25% van de range';
+            }
+        }
+
         return $reasons;
     }
 
@@ -121,6 +132,17 @@ class SniperRejectReasons
             $reasons[] = 'Close boven SMA20';
         } elseif ($close < $sma20 * 0.97) {
             $reasons[] = 'Close >3% onder SMA20 (te extended)';
+        }
+
+        if (isset($inputs['high'], $inputs['low']) && CandleAnatomy::enabled()) {
+            if (! CandleAnatomy::passesBar([
+                'open' => $open,
+                'high' => (float) $inputs['high'],
+                'low' => (float) $inputs['low'],
+                'close' => $close,
+            ], short: true)) {
+                $reasons[] = 'Röntgenfoto: close niet in onderste 25% van de range';
+            }
         }
 
         return $reasons;

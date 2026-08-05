@@ -119,6 +119,21 @@ class SniperScanService
                 continue;
             }
 
+            if (! SniperSetupFilter::passesMinPrice((float) $indicators['close'])) {
+                if (count($rejectSamples) < 25) {
+                    $rejectSamples[] = [
+                        'ticker' => $row->ticker,
+                        'reasons' => [sprintf(
+                            'Penny-blocker: close $%.2f onder minimum $%.2f',
+                            (float) $indicators['close'],
+                            SniperSetupFilter::minPrice(),
+                        )],
+                    ];
+                }
+
+                continue;
+            }
+
             $direction = SniperSetupFilter::evaluate($indicators);
 
             if ($direction === null) {

@@ -21,7 +21,7 @@ class ScoutActivationEarningsOverrideTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_quarantine_does_not_disable_activation_but_requires_confirmation(): void
+    public function test_quarantine_hard_blocks_activation(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-08-05', 'Europe/Amsterdam'));
         config(['vestix.earnings_quarantine.trading_days' => 2]);
@@ -33,16 +33,16 @@ class ScoutActivationEarningsOverrideTest extends TestCase
         );
 
         $this->assertTrue($position->isInEarningsEntryQuarantine());
-        $this->assertFalse(PositionRecordActions::scoutActivationDisabled($position));
-        $this->assertTrue(PositionRecordActions::scoutEarningsOverrideRequired($position));
         $this->assertTrue(PositionRecordActions::scoutEarningsGateBlocks($position));
+        $this->assertTrue(PositionRecordActions::scoutActivationDisabled($position));
+        $this->assertFalse(PositionRecordActions::scoutEarningsOverrideRequired($position));
 
         $tooltip = PositionRecordActions::scoutActivationTooltip($position);
-        $this->assertStringContainsString('Earnings-risico', $tooltip);
-        $this->assertStringNotContainsString('Promotie geblokkeerd', $tooltip);
+        $this->assertStringContainsString('NO TRADE', $tooltip);
+        $this->assertStringContainsString('geblokkeerd', $tooltip);
     }
 
-    public function test_pending_buy_stop_also_stays_enabled_during_quarantine(): void
+    public function test_pending_buy_stop_also_hard_blocked_during_quarantine(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-08-05', 'Europe/Amsterdam'));
         config(['vestix.earnings_quarantine.trading_days' => 2]);
@@ -53,11 +53,11 @@ class ScoutActivationEarningsOverrideTest extends TestCase
             brokerStatus: BrokerOrderStatus::Pending,
         );
 
-        $this->assertFalse(PositionRecordActions::scoutActivationDisabled($position));
-        $this->assertTrue(PositionRecordActions::scoutEarningsOverrideRequired($position));
+        $this->assertTrue(PositionRecordActions::scoutActivationDisabled($position));
+        $this->assertFalse(PositionRecordActions::scoutEarningsOverrideRequired($position));
     }
 
-    public function test_fourteen_day_runway_requires_confirmation_without_hard_disable(): void
+    public function test_fourteen_day_runway_hard_blocks_without_soft_override(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-01', 'Europe/Amsterdam'));
         config(['vestix.earnings_quarantine.trading_days' => 2]);
@@ -76,10 +76,9 @@ class ScoutActivationEarningsOverrideTest extends TestCase
 
         $this->assertFalse($position->isInEarningsEntryQuarantine());
         $this->assertTrue(PositionRecordActions::scoutEarningsGateBlocks($position));
-        $this->assertFalse(PositionRecordActions::scoutActivationDisabled($position));
-        $this->assertTrue(PositionRecordActions::scoutEarningsOverrideRequired($position));
-        $this->assertStringContainsString('runway', PositionRecordActions::scoutActivationTooltip($position));
-        $this->assertStringNotContainsString('Promotie geblokkeerd', PositionRecordActions::scoutActivationTooltip($position));
+        $this->assertTrue(PositionRecordActions::scoutActivationDisabled($position));
+        $this->assertFalse(PositionRecordActions::scoutEarningsOverrideRequired($position));
+        $this->assertStringContainsString('NO TRADE', PositionRecordActions::scoutActivationTooltip($position));
     }
 
     private function makeScout(

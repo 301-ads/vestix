@@ -19,7 +19,7 @@ class ArchivePostMortemStatsWidget extends StatsOverviewWidget
 
     protected function getColumns(): int|array|null
     {
-        return ['@xl' => 3, '@lg' => 2, 'default' => 1];
+        return ['@xl' => 4, '@lg' => 2, 'default' => 1];
     }
 
     protected function getStats(): array
@@ -32,6 +32,7 @@ class ArchivePostMortemStatsWidget extends StatsOverviewWidget
 
         $analytics = app(StrategyAnalyticsService::class);
         $trades = $analytics->closedTradesForUser($userId);
+        $discipline = $analytics->disciplineScore($userId);
 
         if ($trades->isEmpty()) {
             return [
@@ -50,6 +51,11 @@ class ArchivePostMortemStatsWidget extends StatsOverviewWidget
                     ->descriptionIcon('heroicon-m-shield-check')
                     ->descriptionColor('gray')
                     ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--blue']),
+                Stat::make('Discipline Score', '—')
+                    ->description('Nog geen autopsies')
+                    ->descriptionIcon('heroicon-m-scale')
+                    ->descriptionColor('gray')
+                    ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--vestix']),
             ];
         }
 
@@ -67,6 +73,8 @@ class ArchivePostMortemStatsWidget extends StatsOverviewWidget
 
         $biggestLoss = $analytics->biggestLoss($userId);
         $freeride = $analytics->freerideHitRate($userId);
+        $eliteMin = (float) config('vestix.academy.discipline_elite_min_pct', 85);
+        $disciplineOk = $discipline['score'] >= $eliteMin;
 
         return [
             Stat::make('Profit Factor', $profitFactorLabel)
@@ -98,6 +106,18 @@ class ArchivePostMortemStatsWidget extends StatsOverviewWidget
                 ->descriptionColor($freeride['hit_rate'] >= 40 ? 'success' : 'warning')
                 ->color($freeride['hit_rate'] >= 40 ? 'success' : 'warning')
                 ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--blue']),
+            Stat::make('Discipline Score', number_format($discipline['score'], 0).'%')
+                ->description(sprintf(
+                    '%d/%d flawless · laatste %d dagen (elite ≥ %.0f%%)',
+                    $discipline['flawless'],
+                    max($discipline['tagged'], $discipline['total']),
+                    $discipline['window_days'],
+                    $eliteMin,
+                ))
+                ->descriptionIcon('heroicon-m-scale')
+                ->descriptionColor($disciplineOk ? 'success' : 'danger')
+                ->color($disciplineOk ? 'success' : 'danger')
+                ->extraAttributes(['class' => 'vestix-stat-card vestix-stat-card--uppercase-label vestix-stat-card--vestix']),
         ];
     }
 }

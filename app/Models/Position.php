@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
+use App\Enums\AutopsyTag;
 use App\Enums\EarningsExitUrgency;
 use App\Enums\ExecutionDigestStatus;
 use App\Enums\ExecutionTruthState;
@@ -56,6 +57,7 @@ class Position extends Model
             'exit_price' => 'decimal:2',
             'latest_sma_20' => 'decimal:2',
             'latest_sma_50' => 'decimal:2',
+            'latest_sma_200' => 'decimal:2',
             'sma_20_five_days_ago' => 'decimal:2',
             'sma_20_ten_days_ago' => 'decimal:2',
             'latest_atr_14' => 'decimal:2',
@@ -119,6 +121,7 @@ class Position extends Model
             'buy_stop_review_setup_score' => 'integer',
             'is_legacy' => 'boolean',
             'direction' => TradeDirection::class,
+            'autopsy_tag' => AutopsyTag::class,
             'source' => ScoutSource::class,
             'review_status' => ScoutReviewStatus::class,
         ];
@@ -184,6 +187,7 @@ class Position extends Model
                 'latest_close_price',
                 'latest_sma_20',
                 'latest_sma_50',
+                'latest_sma_200',
                 'sma_20_five_days_ago',
                 'sma_20_ten_days_ago',
                 'latest_atr_14',
@@ -204,6 +208,7 @@ class Position extends Model
                 'status',
                 'exit_price',
                 'closed_at',
+                'autopsy_tag',
                 'scaled_out_price',
                 'scaled_out_quantity',
                 'scaled_out_at',
@@ -723,8 +728,11 @@ class Position extends Model
         };
     }
 
-    public function archiveWithExitPrice(float $exitPrice, ?string $exitChartPath = null): void
-    {
+    public function archiveWithExitPrice(
+        float $exitPrice,
+        ?string $exitChartPath = null,
+        ?AutopsyTag $autopsyTag = null,
+    ): void {
         $data = [
             'exit_price' => $exitPrice,
             'status' => 'closed',
@@ -735,6 +743,10 @@ class Position extends Model
 
         if ($exitChartPath !== null) {
             $data['exit_chart_screenshot_path'] = $exitChartPath;
+        }
+
+        if ($autopsyTag !== null) {
+            $data['autopsy_tag'] = $autopsyTag;
         }
 
         $this->update($data);
@@ -2092,6 +2104,12 @@ class Position extends Model
             'sma_20_five_days_ago' => $overrides['sma_20_five_days_ago'] ?? $this->sma_20_five_days_ago,
             'sma_20_ten_days_ago' => $overrides['sma_20_ten_days_ago'] ?? $this->sma_20_ten_days_ago,
             'latest_sma_50' => $overrides['latest_sma_50'] ?? $this->latest_sma_50,
+            'latest_sma_200' => $overrides['latest_sma_200'] ?? $this->latest_sma_200,
+            'latest_atr_14' => $overrides['latest_atr_14'] ?? $this->latest_atr_14,
+            'entry_price' => $overrides['entry_price'] ?? $this->entry_price,
+            'stop_price' => $overrides['stop_price'] ?? ($this->initial_sl ?? $this->current_sl ?? $this->new_sl),
+            'target_1_price' => $overrides['target_1_price'] ?? $this->target_1_price,
+            'target_1_rr' => $overrides['target_1_rr'] ?? $this->target_1_rr,
             'scout_rsi' => $overrides['scout_rsi'] ?? $this->scout_rsi,
             'bounce_volume_above_average' => $overrides['bounce_volume_above_average'] ?? $this->bounce_volume_above_average,
             'relative_volume' => $overrides['relative_volume'] ?? $this->relative_volume,

@@ -456,6 +456,49 @@ class StrategyAnalyticsService
     }
 
     /**
+     * % of closed trades in the window tagged Flawless Execution (no operator error tags).
+     *
+     * @return array{
+     *     score: float,
+     *     flawless: int,
+     *     tagged: int,
+     *     total: int,
+     *     window_days: int,
+     * }
+     */
+    public function disciplineScore(int $userId, ?int $windowDays = null): array
+    {
+        $windowDays = $windowDays ?? (int) config('vestix.academy.discipline_window_days', 30);
+        $since = now()->subDays($windowDays);
+
+        $trades = Position::query()
+            ->closed()
+            ->nonLegacy()
+            ->forUser($userId)
+            ->where('closed_at', '>=', $since)
+            ->get();
+
+        $total = $trades->count();
+        $tagged = $trades->filter(fn (Position $p): bool => $p->autopsy_tag !== null)->count();
+        $flawless = $trades->filter(
+            fn (Position $p): bool => $p->autopsy_tag === \App\Enums\AutopsyTag::FlawlessExecution
+        )->count();
+
+        // Legacy grace when no autopsies have been recorded yet.
+        $score = $tagged === 0
+            ? ($total > 0 ? 100.0 : 0.0)
+            : round(($flawless / $tagged) * 100, 1);
+
+        return [
+            'score' => $score,
+            'flawless' => $flawless,
+            'tagged' => $tagged,
+            'total' => $total,
+            'window_days' => $windowDays,
+        ];
+    }
+
+    /**
      * @return array<int, array{id: int, name: string}>
      */
     public function activeTags(): array

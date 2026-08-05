@@ -6,6 +6,7 @@ use App\Filament\Resources\Positions\Pages\ListPositions;
 use App\Filament\Tables\Columns\DirectionColumn;
 use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
+use App\Support\AutopsyPresentation;
 use App\Support\FilamentPolling;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
@@ -226,6 +227,18 @@ class PositionsTable
                             ->query(fn ($query) => $query)
                             ->using(fn ($query) => $query->sum(DB::raw(self::blendedClosedPnlSql()))),
                     ),
+                TextColumn::make('autopsy_tag')
+                    ->label('Autopsie')
+                    ->badge()
+                    ->formatStateUsing(fn (Position $record): ?string => AutopsyPresentation::badgeLabel($record))
+                    ->color(fn (Position $record): string => AutopsyPresentation::badgeColor($record))
+                    ->tooltip(fn (Position $record): ?string => match (true) {
+                        AutopsyPresentation::isGoldenBadge($record) => 'Verlies + Flawless Execution — Operatie Geslaagd',
+                        AutopsyPresentation::isLuckShot($record) => 'Winst buiten de regels — Geluksschot',
+                        default => $record->autopsy_tag?->description(),
+                    })
+                    ->toggleable()
+                    ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire)),
                 TextColumn::make('closed_at')
                     ->label('Datum Gesloten')
                     ->dateTime()
