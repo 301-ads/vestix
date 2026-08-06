@@ -733,6 +733,8 @@ class Position extends Model
         ?string $exitChartPath = null,
         ?AutopsyTag $autopsyTag = null,
     ): void {
+        $this->repairCollapsedScaleOutQuantity();
+
         $data = [
             'exit_price' => $exitPrice,
             'status' => 'closed',
@@ -740,6 +742,10 @@ class Position extends Model
             'risk_reward_ratio' => self::computeBlendedRiskRewardRatio($this, $exitPrice),
             'execution_truth_state' => ExecutionTruthState::Closed,
         ];
+
+        if ($this->isDirty('quantity')) {
+            $data['quantity'] = $this->quantity;
+        }
 
         if ($exitChartPath !== null) {
             $data['exit_chart_screenshot_path'] = $exitChartPath;
@@ -752,6 +758,77 @@ class Position extends Model
         $this->update($data);
 
         app(ProtocolComplianceService::class)->persistForClosed($this->fresh() ?? $this);
+    }
+
+    /**
+     * When quantity was shrunk to the scale-out size (remaining = 0) after an
+     * unlogged broker TP + later scale-out log, restore the original size so the
+     * runner exit still contributes to blended P&L.
+     *
+     * Typical broken state: quantity == scaled_out_quantity (e.g. 13/13) while
+     * exit_price is set for the runner that still existed at the broker.
+     *
+     * @return bool True when quantity was restored
+     */
+    public function repairCollapsedScaleOutQuantity(): bool
+    {
+        $inferred = $this->inferredOriginalQuantityAfterCollapsedScaleOut();
+
+        if ($inferred === null) {
+            return false;
+        }
+
+        $this->quantity = $inferred;
+
+        return true;
+    }
+
+    /**
+     * Infer original size when quantity collapsed to ≤ scaled_out_quantity.
+     * Uses first-tranche fraction (default 50%) so 13 scaled → 26 original.
+     */
+    public function inferredOriginalQuantityAfterCollapsedScaleOut(): ?float
+    {
+        if (! $this->hasScaledOut() || $this->quantity === null) {
+            return null;
+        }
+
+        $scaled = (float) $this->scaled_out_quantity;
+        $qty = (float) $this->quantity;
+
+        if ($scaled <= 0 || $qty > $scaled + 0.0001) {
+            return null;
+        }
+
+        $fraction = $this->effective_first_tranche_fraction;
+        if ($fraction <= 0.0 || $fraction >= 1.0) {
+            $fraction = 0.5;
+        }
+
+        $inferred = (float) round($scaled / $fraction);
+
+        if ($inferred <= $qty + 0.0001) {
+            $inferred = $scaled * 2;
+        }
+
+        if ($inferred <= $qty + 0.0001) {
+            return null;
+        }
+
+        return $inferred;
+    }
+
+    /**
+     * Quantity used for investment / remaining / blended P&L (repairs collapsed rows in memory).
+     */
+    public function quantityForPnl(): ?float
+    {
+        if ($this->quantity === null) {
+            return null;
+        }
+
+        return $this->inferredOriginalQuantityAfterCollapsedScaleOut()
+            ?? (float) $this->quantity;
     }
 
     public function getEntryChartScreenshotUrlAttribute(): ?string
@@ -1011,6 +1088,14 @@ class Position extends Model
             throw new InvalidArgumentException('Ongeldige verkoophoeveelheid.');
         }
 
+        // Full exit belongs in archive — selling 100% zeros remaining_quantity and
+        // drops any later runner exit from blended P&L (HALO-class bug).
+        if ($quantityToSell >= $maxQty - 0.0001) {
+            throw new InvalidArgumentException(
+                'Scale-out moet een runner overlaten. Verkoop niet 100% van de positie — archiveer als je volledig uitstapt, of herstel eerst het oorspronkelijke aantal als Target 1 al bij de broker is gevuld.'
+            );
+        }
+
         $entry = (float) $this->entry_price;
         $realizedPnl = $this->isShort()
             ? round($quantityToSell * ($entry - $fillPrice), 2)
@@ -1202,15 +1287,17 @@ class Position extends Model
 
     public function getRemainingQuantityAttribute(): ?float
     {
-        if ($this->quantity === null) {
+        $qty = $this->quantityForPnl();
+
+        if ($qty === null) {
             return null;
         }
 
         if (! $this->hasScaledOut()) {
-            return (float) $this->quantity;
+            return $qty;
         }
 
-        return max(0, (float) $this->quantity - (float) $this->scaled_out_quantity);
+        return max(0, $qty - (float) $this->scaled_out_quantity);
     }
 
     public function getStoredRealizedPnlAttribute(): float
@@ -1275,7 +1362,7 @@ class Position extends Model
 
         $initialSl = $position->initial_sl ?? $position->current_sl;
 
-        if ($initialSl === null || $position->quantity === null) {
+        if ($initialSl === null || $position->quantityForPnl() === null) {
             return null;
         }
 
@@ -1285,8 +1372,8 @@ class Position extends Model
             return null;
         }
 
-        $totalRisk = $riskPerShare * (float) $position->quantity;
-        $remainingQty = $position->remaining_quantity ?? (float) $position->quantity;
+        $totalRisk = $riskPerShare * (float) $position->quantityForPnl();
+        $remainingQty = $position->remaining_quantity ?? (float) $position->quantityForPnl();
         $realized = $position->stored_realized_pnl;
         $runnerPnl = $position->isShort()
             ? $remainingQty * ((float) $position->entry_price - (float) $exitPrice)
@@ -1810,11 +1897,11 @@ class Position extends Model
 
     public function getInvestmentAttribute(): float
     {
-        if ($this->entry_price === null || $this->quantity === null) {
+        if ($this->entry_price === null || $this->quantityForPnl() === null) {
             return 0;
         }
 
-        return (float) $this->entry_price * (float) $this->quantity;
+        return (float) $this->entry_price * (float) $this->quantityForPnl();
     }
 
     public function getCapitalRiskDollarsAttribute(): float

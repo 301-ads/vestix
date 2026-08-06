@@ -188,6 +188,34 @@ class FreeFirstAutomationTest extends TestCase
         $this->assertTrue(Entitlements::allows($user, Entitlements::FEATURE_WEEKLY_EDGE_DIGEST));
     }
 
+    public function test_accept_quantity_refuses_shrink_without_scale_out(): void
+    {
+        $user = User::factory()->create([
+            'ibkr_open_positions' => [
+                ['symbol' => 'HALO', 'quantity' => 13],
+            ],
+        ]);
+
+        $position = Position::factory()->create([
+            'user_id' => $user->id,
+            'ticker' => 'HALO',
+            'status' => 'open',
+            'quantity' => 26,
+            'entry_price' => 76.06,
+            'current_sl' => 70.00,
+        ]);
+
+        $mismatches = app(IbkrPositionReconciler::class)->mismatches($user);
+
+        $this->assertCount(1, $mismatches);
+        $this->assertSame('unlogged_partial_exit', $mismatches[0]['type']);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('scale-out');
+
+        app(IbkrPositionReconciler::class)->acceptQuantity($position->fresh(), 13.0);
+    }
+
     public function test_protocol_compliance_summary(): void
     {
         $user = User::factory()->create();

@@ -495,4 +495,66 @@ class ScaleOutTest extends TestCase
                 && $job->event === AlertEventType::Target1Hit;
         });
     }
+
+    public function test_scale_out_rejects_selling_entire_position(): void
+    {
+        $position = Position::factory()->create([
+            'status' => 'open',
+            'entry_price' => 76.06,
+            'quantity' => 13,
+            'initial_sl' => 70.00,
+            'current_sl' => 70.00,
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('runner');
+
+        $position->scaleOut(80.72, 13);
+    }
+
+    public function test_collapsed_halo_style_quantity_blends_tp_and_runner_pnl(): void
+    {
+        // quantity wrongly shrunk to scale-out size (IBKR accept before logging TP)
+        $position = Position::factory()->make([
+            'status' => 'closed',
+            'direction' => 'long',
+            'entry_price' => 76.06,
+            'quantity' => 13,
+            'exit_price' => 83.18,
+            'scaled_out_price' => 80.72,
+            'scaled_out_quantity' => 13,
+            'scaled_out_at' => now(),
+            'realized_pnl' => 60.58,
+            'first_tranche_fraction' => 0.5,
+        ]);
+
+        $this->assertSame(26.0, $position->quantityForPnl());
+        $this->assertSame(13.0, $position->remaining_quantity);
+        // TP $60.58 + runner (83.18 − 76.06) × 13 = 60.58 + 92.56
+        $this->assertEqualsWithDelta(153.14, $position->unrealized_pnl, 0.01);
+        $this->assertEqualsWithDelta(7.74, $position->unrealized_pnl_percentage, 0.01);
+    }
+
+    public function test_archive_repairs_collapsed_quantity_before_close(): void
+    {
+        $position = Position::factory()->create([
+            'status' => 'open',
+            'entry_price' => 76.06,
+            'quantity' => 13,
+            'initial_sl' => 70.00,
+            'current_sl' => 76.06,
+            'scaled_out_price' => 80.72,
+            'scaled_out_quantity' => 13,
+            'scaled_out_at' => now(),
+            'realized_pnl' => 60.58,
+            'first_tranche_fraction' => 0.5,
+        ]);
+
+        $position->archiveWithExitPrice(83.18);
+        $position->refresh();
+
+        $this->assertEquals(26.0, (float) $position->quantity);
+        $this->assertEquals('closed', $position->status);
+        $this->assertEqualsWithDelta(153.14, $position->unrealized_pnl, 0.01);
+    }
 }

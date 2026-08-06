@@ -55,6 +55,30 @@ class IbkrPositionReconciler
             $matchedSymbols[$symbol] = true;
 
             if (abs($vestixQty - $ibkrQty) > 0.0001) {
+                // Fewer shares at the broker without a logged Target 1 is almost always
+                // an unlogged scale-out. Shrinking Vestix quantity here collapses P&L.
+                if (
+                    ! $position->hasScaledOut()
+                    && $ibkrQty > 0
+                    && $ibkrQty < $vestixQty - 0.0001
+                ) {
+                    $mismatches[] = [
+                        'type' => 'unlogged_partial_exit',
+                        'ticker' => $symbol,
+                        'vestix_qty' => $vestixQty,
+                        'ibkr_qty' => $ibkrQty,
+                        'position_id' => $position->id,
+                        'message' => sprintf(
+                            '%s: IBKR toont %.4f stuks (Vestix %.4f) zonder gelogde scale-out — log eerst “Scale-out uitgevoerd”. IBKR-aantal overnemen wist je oorspronkelijke size en breekt de archief-P&L.',
+                            $symbol,
+                            $ibkrQty,
+                            $vestixQty,
+                        ),
+                    ];
+
+                    continue;
+                }
+
                 $mismatches[] = [
                     'type' => 'qty_drift',
                     'ticker' => $symbol,
@@ -95,6 +119,9 @@ class IbkrPositionReconciler
 
     /**
      * Apply qty from IBKR onto a Vestix open position (user-confirmed).
+     *
+     * Original size must stay intact until Target 1 is logged: Vestix P&L blends
+     * realized scale-out with the runner via (quantity − scaled_out_quantity).
      */
     public function acceptQuantity(Position $position, float $ibkrQty): void
     {
@@ -107,6 +134,15 @@ class IbkrPositionReconciler
             ]);
 
             return;
+        }
+
+        $current = (float) ($position->quantity ?? 0);
+
+        if ($current > 0 && $ibkrQty > 0 && $ibkrQty < $current - 0.0001) {
+            throw new \InvalidArgumentException(
+                'IBKR toont minder stuks zonder gelogde scale-out. Log eerst “Scale-out uitgevoerd”; '
+                .'overschrijven van quantity wist de oorspronkelijke size en breekt de archief-P&L.'
+            );
         }
 
         $position->update([

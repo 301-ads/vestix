@@ -96,10 +96,20 @@ class IbkrReconcileWidget extends Widget implements HasActions, HasSchemas
                     return;
                 }
 
-                app(IbkrPositionReconciler::class)->acceptQuantity(
-                    $position,
-                    (float) ($mismatch['ibkr_qty'] ?? 0),
-                );
+                try {
+                    app(IbkrPositionReconciler::class)->acceptQuantity(
+                        $position,
+                        (float) ($mismatch['ibkr_qty'] ?? 0),
+                    );
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Aantal niet overgenomen')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
 
                 Notification::make()
                     ->title('Aantal bijgewerkt')

@@ -24,9 +24,27 @@ use Illuminate\Support\HtmlString;
 
 class PositionsTable
 {
+    /**
+     * Original size for P&L — restores collapsed rows where quantity ≤ scaled_out_quantity.
+     */
+    private static function quantityForPnlSql(): string
+    {
+        $fraction = 'CASE WHEN first_tranche_fraction IS NULL OR first_tranche_fraction <= 0 OR first_tranche_fraction >= 1 THEN 0.5 ELSE first_tranche_fraction END';
+        $inferred = "ROUND(scaled_out_quantity / ({$fraction}))";
+
+        return "CASE
+            WHEN scaled_out_at IS NOT NULL
+                AND COALESCE(scaled_out_quantity, 0) > 0
+                AND quantity <= COALESCE(scaled_out_quantity, 0)
+            THEN CASE WHEN {$inferred} > quantity THEN {$inferred} ELSE (scaled_out_quantity * 2) END
+            ELSE quantity
+        END";
+    }
+
     private static function blendedClosedPnlSql(): string
     {
-        $runnerQty = '(quantity - COALESCE(scaled_out_quantity, 0))';
+        $qty = '('.self::quantityForPnlSql().')';
+        $runnerQty = "({$qty} - COALESCE(scaled_out_quantity, 0))";
         $longLeg = "(exit_price - entry_price) * {$runnerQty}";
         $shortLeg = "(entry_price - exit_price) * {$runnerQty}";
 
@@ -35,7 +53,9 @@ class PositionsTable
 
     private static function blendedClosedPnlPctSql(): string
     {
-        return '('.self::blendedClosedPnlSql().') / NULLIF(entry_price * quantity, 0) * 100';
+        $qty = '('.self::quantityForPnlSql().')';
+
+        return '('.self::blendedClosedPnlSql().') / NULLIF(entry_price * '.$qty.', 0) * 100';
     }
 
     /**
@@ -47,7 +67,7 @@ class PositionsTable
     private static function capitalWeightedClosedRoiPct($query): float
     {
         $totalPnl = (float) (clone $query)->sum(DB::raw(self::blendedClosedPnlSql()));
-        $totalInvested = (float) (clone $query)->sum(DB::raw('entry_price * quantity'));
+        $totalInvested = (float) (clone $query)->sum(DB::raw('entry_price * ('.self::quantityForPnlSql().')'));
 
         if ($totalInvested <= 0.0) {
             return 0.0;
@@ -58,7 +78,8 @@ class PositionsTable
 
     private static function blendedOpenPnlSql(): string
     {
-        $runnerQty = '(quantity - COALESCE(scaled_out_quantity, 0))';
+        $qty = '('.self::quantityForPnlSql().')';
+        $runnerQty = "({$qty} - COALESCE(scaled_out_quantity, 0))";
         $longLeg = "(latest_close_price - entry_price) * {$runnerQty}";
         $shortLeg = "(entry_price - latest_close_price) * {$runnerQty}";
 
@@ -67,7 +88,9 @@ class PositionsTable
 
     private static function blendedOpenPnlPctSql(): string
     {
-        return '('.self::blendedOpenPnlSql().') / NULLIF(entry_price * quantity, 0) * 100';
+        $qty = '('.self::quantityForPnlSql().')';
+
+        return '('.self::blendedOpenPnlSql().') / NULLIF(entry_price * '.$qty.', 0) * 100';
     }
 
     public static function configure(Table $table): Table
@@ -98,6 +121,7 @@ class PositionsTable
                     ->sortable()
                     ->toggleable()
                     ->width('4.5rem')
+                    ->state(fn (Position $record): ?float => $record->quantityForPnl())
                     ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire) || self::isArchiveTab($livewire))
                     ->summarize(
                         Count::make()
@@ -133,7 +157,7 @@ class PositionsTable
                     ->width('6.5rem')
                     ->visible(fn (HasTable $livewire): bool => self::isOpenTab($livewire)),
                 TextColumn::make('unrealized_pnl_percentage')
-                    ->label(fn (HasTable $livewire): string => self::isArchiveTab($livewire) ? 'Definitieve P&L (%)' : 'P&L (%)')
+                    ->label('P&L (%)')
                     ->numeric(decimalPlaces: 2)
                     ->suffix('%')
                     ->color(fn ($state) => ($state ?? 0) >= 0 ? 'success' : 'danger')
@@ -210,7 +234,7 @@ class PositionsTable
                     ->toggleable()
                     ->visible(fn (HasTable $livewire): bool => self::isArchiveTab($livewire)),
                 TextColumn::make('unrealized_pnl')
-                    ->label('Definitieve P&L ($)')
+                    ->label('P&L ($)')
                     ->money('usd')
                     ->color(fn ($state) => ($state ?? 0) >= 0 ? 'success' : 'danger')
                     ->sortable(query: function ($query, string $direction): void {
