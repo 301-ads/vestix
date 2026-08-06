@@ -34,12 +34,12 @@ class TradeReplayService
         $lookback = (int) config('vestix.academy.replay_lookback_bars', 120);
         $forward = (int) config('vestix.academy.replay_forward_bars', 20);
 
-        $anchorDate = optional($position->signal_bar_date ?? $position->detected_signal_bar_date)
+        $signalDate = optional($position->signal_bar_date ?? $position->detected_signal_bar_date)
             ?->toDateString();
-
-        if ($anchorDate === null && $position->closed_at !== null) {
-            $anchorDate = $position->closed_at->toDateString();
-        }
+        // Never fall back to closed_at — that puts Fog of War on the exit day (HALO bug).
+        $anchorDate = $signalDate
+            ?? optional($position->entry_setup_captured_at)?->toDateString()
+            ?? optional($position->created_at)?->toDateString();
 
         $needed = $lookback + $forward + 40;
         $bars = $this->resolveBars($position->ticker, $needed, $anchorDate);
@@ -61,6 +61,16 @@ class TradeReplayService
             if ($anchorIndex !== null) {
                 $start = max(0, $anchorIndex - $lookback + 1);
                 $end = min(count($bars) - 1, $anchorIndex + $forward);
+
+                // Long holds need candles through exit for reveal, not only +forward from entry.
+                $closedDate = optional($position->closed_at)?->toDateString();
+                if ($closedDate !== null) {
+                    $exitIndex = $this->indexAtOrBefore($bars, $closedDate);
+                    if ($exitIndex !== null) {
+                        $end = max($end, $exitIndex);
+                    }
+                }
+
                 $bars = array_slice($bars, $start, $end - $start + 1);
             }
         }
@@ -98,7 +108,14 @@ class TradeReplayService
         $exitPrice = $position->exit_price !== null ? (float) $position->exit_price : null;
         $short = $position->isShort();
 
-        $entryTime = $this->resolveEntryFillTime($candles, $entryPrice, $anchorDate, $short);
+        $entryTime = $this->resolveEntryFillTime(
+            $candles,
+            $entryPrice,
+            $signalDate,
+            $short,
+            softAnchorDate: $anchorDate,
+            searchUntil: optional($position->closed_at)?->toDateString(),
+        );
         $exitTime = $this->resolveExitTime(
             $candles,
             $exitPrice,
@@ -172,6 +189,9 @@ class TradeReplayService
      * Buy-stop / sell-stop fill day: first session that actually reaches the trigger.
      * Do NOT use "price inside candle range" — a long wick on the signal day falsely matches.
      *
+     * Without a signal date, infer the most recent breakout of entry before exit
+     * (near softAnchor / created_at) instead of treating the exit day as entry.
+     *
      * @param  list<array{time: string, open: float, high: float, low: float, close: float}>  $candles
      */
     private function resolveEntryFillTime(
@@ -179,16 +199,31 @@ class TradeReplayService
         ?float $entryPrice,
         ?string $signalDate,
         bool $short,
+        ?string $softAnchorDate = null,
+        ?string $searchUntil = null,
     ): ?string {
         if ($candles === [] || $entryPrice === null) {
-            return $this->snapToCandleTime(array_column($candles, 'time'), $signalDate);
+            return $this->snapToCandleTime(
+                array_column($candles, 'time'),
+                $signalDate ?? $softAnchorDate,
+            );
+        }
+
+        if ($signalDate === null) {
+            return $this->inferEntryFillWithoutSignal(
+                $candles,
+                $entryPrice,
+                $short,
+                $softAnchorDate,
+                $searchUntil,
+            );
         }
 
         $searchFrom = $signalDate;
         $signalCandle = null;
 
         foreach ($candles as $candle) {
-            if ($signalDate !== null && $candle['time'] === $signalDate) {
+            if ($candle['time'] === $signalDate) {
                 $signalCandle = $candle;
                 break;
             }
@@ -211,6 +246,10 @@ class TradeReplayService
                 continue;
             }
 
+            if ($searchUntil !== null && $candle['time'] > $searchUntil) {
+                break;
+            }
+
             if ($short) {
                 if ((float) $candle['low'] <= $entryPrice) {
                     return $candle['time'];
@@ -221,6 +260,61 @@ class TradeReplayService
         }
 
         return $this->snapToCandleTime(array_column($candles, 'time'), $signalDate);
+    }
+
+    /**
+     * When signal_bar_date is missing, find the last breakout of entry_price before exit
+     * (or nearest to created_at). Avoids Fog ending on closed_at when price is already extended.
+     *
+     * @param  list<array{time: string, open: float, high: float, low: float, close: float}>  $candles
+     */
+    private function inferEntryFillWithoutSignal(
+        array $candles,
+        float $entryPrice,
+        bool $short,
+        ?string $softAnchorDate,
+        ?string $searchUntil,
+    ): ?string {
+        $breakouts = [];
+
+        for ($i = 1, $count = count($candles); $i < $count; $i++) {
+            $prev = $candles[$i - 1];
+            $cur = $candles[$i];
+
+            if ($searchUntil !== null && $cur['time'] > $searchUntil) {
+                break;
+            }
+
+            $isBreakout = $short
+                ? ((float) $prev['low'] > $entryPrice && (float) $cur['low'] <= $entryPrice)
+                : ((float) $prev['high'] < $entryPrice && (float) $cur['high'] >= $entryPrice);
+
+            if ($isBreakout) {
+                $breakouts[] = $cur['time'];
+            }
+        }
+
+        if ($breakouts === []) {
+            return $this->snapToCandleTime(array_column($candles, 'time'), $softAnchorDate)
+                ?? ($candles[0]['time'] ?? null);
+        }
+
+        if ($softAnchorDate === null) {
+            return $breakouts[array_key_last($breakouts)];
+        }
+
+        $best = $breakouts[0];
+        $bestDistance = abs(Carbon::parse($best)->diffInDays(Carbon::parse($softAnchorDate)));
+
+        foreach ($breakouts as $time) {
+            $distance = abs(Carbon::parse($time)->diffInDays(Carbon::parse($softAnchorDate)));
+            if ($distance < $bestDistance) {
+                $best = $time;
+                $bestDistance = $distance;
+            }
+        }
+
+        return $best;
     }
 
     /**
@@ -312,7 +406,7 @@ class TradeReplayService
      */
     private function resolveBars(string $ticker, int $limit, ?string $anchorDate): ?array
     {
-        $cacheKey = 'trade-replay:v6:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
+        $cacheKey = 'trade-replay:v7:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
 
         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit, $anchorDate): ?array {
             $local = $this->localBars($ticker, max($limit, 200));
@@ -403,7 +497,9 @@ class TradeReplayService
         $exit = (float) ($position->exit_price ?? $entry);
         $stop = (float) ($position->initial_sl ?? $position->current_sl ?? ($entry * 0.97));
         $short = $position->isShort();
-        $anchor = optional($position->signal_bar_date ?? $position->closed_at)?->toDateString()
+        $anchor = optional($position->signal_bar_date ?? $position->detected_signal_bar_date)?->toDateString()
+            ?? optional($position->entry_setup_captured_at)?->toDateString()
+            ?? optional($position->created_at)?->toDateString()
             ?? Carbon::today('America/New_York')->toDateString();
 
         $total = $lookback + $forward;

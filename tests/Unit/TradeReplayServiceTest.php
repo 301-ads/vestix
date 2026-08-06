@@ -132,4 +132,92 @@ class TradeReplayServiceTest extends TestCase
         $this->assertSame('belowBar', $entryMarker['position']);
         $this->assertNotSame('2026-06-02', $entryMarker['time']);
     }
+
+    public function test_fog_entry_does_not_use_closed_at_when_signal_dates_missing(): void
+    {
+        Cache::flush();
+
+        // HALO-class: no signal dates, exit today, true fill weeks earlier.
+        $position = Position::factory()->create([
+            'ticker' => 'HALO',
+            'status' => 'closed',
+            'direction' => 'long',
+            'entry_price' => 76.06,
+            'exit_price' => 83.18,
+            'initial_sl' => 73.78,
+            'quantity' => 26,
+            'signal_bar_date' => null,
+            'detected_signal_bar_date' => null,
+            'entry_setup_captured_at' => null,
+            'created_at' => '2026-07-10 14:00:00',
+            'closed_at' => '2026-08-06 14:21:00',
+        ]);
+
+        $bars = [];
+        $start = Carbon::parse('2026-05-01');
+
+        for ($i = 0; $i < 100; $i++) {
+            $date = $start->copy()->addDays($i)->toDateString();
+            // Stay below entry until the fill day.
+            $bars[] = [
+                'open' => 72.0,
+                'high' => 74.5,
+                'low' => 71.0,
+                'close' => 73.5,
+                'volume' => 1_000_000,
+                'date' => $date,
+            ];
+        }
+
+        foreach ($bars as &$bar) {
+            if ($bar['date'] === '2026-07-09') {
+                $bar['open'] = 74.0;
+                $bar['high'] = 75.5;
+                $bar['low'] = 73.5;
+                $bar['close'] = 75.0;
+            }
+
+            if ($bar['date'] === '2026-07-10') {
+                // Breakout / fill at entry.
+                $bar['open'] = 75.2;
+                $bar['high'] = 77.0;
+                $bar['low'] = 74.8;
+                $bar['close'] = 76.5;
+            }
+
+            if ($bar['date'] >= '2026-07-11') {
+                $bar['open'] = 78.0;
+                $bar['high'] = 84.0;
+                $bar['low'] = 77.0;
+                $bar['close'] = 83.0;
+            }
+        }
+        unset($bar);
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')->andReturn([
+            'today' => $bars[array_key_last($bars)],
+            'adv30' => 1_000_000.0,
+            'bars' => $bars,
+        ]);
+
+        $payload = (new TradeReplayService($dailyBars))->build($position, allowDemoFallback: false);
+
+        $this->assertNotNull($payload);
+        $this->assertSame('2026-07-10', $payload['entry_time']);
+        $this->assertNotSame('2026-08-06', $payload['entry_time']);
+        $this->assertSame('2026-08-06', $payload['exit_time']);
+
+        $fogIndex = null;
+        foreach ($payload['candles'] as $index => $candle) {
+            if ($candle['time'] === $payload['entry_time']) {
+                $fogIndex = $index;
+                break;
+            }
+        }
+
+        $this->assertNotNull($fogIndex);
+        // Fog candle at entry should not yet be the extended ~83 exit-day close.
+        $this->assertLessThan(80.0, (float) $payload['candles'][$fogIndex]['close']);
+    }
 }
