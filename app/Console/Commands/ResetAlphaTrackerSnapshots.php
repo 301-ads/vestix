@@ -83,11 +83,16 @@ class ResetAlphaTrackerSnapshots extends Command
 
         $deleted = $user->bankrollSnapshots()->delete();
 
-        $snapshots->recordSnapshot($user, $openingAmount, $openingDate);
+        $openingEquity = $cashflows->netExternalIn($user, $openingDate);
+        if ($openingEquity <= 0) {
+            $openingEquity = $openingAmount;
+        }
+
+        $snapshots->recordSnapshot($user, $openingEquity, $openingDate);
 
         if ($currentDate->toDateString() !== $openingDate->toDateString()) {
             $snapshots->recordSnapshot($user, $currentAmount, $currentDate);
-        } elseif (abs($currentAmount - $openingAmount) > 0.009) {
+        } elseif (abs($currentAmount - $openingEquity) > 0.009) {
             // Same calendar day but NLV already moved — still need two points for the chart.
             $snapshots->recordSnapshot($user, $currentAmount, $currentDate->copy()->addDay());
         }
@@ -105,8 +110,10 @@ class ResetAlphaTrackerSnapshots extends Command
             : null;
 
         $this->info(sprintf(
-            'Reset done: deleted %d snapshot(s). Net external $%s → trading P&L $%s (%s).',
+            'Reset done: deleted %d snapshot(s). Opening equity $%s → current $%s. Net external $%s → trading P&L $%s (%s).',
             $deleted,
+            number_format($openingEquity, 2, '.', ''),
+            number_format($currentAmount, 2, '.', ''),
             number_format($netExternal, 2, '.', ''),
             number_format($tradingPnl, 2, '.', ''),
             $returnPct !== null ? "{$returnPct}%" : 'n/a',
@@ -138,14 +145,6 @@ class ResetAlphaTrackerSnapshots extends Command
             return round((float) $this->option('current'), 2);
         }
 
-        if ($user->ibkr_net_liquidation !== null && (float) $user->ibkr_net_liquidation > 0) {
-            return round((float) $user->ibkr_net_liquidation, 2);
-        }
-
-        if ($user->trading_bankroll !== null && (float) $user->trading_bankroll > 0) {
-            return round((float) $user->trading_bankroll, 2);
-        }
-
-        return 0.0;
+        return app(BankrollSnapshotService::class)->resolveAlphaEquity($user);
     }
 }

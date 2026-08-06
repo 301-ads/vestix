@@ -132,7 +132,7 @@ class EditUserProfile extends EditProfile
                             ->schema([
                                 Section::make('Position sizing')
                                     ->compact()
-                                    ->description('NLV voor Alpha · Available Funds + Settled/Cash voor Order Plan (min). Activity Flex mist vaak AF.')
+                                    ->description('NLV voor Alpha (= IBKR NLV + open Revolut) · Available Funds + Settled/Cash voor Order Plan (min).')
                                     ->schema([
                                         Placeholder::make('ibkr_sync_status')
                                             ->label('IBKR sync')
@@ -800,7 +800,7 @@ class EditUserProfile extends EditProfile
     protected function tradingBankrollHelperText(): string
     {
         if ($this->getUser()->ibkr_last_success_at !== null) {
-            return 'Gelijk aan Net Liquidation in IBKR/TradingView (cash + open posities). Voor Alpha Tracker. Wordt door Flex sync bijgewerkt; handmatige override blijft mogelijk.';
+            return 'Alpha-vermogen: IBKR Net Liquidation + open Revolut-posities (MTM). Flex sync werkt IBKR bij; Revolut telt via open posities met broker Revolut.';
         }
 
         return 'Alleen Interactive Brokers NLV — zonder Revolut/legacy. Update na stortingen en wekelijks voor de Alpha Tracker.';

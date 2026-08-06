@@ -2,7 +2,9 @@
 
 namespace Tests\Unit;
 
+use App\Enums\Broker;
 use App\Models\BankrollSnapshot;
+use App\Models\Position;
 use App\Models\User;
 use App\Services\BankrollSnapshotService;
 use App\Services\BenchmarkCloseResolver;
@@ -63,6 +65,38 @@ class BankrollSnapshotServiceTest extends TestCase
         $this->assertSame(1, BankrollSnapshot::query()->where('user_id', $user->id)->count());
         $this->assertSame('25000.00', $snapshot->amount);
         $this->assertEquals(25000.0, (float) $user->fresh()->trading_bankroll);
+    }
+
+    public function test_resolve_alpha_equity_adds_open_revolut_positions_to_ibkr_nlv(): void
+    {
+        $user = User::factory()->create([
+            'ibkr_net_liquidation' => 7927.25,
+            'trading_bankroll' => 7927.25,
+        ]);
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'BAC',
+            'status' => 'open',
+            'broker' => Broker::Revolut,
+            'quantity' => 22,
+            'entry_price' => 51.50,
+            'latest_close_price' => 63.22,
+        ]);
+
+        Position::factory()->for($user)->create([
+            'ticker' => 'NU',
+            'status' => 'open',
+            'broker' => Broker::Ibkr,
+            'quantity' => 33,
+            'entry_price' => 13.85,
+            'latest_close_price' => 14.29,
+        ]);
+
+        $service = app(BankrollSnapshotService::class);
+
+        $this->assertEqualsWithDelta(1390.84, $service->revolutOpenPositionsMarketValue($user), 0.01);
+        $this->assertEqualsWithDelta(7927.25 + 1390.84, $service->resolveAlphaEquity($user), 0.01);
+        $this->assertEqualsWithDelta(7927.25 + 1390.84, $service->resolveAlphaEquity($user, 7927.25), 0.01);
     }
 
     public function test_is_update_due_on_saturday_without_weekly_snapshot(): void

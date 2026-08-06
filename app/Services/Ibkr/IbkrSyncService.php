@@ -3,7 +3,6 @@
 namespace App\Services\Ibkr;
 
 use App\Data\Ibkr\IbkrAccountSnapshot;
-use App\Enums\Broker;
 use App\Models\User;
 use App\Services\BankrollSnapshotService;
 use App\Support\UsMarketSession;
@@ -90,9 +89,10 @@ class IbkrSyncService
                     // Morning Flex reflects the last completed US session — not "today"
                     // before the open. Dating Alpha Tracker on that session keeps NLV and
                     // SPY on the same closed trading day (avoids premarket SPY catch-up spikes).
+                    // Equity = IBKR NLV + open Revolut MTM so multi-broker capital stays in Prestaties.
                     $this->bankrollSnapshots->recordSnapshot(
                         $user,
-                        $snapshot->netLiquidation,
+                        $this->bankrollSnapshots->resolveAlphaEquity($user, $snapshot->netLiquidation),
                         $this->alphaTrackerSessionDate(),
                     );
                 }
@@ -194,7 +194,9 @@ class IbkrSyncService
             'ibkr_last_attempt_at' => $attemptAt,
             'ibkr_last_error' => null,
             'ibkr_data_stale' => false,
-            'trading_bankroll' => $snapshot->netLiquidation,
+            // Alpha bankroll includes Revolut open MTM; IBKR NLV stays in ibkr_net_liquidation.
+            'trading_bankroll' => $this->bankrollSnapshots
+                ->resolveAlphaEquity($user, $snapshot->netLiquidation),
         ])->save();
     }
 

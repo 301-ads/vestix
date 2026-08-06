@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Contracts\BankrollSource;
+use App\Enums\Broker;
 use App\Models\BankrollSnapshot;
+use App\Models\Position;
 use App\Models\User;
 use App\Services\Bankroll\ManualBankrollSource;
 use Illuminate\Support\Carbon;
@@ -18,6 +20,33 @@ class BankrollSnapshotService
     public function timezone(): string
     {
         return (string) config('vestix.bankroll_tracker.timezone', 'Europe/Amsterdam');
+    }
+
+    /**
+     * Alpha Tracker equity: IBKR Net Liquidation + open Revolut positions (MTM).
+     * Keeps multi-broker capital in Prestaties without mixing Revolut into IBKR Flex fields.
+     */
+    public function resolveAlphaEquity(User $user, ?float $ibkrNetLiquidation = null): float
+    {
+        $ibkr = $ibkrNetLiquidation ?? (float) ($user->ibkr_net_liquidation ?? 0);
+
+        return round(max(0.0, $ibkr) + $this->revolutOpenPositionsMarketValue($user), 2);
+    }
+
+    public function revolutOpenPositionsMarketValue(User $user): float
+    {
+        return round((float) $user->positions()
+            ->open()
+            ->get()
+            ->filter(fn (Position $position): bool => $position->effectiveBroker() === Broker::Revolut)
+            ->sum(function (Position $position): float {
+                $qty = (float) ($position->quantity ?? 0);
+                $price = $position->latest_close_price !== null
+                    ? (float) $position->latest_close_price
+                    : (float) ($position->entry_price ?? 0);
+
+                return max(0.0, $qty) * max(0.0, $price);
+            }), 2);
     }
 
     public function recordSnapshot(User $user, float $amount, ?Carbon $date = null): BankrollSnapshot
