@@ -32,7 +32,7 @@
             </div>
 
             <p data-replay-legend class="text-xs text-gray-500 dark:text-gray-400">
-                Fog of War: alleen tot je entry. Groene ▲ = entry · Rode ▼ = exit (na onthullen). Stippellijnen = Entry / SL / T1.
+                Fog of War: tot de bouncekaars (vóór instap). Groene ▲ = entry · Rode ▼ = exit (na onthullen). Stippellijnen = Entry / SL / T1.
             </p>
         </div>
 

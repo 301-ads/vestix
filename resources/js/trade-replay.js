@@ -1,5 +1,69 @@
 import { createChart, ColorType, CrosshairMode, CandlestickSeries, LineSeries } from 'lightweight-charts';
 
+/**
+ * Match Filament's theme (defaultThemeMode = dark). Prefer the `dark` class,
+ * then localStorage / window.theme, then system preference.
+ */
+function isDarkMode() {
+    if (document.documentElement.classList.contains('dark')) {
+        return true;
+    }
+
+    const theme = window.theme ?? localStorage.getItem('theme') ?? 'dark';
+
+    if (theme === 'light') {
+        return false;
+    }
+
+    if (theme === 'dark') {
+        return true;
+    }
+
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function chartTheme(dark = isDarkMode()) {
+    return {
+        layout: {
+            background: {
+                type: ColorType.Solid,
+                color: dark ? '#09090b' : '#fafafa',
+            },
+            textColor: dark ? '#a1a1aa' : '#71717a',
+        },
+        grid: {
+            vertLines: { color: dark ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
+            horzLines: { color: dark ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
+        },
+    };
+}
+
+function rsiChartTheme(dark = isDarkMode()) {
+    return {
+        layout: {
+            background: {
+                type: ColorType.Solid,
+                color: dark ? '#09090b' : '#fafafa',
+            },
+            textColor: dark ? '#a1a1aa' : '#71717a',
+        },
+        grid: {
+            vertLines: { color: dark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
+            horzLines: { color: dark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
+        },
+    };
+}
+
+function applyChartTheme(state) {
+    if (!state?.chart || !state?.rsiChart) {
+        return;
+    }
+
+    const dark = isDarkMode();
+    state.chart.applyOptions(chartTheme(dark));
+    state.rsiChart.applyOptions(rsiChartTheme(dark));
+}
+
 function alignPaneWidths(chart, rsiChart) {
     const minWidth = 72;
     const width = Math.max(
@@ -79,7 +143,7 @@ function createArrowElement(marker) {
         ? 'M8 18 V5.5 M8 5.5 L3.5 11 M8 5.5 L12.5 11'
         : 'M8 2 V14.5 M8 14.5 L3.5 9 M8 14.5 L12.5 9';
 
-    el.innerHTML = `<svg viewBox="0 0 16 20" width="12" height="15" aria-hidden="true"><path d="${path}" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    el.innerHTML = `<svg viewBox="0 0 16 20" width="12" height="15" aria-hidden="true"><path d="${path}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"/></svg>`;
 
     return el;
 }
@@ -138,7 +202,7 @@ function syncArrowLayer(state) {
 
     arrowsHost.innerHTML = '';
 
-    const visible = (markers ?? []).filter((marker) => marker.role === 'entry' || revealed);
+    const visible = (markers ?? []).filter((marker) => revealed);
 
     visible.forEach((marker) => {
         arrowsHost.appendChild(createArrowElement(marker));
@@ -148,10 +212,10 @@ function syncArrowLayer(state) {
 }
 
 function applySeriesData(state, fogged) {
-    const { candleSeries, smaSeries, rsiSeries, payload, entryTime } = state;
-    const candles = fogged ? sliceThrough(payload.candles, entryTime) : payload.candles;
-    const smaSource = fogged ? sliceThrough(payload.sma20 ?? [], entryTime) : (payload.sma20 ?? []);
-    const rsiSource = fogged ? sliceThrough(payload.rsi14 ?? [], entryTime) : (payload.rsi14 ?? []);
+    const { candleSeries, smaSeries, rsiSeries, payload, fogTime } = state;
+    const candles = fogged ? sliceThrough(payload.candles, fogTime) : payload.candles;
+    const smaSource = fogged ? sliceThrough(payload.sma20 ?? [], fogTime) : (payload.sma20 ?? []);
+    const rsiSource = fogged ? sliceThrough(payload.rsi14 ?? [], fogTime) : (payload.rsi14 ?? []);
 
     candleSeries.setData(candles);
     smaSeries.setData(alignSeriesToCandles(candles, smaSource));
@@ -298,13 +362,21 @@ async function loadReplay(el) {
         const entryTime = payload.entry_time
             ?? payload.markers?.find((marker) => marker.role === 'entry')?.time
             ?? null;
+        const fogTime = payload.fog_time
+            ?? (entryTime != null
+                ? (() => {
+                    const entryIndex = indexAtTime(payload.candles, entryTime);
 
-        const hasFog = entryTime != null && indexAtTime(payload.candles, entryTime) >= 0;
+                    return entryIndex > 0 ? payload.candles[entryIndex - 1].time : null;
+                })()
+                : null);
+
+        const hasFog = fogTime != null && indexAtTime(payload.candles, fogTime) >= 0;
 
         status.textContent = payload.demo
-            ? `${payload.ticker} · demo-data · setup tot entry`
+            ? `${payload.ticker} · demo-data · setup tot bounce`
             : hasFog
-                ? `${payload.ticker} · Fog of War · beoordeel de setup tot je entry`
+                ? `${payload.ticker} · Fog of War · beoordeel de bounce tot je besluit`
                 : `${payload.ticker} · ${payload.candles.length} bars · SMA-20 + RSI(14)`;
 
         if (payload.demo) {
@@ -317,24 +389,15 @@ async function loadReplay(el) {
             arrowsHost.innerHTML = '';
         }
 
-        const isDark = document.documentElement.classList.contains('dark');
         const priceScaleOptions = {
             borderVisible: false,
             minimumWidth: 72,
         };
+        const theme = chartTheme();
+        const rsiTheme = rsiChartTheme();
 
         const chart = createChart(chartHost, {
-            layout: {
-                background: {
-                    type: ColorType.Solid,
-                    color: isDark ? '#09090b' : '#fafafa',
-                },
-                textColor: isDark ? '#a1a1aa' : '#71717a',
-            },
-            grid: {
-                vertLines: { color: isDark ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
-                horzLines: { color: isDark ? 'rgba(148,163,184,0.08)' : 'rgba(113,113,122,0.12)' },
-            },
+            ...theme,
             crosshair: { mode: CrosshairMode.Normal },
             leftPriceScale: { visible: false },
             rightPriceScale: priceScaleOptions,
@@ -364,17 +427,7 @@ async function loadReplay(el) {
         });
 
         const rsiChart = createChart(rsiHost, {
-            layout: {
-                background: {
-                    type: ColorType.Solid,
-                    color: isDark ? '#09090b' : '#fafafa',
-                },
-                textColor: isDark ? '#a1a1aa' : '#71717a',
-            },
-            grid: {
-                vertLines: { color: isDark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
-                horzLines: { color: isDark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
-            },
+            ...rsiTheme,
             leftPriceScale: { visible: false },
             rightPriceScale: { ...priceScaleOptions },
             timeScale: {
@@ -399,6 +452,7 @@ async function loadReplay(el) {
             root: el,
             payload,
             entryTime,
+            fogTime,
             levels: payload.levels ?? {},
             markers: payload.markers ?? [],
             chart,
@@ -460,8 +514,19 @@ async function loadReplay(el) {
         };
         revealBtn?.addEventListener('click', onReveal);
 
+        const themeObserver = typeof MutationObserver !== 'undefined'
+            ? new MutationObserver(() => applyChartTheme(state))
+            : null;
+        themeObserver?.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+
         // Reposition after first paint (autoSize may settle late).
-        requestAnimationFrame(() => positionArrows(state));
+        requestAnimationFrame(() => {
+            applyChartTheme(state);
+            positionArrows(state);
+        });
         setTimeout(() => {
             syncTimeScales(state);
             positionArrows(state);
@@ -472,6 +537,7 @@ async function loadReplay(el) {
             revealBtn?.removeEventListener('click', onReveal);
             window.removeEventListener('resize', onResize);
             resizeObserver?.disconnect();
+            themeObserver?.disconnect();
             chart.remove();
             rsiChart.remove();
             if (arrowsHost) {

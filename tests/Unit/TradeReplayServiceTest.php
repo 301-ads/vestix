@@ -125,12 +125,91 @@ class TradeReplayServiceTest extends TestCase
 
         $this->assertNotNull($payload);
         $this->assertSame('2026-06-05', $payload['entry_time']);
+        $this->assertSame('2026-06-02', $payload['fog_time']);
+        $this->assertNotSame($payload['entry_time'], $payload['fog_time']);
         $entryMarker = $payload['markers'][0];
         $this->assertSame('2026-06-05', $entryMarker['time']);
         $this->assertSame('entry', $entryMarker['role']);
         $this->assertSame('up', $entryMarker['direction']);
         $this->assertSame('belowBar', $entryMarker['position']);
         $this->assertNotSame('2026-06-02', $entryMarker['time']);
+    }
+
+    public function test_fog_ends_on_signal_bounce_not_entry_fill(): void
+    {
+        Cache::flush();
+
+        $position = Position::factory()->create([
+            'ticker' => 'BOUNCE',
+            'status' => 'closed',
+            'direction' => 'long',
+            'entry_price' => 105.0,
+            'exit_price' => 112.0,
+            'initial_sl' => 98.0,
+            'quantity' => 1,
+            'signal_bar_date' => '2026-06-02',
+            'closed_at' => '2026-06-10 15:00:00',
+        ]);
+
+        $bars = [];
+        $start = Carbon::parse('2026-05-01');
+
+        for ($i = 0; $i < 50; $i++) {
+            $date = $start->copy()->addDays($i)->toDateString();
+            $bars[] = [
+                'open' => 100.0 + ($i * 0.02),
+                'high' => 101.0 + ($i * 0.02),
+                'low' => 99.0 + ($i * 0.02),
+                'close' => 100.5 + ($i * 0.02),
+                'volume' => 1_000_000,
+                'date' => $date,
+            ];
+        }
+
+        foreach ($bars as &$bar) {
+            if ($bar['date'] === '2026-06-02') {
+                $bar['open'] = 100.0;
+                $bar['high'] = 102.0;
+                $bar['low'] = 99.5;
+                $bar['close'] = 101.2;
+            }
+
+            if ($bar['date'] === '2026-06-05') {
+                $bar['open'] = 104.2;
+                $bar['high'] = 106.5;
+                $bar['low'] = 103.8;
+                $bar['close'] = 105.8;
+            }
+        }
+        unset($bar);
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')->andReturn([
+            'today' => $bars[array_key_last($bars)],
+            'adv30' => 1_000_000.0,
+            'bars' => $bars,
+        ]);
+
+        $payload = (new TradeReplayService($dailyBars))->build($position, allowDemoFallback: false);
+
+        $this->assertNotNull($payload);
+        $this->assertSame('2026-06-02', $payload['fog_time']);
+        $this->assertSame('2026-06-05', $payload['entry_time']);
+
+        $fogIndex = null;
+        $entryIndex = null;
+        foreach ($payload['candles'] as $index => $candle) {
+            if ($candle['time'] === $payload['fog_time']) {
+                $fogIndex = $index;
+            }
+            if ($candle['time'] === $payload['entry_time']) {
+                $entryIndex = $index;
+            }
+        }
+
+        $this->assertNotNull($fogIndex);
+        $this->assertNotNull($entryIndex);
+        $this->assertLessThan($entryIndex, $fogIndex);
     }
 
     public function test_fog_entry_does_not_use_closed_at_when_signal_dates_missing(): void
@@ -207,17 +286,80 @@ class TradeReplayServiceTest extends TestCase
         $this->assertSame('2026-07-10', $payload['entry_time']);
         $this->assertNotSame('2026-08-06', $payload['entry_time']);
         $this->assertSame('2026-08-06', $payload['exit_time']);
+        // Without a signal date, fog stops on the candle before the fill.
+        $this->assertSame('2026-07-09', $payload['fog_time']);
+        $this->assertTrue($payload['fog_time'] < $payload['entry_time']);
 
         $fogIndex = null;
         foreach ($payload['candles'] as $index => $candle) {
-            if ($candle['time'] === $payload['entry_time']) {
+            if ($candle['time'] === $payload['fog_time']) {
                 $fogIndex = $index;
                 break;
             }
         }
 
         $this->assertNotNull($fogIndex);
-        // Fog candle at entry should not yet be the extended ~83 exit-day close.
+        // Fog candle at the pre-entry bounce should not yet be the extended ~83 exit-day close.
         $this->assertLessThan(80.0, (float) $payload['candles'][$fogIndex]['close']);
+    }
+
+    public function test_sma20_covers_first_visible_candle_with_warmup_history(): void
+    {
+        Cache::flush();
+
+        $position = Position::factory()->create([
+            'ticker' => 'SMA',
+            'status' => 'closed',
+            'direction' => 'long',
+            'entry_price' => 100.0,
+            'exit_price' => 110.0,
+            'initial_sl' => 95.0,
+            'quantity' => 1,
+            'signal_bar_date' => '2026-06-15',
+            'closed_at' => '2026-06-20 15:00:00',
+        ]);
+
+        $bars = [];
+        $start = Carbon::parse('2025-11-01');
+
+        for ($i = 0; $i < 220; $i++) {
+            $date = $start->copy()->addDays($i)->toDateString();
+            $bars[] = [
+                'open' => 90.0 + ($i * 0.01),
+                'high' => 91.0 + ($i * 0.01),
+                'low' => 89.0 + ($i * 0.01),
+                'close' => 90.5 + ($i * 0.01),
+                'volume' => 1_000_000,
+                'date' => $date,
+            ];
+        }
+
+        foreach ($bars as &$bar) {
+            if ($bar['date'] === '2026-06-15') {
+                $bar['high'] = 99.0;
+                $bar['close'] = 98.0;
+            }
+            if ($bar['date'] === '2026-06-16') {
+                $bar['high'] = 101.5;
+                $bar['low'] = 99.0;
+                $bar['close'] = 100.5;
+            }
+        }
+        unset($bar);
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')->andReturn([
+            'today' => $bars[array_key_last($bars)],
+            'adv30' => 1_000_000.0,
+            'bars' => $bars,
+        ]);
+
+        $payload = (new TradeReplayService($dailyBars))->build($position, allowDemoFallback: false);
+
+        $this->assertNotNull($payload);
+        $this->assertGreaterThanOrEqual(100, count($payload['candles']));
+        $this->assertNotEmpty($payload['sma20']);
+        $this->assertSame($payload['candles'][0]['time'], $payload['sma20'][0]['time']);
+        $this->assertSame($payload['candles'][0]['time'], $payload['rsi14'][0]['time']);
     }
 }

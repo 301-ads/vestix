@@ -4782,23 +4782,25 @@
     background: transparent;
 }
 
-.vestix-position-edit--archive .vestix-replay-chart-wrap,
-.vestix-position-edit--archive .vestix-replay-rsi-wrap {
+.vestix-replay-chart-wrap,
+.vestix-replay-rsi-wrap {
     border: 1px solid rgb(212 212 216 / 0.9);
-    background: linear-gradient(180deg, rgb(250 250 250), rgb(244 244 245));
+    background: #fafafa;
     width: 100%;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.dark .vestix-replay-chart-wrap,
+.dark .vestix-replay-rsi-wrap {
+    border-color: rgb(148 163 184 / 0.16);
+    background: #09090b;
 }
 
 .vestix-position-edit--archive .vestix-replay-chart-wrap [data-replay-chart],
 .vestix-position-edit--archive .vestix-replay-rsi-wrap [data-replay-rsi] {
     width: 100%;
     display: block;
-}
-
-.dark .vestix-position-edit--archive .vestix-replay-chart-wrap,
-.dark .vestix-position-edit--archive .vestix-replay-rsi-wrap {
-    border-color: rgb(148 163 184 / 0.16);
-    background: linear-gradient(180deg, rgb(24 24 27), rgb(9 9 11));
 }
 
 .vestix-position-edit--archive [data-replay-status] {
@@ -4817,7 +4819,6 @@
     width: 12px;
     height: 15px;
     line-height: 0;
-    filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.55));
     will-change: transform;
 }
 

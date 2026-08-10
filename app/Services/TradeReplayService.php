@@ -23,6 +23,7 @@ class TradeReplayService
      *     rsi14: list<array{time: string, value: float}>,
      *     markers: list<array{time: string, role: string, position: string, color: string, direction: string}>,
      *     levels: array{entry: ?float, stop: ?float, target1: ?float, exit: ?float},
+     *     fog_time: ?string,
      *     entry_time: ?string,
      *     exit_time: ?string,
      *     short: bool,
@@ -33,6 +34,8 @@ class TradeReplayService
     {
         $lookback = (int) config('vestix.academy.replay_lookback_bars', 120);
         $forward = (int) config('vestix.academy.replay_forward_bars', 20);
+        // Warmup so SMA(20) / RSI(14) exist from the first visible candle.
+        $warmup = 30;
 
         $signalDate = optional($position->signal_bar_date ?? $position->detected_signal_bar_date)
             ?->toDateString();
@@ -41,8 +44,13 @@ class TradeReplayService
             ?? optional($position->entry_setup_captured_at)?->toDateString()
             ?? optional($position->created_at)?->toDateString();
 
-        $needed = $lookback + $forward + 40;
-        $bars = $this->resolveBars($position->ticker, $needed, $anchorDate);
+        $needed = $lookback + $forward + $warmup + 40;
+        $bars = $this->resolveBars(
+            $position->ticker,
+            $needed,
+            $anchorDate,
+            minBeforeAnchor: $lookback + $warmup,
+        );
         $demo = false;
 
         if ($bars === null || count($bars) < 30) {
@@ -50,37 +58,45 @@ class TradeReplayService
                 return null;
             }
 
-            $bars = $this->demoBars($position, $lookback, $forward);
+            $bars = $this->demoBars($position, $lookback + $warmup, $forward);
             $demo = true;
             $anchorDate = $bars[min(count($bars) - 1 - max(0, $forward), max(0, count($bars) - 1))]['date'] ?? $anchorDate;
         }
+
+        $displayStart = 0;
+        $displayEnd = count($bars) - 1;
 
         if ($anchorDate !== null) {
             $anchorIndex = $this->indexAtOrBefore($bars, $anchorDate);
 
             if ($anchorIndex !== null) {
-                $start = max(0, $anchorIndex - $lookback + 1);
-                $end = min(count($bars) - 1, $anchorIndex + $forward);
+                $displayStart = max(0, $anchorIndex - $lookback + 1);
+                $displayEnd = min(count($bars) - 1, $anchorIndex + $forward);
 
                 // Long holds need candles through exit for reveal, not only +forward from entry.
                 $closedDate = optional($position->closed_at)?->toDateString();
                 if ($closedDate !== null) {
                     $exitIndex = $this->indexAtOrBefore($bars, $closedDate);
                     if ($exitIndex !== null) {
-                        $end = max($end, $exitIndex);
+                        $displayEnd = max($displayEnd, $exitIndex);
                     }
                 }
-
-                $bars = array_slice($bars, $start, $end - $start + 1);
             }
         }
 
-        $closes = array_column($bars, 'close');
+        // Compute indicators on bars before the visible window so SMA/RSI start on day 1.
+        $calcStart = max(0, $displayStart - $warmup);
+        $closes = [];
+        for ($i = $calcStart; $i <= $displayEnd; $i++) {
+            $closes[] = (float) $bars[$i]['close'];
+        }
+
         $candles = [];
         $sma20 = [];
         $rsi14 = [];
 
-        foreach ($bars as $index => $bar) {
+        for ($i = $displayStart; $i <= $displayEnd; $i++) {
+            $bar = $bars[$i];
             $time = $bar['date'];
             $candles[] = [
                 'time' => $time,
@@ -90,7 +106,8 @@ class TradeReplayService
                 'close' => round((float) $bar['close'], 4),
             ];
 
-            $slice = array_slice($closes, 0, $index + 1);
+            $closeOffset = $i - $calcStart;
+            $slice = array_slice($closes, 0, $closeOffset + 1);
             $sma = TechnicalIndicators::sma($slice, 20);
 
             if ($sma !== null) {
@@ -123,6 +140,8 @@ class TradeReplayService
             $entryTime,
             $short,
         );
+        // Fog ends on the bounce/decision bar — never include the fill candle.
+        $fogTime = $this->resolveFogTime($candles, $signalDate, $entryTime);
 
         $markers = [];
 
@@ -153,7 +172,6 @@ class TradeReplayService
             'candles' => $candles,
             'sma20' => $sma20,
             'rsi14' => $rsi14,
-            'markers' => $markers,
             'levels' => [
                 'entry' => $position->entry_price !== null ? (float) $position->entry_price : null,
                 'stop' => $position->initial_sl !== null
@@ -162,11 +180,36 @@ class TradeReplayService
                 'target1' => $position->plannedBracketTarget1Price(),
                 'exit' => $position->exit_price !== null ? (float) $position->exit_price : null,
             ],
+            'markers' => $markers,
+            'fog_time' => $fogTime,
             'entry_time' => $entryTime,
             'exit_time' => $exitTime,
             'short' => $short,
             'demo' => $demo,
         ];
+    }
+
+    /**
+     * Last visible candle before reveal: the bounce/signal bar when it precedes the fill,
+     * otherwise the session immediately before entry. Never the fill candle itself.
+     *
+     * @param  list<array{time: string, open: float, high: float, low: float, close: float}>  $candles
+     */
+    private function resolveFogTime(array $candles, ?string $signalDate, ?string $entryTime): ?string
+    {
+        if ($candles === [] || $entryTime === null) {
+            return null;
+        }
+
+        if ($signalDate !== null && $signalDate < $entryTime) {
+            $snapped = $this->snapToCandleTime(array_column($candles, 'time'), $signalDate);
+
+            if ($snapped !== null && $snapped < $entryTime) {
+                return $snapped;
+            }
+        }
+
+        return $this->previousCandleTime($candles, $entryTime);
     }
 
     /**
@@ -378,6 +421,24 @@ class TradeReplayService
     }
 
     /**
+     * @param  list<array{time: string}>  $candles
+     */
+    private function previousCandleTime(array $candles, string $date): ?string
+    {
+        $previous = null;
+
+        foreach ($candles as $candle) {
+            if ($candle['time'] === $date) {
+                return $previous;
+            }
+
+            $previous = $candle['time'];
+        }
+
+        return null;
+    }
+
+    /**
      * @param  list<string>  $candleTimes
      */
     private function snapToCandleTime(array $candleTimes, ?string $date): ?string
@@ -404,14 +465,14 @@ class TradeReplayService
     /**
      * @return list<array{open: float, high: float, low: float, close: float, volume: float, date: string}>|null
      */
-    private function resolveBars(string $ticker, int $limit, ?string $anchorDate): ?array
+    private function resolveBars(string $ticker, int $limit, ?string $anchorDate, int $minBeforeAnchor = 0): ?array
     {
-        $cacheKey = 'trade-replay:v7:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest');
+        $cacheKey = 'trade-replay:v8:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest').':'.$minBeforeAnchor;
 
-        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit, $anchorDate): ?array {
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit, $anchorDate, $minBeforeAnchor): ?array {
             $local = $this->localBars($ticker, max($limit, 200));
 
-            if ($this->coversAnchor($local, $anchorDate, minBars: 40)) {
+            if ($this->coversAnchor($local, $anchorDate, minBars: max(40, $minBeforeAnchor), minBeforeAnchor: $minBeforeAnchor)) {
                 return $local;
             }
 
@@ -430,7 +491,7 @@ class TradeReplayService
             );
 
             if ($remote === null) {
-                return $this->coversAnchor($local, $anchorDate, minBars: 30) ? $local : null;
+                return $this->coversAnchor($local, $anchorDate, minBars: 30, minBeforeAnchor: 0) ? $local : null;
             }
 
             return array_values(array_map(
@@ -473,7 +534,7 @@ class TradeReplayService
     /**
      * @param  list<array{date: string}>  $bars
      */
-    private function coversAnchor(array $bars, ?string $anchorDate, int $minBars): bool
+    private function coversAnchor(array $bars, ?string $anchorDate, int $minBars, int $minBeforeAnchor = 0): bool
     {
         if (count($bars) < $minBars) {
             return false;
@@ -483,7 +544,14 @@ class TradeReplayService
             return true;
         }
 
-        return $this->indexAtOrBefore($bars, $anchorDate) !== null;
+        $anchorIndex = $this->indexAtOrBefore($bars, $anchorDate);
+
+        if ($anchorIndex === null) {
+            return false;
+        }
+
+        // Require enough sessions at/before the anchor so lookback + indicator warmup fit.
+        return ($anchorIndex + 1) >= $minBeforeAnchor;
     }
 
     /**

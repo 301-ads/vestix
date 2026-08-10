@@ -138,7 +138,7 @@ class PositionForm
     private static function tradeReplaySection(): Section
     {
         return Section::make('Replay Engine')
-            ->description('Fog of War: beoordeel de setup tot je entry. Onthul daarna pas de uitkomst.')
+            ->description('Fog of War: beoordeel de bounce tot je besluit. Onthul daarna pas de uitkomst.')
             ->compact()
             ->columnSpanFull()
             ->extraAttributes(['class' => 'vestix-replay-engine-section'])
