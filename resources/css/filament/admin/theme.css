@@ -4836,6 +4836,104 @@
 }
 
 /* -------------------------------------------------------------------------- */
+/* Open position — Revolut-style area price chart                             */
+/* -------------------------------------------------------------------------- */
+
+.vestix-price-chart {
+    width: 100%;
+    margin-top: 0.25rem;
+}
+
+.vestix-price-chart__wrap {
+    border: 1px solid rgb(212 212 216 / 0.9);
+    background: #fafafa;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+.dark .vestix-price-chart__wrap {
+    border-color: rgb(148 163 184 / 0.16);
+    background: #09090b;
+}
+
+.vestix-price-chart__wrap [data-price-chart] {
+    width: 100%;
+    display: block;
+}
+
+.vestix-price-chart__markers {
+    z-index: 2;
+}
+
+.vestix-price-chart-entry {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 9999px;
+    background: currentColor;
+    box-shadow:
+        0 0 0 2px #09090b,
+        0 0 10px color-mix(in srgb, currentColor 70%, transparent);
+    will-change: transform;
+}
+
+html:not(.dark) .vestix-price-chart-entry {
+    box-shadow:
+        0 0 0 2px #fafafa,
+        0 0 10px color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.vestix-price-chart__change--up {
+    color: #22c55e;
+}
+
+.vestix-price-chart__change--down {
+    color: #ef4444;
+}
+
+.vestix-price-chart__ranges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.vestix-price-chart__pill {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: rgb(113 113 122);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.45rem 0.7rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.vestix-price-chart__pill:hover {
+    color: rgb(24 24 27);
+    background: rgb(244 244 245);
+}
+
+.dark .vestix-price-chart__pill:hover {
+    color: rgb(244 244 245);
+    background: rgb(39 39 42);
+}
+
+.vestix-price-chart__pill.is-active {
+    color: rgb(24 24 27);
+    background: rgb(228 228 231);
+}
+
+.dark .vestix-price-chart__pill.is-active {
+    color: rgb(250 250 250);
+    background: rgb(63 63 70);
+}
+
+/* -------------------------------------------------------------------------- */
 /* Share cards                                                                */
 /* -------------------------------------------------------------------------- */
 

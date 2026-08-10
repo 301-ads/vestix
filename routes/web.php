@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\PositionPriceChartController;
 use App\Http\Controllers\SquadInviteController;
 use App\Http\Controllers\TradeReplayController;
 use App\Http\Controllers\WebPushSubscriptionController;
@@ -19,6 +20,8 @@ Route::post('/squad-invites/{token}', [SquadInviteController::class, 'accept'])
 Route::middleware(['web', 'auth'])->group(function (): void {
     Route::get('/positions/{position}/trade-replay', TradeReplayController::class)
         ->name('positions.trade-replay');
+    Route::get('/positions/{position}/price-chart', PositionPriceChartController::class)
+        ->name('positions.price-chart');
     Route::post('/positions/{position}/what-if', WhatIfSimulatorController::class)
         ->middleware('throttle:30,1')
         ->name('positions.what-if');
