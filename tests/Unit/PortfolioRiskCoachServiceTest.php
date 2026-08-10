@@ -119,16 +119,18 @@ class PortfolioRiskCoachServiceTest extends TestCase
     {
         $user = User::factory()->create(['is_short_enabled' => true]);
 
-        foreach (['AAA', 'BBB', 'CCC', 'DDD', 'EEE'] as $ticker) {
-            $this->openPosition($user, $ticker, 'XLK', riskOn: true, direction: TradeDirection::Long);
+        foreach (['AAA', 'BBB', 'CCC', 'DDD', 'EEE'] as $i => $ticker) {
+            $sector = ['XLK', 'XLF', 'XLE', 'XLV', 'XLI'][$i];
+            $this->openPosition($user, $ticker, $sector, riskOn: true, direction: TradeDirection::Long);
         }
-        $this->openPosition($user, 'SHORT1', 'XLE', riskOn: true, direction: TradeDirection::Short);
+        $this->openPosition($user, 'SHORT1', 'XLY', riskOn: true, direction: TradeDirection::Short);
 
         $insights = $this->service->insights($user);
         $types = collect($insights)->pluck('type')->all();
 
         $this->assertContains('long_heavy', $types);
         $longHeavy = collect($insights)->firstWhere('type', 'long_heavy');
+        $this->assertSame('OVEREXPOSURE', $longHeavy['title']);
         $this->assertStringContainsString('long', strtolower($longHeavy['body']));
     }
 
@@ -141,9 +143,68 @@ class PortfolioRiskCoachServiceTest extends TestCase
         $concentration = collect($insights)->firstWhere('type', 'sector_concentration');
 
         $this->assertNotNull($concentration);
-        $this->assertStringContainsString('XLF', $concentration['title']);
-        $this->assertStringContainsString('long', $concentration['title']);
+        $this->assertSame('SECTOR BLOKKEERD (XLF)', $concentration['title']);
         $this->assertStringContainsString('BAC', $concentration['body']);
+        $this->assertStringContainsString('long', strtolower($concentration['body']));
+    }
+
+    public function test_command_center_empty_portfolio(): void
+    {
+        $user = User::factory()->create();
+
+        $cc = $this->service->commandCenter($user);
+
+        $this->assertSame('GEEN OPEN POSITIES', $cc['directives'][0]['headline']);
+        $this->assertSame('gray', $cc['directives'][0]['severity']);
+        $this->assertSame('LAAG', $cc['vitals']['risk']['label']);
+        $this->assertSame(0, $cc['vitals']['sectors']['active']);
+        $this->assertSame(11, $cc['vitals']['sectors']['total']);
+        $this->assertCount(11, $cc['sectors']);
+        $this->assertSame('empty', $cc['sectors'][0]['state']);
+    }
+
+    public function test_command_center_sector_blocked_and_vitals(): void
+    {
+        $user = User::factory()->create();
+        $this->openPosition($user, 'BAC', 'XLF', riskOn: true);
+
+        $cc = $this->service->commandCenter($user);
+        $blocked = collect($cc['directives'])->firstWhere('type', 'sector_concentration');
+        $xlf = collect($cc['sectors'])->firstWhere('etf', 'XLF');
+
+        $this->assertNotNull($blocked);
+        $this->assertSame('SECTOR BLOKKEERD (XLF)', $blocked['headline']);
+        $this->assertSame('danger', $blocked['severity']);
+        $this->assertStringContainsString('Negeer nieuwe long-setups', $blocked['order']);
+        $this->assertSame('full', $xlf['state']);
+        $this->assertSame(['BAC'], $xlf['tickers']);
+        $this->assertSame(1, $cc['vitals']['sectors']['active']);
+        $this->assertSame('MATIG', $cc['vitals']['risk']['label']);
+    }
+
+    public function test_command_center_meewind_directive(): void
+    {
+        $user = User::factory()->create();
+        $this->openPosition($user, 'AAA', 'XLK', riskOn: false);
+        $this->openPosition($user, 'BBB', 'XLF', riskOn: false);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'O',
+            'sector_etf' => 'XLRE',
+            'sector_trend_positive' => true,
+            'direction' => TradeDirection::Long,
+            'entry_price' => 100,
+            'quantity' => 10,
+        ]);
+
+        $cc = $this->service->commandCenter($user);
+        $meewind = collect($cc['directives'])->firstWhere('type', 'free_ammo');
+        $xlre = collect($cc['sectors'])->firstWhere('etf', 'XLRE');
+
+        $this->assertNotNull($meewind);
+        $this->assertSame('MEEWIND KANS', $meewind['headline']);
+        $this->assertSame('success', $meewind['severity']);
+        $this->assertSame('meewind', $xlre['state']);
     }
 
     public function test_sector_exposure_splits_risk_on_and_locked_by_direction(): void

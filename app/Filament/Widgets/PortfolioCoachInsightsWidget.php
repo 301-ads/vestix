@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\Scouts\ScoutResource;
 use App\Models\User;
 use App\Services\PortfolioRiskCoachService;
 use Filament\Widgets\Widget;
@@ -14,61 +15,87 @@ class PortfolioCoachInsightsWidget extends Widget
 
     protected int|string|array $columnSpan = 'full';
 
-    /**
-     * @return list<array{type: string, severity: string, title: string, body: string}>
-     */
-    public function getInsights(): array
+    public ?string $selectedSector = null;
+
+    public function selectSector(string $etf): void
     {
-        $user = auth()->user();
+        $etf = strtoupper(trim($etf));
 
-        if (! $user instanceof User) {
-            return [];
-        }
-
-        return app(PortfolioRiskCoachService::class)->insights($user);
+        $this->selectedSector = $this->selectedSector === $etf ? null : $etf;
     }
 
     /**
      * @return array{
-     *     total: int,
-     *     long: int,
-     *     short: int,
-     *     long_pct: float,
-     *     short_pct: float,
+     *     vitals: array<string, mixed>,
+     *     directives: list<array<string, mixed>>,
+     *     sectors: list<array<string, mixed>>
      * }
      */
-    public function getBalance(): array
+    public function getCommandCenter(): array
     {
         $user = auth()->user();
+        $service = app(PortfolioRiskCoachService::class);
 
         if (! $user instanceof User) {
+            $total = count($service->knownSectorEtfs());
+
             return [
-                'total' => 0,
-                'long' => 0,
-                'short' => 0,
-                'long_pct' => 0.0,
-                'short_pct' => 0.0,
+                'vitals' => [
+                    'balance' => [
+                        'total' => 0,
+                        'long' => 0,
+                        'short' => 0,
+                        'long_pct' => 0.0,
+                        'short_pct' => 0.0,
+                        'label' => 'GEEN POSITIES',
+                        'balanced' => true,
+                    ],
+                    'sectors' => [
+                        'active' => 0,
+                        'total' => $total,
+                        'label' => "0/{$total} actief",
+                    ],
+                    'risk' => [
+                        'level' => 'low',
+                        'label' => 'LAAG',
+                    ],
+                ],
+                'directives' => [],
+                'sectors' => [],
             ];
         }
 
-        return app(PortfolioRiskCoachService::class)->longShortBalance($user);
+        return $service->commandCenter($user);
+    }
+
+    public function resolveCtaUrl(?array $cta): ?string
+    {
+        if ($cta === null || ($cta['action'] ?? null) !== 'radar') {
+            return null;
+        }
+
+        try {
+            return ScoutResource::getUrl('index');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
-     * @return array<string, array{
-     *     sector: string,
-     *     long: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
-     *     short: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
-     * }>
+     * @return array<string, mixed>|null
      */
-    public function getSectorExposure(): array
+    public function getSelectedSectorDetail(): ?array
     {
-        $user = auth()->user();
-
-        if (! $user instanceof User) {
-            return [];
+        if ($this->selectedSector === null) {
+            return null;
         }
 
-        return app(PortfolioRiskCoachService::class)->sectorExposure($user);
+        foreach ($this->getCommandCenter()['sectors'] as $sector) {
+            if (($sector['etf'] ?? null) === $this->selectedSector) {
+                return $sector;
+            }
+        }
+
+        return null;
     }
 }

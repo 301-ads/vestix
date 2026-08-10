@@ -15,6 +15,23 @@ class PortfolioRiskCoachService
     }
 
     /**
+     * Fixed SPDR sector ETF universe (unique tickers from sector_mapping).
+     *
+     * @return list<string>
+     */
+    public function knownSectorEtfs(): array
+    {
+        $etfs = array_values(array_unique(array_map(
+            static fn (mixed $etf): string => strtoupper(trim((string) $etf)),
+            (array) config('vestix.sector_mapping', []),
+        )));
+
+        sort($etfs);
+
+        return array_values(array_filter($etfs, static fn (string $etf): bool => $etf !== ''));
+    }
+
+    /**
      * @return Collection<int, Position>
      */
     public function openPositions(User $user): Collection
@@ -181,17 +198,197 @@ class PortfolioRiskCoachService
     }
 
     /**
+     * Command Center payload for the Vestix Coach UI.
+     *
+     * @return array{
+     *     vitals: array{
+     *         balance: array{
+     *             total: int,
+     *             long: int,
+     *             short: int,
+     *             long_pct: float,
+     *             short_pct: float,
+     *             label: string,
+     *             balanced: bool
+     *         },
+     *         sectors: array{active: int, total: int, label: string},
+     *         risk: array{level: string, label: string}
+     *     },
+     *     directives: list<array{
+     *         type: string,
+     *         severity: string,
+     *         headline: string,
+     *         status: string,
+     *         order: string,
+     *         cta: array{label: string, action: string}|null
+     *     }>,
+     *     sectors: list<array{
+     *         etf: string,
+     *         state: string,
+     *         tickers: list<string>,
+     *         label: string,
+     *         long: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
+     *         short: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
+     *         meewind: bool,
+     *         full: bool
+     *     }>
+     * }
+     */
+    public function commandCenter(User $user): array
+    {
+        $exposure = $this->sectorExposure($user);
+        $balance = $this->longShortBalance($user);
+        $open = $this->openPositions($user);
+        $maxRiskOn = $this->maxRiskOnPerSector();
+        $knownSectors = $this->knownSectorEtfs();
+        $occupiedSectors = array_keys($exposure);
+        $meewindSuggestions = $this->meewindSectorSuggestions($user, $occupiedSectors);
+        $meewindSet = array_fill_keys($meewindSuggestions, true);
+        $directives = $this->buildDirectives(
+            $user,
+            $exposure,
+            $balance,
+            $open,
+            $maxRiskOn,
+            $meewindSuggestions,
+        );
+
+        $sectorBlocked = collect($directives)->contains(
+            fn (array $d): bool => $d['type'] === 'sector_concentration',
+        );
+        $asymmetric = collect($directives)->contains(
+            fn (array $d): bool => in_array($d['type'], ['long_heavy', 'short_heavy'], true),
+        );
+
+        $balanceBalanced = $balance['total'] < 2 || ! $asymmetric;
+
+        $riskLevel = 'low';
+        if ($sectorBlocked && $asymmetric) {
+            $riskLevel = 'high';
+        } elseif ($sectorBlocked || $asymmetric) {
+            $riskLevel = 'moderate';
+        }
+
+        $riskLabels = [
+            'low' => 'LAAG',
+            'moderate' => 'MATIG',
+            'high' => 'HOOG',
+        ];
+
+        $sectors = [];
+        foreach ($knownSectors as $etf) {
+            $row = $exposure[$etf] ?? [
+                'sector' => $etf,
+                'long' => $this->emptyDirectionBucket(),
+                'short' => $this->emptyDirectionBucket(),
+            ];
+
+            $tickers = array_values(array_unique(array_merge(
+                $row['long']['risk_on'],
+                $row['long']['locked'],
+                $row['short']['risk_on'],
+                $row['short']['locked'],
+            )));
+            sort($tickers);
+
+            $full = $row['long']['risk_on_count'] >= $maxRiskOn
+                || $row['short']['risk_on_count'] >= $maxRiskOn;
+            $meewind = isset($meewindSet[$etf]);
+            $hasExposure = $tickers !== [];
+
+            $state = match (true) {
+                $full => 'full',
+                $hasExposure => 'active',
+                $meewind => 'meewind',
+                default => 'empty',
+            };
+
+            $label = $etf;
+            if ($tickers !== []) {
+                $label = $etf.': '.implode(', ', array_slice($tickers, 0, 3));
+            }
+
+            $sectors[] = [
+                'etf' => $etf,
+                'state' => $state,
+                'tickers' => $tickers,
+                'label' => $label,
+                'long' => $row['long'],
+                'short' => $row['short'],
+                'meewind' => $meewind,
+                'full' => $full,
+            ];
+        }
+
+        return [
+            'vitals' => [
+                'balance' => [
+                    ...$balance,
+                    'label' => $balance['total'] === 0
+                        ? 'GEEN POSITIES'
+                        : ($balanceBalanced ? 'IN BALANS' : 'UIT EVENWICHT'),
+                    'balanced' => $balanceBalanced || $balance['total'] === 0,
+                ],
+                'sectors' => [
+                    'active' => count($occupiedSectors),
+                    'total' => count($knownSectors),
+                    'label' => count($occupiedSectors).'/'.count($knownSectors).' actief',
+                ],
+                'risk' => [
+                    'level' => $riskLevel,
+                    'label' => $riskLabels[$riskLevel],
+                ],
+            ],
+            'directives' => $directives,
+            'sectors' => $sectors,
+        ];
+    }
+
+    /**
      * Deterministic portfolio advisories for the Vestix Coach UI.
      *
      * @return list<array{type: string, severity: string, title: string, body: string}>
      */
     public function insights(User $user): array
     {
-        $insights = [];
-        $exposure = $this->sectorExposure($user);
-        $maxRiskOn = $this->maxRiskOnPerSector();
-        $balance = $this->longShortBalance($user);
-        $open = $this->openPositions($user);
+        return array_map(
+            static fn (array $directive): array => [
+                'type' => $directive['type'],
+                'severity' => $directive['severity'],
+                'title' => $directive['headline'],
+                'body' => trim($directive['status'].' '.$directive['order']),
+            ],
+            $this->commandCenter($user)['directives'],
+        );
+    }
+
+    /**
+     * @param  array<string, array{
+     *     sector: string,
+     *     long: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
+     *     short: array{risk_on: list<string>, locked: list<string>, risk_on_count: int, locked_count: int},
+     * }>  $exposure
+     * @param  array{total: int, long: int, short: int, long_pct: float, short_pct: float}  $balance
+     * @param  Collection<int, Position>  $open
+     * @param  list<string>  $meewindSuggestions
+     * @return list<array{
+     *     type: string,
+     *     severity: string,
+     *     headline: string,
+     *     status: string,
+     *     order: string,
+     *     cta: array{label: string, action: string}|null
+     * }>
+     */
+    private function buildDirectives(
+        User $user,
+        array $exposure,
+        array $balance,
+        Collection $open,
+        int $maxRiskOn,
+        array $meewindSuggestions,
+    ): array {
+        $directives = [];
 
         foreach ($exposure as $sector => $row) {
             foreach ([TradeDirection::Long->value, TradeDirection::Short->value] as $directionKey) {
@@ -203,18 +400,24 @@ class PortfolioRiskCoachService
 
                 $directionLabel = $directionKey === TradeDirection::Short->value ? 'short' : 'long';
                 $tickers = implode(', ', $bucket['risk_on']);
-                $insights[] = [
+
+                $directives[] = [
                     'type' => 'sector_concentration',
-                    'severity' => 'warning',
-                    'title' => "Sector {$sector} {$directionLabel} vol",
-                    'body' => sprintf(
-                        'Je hebt %d risk-on %s in %s (%s). Voeg geen nieuwe %s-setups in deze sector toe.',
+                    'severity' => 'danger',
+                    'headline' => "SECTOR BLOKKEERD ({$sector})",
+                    'status' => sprintf(
+                        'Max capaciteit bereikt (%d/%d risk-on %s: %s).',
                         $bucket['risk_on_count'],
+                        $maxRiskOn,
+                        $directionLabel,
+                        $tickers,
+                    ),
+                    'order' => sprintf(
+                        'Negeer nieuwe %s-setups in %s.',
                         $directionLabel,
                         $sector,
-                        $tickers,
-                        $directionLabel,
                     ),
+                    'cta' => ['label' => 'Open Radar', 'action' => 'radar'],
                 ];
             }
         }
@@ -223,80 +426,88 @@ class PortfolioRiskCoachService
         $shortHeavy = (float) config('vestix.portfolio_coach.short_heavy_threshold', 0.80);
 
         if ($balance['total'] >= 2 && $balance['long_pct'] >= $longHeavy && $user->canUseShort()) {
-            $insights[] = [
+            $directives[] = [
                 'type' => 'long_heavy',
-                'severity' => 'info',
-                'title' => 'Long/short balans',
-                'body' => sprintf(
-                    'Portfolio: %d%% long (%d/%d). Overweeg een A+ short-setup voor balans.',
+                'severity' => 'warning',
+                'headline' => 'OVEREXPOSURE',
+                'status' => sprintf(
+                    '%d%% long exposure (%d/%d posities).',
                     (int) round($balance['long_pct'] * 100),
                     $balance['long'],
                     $balance['total'],
                 ),
+                'order' => 'Je bent kwetsbaar voor een marktbrede dip. Scan uitsluitend op A+ short-setups voor bescherming.',
+                'cta' => ['label' => 'Bekijk Short-setups', 'action' => 'radar'],
             ];
         } elseif ($balance['total'] >= 2 && $balance['short_pct'] >= $shortHeavy) {
-            $insights[] = [
+            $directives[] = [
                 'type' => 'short_heavy',
-                'severity' => 'info',
-                'title' => 'Long/short balans',
-                'body' => sprintf(
-                    'Portfolio: %d%% short (%d/%d). Overweeg een A+ long-setup voor balans.',
+                'severity' => 'warning',
+                'headline' => 'PORTFOLIO ASYMMETRIE',
+                'status' => sprintf(
+                    '%d%% short exposure (%d/%d posities).',
                     (int) round($balance['short_pct'] * 100),
                     $balance['short'],
                     $balance['total'],
                 ),
+                'order' => 'Te zwaar short. Prioriteer A+ long-setups om de balans te herstellen.',
+                'cta' => ['label' => 'Bekijk Long-setups', 'action' => 'radar'],
             ];
         }
 
         $lockedCount = $open->filter(fn (Position $p): bool => ! $this->isRiskOn($p))->count();
-        $occupiedSectors = array_keys($exposure);
-        $meewindSuggestions = $this->meewindSectorSuggestions($user, $occupiedSectors);
+        $meewindLabel = implode(', ', array_slice($meewindSuggestions, 0, 3));
 
         if ($lockedCount >= 2 && $meewindSuggestions !== []) {
-            $insights[] = [
+            $directives[] = [
                 'type' => 'free_ammo',
                 'severity' => 'success',
-                'title' => 'Vrije munitie',
-                'body' => sprintf(
-                    '%d runners risk-free. Geen open exposure in %s (meewind) — kandidaat voor scan.',
+                'headline' => 'MEEWIND KANS',
+                'status' => sprintf(
+                    '%d runners risk-free. Geen exposure in %s (meewind).',
                     $lockedCount,
-                    implode(', ', array_slice($meewindSuggestions, 0, 3)),
+                    $meewindLabel,
                 ),
+                'order' => 'Vrije ruimte beschikbaar. Prioriteer setups in deze sectoren op de Radar.',
+                'cta' => ['label' => 'Open Radar', 'action' => 'radar'],
             ];
         } elseif ($meewindSuggestions !== [] && $open->isNotEmpty()) {
-            $insights[] = [
+            $directives[] = [
                 'type' => 'empty_meewind',
-                'severity' => 'info',
-                'title' => 'Sectorkansen',
-                'body' => sprintf(
-                    'Meewind zonder open exposure: %s. Overweeg daar te scannen.',
-                    implode(', ', array_slice($meewindSuggestions, 0, 3)),
-                ),
+                'severity' => 'success',
+                'headline' => 'MEEWIND KANS',
+                'status' => sprintf('Meewind zonder open exposure: %s.', $meewindLabel),
+                'order' => 'Vrije ruimte beschikbaar. Prioriteer deze sectoren op de Radar.',
+                'cta' => ['label' => 'Open Radar', 'action' => 'radar'],
             ];
         }
 
-        if ($insights === [] && $open->isNotEmpty()) {
-            $insights[] = [
+        if ($directives === [] && $open->isNotEmpty()) {
+            $directives[] = [
                 'type' => 'balanced',
                 'severity' => 'success',
-                'title' => 'Portfolio in balans',
-                'body' => sprintf(
-                    '%d open positie(s), %d long / %d short. Geen correlatie- of balanswaarschuwing.',
+                'headline' => 'PORTFOLIO IN BALANS',
+                'status' => sprintf(
+                    '%d open positie(s), %d long / %d short.',
                     $balance['total'],
                     $balance['long'],
                     $balance['short'],
                 ),
+                'order' => 'Geen correlatie- of balanswaarschuwing. Houd koers.',
+                'cta' => null,
             ];
-        } elseif ($insights === []) {
-            $insights[] = [
+        } elseif ($directives === []) {
+            $directives[] = [
                 'type' => 'empty',
                 'severity' => 'gray',
-                'title' => 'Geen open posities',
-                'body' => 'Zodra je trades openstaan, bewaakt Vestix Coach sector-concentratie en long/short-balans.',
+                'headline' => 'GEEN OPEN POSITIES',
+                'status' => 'Nog geen open trades in je portfolio.',
+                'order' => 'Zodra je trades openstaan, bewaakt Vestix Coach sector-concentratie en long/short-balans.',
+                'cta' => ['label' => 'Open Radar', 'action' => 'radar'],
             ];
         }
 
-        return $insights;
+        return $directives;
     }
 
     /**
@@ -466,8 +677,12 @@ class PortfolioRiskCoachService
 
     private function resolveScoutScore(Position $position): int
     {
+        if ($position->last_setup_score !== null) {
+            return (int) $position->last_setup_score;
+        }
+
         $scorecard = $position->evaluateSetupScore();
 
-        return (int) ($scorecard['totalPoints'] ?? $position->last_setup_score ?? 0);
+        return (int) ($scorecard['totalPoints'] ?? 0);
     }
 }

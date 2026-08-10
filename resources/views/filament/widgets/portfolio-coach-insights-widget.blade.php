@@ -1,51 +1,207 @@
 @php
-    $insights = $this->getInsights();
-    $balance = $this->getBalance();
-    $exposure = $this->getSectorExposure();
+    $cc = $this->getCommandCenter();
+    $vitals = $cc['vitals'];
+    $balance = $vitals['balance'];
+    $directives = $cc['directives'];
+    $sectors = $cc['sectors'];
+    $selected = $this->getSelectedSectorDetail();
+    $longPct = (int) round(($balance['long_pct'] ?? 0) * 100);
+    $shortPct = (int) round(($balance['short_pct'] ?? 0) * 100);
 @endphp
 
 <x-filament-widgets::widget class="vestix-portfolio-coach-widget">
-    <x-filament::section heading="Portfolio Coach" :compact="true">
+    <x-filament::section
+        heading="Command Center"
+        description="Operationele status van je portfolio"
+        :compact="true"
+    >
         <div class="vestix-portfolio-coach">
-            @if ($balance['total'] > 0)
-                <div class="vestix-portfolio-coach__strip">
-                    <span class="vestix-portfolio-coach__strip-item">
-                        {{ $balance['long'] }} long / {{ $balance['short'] }} short
-                        ({{ (int) round($balance['long_pct'] * 100) }}% / {{ (int) round($balance['short_pct'] * 100) }}%)
-                    </span>
-                    @foreach ($exposure as $sector => $row)
-                        @php
-                            $parts = [];
-                            foreach (['long', 'short'] as $direction) {
-                                $bucket = $row[$direction];
-                                if ($bucket['risk_on_count'] > 0) {
-                                    $parts[] = implode(', ', $bucket['risk_on']).' '.$direction.' risk-on';
-                                }
-                                if ($bucket['locked_count'] > 0) {
-                                    $parts[] = implode(', ', $bucket['locked']).' '.$direction.' locked';
-                                }
-                            }
-                        @endphp
-                        @if ($parts !== [])
-                            <span class="vestix-portfolio-coach__strip-item">
-                                <strong>{{ $sector }}</strong>: {{ implode(' · ', $parts) }}
-                            </span>
-                        @endif
+            {{-- Module 1: Vital Signs --}}
+            <div class="vestix-portfolio-coach__vitals" role="group" aria-label="Portfolio vital signs">
+                <div class="vestix-portfolio-coach__vital">
+                    <p class="vestix-portfolio-coach__vital-label">Long / Short</p>
+                    <p class="vestix-portfolio-coach__vital-value">
+                        {{ $balance['long'] }}L / {{ $balance['short'] }}S
+                    </p>
+                    <div
+                        class="vestix-portfolio-coach__split"
+                        role="img"
+                        aria-label="{{ $longPct }}% long, {{ $shortPct }}% short"
+                    >
+                        <span class="vestix-portfolio-coach__split-long" style="width: {{ $longPct }}%"></span>
+                        <span class="vestix-portfolio-coach__split-short" style="width: {{ $shortPct }}%"></span>
+                    </div>
+                    <p @class([
+                        'vestix-portfolio-coach__vital-badge',
+                        'vestix-portfolio-coach__vital-badge--ok' => $balance['balanced'],
+                        'vestix-portfolio-coach__vital-badge--warn' => ! $balance['balanced'],
+                    ])>
+                        {{ $balance['label'] }}
+                    </p>
+                </div>
+
+                <div class="vestix-portfolio-coach__vital">
+                    <p class="vestix-portfolio-coach__vital-label">Sectoren</p>
+                    <p class="vestix-portfolio-coach__vital-value">
+                        {{ $vitals['sectors']['active'] }}/{{ $vitals['sectors']['total'] }}
+                    </p>
+                    <p class="vestix-portfolio-coach__vital-meta">{{ $vitals['sectors']['label'] }}</p>
+                </div>
+
+                <div class="vestix-portfolio-coach__vital">
+                    <p class="vestix-portfolio-coach__vital-label">Risicostatus</p>
+                    <p @class([
+                        'vestix-portfolio-coach__vital-value',
+                        'vestix-portfolio-coach__risk--'.$vitals['risk']['level'],
+                    ])>
+                        {{ $vitals['risk']['label'] }}
+                    </p>
+                    <p class="vestix-portfolio-coach__vital-meta">Correlatie &amp; balans</p>
+                </div>
+            </div>
+
+            {{-- Module 2: Directives + mini balance --}}
+            <div class="vestix-portfolio-coach__mid">
+                <div class="vestix-portfolio-coach__directives">
+                    <h3 class="vestix-portfolio-coach__module-title">Tactical Directives</h3>
+                    <ul class="vestix-portfolio-coach__directive-list">
+                        @foreach ($directives as $directive)
+                            <li @class([
+                                'vestix-portfolio-coach__directive',
+                                'vestix-portfolio-coach__directive--'.$directive['severity'],
+                            ])>
+                                <div class="vestix-portfolio-coach__directive-head">
+                                    <span class="vestix-portfolio-coach__directive-icon" aria-hidden="true">
+                                        @switch($directive['severity'])
+                                            @case('danger')
+                                                ●
+                                                @break
+                                            @case('warning')
+                                                ▲
+                                                @break
+                                            @case('success')
+                                                ◆
+                                                @break
+                                            @default
+                                                ○
+                                        @endswitch
+                                    </span>
+                                    <p class="vestix-portfolio-coach__directive-headline">
+                                        {{ $directive['headline'] }}
+                                    </p>
+                                </div>
+                                <p class="vestix-portfolio-coach__directive-status">{{ $directive['status'] }}</p>
+                                <p class="vestix-portfolio-coach__directive-order">
+                                    <span class="vestix-portfolio-coach__order-label">Order:</span>
+                                    {{ $directive['order'] }}
+                                </p>
+                                @php $ctaUrl = $this->resolveCtaUrl($directive['cta'] ?? null); @endphp
+                                @if ($ctaUrl)
+                                    <a
+                                        href="{{ $ctaUrl }}"
+                                        class="vestix-portfolio-coach__cta"
+                                    >
+                                        {{ $directive['cta']['label'] }}
+                                    </a>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+
+                <aside class="vestix-portfolio-coach__balance-panel" aria-label="Long short balans">
+                    <h3 class="vestix-portfolio-coach__module-title">Exposure</h3>
+                    <div class="vestix-portfolio-coach__balance-panel-body">
+                        <p class="vestix-portfolio-coach__balance-pct">
+                            <span class="vestix-portfolio-coach__balance-pct-long">{{ $longPct }}% L</span>
+                            <span class="vestix-portfolio-coach__balance-pct-short">{{ $shortPct }}% S</span>
+                        </p>
+                        <div
+                            class="vestix-portfolio-coach__split vestix-portfolio-coach__split--tall"
+                            role="img"
+                            aria-label="{{ $longPct }}% long, {{ $shortPct }}% short"
+                        >
+                            <span class="vestix-portfolio-coach__split-long" style="width: {{ max($longPct, $balance['total'] === 0 ? 0 : $longPct) }}%"></span>
+                            <span class="vestix-portfolio-coach__split-short" style="width: {{ $shortPct }}%"></span>
+                        </div>
+                        <p class="vestix-portfolio-coach__vital-meta">
+                            {{ $balance['long'] }} long · {{ $balance['short'] }} short
+                        </p>
+                    </div>
+                </aside>
+            </div>
+
+            {{-- Module 3: Sector grid --}}
+            <div class="vestix-portfolio-coach__sectors">
+                <h3 class="vestix-portfolio-coach__module-title">Sector Exposure</h3>
+                <div class="vestix-portfolio-coach__sector-grid" role="list">
+                    @foreach ($sectors as $sector)
+                        <button
+                            type="button"
+                            wire:click="selectSector('{{ $sector['etf'] }}')"
+                            @class([
+                                'vestix-portfolio-coach__sector',
+                                'vestix-portfolio-coach__sector--'.$sector['state'],
+                                'vestix-portfolio-coach__sector--selected' => $this->selectedSector === $sector['etf'],
+                            ])
+                            role="listitem"
+                            aria-pressed="{{ $this->selectedSector === $sector['etf'] ? 'true' : 'false' }}"
+                        >
+                            <span class="vestix-portfolio-coach__sector-etf">{{ $sector['etf'] }}</span>
+                            @if ($sector['tickers'] !== [])
+                                <span class="vestix-portfolio-coach__sector-tickers">
+                                    {{ implode(', ', array_slice($sector['tickers'], 0, 2)) }}
+                                    @if (count($sector['tickers']) > 2)
+                                        +{{ count($sector['tickers']) - 2 }}
+                                    @endif
+                                </span>
+                            @elseif ($sector['meewind'])
+                                <span class="vestix-portfolio-coach__sector-tickers">meewind</span>
+                            @endif
+                        </button>
                     @endforeach
                 </div>
-            @endif
 
-            <ul class="vestix-portfolio-coach__insights">
-                @foreach ($insights as $insight)
-                    <li @class([
-                        'vestix-portfolio-coach__insight',
-                        'vestix-portfolio-coach__insight--'.$insight['severity'],
-                    ])>
-                        <p class="vestix-portfolio-coach__insight-title">{{ $insight['title'] }}</p>
-                        <p class="vestix-portfolio-coach__insight-body">{{ $insight['body'] }}</p>
-                    </li>
-                @endforeach
-            </ul>
+                @if ($selected)
+                    <div class="vestix-portfolio-coach__sector-detail">
+                        <p class="vestix-portfolio-coach__sector-detail-title">
+                            {{ $selected['etf'] }}
+                            <span @class([
+                                'vestix-portfolio-coach__sector-state',
+                                'vestix-portfolio-coach__sector-state--'.$selected['state'],
+                            ])>
+                                {{ strtoupper($selected['state']) }}
+                            </span>
+                        </p>
+                        @foreach (['long' => 'Long', 'short' => 'Short'] as $dirKey => $dirLabel)
+                            @php $bucket = $selected[$dirKey]; @endphp
+                            @if ($bucket['risk_on_count'] > 0 || $bucket['locked_count'] > 0)
+                                <p class="vestix-portfolio-coach__sector-detail-row">
+                                    <strong>{{ $dirLabel }}:</strong>
+                                    @if ($bucket['risk_on_count'] > 0)
+                                        risk-on {{ implode(', ', $bucket['risk_on']) }}
+                                    @endif
+                                    @if ($bucket['risk_on_count'] > 0 && $bucket['locked_count'] > 0)
+                                        ·
+                                    @endif
+                                    @if ($bucket['locked_count'] > 0)
+                                        locked {{ implode(', ', $bucket['locked']) }}
+                                    @endif
+                                </p>
+                            @endif
+                        @endforeach
+                        @if ($selected['tickers'] === [] && $selected['meewind'])
+                            <p class="vestix-portfolio-coach__sector-detail-row">
+                                Geen open exposure — meewind-kandidaat voor scan.
+                            </p>
+                        @elseif ($selected['tickers'] === [])
+                            <p class="vestix-portfolio-coach__sector-detail-row">
+                                Geen open posities in deze sector.
+                            </p>
+                        @endif
+                    </div>
+                @endif
+            </div>
         </div>
     </x-filament::section>
 </x-filament-widgets::widget>

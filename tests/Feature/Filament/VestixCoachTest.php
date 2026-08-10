@@ -24,7 +24,7 @@ class VestixCoachTest extends TestCase
 
         Livewire::test(StrategyCoach::class)
             ->assertSee('Vestix Coach')
-            ->assertSee('Portfolio Coach')
+            ->assertSee('Command Center')
             ->assertSee('Edge-analyse')
             ->assertSee('Alles')
             ->assertSee('Longs')
@@ -80,9 +80,13 @@ class VestixCoachTest extends TestCase
         ]);
 
         Livewire::test(PortfolioCoachInsightsWidget::class)
-            ->assertSee('Sector XLF long vol')
+            ->assertSee('SECTOR BLOKKEERD (XLF)')
             ->assertSee('BAC')
-            ->assertSee('risk-on');
+            ->assertSee('Command Center')
+            ->assertSee('XLF')
+            ->call('selectSector', 'XLF')
+            ->assertSet('selectedSector', 'XLF')
+            ->assertSee('risk-on BAC');
     }
 
     public function test_coach_unlock_counts_archived_closed_trades_without_active_tag(): void
