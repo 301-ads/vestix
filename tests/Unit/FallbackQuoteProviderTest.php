@@ -7,6 +7,7 @@ use App\Services\FallbackQuoteProvider;
 use App\Services\FinnhubQuoteProvider;
 use App\Services\PolygonQuoteProvider;
 use App\Services\TradingViewPremarketQuoteService;
+use App\Services\YahooFinanceChartQuoteService;
 use App\Support\PremarketQuoteCapability;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -51,8 +52,35 @@ class FallbackQuoteProviderTest extends TestCase
         return $tv;
     }
 
+    private function yahooMock(): YahooFinanceChartQuoteService
+    {
+        $yahoo = Mockery::mock(YahooFinanceChartQuoteService::class);
+        $yahoo->shouldReceive('fetchExtendedHoursLastPrice')->andReturn(null)->byDefault();
+        $yahoo->shouldReceive('fetchLivePrice')->andReturn(null)->byDefault();
+
+        return $yahoo;
+    }
+
+    private function makeProvider(
+        FinnhubQuoteProvider $finnhub,
+        AlphaVantageQuoteProvider $alphaVantage,
+        PolygonQuoteProvider $polygon,
+        ?TradingViewPremarketQuoteService $tv = null,
+        ?YahooFinanceChartQuoteService $yahoo = null,
+    ): FallbackQuoteProvider {
+        return new FallbackQuoteProvider(
+            $finnhub,
+            $alphaVantage,
+            $polygon,
+            $tv ?? $this->tradingViewMock(),
+            $yahoo ?? $this->yahooMock(),
+        );
+    }
+
     public function test_returns_finnhub_price_when_available(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 11:00:00', 'America/New_York'));
+
         $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
         $finnhub->shouldReceive('fetchSessionQuote')->with('PANW')->once()->andReturn([
             'close' => 263.22,
@@ -66,13 +94,17 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $this->tradingViewMock());
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon);
 
         $this->assertSame(263.22, $provider->fetchLivePrice('PANW'));
+
+        Carbon::setTestNow();
     }
 
     public function test_falls_back_to_alpha_vantage_when_finnhub_returns_null(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 11:00:00', 'America/New_York'));
+
         $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
         $finnhub->shouldReceive('fetchSessionQuote')->with('PANW')->once()->andReturn(null);
 
@@ -86,13 +118,17 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $this->tradingViewMock());
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon);
 
         $this->assertSame(263.22, $provider->fetchLivePrice('PANW'));
+
+        Carbon::setTestNow();
     }
 
     public function test_falls_back_to_polygon_when_finnhub_and_alpha_vantage_return_null(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 11:00:00', 'America/New_York'));
+
         $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
         $finnhub->shouldReceive('fetchSessionQuote')->with('PANW')->once()->andReturn(null);
 
@@ -106,13 +142,15 @@ class FallbackQuoteProviderTest extends TestCase
             'low' => null,
         ]);
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $this->tradingViewMock());
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon);
 
         $quote = $provider->fetchSessionQuoteWithProvider('PANW');
 
         $this->assertNotNull($quote);
         $this->assertSame(263.22, $quote['close']);
         $this->assertSame('polygon', $quote['provider']);
+
+        Carbon::setTestNow();
     }
 
     public function test_premarket_price_skips_stale_close_and_uses_polygon(): void
@@ -132,7 +170,7 @@ class FallbackQuoteProviderTest extends TestCase
             'previous_close' => 557.89,
         ]);
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $this->tradingViewMock());
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon);
 
         $this->assertSame(543.50, $provider->fetchPremarketPrice('AMD', 557.89));
     }
@@ -157,7 +195,7 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon, $tv);
 
         $this->assertSame(42.40, $provider->fetchPremarketPrice('PECO', 42.79));
     }
@@ -183,7 +221,7 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon, $tv);
 
         $this->assertNull($provider->fetchPremarketPrice('GNTX', 23.97));
     }
@@ -214,7 +252,7 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon, $tv);
 
         $this->assertNull($provider->fetchPremarketPrice('GNTX', 23.97));
     }
@@ -242,7 +280,7 @@ class FallbackQuoteProviderTest extends TestCase
         $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
         $alphaVantage->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon, $tv);
 
         $this->assertSame(543.50, $provider->fetchPremarketPrice('AMD', 557.89));
     }
@@ -270,7 +308,7 @@ class FallbackQuoteProviderTest extends TestCase
         $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
         $alphaVantage->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon, $tv);
 
         $this->assertNull($provider->fetchPremarketPrice('AMD', 557.89));
     }
@@ -293,7 +331,7 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon, $tv);
 
         // Must not treat float noise on abs(42.80-42.79) as a stale RTH close.
         $this->assertSame(42.80, $provider->fetchPremarketPrice('PECO', 42.79));
@@ -319,7 +357,7 @@ class FallbackQuoteProviderTest extends TestCase
         $polygon = Mockery::mock(PolygonQuoteProvider::class);
         $polygon->shouldNotReceive('fetchSessionQuote');
 
-        $provider = new FallbackQuoteProvider($finnhub, $alphaVantage, $polygon, $tv);
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon, $tv);
 
         $this->assertSame(543.50, $provider->fetchPremarketPrice('AMD', 557.89));
     }

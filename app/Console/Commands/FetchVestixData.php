@@ -280,10 +280,17 @@ class FetchVestixData extends Command
             $this->info("{$alertsSent} Sniper Telegram-alert(s) verstuurd.");
         }
 
-        $reviewFlagged = app(StaleBuyStopReviewService::class)->flagStaleBuyStops();
+        $staleBuyStopReview = app(StaleBuyStopReviewService::class);
 
-        if ($reviewFlagged > 0) {
-            $this->info("{$reviewFlagged} stale buy-stop(s) gemarkeerd voor ochtend-review.");
+        if ($staleBuyStopReview->canFlagNow()) {
+            $reviewFlagged = $staleBuyStopReview->flagStaleBuyStops();
+
+            if ($reviewFlagged > 0) {
+                $this->info("{$reviewFlagged} stale buy-stop(s) gemarkeerd voor ochtend-review.");
+            }
+        } else {
+            $cutoff = (string) config('vestix.stale_buy_stop_review.after_time', '22:00');
+            $this->info("Buy-stop review overgeslagen tot na {$cutoff} (Europe/Amsterdam) — Order Plan Actief blijft staan.");
         }
 
         $marketDataFetcher->touchApiFetchTimestamp();

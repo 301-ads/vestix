@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Contracts\DailyBarProvider;
+use App\Contracts\QuoteProvider;
 use App\Models\Position;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SignalCandleResolver;
 use App\Support\TechnicalIndicators;
 use App\Support\TrampolineDepthMetrics;
+use App\Support\UsMarketSession;
 use Illuminate\Support\Facades\Cache;
 
 class MarketDataFetcher
@@ -17,6 +19,7 @@ class MarketDataFetcher
         private PolygonMarketDataService $polygonMarketData,
         private DailyBarProvider $dailyBars,
         private TrampolineDepthMetrics $depthMetrics,
+        private QuoteProvider $quotes,
     ) {}
 
     /**
@@ -115,9 +118,41 @@ class MarketDataFetcher
             }
         }
 
+        // Open P&L should track live/EH marks during the session — EOD bars alone stay on prior close
+        // until the session completes (Forceer API Sync overdag overschreef IBKR-live marks).
+        if ($position->status === 'open') {
+            $liveMark = $this->resolveOpenPositionLiveMark(
+                $position->ticker,
+                isset($data['latest_close_price']) ? (float) $data['latest_close_price'] : null,
+            );
+
+            if ($liveMark !== null) {
+                $data['latest_close_price'] = $liveMark;
+            }
+        }
+
         $position->update($data);
 
         return true;
+    }
+
+    private function resolveOpenPositionLiveMark(string $ticker, ?float $sessionClose): ?float
+    {
+        if (UsMarketSession::isPremarketWindow()) {
+            $live = $this->quotes->fetchPremarketPrice($ticker, $sessionClose)
+                ?? $this->quotes->fetchLivePrice($ticker);
+
+            return $live !== null ? round($live, 2) : null;
+        }
+
+        // RTH + post-market: prefer live/EH over the last completed daily bar.
+        if (UsMarketSession::isIntradayTargetWatchWindow() || UsMarketSession::isAfterMarketClose()) {
+            $live = $this->quotes->fetchLivePrice($ticker);
+
+            return $live !== null ? round($live, 2) : null;
+        }
+
+        return null;
     }
 
     /**

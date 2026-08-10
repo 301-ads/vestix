@@ -9,6 +9,7 @@ use App\Services\MarketDataFetcher;
 use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupScorecard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\MarketDataTestTime;
@@ -440,6 +441,7 @@ class FetchVestixDataTest extends TestCase
 
     public function test_command_flags_stale_buy_stop_after_bulk_sync(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 22:30:00', 'Europe/Amsterdam'));
         config(['vestix.polygon.api_key' => null]);
 
         $user = User::factory()->create();
@@ -473,6 +475,45 @@ class FetchVestixDataTest extends TestCase
         $this->assertNotNull($scout->buy_stop_review_required_on);
         $this->assertNotNull($scout->buy_stop_review_setup_score);
         $this->assertNotNull($scout->buy_stop_review_setup_grade);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_command_skips_stale_buy_stop_flagging_before_evening_cutoff(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 12:00:00', 'Europe/Amsterdam'));
+        config(['vestix.polygon.api_key' => null]);
+
+        $scout = Position::factory()->scout()->pendingBrokerOrder()->create([
+            'ticker' => 'APTV',
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00,
+            'latest_sma_50' => 95.00,
+            'scout_rsi' => 50.00,
+        ]);
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
+            'www.alphavantage.co/*' => Http::sequence()
+                ->push(['Note' => 'Daily series unavailable in test.'])
+                ->push(['Global Quote' => ['05. price' => '100.50']])
+                ->push(['Technical Analysis: SMA' => $this->smaSeries()])
+                ->push(['Technical Analysis: SMA' => ['2024-01-06' => ['SMA' => '95.00']]])
+                ->push(['Technical Analysis: ATR' => ['2024-01-06' => ['ATR' => '2.00']]])
+                ->push(['Technical Analysis: RSI' => ['2024-01-06' => ['RSI' => '50.00']]]),
+        ]);
+
+        $this->artisan('vestix:fetch-data')
+            ->expectsOutputToContain('Buy-stop review overgeslagen tot na 22:00')
+            ->assertSuccessful();
+
+        $scout->refresh();
+
+        $this->assertSame(BrokerOrderStatus::Pending, $scout->broker_order_status);
+        $this->assertNull($scout->buy_stop_review_required_on);
+
+        Carbon::setTestNow();
     }
 
     public function test_command_scouts_only_skips_open_positions(): void

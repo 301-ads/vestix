@@ -76,6 +76,12 @@ return [
         'window_end' => env('INTRADAY_TARGET_WATCH_WINDOW_END', '16:15'),
     ],
 
+    // Unfilled buy-stops → Acties / review alleen ná deze tijd (niet bij Forceer API Sync overdag).
+    'stale_buy_stop_review' => [
+        'after_time' => env('STALE_BUY_STOP_REVIEW_AFTER', '22:00'),
+        'timezone' => env('STALE_BUY_STOP_REVIEW_TIMEZONE', 'Europe/Amsterdam'),
+    ],
+
     // De Vestix Finnhub -> SPDR ETF Mapping
     'sector_mapping' => [
         'Technology' => 'XLK',

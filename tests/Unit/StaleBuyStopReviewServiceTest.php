@@ -41,13 +41,40 @@ class StaleBuyStopReviewServiceTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_does_not_flag_before_evening_cutoff(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 12:30:00', 'Europe/Amsterdam'));
+
+        $scout = Position::factory()->scout()->pendingBrokerOrder()->create([
+            'ticker' => 'APTV',
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00,
+            'latest_sma_50' => 95.00,
+            'scout_rsi' => 50.00,
+        ]);
+
+        $service = app(StaleBuyStopReviewService::class);
+
+        $this->assertFalse($service->canFlagNow());
+        $this->assertSame(0, $service->flagStaleBuyStops());
+        $this->assertNull($scout->fresh()->buy_stop_review_required_on);
+        $this->assertSame(BrokerOrderStatus::Pending, $scout->fresh()->broker_order_status);
+
+        Carbon::setTestNow();
+    }
+
     public function test_does_not_flag_scout_without_live_order(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-13 23:00:00', 'Europe/Amsterdam'));
+
         Position::factory()->scout()->create();
 
         $flagged = app(StaleBuyStopReviewService::class)->flagStaleBuyStops();
 
         $this->assertSame(0, $flagged);
+
+        Carbon::setTestNow();
     }
 
     public function test_does_not_reflag_scout_already_reviewed_today(): void

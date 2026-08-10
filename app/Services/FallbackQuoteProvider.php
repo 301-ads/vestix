@@ -14,10 +14,20 @@ class FallbackQuoteProvider implements QuoteProvider
         private AlphaVantageQuoteProvider $alphaVantage,
         private PolygonQuoteProvider $polygon,
         private TradingViewPremarketQuoteService $tradingViewPremarket,
+        private YahooFinanceChartQuoteService $yahooFinance,
     ) {}
 
     public function fetchLivePrice(string $ticker): ?float
     {
+        // Outside RTH, prefer extended-hours prints so open P&L tracks IBKR/TV instead of yesterday's close.
+        if (UsMarketSession::isPremarketWindow() || UsMarketSession::isAfterMarketClose()) {
+            $extended = $this->fetchPremarketPrice($ticker);
+
+            if ($extended !== null) {
+                return $extended;
+            }
+        }
+
         $quote = $this->fetchSessionQuoteWithProvider($ticker);
 
         return $quote['close'] ?? null;
@@ -55,11 +65,14 @@ class FallbackQuoteProvider implements QuoteProvider
             }
         }
 
+        $tvResolved = false;
+
         // Prefer TradingView premarket_close over Finnhub/AV /quote (those are usually RTH closes).
         if ($assessment['tradingview_scanner'] ?? true) {
             $tv = $this->tradingViewPremarket->fetchPremarketQuote($ticker);
 
             if ($tv['ok']) {
+                $tvResolved = true;
                 $tvPrice = $tv['price'];
 
                 if ($tvPrice !== null && $tvPrice > 0 && ! $this->isStalePremarketQuote($tvPrice, [], $referenceClose)) {
@@ -73,10 +86,18 @@ class FallbackQuoteProvider implements QuoteProvider
                         'reference_close' => $referenceClose,
                     ]);
                 }
-
-                // Listing resolved: null price means no EH trades — do not fall back to RTH /quote.
-                return null;
             }
+        }
+
+        $yahooEh = $this->yahooFinance->fetchExtendedHoursLastPrice($ticker);
+
+        if ($yahooEh !== null && ! $this->isStalePremarketQuote($yahooEh, [], $referenceClose)) {
+            return $yahooEh;
+        }
+
+        // TV resolved the listing (even with null/stale print) — do not fall back to RTH /quote.
+        if ($tvResolved) {
+            return null;
         }
 
         foreach ($this->premarketQuoteFallbacks() as $entry) {
