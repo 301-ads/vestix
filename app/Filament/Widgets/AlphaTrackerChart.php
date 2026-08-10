@@ -34,24 +34,21 @@ class AlphaTrackerChart extends ApexChartWidget
             : [];
 
         $benchmarkLabel = 'S&P 500 ('.strtoupper((string) config('vestix.bankroll_tracker.benchmark_ticker', 'SPY')).')';
-        $hasBenchmark = collect($curve)->contains(
-            fn (array $point): bool => $point['benchmark_pct'] !== null,
-        );
+        $portfolio = $this->numericSeries($curve, 'portfolio_pct', carryForward: true);
+        $benchmark = $this->numericSeries($curve, 'benchmark_pct', carryForward: false);
+        $hasBenchmark = array_filter($benchmark, fn (?float $value): bool => $value !== null) !== [];
 
         $series = [
             [
                 'name' => 'Vestix Portfolio',
-                'data' => array_column($curve, 'portfolio_pct'),
+                'data' => $portfolio,
             ],
         ];
 
         if ($hasBenchmark) {
             $series[] = [
                 'name' => $benchmarkLabel,
-                'data' => array_map(
-                    fn (array $point): ?float => $point['benchmark_pct'],
-                    $curve,
-                ),
+                'data' => $benchmark,
             ];
         }
 
@@ -63,7 +60,10 @@ class AlphaTrackerChart extends ApexChartWidget
             ],
             'series' => $series,
             'xaxis' => [
-                'categories' => array_column($curve, 'date'),
+                'categories' => array_values(array_map(
+                    fn (array $point): string => (string) $point['date'],
+                    $curve,
+                )),
                 'labels' => [
                     'style' => ['colors' => '#71717a', 'fontFamily' => 'inherit'],
                 ],
@@ -92,6 +92,35 @@ class AlphaTrackerChart extends ApexChartWidget
         ];
     }
 
+    /**
+     * Apex crashes when series contain unexpected nulls and tooltips call toFixed on them.
+     * Portfolio is always a number (carry-forward). Benchmark keeps null gaps for missing SPY days.
+     *
+     * @param  array<int, array<string, mixed>>  $curve
+     * @return list<float|null>
+     */
+    private function numericSeries(array $curve, string $key, bool $carryForward): array
+    {
+        $series = [];
+        $last = 0.0;
+
+        foreach ($curve as $point) {
+            $raw = $point[$key] ?? null;
+
+            if ($raw === null || (is_float($raw) && is_nan($raw))) {
+                $series[] = $carryForward ? $last : null;
+
+                continue;
+            }
+
+            $value = round((float) $raw, 2);
+            $last = $value;
+            $series[] = $value;
+        }
+
+        return $series;
+    }
+
     protected function extraJsOptions(): ?RawJs
     {
         return RawJs::make(<<<'JS'
@@ -99,14 +128,22 @@ class AlphaTrackerChart extends ApexChartWidget
             yaxis: {
                 labels: {
                     formatter: function (value) {
-                        return value.toFixed(1) + '%'
+                        if (value === null || value === undefined || value === '') {
+                            return ''
+                        }
+
+                        return Number(value).toFixed(1) + '%'
                     }
                 }
             },
             tooltip: {
                 y: {
                     formatter: function (value) {
-                        return value.toFixed(2) + '%'
+                        if (value === null || value === undefined || value === '') {
+                            return '—'
+                        }
+
+                        return Number(value).toFixed(2) + '%'
                     }
                 }
             }

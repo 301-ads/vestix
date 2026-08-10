@@ -42,6 +42,7 @@ class IbkrSyncServiceTest extends TestCase
         $this->mock(BenchmarkCloseResolver::class, function ($mock): void {
             $mock->shouldReceive('benchmarkTicker')->andReturn('SPY');
             $mock->shouldReceive('resolveTradingDayClose')->andReturn(757.67);
+            $mock->shouldReceive('warmClosesBetween')->andReturn([]);
         });
 
         $user = User::factory()->create([

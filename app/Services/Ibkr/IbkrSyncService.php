@@ -110,6 +110,9 @@ class IbkrSyncService
                         $this->bankrollSnapshots->resolveAlphaEquity($user, $snapshot->netLiquidation),
                         $this->alphaTrackerSessionDate(),
                     );
+
+                    // Warm SPY densify cache in console so Prestaties chart never blocks on live bars.
+                    $this->bankrollSnapshots->warmAlphaBenchmarkCloses($user);
                 }
             }
 

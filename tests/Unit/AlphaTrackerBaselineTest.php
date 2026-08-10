@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Contracts\DailyBarProvider;
 use App\Models\BankrollSnapshot;
 use App\Models\User;
 use App\Services\AlphaTrackerService;
@@ -11,6 +12,16 @@ use Tests\TestCase;
 class AlphaTrackerBaselineTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Snapshot-only assertions — block live SPY densify fan-out in PHPUnit.
+        $this->mock(DailyBarProvider::class, function ($mock): void {
+            $mock->shouldReceive('fetchRecentBars')->andReturn(null);
+        });
+    }
 
     public function test_growth_curve_uses_baseline_capital_and_ignores_pre_baseline_snapshots(): void
     {

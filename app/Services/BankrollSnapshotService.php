@@ -159,6 +159,23 @@ class BankrollSnapshotService
         return $query->get();
     }
 
+    /**
+     * Prefetch SPY session closes for Alpha densify so the Prestaties chart stays cache-hit only.
+     */
+    public function warmAlphaBenchmarkCloses(User $user): void
+    {
+        $snapshots = $this->snapshotsForUser($user);
+
+        if ($snapshots->count() < 2) {
+            return;
+        }
+
+        $this->benchmarkCloseResolver->warmClosesBetween(
+            $snapshots->first()->recorded_on->copy(),
+            $snapshots->last()->recorded_on->copy(),
+        );
+    }
+
     public function hasSnapshotThisWeek(User $user, ?Carbon $now = null): bool
     {
         $now ??= now($this->timezone());

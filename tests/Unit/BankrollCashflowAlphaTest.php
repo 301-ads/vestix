@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Contracts\DailyBarProvider;
 use App\Enums\BankrollCashflowType;
 use App\Models\BankrollSnapshot;
 use App\Models\User;
@@ -14,6 +15,15 @@ use Tests\TestCase;
 class BankrollCashflowAlphaTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->mock(DailyBarProvider::class, function ($mock): void {
+            $mock->shouldReceive('fetchRecentBars')->andReturn(null);
+        });
+    }
 
     public function test_opening_deposit_at_matching_nlv_is_zero_return(): void
     {

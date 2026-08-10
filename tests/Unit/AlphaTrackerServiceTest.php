@@ -2,15 +2,27 @@
 
 namespace Tests\Unit;
 
+use App\Filament\Widgets\AlphaTrackerChart;
 use App\Models\BankrollSnapshot;
 use App\Models\User;
 use App\Services\AlphaTrackerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use Tests\TestCase;
 
 class AlphaTrackerServiceTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Default: no live densify. The densify test replaces this mock.
+        $this->mock(\App\Contracts\DailyBarProvider::class, function ($mock): void {
+            $mock->shouldReceive('fetchRecentBars')->andReturn(null)->byDefault();
+        });
+    }
 
     public function test_growth_curve_calculates_portfolio_and_benchmark_percentages(): void
     {
@@ -55,6 +67,57 @@ class AlphaTrackerServiceTest extends TestCase
         // Portfolio carried forward from Jan 4 until the next real snapshot.
         $this->assertSame(0.0, $byDate['2026-01-05']['portfolio_pct']);
         $this->assertNull($byDate['2026-01-05']['amount']);
+    }
+
+    public function test_alpha_tracker_chart_options_coerce_null_series_values(): void
+    {
+        $user = User::factory()->create();
+        $this->seedSnapshots($user);
+
+        // Synthetic densify-style gap: null amount must not poison % series for Apex.
+        $this->mock(AlphaTrackerService::class, function ($mock) use ($user): void {
+            $mock->shouldReceive('hasEnoughSnapshots')->andReturn(true);
+            $mock->shouldReceive('growthCurve')->with(Mockery::on(fn ($u) => $u->is($user)))->andReturn([
+                [
+                    'date' => '2026-01-04',
+                    'amount' => 10000.0,
+                    'adjusted_amount' => 10000.0,
+                    'net_external' => 10000.0,
+                    'portfolio_pct' => 0.0,
+                    'benchmark_pct' => 0.0,
+                    'alpha_pct' => 0.0,
+                ],
+                [
+                    'date' => '2026-01-05',
+                    'amount' => null,
+                    'adjusted_amount' => null,
+                    'net_external' => null,
+                    'portfolio_pct' => 0.0,
+                    'benchmark_pct' => null,
+                    'alpha_pct' => null,
+                ],
+                [
+                    'date' => '2026-01-11',
+                    'amount' => 10300.0,
+                    'adjusted_amount' => 10300.0,
+                    'net_external' => 10000.0,
+                    'portfolio_pct' => 3.0,
+                    'benchmark_pct' => 2.0,
+                    'alpha_pct' => 1.0,
+                ],
+            ]);
+        });
+
+        $this->actingAs($user);
+
+        $widget = new AlphaTrackerChart;
+        $options = (new \ReflectionClass($widget))
+            ->getMethod('getOptions')
+            ->invoke($widget);
+
+        $this->assertSame([0.0, 0.0, 3.0], $options['series'][0]['data']);
+        $this->assertSame([0.0, null, 2.0], $options['series'][1]['data']);
+        $this->assertCount(3, $options['xaxis']['categories']);
     }
 
     public function test_ytd_stats_returns_alpha_difference(): void

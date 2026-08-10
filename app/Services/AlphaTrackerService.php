@@ -203,7 +203,13 @@ class AlphaTrackerService
             }
 
             $benchmarkPct = $this->growthPercent($baselineBenchmark, $closes[$date]);
-            $portfolioPct = (float) $lastPortfolio['portfolio_pct'];
+
+            // Skip hollow densify points — null benchmark in the series breaks Apex tooltips.
+            if ($benchmarkPct === null) {
+                continue;
+            }
+
+            $portfolioPct = (float) ($lastPortfolio['portfolio_pct'] ?? 0.0);
 
             $densified[] = [
                 'date' => $date,
@@ -212,9 +218,7 @@ class AlphaTrackerService
                 'net_external' => null,
                 'portfolio_pct' => $portfolioPct,
                 'benchmark_pct' => $benchmarkPct,
-                'alpha_pct' => $benchmarkPct !== null
-                    ? round($portfolioPct - $benchmarkPct, 2)
-                    : null,
+                'alpha_pct' => round($portfolioPct - $benchmarkPct, 2),
             ];
         }
 

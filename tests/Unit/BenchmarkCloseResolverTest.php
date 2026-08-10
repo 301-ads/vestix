@@ -76,4 +76,47 @@ class BenchmarkCloseResolverTest extends TestCase
 
         $this->assertSame(757.67, $resolver->resolveCloseForDate($date));
     }
+
+    public function test_closes_between_caches_range_and_skips_repeat_fetch(): void
+    {
+        $provider = Mockery::mock(DailyBarProvider::class);
+        $provider->shouldReceive('fetchRecentBars')->once()->andReturn([
+            'today' => ['open' => 1, 'high' => 1, 'low' => 1, 'close' => 520, 'volume' => 1],
+            'adv30' => 1.0,
+            'bars' => [
+                ['date' => '2026-01-05', 'open' => 1, 'high' => 1, 'low' => 1, 'close' => 490, 'volume' => 1],
+                ['date' => '2026-01-06', 'open' => 1, 'high' => 1, 'low' => 1, 'close' => 500, 'volume' => 1],
+            ],
+        ]);
+
+        $resolver = new BenchmarkCloseResolver($provider);
+        $from = Carbon::parse('2026-01-05 12:00:00', 'America/New_York');
+        $to = Carbon::parse('2026-01-06 12:00:00', 'America/New_York');
+
+        $first = $resolver->closesBetween($from, $to);
+        $second = $resolver->closesBetween($from, $to);
+
+        $this->assertSame([
+            '2026-01-05' => 490.0,
+            '2026-01-06' => 500.0,
+        ], $first);
+        $this->assertSame($first, $second);
+    }
+
+    public function test_closes_between_uses_daily_cache_without_remote_after_miss(): void
+    {
+        Cache::put('vestix:benchmark-close:SPY:2026-01-05', 490.0, now()->addDay());
+        Cache::put('vestix:benchmark-closes:SPY:2026-01-05:2026-01-06:miss', true, now()->addMinutes(10));
+
+        $provider = Mockery::mock(DailyBarProvider::class);
+        $provider->shouldNotReceive('fetchRecentBars');
+
+        $resolver = new BenchmarkCloseResolver($provider);
+        $closes = $resolver->closesBetween(
+            Carbon::parse('2026-01-05 12:00:00', 'America/New_York'),
+            Carbon::parse('2026-01-06 12:00:00', 'America/New_York'),
+        );
+
+        $this->assertSame(['2026-01-05' => 490.0], $closes);
+    }
 }
