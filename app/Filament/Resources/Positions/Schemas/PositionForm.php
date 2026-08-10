@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Positions\Schemas;
 
+use App\Enums\AutopsyTag;
 use App\Enums\EarningsReleaseHour;
 use App\Enums\PositionVisibility;
 use App\Enums\TradeDirection;
@@ -115,6 +116,7 @@ class PositionForm
                     ->schema([
                         self::setupDetailsSection($isScoutForm),
                         self::tradeReplaySection(),
+                        self::autopsySection(),
                         self::schildSection(),
                         self::earningsOverrideSection(),
                     ]),
@@ -146,6 +148,25 @@ class PositionForm
             ->schema([
                 View::make('filament.positions.trade-replay')
                     ->viewData(fn (?Position $record): array => ['record' => $record])
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    private static function autopsySection(): Section
+    {
+        return Section::make('Autopsie')
+            ->description('Procesdiscipline los van P&L. Flawless + verlies = Operatie Geslaagd; fout-tag + winst = Geluksschot.')
+            ->compact()
+            ->columnSpanFull()
+            ->extraAttributes(['class' => 'vestix-autopsy-section'])
+            ->visible(fn (?Position $record): bool => $record?->status === 'closed')
+            ->schema([
+                Select::make('autopsy_tag')
+                    ->label('Tag')
+                    ->options(AutopsyTag::options())
+                    ->native(false)
+                    ->nullable()
+                    ->helperText('Trek procesdiscipline los van de financiële uitkomst. Oudere trades kun je hier nog nagtaggen.')
                     ->columnSpanFull(),
             ]);
     }

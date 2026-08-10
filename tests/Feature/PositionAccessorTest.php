@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AutopsyTag;
 use App\Enums\TrailingStopMode;
 use App\Models\Asset;
 use App\Models\Position;
@@ -408,6 +409,27 @@ class PositionAccessorTest extends TestCase
         $this->assertEquals(88.00, (float) $fresh->current_sl);
         $this->assertEquals(100.00, (float) $fresh->entry_price);
         $this->assertEquals(5, (float) $fresh->quantity);
+    }
+
+    public function test_closed_position_allows_autopsy_tag_update(): void
+    {
+        $position = Position::factory()->create([
+            'status' => 'closed',
+            'exit_price' => 90.00,
+            'closed_at' => now(),
+            'entry_price' => 100.00,
+            'quantity' => 5,
+            'autopsy_tag' => null,
+        ]);
+
+        $position->update([
+            'autopsy_tag' => AutopsyTag::FlawlessExecution,
+        ]);
+
+        $this->assertSame(
+            AutopsyTag::FlawlessExecution,
+            $position->fresh()->autopsy_tag,
+        );
     }
 
     public function test_pre_earnings_scenario_a_uses_standard_sl_when_not_overheated(): void

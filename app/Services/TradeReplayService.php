@@ -6,6 +6,7 @@ use App\Contracts\DailyBarProvider;
 use App\Models\Position;
 use App\Models\SniperDailyBar;
 use App\Support\TechnicalIndicators;
+use App\Support\UsMarketSession;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -45,11 +46,13 @@ class TradeReplayService
             ?? optional($position->created_at)?->toDateString();
 
         $needed = $lookback + $forward + $warmup + 40;
+        $closedDate = optional($position->closed_at)?->toDateString();
         $bars = $this->resolveBars(
             $position->ticker,
             $needed,
             $anchorDate,
             minBeforeAnchor: $lookback + $warmup,
+            throughDate: $closedDate,
         );
         $demo = false;
 
@@ -74,7 +77,6 @@ class TradeReplayService
                 $displayEnd = min(count($bars) - 1, $anchorIndex + $forward);
 
                 // Long holds need candles through exit for reveal, not only +forward from entry.
-                $closedDate = optional($position->closed_at)?->toDateString();
                 if ($closedDate !== null) {
                     $exitIndex = $this->indexAtOrBefore($bars, $closedDate);
                     if ($exitIndex !== null) {
@@ -136,7 +138,7 @@ class TradeReplayService
         $exitTime = $this->resolveExitTime(
             $candles,
             $exitPrice,
-            optional($position->closed_at)?->toDateString(),
+            $closedDate,
             $entryTime,
             $short,
         );
@@ -375,13 +377,15 @@ class TradeReplayService
         }
 
         $times = array_column($candles, 'time');
-        $snappedClose = $this->snapToCandleTime($times, $closedDate);
 
-        if ($snappedClose !== null) {
-            return $snappedClose;
+        // Only place the exit on closed_at when that session bar is actually present.
+        // Snapping to an older bar (e.g. Friday while closed Monday) mislabels the kick-out.
+        if ($closedDate !== null && in_array($closedDate, $times, true)) {
+            return $closedDate;
         }
 
-        if ($exitPrice === null) {
+        if ($exitPrice === null || $closedDate !== null) {
+            // closed_at set but bar not loaded yet — wait; don't fake exit on an earlier day.
             return null;
         }
 
@@ -465,14 +469,23 @@ class TradeReplayService
     /**
      * @return list<array{open: float, high: float, low: float, close: float, volume: float, date: string}>|null
      */
-    private function resolveBars(string $ticker, int $limit, ?string $anchorDate, int $minBeforeAnchor = 0): ?array
-    {
-        $cacheKey = 'trade-replay:v8:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest').':'.$minBeforeAnchor;
+    private function resolveBars(
+        string $ticker,
+        int $limit,
+        ?string $anchorDate,
+        int $minBeforeAnchor = 0,
+        ?string $throughDate = null,
+    ): ?array {
+        $requiredThrough = $this->requiredThroughDate($throughDate);
+        $cacheKey = 'trade-replay:v9:'.strtoupper($ticker).':'.$limit.':'.($anchorDate ?? 'latest').':'.$minBeforeAnchor.':'.($requiredThrough ?? 'open');
 
-        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit, $anchorDate, $minBeforeAnchor): ?array {
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($ticker, $limit, $anchorDate, $minBeforeAnchor, $requiredThrough): ?array {
             $local = $this->localBars($ticker, max($limit, 200));
 
-            if ($this->coversAnchor($local, $anchorDate, minBars: max(40, $minBeforeAnchor), minBeforeAnchor: $minBeforeAnchor)) {
+            if (
+                $this->coversAnchor($local, $anchorDate, minBars: max(40, $minBeforeAnchor), minBeforeAnchor: $minBeforeAnchor)
+                && $this->coversThrough($local, $requiredThrough)
+            ) {
                 return $local;
             }
 
@@ -506,6 +519,32 @@ class TradeReplayService
                 $remote['bars'],
             ));
         });
+    }
+
+    /**
+     * Don't require a session bar that is not completed yet (before US close).
+     */
+    private function requiredThroughDate(?string $throughDate): ?string
+    {
+        if ($throughDate === null) {
+            return null;
+        }
+
+        $expectedCompleted = UsMarketSession::expectedLastCompletedSessionDate()->toDateString();
+
+        return $throughDate > $expectedCompleted ? $expectedCompleted : $throughDate;
+    }
+
+    /**
+     * @param  list<array{date: string}>  $bars
+     */
+    private function coversThrough(array $bars, ?string $throughDate): bool
+    {
+        if ($throughDate === null || $bars === []) {
+            return true;
+        }
+
+        return $bars[array_key_last($bars)]['date'] >= $throughDate;
     }
 
     /**

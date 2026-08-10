@@ -208,7 +208,6 @@ class Position extends Model
                 'status',
                 'exit_price',
                 'closed_at',
-                'autopsy_tag',
                 'scaled_out_price',
                 'scaled_out_quantity',
                 'scaled_out_at',

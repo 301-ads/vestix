@@ -303,6 +303,69 @@ class TradeReplayServiceTest extends TestCase
         $this->assertLessThan(80.0, (float) $payload['candles'][$fogIndex]['close']);
     }
 
+    public function test_exit_time_waits_for_closed_session_bar(): void
+    {
+        Cache::flush();
+
+        $position = Position::factory()->create([
+            'ticker' => 'AWK',
+            'status' => 'closed',
+            'direction' => 'long',
+            'entry_price' => 134.99,
+            'exit_price' => 132.28,
+            'initial_sl' => 129.37,
+            'quantity' => 7,
+            'signal_bar_date' => '2026-07-28',
+            'closed_at' => '2026-08-10 15:00:00',
+        ]);
+
+        $bars = [];
+        $start = Carbon::parse('2026-05-01');
+
+        for ($i = 0; $i < 100; $i++) {
+            $date = $start->copy()->addDays($i)->toDateString();
+            if ($date > '2026-08-07') {
+                break;
+            }
+
+            $bars[] = [
+                'open' => 130.0,
+                'high' => 133.0,
+                'low' => 128.0,
+                'close' => 131.0,
+                'volume' => 1_000_000,
+                'date' => $date,
+            ];
+        }
+
+        foreach ($bars as &$bar) {
+            if ($bar['date'] === '2026-07-28') {
+                $bar['high'] = 133.0;
+                $bar['close'] = 132.0;
+            }
+            if ($bar['date'] === '2026-07-29') {
+                $bar['high'] = 136.0;
+                $bar['low'] = 133.0;
+                $bar['close'] = 135.0;
+            }
+        }
+        unset($bar);
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')->andReturn([
+            'today' => $bars[array_key_last($bars)],
+            'adv30' => 1_000_000.0,
+            'bars' => $bars,
+        ]);
+
+        $payload = (new TradeReplayService($dailyBars))->build($position, allowDemoFallback: false);
+
+        $this->assertNotNull($payload);
+        $this->assertSame('2026-07-28', $payload['fog_time']);
+        $this->assertNull($payload['exit_time']);
+        $this->assertFalse(collect($payload['markers'])->contains(fn (array $m): bool => $m['role'] === 'exit'));
+    }
+
     public function test_sma20_covers_first_visible_candle_with_warmup_history(): void
     {
         Cache::flush();

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Filament;
 
+use App\Enums\AutopsyTag;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Positions\Pages\CreatePosition;
 use App\Filament\Resources\Positions\Pages\CreateScout;
@@ -637,6 +638,30 @@ class PositionResourceTest extends TestCase
         $this->assertEquals(
             'Post-mortem: stopped out on sector rotation.',
             $position->fresh()->trade_journal,
+        );
+    }
+
+    public function test_closed_position_autopsy_tag_remains_editable(): void
+    {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->closed()->create([
+            'entry_price' => 100.00,
+            'exit_price' => 90.00,
+            'quantity' => 10,
+            'autopsy_tag' => null,
+        ]);
+
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertSee('Autopsie')
+            ->fillForm([
+                'autopsy_tag' => AutopsyTag::FlawlessExecution->value,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(
+            AutopsyTag::FlawlessExecution,
+            $position->fresh()->autopsy_tag,
         );
     }
 

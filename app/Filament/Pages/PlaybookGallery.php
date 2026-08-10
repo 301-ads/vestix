@@ -45,7 +45,7 @@ class PlaybookGallery extends Page implements HasTable
     {
         return $table
             ->heading('Perfecte setups')
-            ->description('Alleen A++ en Flawless Execution — patroonherkenning voor het brein.')
+            ->description('A++ setups en Flawless Execution (ook verlies = Operatie Geslaagd) — patroonherkenning voor het brein.')
             ->query($this->playbookQuery())
             ->defaultSort('closed_at', 'desc')
             ->columns([
