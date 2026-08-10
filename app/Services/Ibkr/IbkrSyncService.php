@@ -92,8 +92,9 @@ class IbkrSyncService
                     // before the open. Dating Alpha Tracker on that session keeps NLV and
                     // SPY on the same closed trading day (avoids premarket SPY catch-up spikes).
                     // Equity = IBKR NLV + open Revolut MTM so multi-broker capital stays in Prestaties.
-                    // Fill missing calendar days from Flex EquitySummary first (gap-only), then
-                    // overwrite the session date with live alpha equity.
+                    // Catch up only days after the newest snapshot (missed syncs). Never backfill
+                    // early history with IBKR + current Revolut — that invents fake drawdowns when
+                    // other Revolut holdings existed (HALO era). SPY densify covers the chart path.
                     $user = $user->fresh() ?? $user;
                     $revolutAddon = $this->bankrollSnapshots->revolutOpenPositionsMarketValue($user)
                         + max(0.0, (float) ($user->revolut_cash ?? 0));

@@ -157,7 +157,7 @@ class BankrollSnapshotServiceTest extends TestCase
         $this->assertTrue($service->isUpdateDue($user));
     }
 
-    public function test_fill_missing_from_ibkr_daily_equity_skips_existing_and_zero_days(): void
+    public function test_fill_missing_from_ibkr_daily_equity_only_fills_after_latest_snapshot(): void
     {
         $resolver = Mockery::mock(BenchmarkCloseResolver::class);
         $resolver->shouldReceive('benchmarkTicker')->andReturn('SPY');
@@ -178,23 +178,32 @@ class BankrollSnapshotServiceTest extends TestCase
             'recorded_at' => now(),
         ]);
 
+        BankrollSnapshot::query()->create([
+            'user_id' => $user->id,
+            'amount' => 9256.68,
+            'benchmark_ticker' => 'SPY',
+            'benchmark_close' => 773.26,
+            'recorded_on' => '2026-08-10',
+            'recorded_at' => now(),
+        ]);
+
+        // Jul 16/17 are before latest snapshot — must NOT invent a fake Revolut-era cliff.
         $filled = $service->fillMissingFromIbkrDailyEquity($user, [
-            '2026-07-14' => 1000.0, // before baseline
-            '2026-07-15' => 2000.0, // existing
-            '2026-07-16' => 0.0,
+            '2026-07-16' => 3437.84,
             '2026-07-17' => 4555.29,
-        ], 1389.96);
+            '2026-08-10' => 7866.94, // existing latest
+            '2026-08-11' => 7900.00, // after latest → catch-up OK
+        ], 1389.74);
 
         $this->assertSame(1, $filled);
+        $this->assertDatabaseMissing('bankroll_snapshots', [
+            'user_id' => $user->id,
+            'recorded_on' => '2026-07-16 00:00:00',
+        ]);
         $this->assertDatabaseHas('bankroll_snapshots', [
             'user_id' => $user->id,
-            'recorded_on' => '2026-07-17 00:00:00',
-            'amount' => 5945.25,
+            'recorded_on' => '2026-08-11 00:00:00',
+            'amount' => 9289.74,
         ]);
-        $this->assertSame(1, BankrollSnapshot::query()
-            ->where('user_id', $user->id)
-            ->whereDate('recorded_on', '2026-07-15')
-            ->where('amount', 5555.82)
-            ->count());
     }
 }
