@@ -5909,14 +5909,14 @@
 }
 
 .vestix-portfolio-coach__sector--full {
-    border-color: rgb(245 158 11 / 0.55);
-    background-color: rgb(245 158 11 / 0.1);
+    border-color: rgb(244 63 94 / 0.55);
+    background-color: rgb(244 63 94 / 0.1);
     opacity: 1;
 }
 
 .dark .vestix-portfolio-coach__sector--full {
-    border-color: rgb(245 158 11 / 0.45);
-    background-color: rgb(245 158 11 / 0.12);
+    border-color: rgb(244 63 94 / 0.45);
+    background-color: rgb(244 63 94 / 0.12);
 }
 
 .vestix-portfolio-coach__sector--meewind {
@@ -5997,13 +5997,13 @@
 }
 
 .vestix-portfolio-coach__sector-state--full {
-    background: rgb(245 158 11 / 0.15);
-    color: rgb(180 83 9);
+    background: rgb(244 63 94 / 0.15);
+    color: rgb(190 18 60);
 }
 
 .dark .vestix-portfolio-coach__sector-state--full {
-    background: rgb(245 158 11 / 0.18);
-    color: rgb(251 191 36);
+    background: rgb(244 63 94 / 0.18);
+    color: rgb(251 113 133);
 }
 
 .vestix-portfolio-coach__sector-state--meewind,
