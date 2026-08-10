@@ -854,7 +854,7 @@ class PositionForm
                     ->schema([
                         TextInput::make('entry_price')
                             ->label(function (?Position $record, string $operation) use ($isScoutForm): string {
-                                return $isScoutForm($record, $operation) ? 'Geplande entry' : 'Entry prijs';
+                                return $isScoutForm($record, $operation) ? 'Geplande buy-stop' : 'Entry prijs (fill)';
                             })
                             ->required(function (?Position $record, string $operation) use ($isScoutForm): bool {
                                 return ! $isScoutForm($record, $operation) && ! self::isArchiveAnalysis($record);

@@ -145,13 +145,16 @@ class MarketDataFetcher
             return $live !== null ? round($live, 2) : null;
         }
 
-        // RTH + post-market: prefer live/EH over the last completed daily bar.
-        if (UsMarketSession::isIntradayTargetWatchWindow() || UsMarketSession::isAfterMarketClose()) {
+        // During RTH, prefer live marks so open P&L tracks the tape.
+        if (UsMarketSession::isIntradayTargetWatchWindow()) {
             $live = $this->quotes->fetchLivePrice($ticker);
 
             return $live !== null ? round($live, 2) : null;
         }
 
+        // After the US close, keep the completed session close from daily bars /
+        // session-quote refresh. Delayed live/EH feeds (e.g. Polygon last trade)
+        // were overwriting correct Finnhub EOD marks (PINS 24.37 → 23.52).
         return null;
     }
 

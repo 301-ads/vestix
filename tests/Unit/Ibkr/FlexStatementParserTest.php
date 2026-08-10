@@ -21,6 +21,8 @@ class FlexStatementParserTest extends TestCase
         $this->assertSame(3800.50, $snapshot->deployableCapital());
         $this->assertCount(2, $snapshot->openPositions);
         $this->assertSame('RPRX', $snapshot->openPositions[0]->symbol);
+        $this->assertSame(31.55, $snapshot->openPositions[0]->averageCost);
+        $this->assertSame(8.05, $snapshot->openPositions[1]->averageCost);
         $this->assertCount(6, $snapshot->cashTransactions);
         $this->assertSame('U1234567', $snapshot->metadata?->accountId);
         $this->assertSame('2026-07-17', $snapshot->metadata?->formattedToDate());

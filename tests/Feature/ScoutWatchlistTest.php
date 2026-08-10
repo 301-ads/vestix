@@ -516,6 +516,40 @@ class ScoutWatchlistTest extends TestCase
         $this->assertEquals(8, (float) $scout->quantity);
     }
 
+    public function test_activate_scout_persists_fill_not_planned_buy_stop_default(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->forceFill([
+            'ibkr_open_positions' => [
+                ['symbol' => 'PINS', 'quantity' => 59, 'average_cost' => 23.77],
+            ],
+        ])->save();
+
+        $scout = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
+            'ticker' => 'PINS',
+            'signal_high' => 23.80,
+            'entry_price' => 23.90, // planned buy-stop / limit confusion
+            'quantity' => 59,
+            'latest_close_price' => 24.37,
+            'latest_sma_20' => 23.50,
+            'latest_atr_14' => 0.99,
+            'strategy_tag_id' => $this->defaultStrategyTagId(),
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->callTableAction('activate_scout', $scout, data: [
+                'entry_price' => 23.77,
+                'quantity' => 59,
+            ])
+            ->assertHasNoErrors();
+
+        $scout->refresh();
+
+        $this->assertSame('open', $scout->status);
+        $this->assertEqualsWithDelta(23.77, (float) $scout->entry_price, 0.001);
+        $this->assertNotEqualsWithDelta(23.90, (float) $scout->entry_price, 0.001);
+    }
+
     public function test_activate_scout_action_works_without_strategy_tag(): void
     {
         $user = $this->authenticateFilament();

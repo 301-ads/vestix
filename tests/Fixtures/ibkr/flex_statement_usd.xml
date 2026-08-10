@@ -8,8 +8,8 @@
                 <CashReportCurrency accountId="U1234567" currency="BASE" levelOfDetail="BaseCurrency" endingCash="5100.00" endingSettledCash="3800.50" deposits="3428.40" withdrawals="0"/>
             </CashReport>
             <OpenPositions>
-                <OpenPosition accountId="U1234567" symbol="RPRX" position="100" markPrice="32.10"/>
-                <OpenPosition accountId="U1234567" symbol="OCUL" position="50" markPrice="8.20"/>
+                <OpenPosition accountId="U1234567" symbol="RPRX" position="100" markPrice="32.10" averageCost="31.55"/>
+                <OpenPosition accountId="U1234567" symbol="OCUL" position="50" markPrice="8.20" averageCost="8.05"/>
             </OpenPositions>
             <CashTransactions>
                 <CashTransaction accountId="U1234567" transactionID="TX-DEP-001" type="Deposits &amp; Withdrawals" amount="3428.40" currency="USD" reportDate="20260716" description="Electronic Fund Transfer"/>

@@ -319,7 +319,12 @@ class FlexStatementParser
                 continue;
             }
 
-            $positions[] = new IbkrOpenPosition($symbol, $quantity);
+            $averageCostRaw = $node['averageCost'] ?? $node['costBasisPrice'] ?? null;
+            $averageCost = $averageCostRaw !== null && (float) $averageCostRaw > 0
+                ? round((float) $averageCostRaw, 4)
+                : null;
+
+            $positions[] = new IbkrOpenPosition($symbol, $quantity, $averageCost);
         }
 
         return $positions;

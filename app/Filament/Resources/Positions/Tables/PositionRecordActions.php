@@ -18,6 +18,7 @@ use App\Support\ChartScreenshotUpload;
 use App\Support\EarningsExitDisplay;
 use App\Support\EarningsExitSchedule;
 use App\Support\FilamentNotifier;
+use App\Support\IbkrFillPrice;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
 use App\Support\PositionSizing;
@@ -175,7 +176,7 @@ class PositionRecordActions
             ->modalDescription(fn (Position $record): string => match (true) {
                 self::scoutExceedsRiskLimit($record) => self::scoutRiskOverrideDescription($record),
                 self::scoutEarningsOverrideRequired($record) => self::scoutEarningsOverrideDescription($record),
-                default => 'Vul je werkelijke fill en aantal in. Bij een partial fill: pas het aantal aan naar wat IBKR echt gevuld heeft (ook later via Edit). Na activatie verschijnt een actie om de stop-loss bij je broker in te stellen.',
+                default => 'Vul je werkelijke IBKR-fill (avg) en aantal in — niet de geplande buy-stop of limit uit Order Plan. Bij partial fill: pas het aantal aan naar wat IBKR echt gevuld heeft (ook later via Edit).',
             })
             ->modalSubmitActionLabel(fn (Position $record): string => match (true) {
                 self::scoutExceedsRiskLimit($record) => 'Toch doordrukken',
@@ -183,15 +184,38 @@ class PositionRecordActions
                 default => 'Activeren',
             })
             ->schema([
+                Placeholder::make('planned_entry_reference')
+                    ->label('Order Plan (alleen referentie)')
+                    ->content(function (Position $record): HtmlString {
+                        $stop = IbkrFillPrice::plannedBuyStop($record);
+                        $limit = IbkrFillPrice::plannedLimit($record);
+                        $parts = [];
+
+                        if ($stop !== null) {
+                            $parts[] = 'Buy-stop $'.number_format($stop, 2);
+                        }
+
+                        if ($limit !== null) {
+                            $parts[] = 'Limit $'.number_format($limit, 2);
+                        }
+
+                        $text = $parts === []
+                            ? 'Geen geplande buy-stop bekend.'
+                            : implode(' · ', $parts).' — dit is géén fill.';
+
+                        return new HtmlString(
+                            '<span class="text-sm text-gray-600 dark:text-gray-400">'.$text.'</span>'
+                        );
+                    }),
                 TextInput::make('entry_price')
-                    ->label('Entry prijs')
+                    ->label('Werkelijke fill (IBKR avg)')
                     ->numeric()
                     ->required()
                     ->prefix('$')
                     ->minValue(0.01)
-                    ->default(fn (Position $record): ?float => $record->entry_price !== null
-                        ? (float) $record->entry_price
-                        : null),
+                    ->helperText('Gemiddelde fillprijs van je broker. Nooit de buy-stop of limit uit Order Plan.')
+                    // Prefer Flex averageCost when present. Never default to planned buy-stop/limit.
+                    ->default(fn (Position $record): ?float => IbkrFillPrice::suggestedFillForScout($record)),
                 TextInput::make('quantity')
                     ->label('Aantal')
                     ->numeric()
