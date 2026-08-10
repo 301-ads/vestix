@@ -1805,6 +1805,12 @@ class PositionForm
 
     private static function syncEntryStopFromSignal(Set $set, Get $get, ?Position $record): void
     {
+        // Planned buy/sell-stop drives scout entry only. On open/closed fills, never
+        // overwrite the real entry (hydrate of hidden scout signal fields was resetting PINS to 23.90).
+        if (! self::isScoutSizingContext($record)) {
+            return;
+        }
+
         $direction = self::resolveFormDirection($get, $record);
         $signalLow = $get('signal_low') ?? $record?->signal_low;
         $signalHigh = $get('signal_high') ?? $record?->signal_high;

@@ -665,6 +665,37 @@ class PositionResourceTest extends TestCase
         );
     }
 
+    public function test_open_position_edit_keeps_fill_entry_instead_of_planned_buy_stop(): void
+    {
+        $user = $this->authenticateFilament();
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'PINS',
+            'status' => 'open',
+            'direction' => 'long',
+            'entry_price' => 23.77,
+            'quantity' => 59,
+            'current_sl' => 23.12,
+            'signal_high' => 23.80,
+            'signal_low' => 23.10,
+            'latest_atr_14' => 0.99,
+            'latest_close_price' => 23.52,
+            'latest_sma_20' => 23.50,
+        ]);
+
+        // Planned buy-stop would be 23.80 + 0.1*0.99 = 23.90 — must not replace the fill.
+        Livewire::test(EditPosition::class, ['record' => $position->getKey()])
+            ->assertFormSet([
+                'entry_price' => 23.77,
+            ])
+            ->fillForm([
+                'entry_price' => 23.77,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertEqualsWithDelta(23.77, (float) $position->fresh()->entry_price, 0.001);
+    }
+
     public function test_fetch_market_data_action_updates_open_position_form_and_cockpit(): void
     {
         config([
