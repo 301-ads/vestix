@@ -31,12 +31,16 @@
                         <span class="vestix-portfolio-coach__split-long" style="width: {{ $longPct }}%"></span>
                         <span class="vestix-portfolio-coach__split-short" style="width: {{ $shortPct }}%"></span>
                     </div>
-                    <p @class([
-                        'vestix-portfolio-coach__vital-badge',
-                        'vestix-portfolio-coach__vital-badge--ok' => $balance['balanced'],
-                        'vestix-portfolio-coach__vital-badge--warn' => ! $balance['balanced'],
-                    ])>
-                        {{ $balance['label'] }}
+                    <p class="vestix-portfolio-coach__vital-meta vestix-portfolio-coach__vital-meta--split">
+                        <span class="vestix-portfolio-coach__balance-pct-long">{{ $longPct }}% L</span>
+                        <span
+                            @class([
+                                'vestix-portfolio-coach__vital-badge',
+                                'vestix-portfolio-coach__vital-badge--ok' => $balance['balanced'],
+                                'vestix-portfolio-coach__vital-badge--warn' => ! $balance['balanced'],
+                            ])
+                        >{{ $balance['label'] }}</span>
+                        <span class="vestix-portfolio-coach__balance-pct-short">{{ $shortPct }}% S</span>
                     </p>
                 </div>
 
@@ -60,75 +64,40 @@
                 </div>
             </div>
 
-            {{-- Module 2: Directives + mini balance --}}
-            <div class="vestix-portfolio-coach__mid">
-                <div class="vestix-portfolio-coach__directives">
-                    <h3 class="vestix-portfolio-coach__module-title">Tactical Directives</h3>
-                    <ul class="vestix-portfolio-coach__directive-list">
-                        @foreach ($directives as $directive)
-                            <li @class([
-                                'vestix-portfolio-coach__directive',
-                                'vestix-portfolio-coach__directive--'.$directive['severity'],
-                            ])>
+            {{-- Module 2: Directives (full width) --}}
+            <div class="vestix-portfolio-coach__directives">
+                <h3 class="vestix-portfolio-coach__module-title">Tactical Directives</h3>
+                <ul class="vestix-portfolio-coach__directive-list">
+                    @foreach ($directives as $directive)
+                        @php $ctaUrl = $this->resolveCtaUrl($directive['cta'] ?? null); @endphp
+                        <li @class([
+                            'vestix-portfolio-coach__directive',
+                            'vestix-portfolio-coach__directive--'.$directive['severity'],
+                        ])>
+                            <div class="vestix-portfolio-coach__directive-top">
                                 <div class="vestix-portfolio-coach__directive-head">
-                                    <span class="vestix-portfolio-coach__directive-icon" aria-hidden="true">
-                                        @switch($directive['severity'])
-                                            @case('danger')
-                                                ●
-                                                @break
-                                            @case('warning')
-                                                ▲
-                                                @break
-                                            @case('success')
-                                                ◆
-                                                @break
-                                            @default
-                                                ○
-                                        @endswitch
-                                    </span>
+                                    <span class="vestix-portfolio-coach__directive-icon" aria-hidden="true"></span>
                                     <p class="vestix-portfolio-coach__directive-headline">
                                         {{ $directive['headline'] }}
                                     </p>
                                 </div>
-                                <p class="vestix-portfolio-coach__directive-status">{{ $directive['status'] }}</p>
-                                <p class="vestix-portfolio-coach__directive-order">
-                                    <span class="vestix-portfolio-coach__order-label">Order:</span>
-                                    {{ $directive['order'] }}
-                                </p>
-                                @php $ctaUrl = $this->resolveCtaUrl($directive['cta'] ?? null); @endphp
                                 @if ($ctaUrl)
-                                    <a
-                                        href="{{ $ctaUrl }}"
-                                        class="vestix-portfolio-coach__cta"
-                                    >
+                                    <a href="{{ $ctaUrl }}" class="vestix-portfolio-coach__cta">
                                         {{ $directive['cta']['label'] }}
                                     </a>
                                 @endif
-                            </li>
-                        @endforeach
-                    </ul>
-                </div>
-
-                <aside class="vestix-portfolio-coach__balance-panel" aria-label="Long short balans">
-                    <h3 class="vestix-portfolio-coach__module-title">Exposure</h3>
-                    <div class="vestix-portfolio-coach__balance-panel-body">
-                        <p class="vestix-portfolio-coach__balance-pct">
-                            <span class="vestix-portfolio-coach__balance-pct-long">{{ $longPct }}% L</span>
-                            <span class="vestix-portfolio-coach__balance-pct-short">{{ $shortPct }}% S</span>
-                        </p>
-                        <div
-                            class="vestix-portfolio-coach__split vestix-portfolio-coach__split--tall"
-                            role="img"
-                            aria-label="{{ $longPct }}% long, {{ $shortPct }}% short"
-                        >
-                            <span class="vestix-portfolio-coach__split-long" style="width: {{ max($longPct, $balance['total'] === 0 ? 0 : $longPct) }}%"></span>
-                            <span class="vestix-portfolio-coach__split-short" style="width: {{ $shortPct }}%"></span>
-                        </div>
-                        <p class="vestix-portfolio-coach__vital-meta">
-                            {{ $balance['long'] }} long · {{ $balance['short'] }} short
-                        </p>
-                    </div>
-                </aside>
+                            </div>
+                            <p class="vestix-portfolio-coach__directive-body">
+                                <span class="vestix-portfolio-coach__directive-status">{{ $directive['status'] }}</span>
+                                <span class="vestix-portfolio-coach__directive-sep" aria-hidden="true">·</span>
+                                <span class="vestix-portfolio-coach__directive-order">
+                                    <span class="vestix-portfolio-coach__order-label">Order</span>
+                                    {{ $directive['order'] }}
+                                </span>
+                            </p>
+                        </li>
+                    @endforeach
+                </ul>
             </div>
 
             {{-- Module 3: Sector grid --}}
