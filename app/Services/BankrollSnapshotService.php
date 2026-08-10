@@ -82,6 +82,53 @@ class BankrollSnapshotService
         return $snapshot;
     }
 
+    /**
+     * Gap-fill Alpha Tracker days from IBKR Flex EquitySummaryByReportDate.
+     * Never overwrites an existing snapshot (manual / live corrections stay authoritative).
+     * Revolut addon is current open MTM (+ cash) — best-effort for multi-broker charts.
+     *
+     * @param  array<string, float>  $equityByReportDate  Y-m-d => IBKR NLV
+     */
+    public function fillMissingFromIbkrDailyEquity(
+        User $user,
+        array $equityByReportDate,
+        float $revolutAddon = 0.0,
+    ): int {
+        $filled = 0;
+        $baseline = $user->baseline_date?->copy()->timezone($this->timezone())->startOfDay();
+        $revolutAddon = max(0.0, $revolutAddon);
+
+        foreach ($equityByReportDate as $date => $ibkrNlv) {
+            if ($ibkrNlv <= 0) {
+                continue;
+            }
+
+            $recordedOn = Carbon::parse((string) $date, $this->timezone())->startOfDay();
+
+            if ($baseline !== null && $recordedOn->lt($baseline)) {
+                continue;
+            }
+
+            $exists = BankrollSnapshot::query()
+                ->where('user_id', $user->id)
+                ->whereDate('recorded_on', $recordedOn->toDateString())
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            $this->recordSnapshot(
+                $user,
+                round((float) $ibkrNlv + $revolutAddon, 2),
+                $recordedOn,
+            );
+            $filled++;
+        }
+
+        return $filled;
+    }
+
     public function latestSnapshot(User $user): ?BankrollSnapshot
     {
         return $user->bankrollSnapshots()

@@ -48,7 +48,43 @@ class FlexStatementParser
             cashTransactions: $this->parseCashTransactions($statement),
             metadata: $this->parseMetadata($statement),
             availableFundsIsExplicit: $availableFundsIsExplicit,
+            equityByReportDate: $this->parseEquityByReportDate($statement),
         );
+    }
+
+    /**
+     * Daily EquitySummary totals keyed by Y-m-d (IBKR Net Liquidation path).
+     *
+     * @return array<string, float>
+     */
+    private function parseEquityByReportDate(SimpleXMLElement $statement): array
+    {
+        $rows = $statement->EquitySummaryInBase->EquitySummaryByReportDateInBase ?? null;
+
+        if (! $rows instanceof SimpleXMLElement) {
+            return [];
+        }
+
+        $byDate = [];
+
+        foreach ($rows as $row) {
+            $rawDate = trim((string) ($row['reportDate'] ?? ''));
+            $total = trim((string) ($row['total'] ?? ''));
+
+            if ($rawDate === '' || $total === '') {
+                continue;
+            }
+
+            $date = strlen($rawDate) === 8
+                ? substr($rawDate, 0, 4).'-'.substr($rawDate, 4, 2).'-'.substr($rawDate, 6, 2)
+                : $rawDate;
+
+            $byDate[$date] = round((float) $total, 2);
+        }
+
+        ksort($byDate);
+
+        return $byDate;
     }
 
     private function parseMetadata(SimpleXMLElement $statement): FlexStatementMetadata

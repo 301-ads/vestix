@@ -156,4 +156,45 @@ class BankrollSnapshotServiceTest extends TestCase
 
         $this->assertTrue($service->isUpdateDue($user));
     }
+
+    public function test_fill_missing_from_ibkr_daily_equity_skips_existing_and_zero_days(): void
+    {
+        $resolver = Mockery::mock(BenchmarkCloseResolver::class);
+        $resolver->shouldReceive('benchmarkTicker')->andReturn('SPY');
+        $resolver->shouldReceive('resolveTradingDayClose')->andReturn(500.0);
+
+        $service = new BankrollSnapshotService($resolver);
+        $user = User::factory()->create([
+            'baseline_date' => '2026-07-15',
+            'revolut_cash' => 0,
+        ]);
+
+        BankrollSnapshot::query()->create([
+            'user_id' => $user->id,
+            'amount' => 5555.82,
+            'benchmark_ticker' => 'SPY',
+            'benchmark_close' => 751.83,
+            'recorded_on' => '2026-07-15',
+            'recorded_at' => now(),
+        ]);
+
+        $filled = $service->fillMissingFromIbkrDailyEquity($user, [
+            '2026-07-14' => 1000.0, // before baseline
+            '2026-07-15' => 2000.0, // existing
+            '2026-07-16' => 0.0,
+            '2026-07-17' => 4555.29,
+        ], 1389.96);
+
+        $this->assertSame(1, $filled);
+        $this->assertDatabaseHas('bankroll_snapshots', [
+            'user_id' => $user->id,
+            'recorded_on' => '2026-07-17 00:00:00',
+            'amount' => 5945.25,
+        ]);
+        $this->assertSame(1, BankrollSnapshot::query()
+            ->where('user_id', $user->id)
+            ->whereDate('recorded_on', '2026-07-15')
+            ->where('amount', 5555.82)
+            ->count());
+    }
 }

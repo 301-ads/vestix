@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\BankrollSnapshot;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class AlphaTrackerService
@@ -11,6 +12,7 @@ class AlphaTrackerService
     public function __construct(
         private BankrollSnapshotService $bankrollSnapshots,
         private BankrollCashflowService $cashflows,
+        private BenchmarkCloseResolver $benchmarkCloseResolver,
     ) {}
 
     public function hasEnoughSnapshots(User $user): bool
@@ -68,9 +70,9 @@ class AlphaTrackerService
     /**
      * @return array<int, array{
      *     date: string,
-     *     amount: float,
+     *     amount: float|null,
      *     adjusted_amount: float|null,
-     *     net_external: float,
+     *     net_external: float|null,
      *     portfolio_pct: float,
      *     benchmark_pct: float|null,
      *     alpha_pct: float|null,
@@ -90,7 +92,7 @@ class AlphaTrackerService
             ? (float) $baseline->benchmark_close
             : null;
 
-        return $snapshots
+        $points = $snapshots
             ->map(function (BankrollSnapshot $snapshot) use ($user, $legacyBaselineAmount, $baselineBenchmark): array {
                 $netExternal = $this->cashflows->netExternalIn(
                     $user,
@@ -129,6 +131,94 @@ class AlphaTrackerService
             })
             ->values()
             ->all();
+
+        return $this->densifyWithDailyBenchmark($points, $baselineBenchmark);
+    }
+
+    /**
+     * Insert trading-day points so SPY shows dips between sparse bankroll snapshots.
+     * Portfolio % is carried forward between real snapshot dates.
+     *
+     * @param  array<int, array{
+     *     date: string,
+     *     amount: float|null,
+     *     adjusted_amount: float|null,
+     *     net_external: float|null,
+     *     portfolio_pct: float,
+     *     benchmark_pct: float|null,
+     *     alpha_pct: float|null,
+     * }>  $points
+     * @return array<int, array{
+     *     date: string,
+     *     amount: float|null,
+     *     adjusted_amount: float|null,
+     *     net_external: float|null,
+     *     portfolio_pct: float,
+     *     benchmark_pct: float|null,
+     *     alpha_pct: float|null,
+     * }>
+     */
+    private function densifyWithDailyBenchmark(array $points, ?float $baselineBenchmark): array
+    {
+        if ($baselineBenchmark === null || $baselineBenchmark <= 0 || count($points) < 2) {
+            return $points;
+        }
+
+        $byDate = [];
+        foreach ($points as $point) {
+            $byDate[$point['date']] = $point;
+        }
+
+        $firstDate = $points[0]['date'];
+        $lastDate = $points[array_key_last($points)]['date'];
+        $closes = $this->benchmarkCloseResolver->closesBetween(
+            Carbon::parse($firstDate),
+            Carbon::parse($lastDate),
+        );
+
+        if ($closes === []) {
+            return $points;
+        }
+
+        $dates = array_values(array_unique([...array_keys($closes), ...array_keys($byDate)]));
+        sort($dates);
+
+        $densified = [];
+        $lastPortfolio = $points[0];
+
+        foreach ($dates as $date) {
+            if ($date < $firstDate || $date > $lastDate) {
+                continue;
+            }
+
+            if (isset($byDate[$date])) {
+                $lastPortfolio = $byDate[$date];
+                $densified[] = $byDate[$date];
+
+                continue;
+            }
+
+            if (! isset($closes[$date])) {
+                continue;
+            }
+
+            $benchmarkPct = $this->growthPercent($baselineBenchmark, $closes[$date]);
+            $portfolioPct = (float) $lastPortfolio['portfolio_pct'];
+
+            $densified[] = [
+                'date' => $date,
+                'amount' => null,
+                'adjusted_amount' => null,
+                'net_external' => null,
+                'portfolio_pct' => $portfolioPct,
+                'benchmark_pct' => $benchmarkPct,
+                'alpha_pct' => $benchmarkPct !== null
+                    ? round($portfolioPct - $benchmarkPct, 2)
+                    : null,
+            ];
+        }
+
+        return $densified;
     }
 
     /**

@@ -69,6 +69,7 @@ class IbkrSyncService
                     cashTransactions: $snapshot->cashTransactions,
                     metadata: $snapshot->metadata,
                     availableFundsIsExplicit: $snapshot->availableFundsIsExplicit,
+                    equityByReportDate: $snapshot->equityByReportDate,
                 );
             } catch (Throwable $ordersException) {
                 if ((bool) config('vestix.ibkr.client_portal.enabled', false)) {
@@ -91,6 +92,18 @@ class IbkrSyncService
                     // before the open. Dating Alpha Tracker on that session keeps NLV and
                     // SPY on the same closed trading day (avoids premarket SPY catch-up spikes).
                     // Equity = IBKR NLV + open Revolut MTM so multi-broker capital stays in Prestaties.
+                    // Fill missing calendar days from Flex EquitySummary first (gap-only), then
+                    // overwrite the session date with live alpha equity.
+                    $user = $user->fresh() ?? $user;
+                    $revolutAddon = $this->bankrollSnapshots->revolutOpenPositionsMarketValue($user)
+                        + max(0.0, (float) ($user->revolut_cash ?? 0));
+
+                    $this->bankrollSnapshots->fillMissingFromIbkrDailyEquity(
+                        $user,
+                        $snapshot->equityByReportDate,
+                        $revolutAddon,
+                    );
+
                     $this->bankrollSnapshots->recordSnapshot(
                         $user,
                         $this->bankrollSnapshots->resolveAlphaEquity($user, $snapshot->netLiquidation),

@@ -8,6 +8,7 @@ final readonly class IbkrAccountSnapshot
      * @param  list<IbkrOpenPosition>  $openPositions
      * @param  list<IbkrOpenOrder>  $openOrders
      * @param  list<IbkrCashTransaction>  $cashTransactions
+     * @param  array<string, float>  $equityByReportDate  Y-m-d => EquitySummary total (IBKR NLV)
      */
     public function __construct(
         public float $netLiquidation,
@@ -23,6 +24,7 @@ final readonly class IbkrAccountSnapshot
          * False when we fell back to Cash / NLV (Activity Flex often lacks AF).
          */
         public bool $availableFundsIsExplicit = true,
+        public array $equityByReportDate = [],
     ) {}
 
     /**

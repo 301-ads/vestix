@@ -82,4 +82,43 @@ class BenchmarkCloseResolver
 
         return $this->resolveCloseForDate($requested);
     }
+
+    /**
+     * Exact session closes for chart densify (Y-m-d => close), inclusive.
+     *
+     * @return array<string, float>
+     */
+    public function closesBetween(Carbon $from, Carbon $to): array
+    {
+        $fromDate = $from->copy()->timezone('America/New_York')->toDateString();
+        $toDate = $to->copy()->timezone('America/New_York')->toDateString();
+
+        if ($fromDate > $toDate) {
+            return [];
+        }
+
+        $lookbackDays = max(14, (int) Carbon::parse($fromDate)->diffInDays(Carbon::parse($toDate)) + 10);
+        $limit = max(50, $lookbackDays + 5);
+        $barsPayload = $this->dailyBars->fetchRecentBars($this->benchmarkTicker(), $lookbackDays, $limit);
+
+        if ($barsPayload === null) {
+            return [];
+        }
+
+        $closes = [];
+
+        foreach ($barsPayload['bars'] as $bar) {
+            $date = $bar['date'];
+
+            if ($date < $fromDate || $date > $toDate) {
+                continue;
+            }
+
+            $closes[$date] = (float) $bar['close'];
+        }
+
+        ksort($closes);
+
+        return $closes;
+    }
 }
