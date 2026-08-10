@@ -23,14 +23,15 @@ class BankrollSnapshotService
     }
 
     /**
-     * Alpha Tracker equity: IBKR Net Liquidation + open Revolut positions (MTM).
-     * Keeps multi-broker capital in Prestaties without mixing Revolut into IBKR Flex fields.
+     * Alpha Tracker equity: IBKR Net Liquidation + open Revolut MTM + Revolut cash.
+     * Sales on Revolut stay in revolut_cash until withdrawn or transferred to IBKR.
      */
     public function resolveAlphaEquity(User $user, ?float $ibkrNetLiquidation = null): float
     {
         $ibkr = $ibkrNetLiquidation ?? (float) ($user->ibkr_net_liquidation ?? 0);
+        $revolutCash = max(0.0, (float) ($user->revolut_cash ?? 0));
 
-        return round(max(0.0, $ibkr) + $this->revolutOpenPositionsMarketValue($user), 2);
+        return round(max(0.0, $ibkr) + $this->revolutOpenPositionsMarketValue($user) + $revolutCash, 2);
     }
 
     public function revolutOpenPositionsMarketValue(User $user): float

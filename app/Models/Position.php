@@ -757,7 +757,37 @@ class Position extends Model
 
         $this->update($data);
 
-        app(ProtocolComplianceService::class)->persistForClosed($this->fresh() ?? $this);
+        $fresh = $this->fresh() ?? $this;
+        $this->creditRevolutCashFromExit($fresh, $exitPrice);
+
+        app(ProtocolComplianceService::class)->persistForClosed($fresh);
+    }
+
+    /**
+     * Revolut exits leave cash on Revolut — keep it in Alpha equity until withdrawn/transferred.
+     */
+    private function creditRevolutCashFromExit(self $position, float $exitPrice): void
+    {
+        if ($position->effectiveBroker() !== Broker::Revolut) {
+            return;
+        }
+
+        $user = $position->user;
+
+        if ($user === null) {
+            return;
+        }
+
+        $qty = abs((float) ($position->quantity ?? 0));
+
+        if ($qty <= 0 || $exitPrice <= 0) {
+            return;
+        }
+
+        $proceeds = round($qty * $exitPrice, 2);
+        $user->forceFill([
+            'revolut_cash' => round(max(0.0, (float) ($user->revolut_cash ?? 0)) + $proceeds, 2),
+        ])->save();
     }
 
     /**

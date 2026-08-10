@@ -17,7 +17,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'email_verified_at', 'is_super_admin', 'is_discoverable', 'telegram_chat_id', 'telegram_link_token', 'default_risk_per_trade', 'trading_bankroll', 'ibkr_net_liquidation', 'ibkr_available_funds', 'ibkr_settled_cash', 'ibkr_base_currency', 'ibkr_open_positions', 'ibkr_open_orders', 'ibkr_last_success_at', 'ibkr_last_attempt_at', 'ibkr_last_error', 'ibkr_data_stale', 'baseline_capital', 'baseline_date', 'default_risk_percent', 'default_short_risk_percent', 'primary_broker', 'is_short_enabled', 'ui_preferences'])]
+#[Fillable(['name', 'email', 'password', 'email_verified_at', 'is_super_admin', 'is_discoverable', 'telegram_chat_id', 'telegram_link_token', 'default_risk_per_trade', 'trading_bankroll', 'revolut_cash', 'ibkr_net_liquidation', 'ibkr_available_funds', 'ibkr_settled_cash', 'ibkr_base_currency', 'ibkr_open_positions', 'ibkr_open_orders', 'ibkr_last_success_at', 'ibkr_last_attempt_at', 'ibkr_last_error', 'ibkr_data_stale', 'baseline_capital', 'baseline_date', 'default_risk_percent', 'default_short_risk_percent', 'primary_broker', 'is_short_enabled', 'ui_preferences'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -169,6 +169,7 @@ class User extends Authenticatable implements FilamentUser
             'password' => 'hashed',
             'default_risk_per_trade' => 'decimal:2',
             'trading_bankroll' => 'decimal:2',
+            'revolut_cash' => 'decimal:2',
             'ibkr_net_liquidation' => 'decimal:2',
             'ibkr_available_funds' => 'decimal:2',
             'ibkr_settled_cash' => 'decimal:2',

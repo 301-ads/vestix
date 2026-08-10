@@ -58,13 +58,14 @@ class EditUserProfileTest extends TestCase
         $user = User::factory()->create([
             'primary_broker' => Broker::Revolut,
             'trading_bankroll' => 10000,
+            'ibkr_net_liquidation' => 10000,
             'default_risk_percent' => 1,
         ]);
         $this->actingAs($user);
 
         Livewire::test(EditUserProfile::class)
             ->fillForm([
-                'trading_bankroll' => 10634.60,
+                'ibkr_net_liquidation' => 10634.60,
             ])
             ->call('save')
             ->assertHasNoFormErrors();
@@ -76,6 +77,7 @@ class EditUserProfileTest extends TestCase
         ]);
 
         $this->assertEquals(10634.60, (float) $user->fresh()->trading_bankroll);
+        $this->assertEquals(10634.60, (float) $user->fresh()->ibkr_net_liquidation);
     }
 
     public function test_ibkr_manual_bankroll_override_updates_deployable_fields(): void
@@ -99,7 +101,7 @@ class EditUserProfileTest extends TestCase
 
         Livewire::test(EditUserProfile::class)
             ->fillForm([
-                'trading_bankroll' => 6840.89,
+                'ibkr_net_liquidation' => 6840.89,
                 'ibkr_available_funds' => 5009.03,
             ])
             ->call('save')
@@ -110,6 +112,39 @@ class EditUserProfileTest extends TestCase
         $this->assertEquals(6840.89, (float) $user->ibkr_net_liquidation);
         $this->assertEquals(4555.29, (float) $user->ibkr_settled_cash);
         $this->assertEquals(5009.03, (float) $user->ibkr_available_funds);
+    }
+
+    public function test_revolut_cash_is_included_in_alpha_snapshot(): void
+    {
+        $this->mock(BenchmarkCloseResolver::class, function ($mock): void {
+            $mock->shouldReceive('benchmarkTicker')->andReturn('SPY');
+            $mock->shouldReceive('resolveTradingDayClose')->andReturn(550.25);
+        });
+
+        $user = User::factory()->create([
+            'primary_broker' => Broker::Ibkr,
+            'ibkr_net_liquidation' => 8000,
+            'trading_bankroll' => 8000,
+            'revolut_cash' => 0,
+            'default_risk_percent' => 1,
+        ]);
+        $this->actingAs($user);
+
+        Livewire::test(EditUserProfile::class)
+            ->fillForm([
+                'ibkr_net_liquidation' => 8000,
+                'revolut_cash' => 2130.70,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $user->refresh();
+        $this->assertEquals(2130.70, (float) $user->revolut_cash);
+        $this->assertEquals(10130.70, (float) $user->trading_bankroll);
+        $this->assertDatabaseHas('bankroll_snapshots', [
+            'user_id' => $user->id,
+            'amount' => 10130.70,
+        ]);
     }
 
     public function test_profile_saves_merged_alert_preferences(): void

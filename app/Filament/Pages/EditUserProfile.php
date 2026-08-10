@@ -132,17 +132,26 @@ class EditUserProfile extends EditProfile
                             ->schema([
                                 Section::make('Position sizing')
                                     ->compact()
-                                    ->description('NLV voor Alpha (= IBKR NLV + open Revolut) · Available Funds + Settled/Cash voor Order Plan (min).')
+                                    ->description('Alpha = IBKR NLV + Revolut (open MTM + cash). Order Plan gebruikt min(AF, Settled/Cash).')
                                     ->schema([
                                         Placeholder::make('ibkr_sync_status')
                                             ->label('IBKR sync')
                                             ->content(fn (): HtmlString => $this->ibkrSyncStatusHtml()),
-                                        TextInput::make('trading_bankroll')
-                                            ->label('Net Liquidation (NLV)')
+                                        TextInput::make('ibkr_net_liquidation')
+                                            ->label('IBKR Net Liquidation')
                                             ->numeric()
                                             ->prefix('$')
-                                            ->minValue(0.01)
-                                            ->helperText(fn (): string => $this->tradingBankrollHelperText()),
+                                            ->minValue(0)
+                                            ->helperText('Gelijk aan NLV in IBKR/TradingView. Wordt door Flex sync bijgewerkt.'),
+                                        TextInput::make('revolut_cash')
+                                            ->label('Revolut cash')
+                                            ->numeric()
+                                            ->prefix('$')
+                                            ->minValue(0)
+                                            ->helperText('Cash op Revolut (niet in open posities). Verkoop/archiveren van Revolut-posities schrijft hierbij bij; haal af bij opname of transfer naar IBKR.'),
+                                        Placeholder::make('alpha_equity_summary')
+                                            ->label('Alpha-vermogen')
+                                            ->content(fn (): string => $this->alphaEquitySummary()),
                                         TextInput::make('ibkr_available_funds')
                                             ->label('Available Funds')
                                             ->numeric()
@@ -444,9 +453,16 @@ class EditUserProfile extends EditProfile
             );
         }
 
-        if (array_key_exists('trading_bankroll', $data) && filled($data['trading_bankroll'])) {
+        if (array_key_exists('ibkr_net_liquidation', $data) && filled($data['ibkr_net_liquidation'])) {
             $this->shouldRecordBankrollSnapshot = true;
-            $data['ibkr_net_liquidation'] = round((float) $data['trading_bankroll'], 2);
+            $data['ibkr_net_liquidation'] = round((float) $data['ibkr_net_liquidation'], 2);
+        }
+
+        if (array_key_exists('revolut_cash', $data)) {
+            $this->shouldRecordBankrollSnapshot = true;
+            $data['revolut_cash'] = filled($data['revolut_cash'] ?? null)
+                ? round(max(0.0, (float) $data['revolut_cash']), 2)
+                : null;
         }
 
         if (array_key_exists('ibkr_available_funds', $data) && filled($data['ibkr_available_funds'])) {
@@ -472,13 +488,37 @@ class EditUserProfile extends EditProfile
         }
 
         $user = $this->getUser()->fresh();
-        $bankroll = $user?->trading_bankroll;
 
-        if ($bankroll === null || (float) $bankroll <= 0) {
+        if ($user === null) {
             return;
         }
 
-        app(BankrollSnapshotService::class)->recordSnapshot($user, (float) $bankroll);
+        $equity = app(BankrollSnapshotService::class)->resolveAlphaEquity($user);
+        $user->forceFill(['trading_bankroll' => $equity])->save();
+        app(BankrollSnapshotService::class)->recordSnapshot($user, $equity);
+    }
+
+    protected function alphaEquitySummary(): string
+    {
+        $user = $this->getUser();
+        $snapshots = app(BankrollSnapshotService::class);
+        $ibkr = (float) ($user->ibkr_net_liquidation ?? 0);
+        $revolutMtm = $snapshots->revolutOpenPositionsMarketValue($user);
+        $revolutCash = max(0.0, (float) ($user->revolut_cash ?? 0));
+        $total = $snapshots->resolveAlphaEquity($user);
+
+        return sprintf(
+            'IBKR $%s + Revolut posities $%s + Revolut cash $%s = $%s',
+            number_format($ibkr, 2),
+            number_format($revolutMtm, 2),
+            number_format($revolutCash, 2),
+            number_format($total, 2),
+        );
+    }
+
+    protected function tradingBankrollHelperText(): string
+    {
+        return 'Alpha-vermogen = IBKR NLV + open Revolut-posities + Revolut cash.';
     }
 
     /**
@@ -795,15 +835,6 @@ class EditUserProfile extends EditProfile
             ."Synced {$when} (base ".e((string) ($user->ibkr_base_currency ?? 'USD')).').'
             .'</span>',
         );
-    }
-
-    protected function tradingBankrollHelperText(): string
-    {
-        if ($this->getUser()->ibkr_last_success_at !== null) {
-            return 'Alpha-vermogen: IBKR Net Liquidation + open Revolut-posities (MTM). Flex sync werkt IBKR bij; Revolut telt via open posities met broker Revolut.';
-        }
-
-        return 'Alleen Interactive Brokers NLV — zonder Revolut/legacy. Update na stortingen en wekelijks voor de Alpha Tracker.';
     }
 
     protected function ibkrDeployableSummary(): string
