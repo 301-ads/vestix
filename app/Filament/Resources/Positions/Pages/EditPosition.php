@@ -15,6 +15,7 @@ use App\Models\Position;
 use App\Models\Squad;
 use App\Services\AssetSyncService;
 use App\Services\CloneAttributionService;
+use App\Services\MarketDataFetcher;
 use App\Services\SquadActivityRecorder;
 use App\Services\SquadContext;
 use App\Support\FilamentNotifier;
@@ -83,6 +84,15 @@ class EditPosition extends EditRecord
         $position = $this->getRecord();
         $position->loadMissing('asset');
         $this->headingIconUrl = $position->asset?->icon_url;
+
+        if ($position->status === 'open') {
+            $mark = app(MarketDataFetcher::class)->refreshOpenPositionLiveMark($position);
+
+            if ($mark !== null) {
+                $position->refresh();
+                $this->refreshFormData(['latest_close_price']);
+            }
+        }
 
         if ($position->asset && ! $position->asset->hasIcon()) {
             app(AssetSyncService::class)->queueBrandingSyncIfNeeded($position->asset);

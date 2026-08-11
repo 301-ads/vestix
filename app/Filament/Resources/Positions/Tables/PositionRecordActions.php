@@ -51,6 +51,18 @@ class PositionRecordActions
                 || MarketDataFreshness::isSyncInProgress())
             ->visible(fn (Position $record): bool => in_array($record->status, ['open', 'scout'], true))
             ->action(function (Position $record, $livewire): void {
+                if ($record->status === 'open') {
+                    $mark = app(MarketDataFetcher::class)->refreshOpenPositionLiveMark($record, force: true);
+
+                    if ($mark !== null) {
+                        $record->refresh();
+
+                        if (is_object($livewire) && method_exists($livewire, 'refreshFormData')) {
+                            $livewire->refreshFormData(['latest_close_price']);
+                        }
+                    }
+                }
+
                 if (! MarketDataFetchDispatcher::dispatchPositionFetch($record)) {
                     return;
                 }

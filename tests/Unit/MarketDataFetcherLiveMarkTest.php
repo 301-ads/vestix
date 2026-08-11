@@ -137,4 +137,27 @@ class MarketDataFetcherLiveMarkTest extends TestCase
         $this->assertTrue($ok);
         $this->assertEqualsWithDelta(24.34, (float) $position->fresh()->latest_close_price, 0.01);
     }
+
+    public function test_refresh_open_position_live_mark_repairs_stale_close(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-11 05:00:00', 'America/New_York'));
+
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'PINS',
+            'status' => 'open',
+            'entry_price' => 23.79,
+            'quantity' => 59,
+            'latest_close_price' => 23.52,
+        ]);
+
+        $quotes = Mockery::mock(QuoteProvider::class);
+        $quotes->shouldReceive('fetchPremarketPrice')->once()->with('PINS', 23.52)->andReturn(24.34);
+        $this->app->instance(QuoteProvider::class, $quotes);
+
+        $mark = app(MarketDataFetcher::class)->refreshOpenPositionLiveMark($position, force: true);
+
+        $this->assertEqualsWithDelta(24.34, $mark, 0.01);
+        $this->assertEqualsWithDelta(24.34, (float) $position->fresh()->latest_close_price, 0.01);
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\DailyBarProvider;
 use App\Contracts\QuoteProvider;
 use App\Models\Position;
+use App\Support\MarketDataFreshness;
 use App\Support\ScoutSetupScorecard;
 use App\Support\SignalCandleResolver;
 use App\Support\TechnicalIndicators;
@@ -136,6 +137,66 @@ class MarketDataFetcher
         return true;
     }
 
+    /**
+     * Lightweight mark refresh for open P&L / Actuele Koers (no SMA/ATR round-trip).
+     * Used by Sync (immediate UI) and edit-page mount so stale delayed last-trades get repaired.
+     */
+    public function refreshOpenPositionLiveMark(Position $position, bool $force = false): ?float
+    {
+        if ($position->status !== 'open') {
+            return null;
+        }
+
+        $ticker = strtoupper(trim($position->ticker));
+        $cacheKey = 'vestix:open_live_mark:'.$ticker;
+
+        if (! $force) {
+            $cached = Cache::get($cacheKey);
+
+            if (is_numeric($cached)) {
+                $rounded = round((float) $cached, 2);
+
+                if ($position->latest_close_price === null
+                    || abs((float) $position->latest_close_price - $rounded) >= 0.01) {
+                    Position::query()
+                        ->open()
+                        ->where('ticker', $ticker)
+                        ->update(['latest_close_price' => $rounded]);
+
+                    $position->refresh();
+                }
+
+                return $rounded;
+            }
+        }
+
+        $sessionClose = $position->latest_close_price !== null
+            ? (float) $position->latest_close_price
+            : null;
+
+        $live = UsMarketSession::isPremarketWindow()
+            ? ($this->quotes->fetchPremarketPrice($ticker, $sessionClose)
+                ?? $this->quotes->fetchLivePrice($ticker))
+            : $this->quotes->fetchLivePrice($ticker);
+
+        if ($live === null) {
+            return null;
+        }
+
+        $rounded = round($live, 2);
+
+        Position::query()
+            ->open()
+            ->where('ticker', $ticker)
+            ->update(['latest_close_price' => $rounded]);
+
+        Cache::put($cacheKey, $rounded, now()->addMinutes(2));
+        MarketDataFreshness::markIntradayQuoteFetch();
+        $position->refresh();
+
+        return $rounded;
+    }
+
     private function resolveOpenPositionLiveMark(string $ticker, ?float $sessionClose): ?float
     {
         if (UsMarketSession::isPremarketWindow()) {
@@ -154,8 +215,7 @@ class MarketDataFetcher
         }
 
         // Overnight after the watch window: keep the completed session close from daily bars
-        // / session-quote refresh (fetchLivePrice after close already returns that mark, but
-        // sync should not depend on a second quote round-trip here).
+        // / session-quote refresh. Use refreshOpenPositionLiveMark() to repair stale marks.
         return null;
     }
 

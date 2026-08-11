@@ -713,6 +713,12 @@ class PositionResourceTest extends TestCase
             'current_sl' => 430.00,
         ]);
 
+        $quotes = \Mockery::mock(\App\Contracts\QuoteProvider::class);
+        $quotes->shouldReceive('fetchLivePrice')->andReturn(null);
+        $quotes->shouldReceive('fetchPremarketPrice')->andReturn(null);
+        $quotes->shouldReceive('fetchSessionQuote')->andReturn(null);
+        $this->app->instance(\App\Contracts\QuoteProvider::class, $quotes);
+
         Http::fake([
             'api.polygon.io/*' => Http::response([
                 'status' => 'OK',
