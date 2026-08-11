@@ -289,23 +289,53 @@ function setRsiPaneVisible(el, visible) {
     }
 }
 
-function syncTimeScales(state) {
-    const { chart, rsiChart } = state;
-
-    if (!chart || !rsiChart) {
+/**
+ * Short ranges (1W/1M) have few daily bars — fitContent stretches them into fat blocks.
+ * Keep a TradingView-like viewport (~40–48 slots) so candles stay readable and right-aligned.
+ */
+function fitPriceChartTimeScale(chart, barCount, rightOffset = 8) {
+    if (!chart || barCount < 2) {
         return;
     }
 
-    chart.timeScale().applyOptions({ rightOffset: 10 });
-    rsiChart.timeScale().applyOptions({ rightOffset: 10 });
-    chart.timeScale().fitContent();
-    const range = chart.timeScale().getVisibleLogicalRange();
+    chart.timeScale().applyOptions({ rightOffset });
 
-    if (range) {
-        rsiChart.timeScale().setVisibleLogicalRange(range);
+    if (barCount < 40) {
+        const viewport = Math.max(barCount + 4, 44);
+        chart.timeScale().setVisibleLogicalRange({
+            from: barCount - viewport,
+            to: barCount - 1 + Math.min(4, rightOffset * 0.4),
+        });
+        return;
     }
 
-    alignPaneWidths(chart, rsiChart);
+    chart.timeScale().fitContent();
+}
+
+function syncTimeScales(state) {
+    const { chart, rsiChart, candles, points, seriesType } = state;
+
+    if (!chart) {
+        return;
+    }
+
+    const barCount = seriesType === 'candles'
+        ? (candles?.length ?? 0)
+        : (points?.length ?? 0);
+    const rightOffset = rsiChart ? 8 : 6;
+
+    fitPriceChartTimeScale(chart, barCount, rightOffset);
+
+    if (rsiChart) {
+        rsiChart.timeScale().applyOptions({ rightOffset });
+        const range = chart.timeScale().getVisibleLogicalRange();
+
+        if (range) {
+            rsiChart.timeScale().setVisibleLogicalRange(range);
+        }
+
+        alignPaneWidths(chart, rsiChart);
+    }
 }
 
 async function loadChart(el, range = '3M') {
@@ -502,12 +532,11 @@ async function loadChart(el, range = '3M') {
         updatePeriodChange(el, payload.period_change);
         updatePremarketStatus(el, payload.premarket);
 
-        if (rsiChart) {
+        syncTimeScales(state);
+        requestAnimationFrame(() => {
             syncTimeScales(state);
-            requestAnimationFrame(() => syncTimeScales(state));
-        } else {
-            chart.timeScale().fitContent();
-        }
+            syncEntryMarker(state);
+        });
 
         status.textContent = payload.demo
             ? `${payload.ticker} · demo-data`
