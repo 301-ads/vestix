@@ -66,4 +66,34 @@ class YahooFinanceChartQuoteServiceTest extends TestCase
 
         $this->assertNull(app(YahooFinanceChartQuoteService::class)->fetchLivePrice('VWCE.DE'));
     }
+
+    public function test_parses_intraday_ohlc_bars(): void
+    {
+        Http::fake([
+            'query1.finance.yahoo.com/*' => Http::response([
+                'chart' => [
+                    'result' => [[
+                        'timestamp' => [1_700_000_000, 1_700_000_300, 1_700_000_600],
+                        'indicators' => [
+                            'quote' => [[
+                                'open' => [10.0, 10.2, null],
+                                'high' => [10.5, 10.4, null],
+                                'low' => [9.9, 10.1, null],
+                                'close' => [10.2, 10.3, null],
+                                'volume' => [1000, 1100, null],
+                            ]],
+                        ],
+                    ]],
+                    'error' => null,
+                ],
+            ]),
+        ]);
+
+        $bars = app(YahooFinanceChartQuoteService::class)->fetchIntradayBars('PINS', '5m');
+
+        $this->assertNotNull($bars);
+        $this->assertCount(2, $bars);
+        $this->assertSame(1_700_000_000, $bars[0]['time']);
+        $this->assertEqualsWithDelta(10.3, $bars[1]['close'], 0.001);
+    }
 }

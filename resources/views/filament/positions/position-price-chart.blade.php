@@ -35,7 +35,7 @@
         <div class="vestix-price-chart__footer flex flex-wrap items-center justify-between gap-2">
             <div data-price-chart-ranges class="vestix-price-chart__ranges" role="group" aria-label="Timeframe"></div>
             <p class="text-[11px] text-gray-500 dark:text-gray-400">
-                Punt = entry · stippellijnen = Entry / SL / T1
+                1D = Yahoo 5m (gratis) · overige = dagkoersen · punt = entry · lijnen = Entry / SL / T1
             </p>
         </div>
     </div>
