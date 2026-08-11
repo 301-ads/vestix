@@ -18,7 +18,6 @@ use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
@@ -197,6 +196,36 @@ class ScoutsTable
         if (! $squadMode) {
             $table = $table
                 ->toolbarActions([
+                    BulkAction::make('dismiss_scouts')
+                        ->label('Verwijderen')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Geselecteerde scouts verwijderen?')
+                        ->modalDescription('Deze scouts verdwijnen van je radar. Dit kan niet ongedaan worden gemaakt.')
+                        ->modalSubmitActionLabel('Verwijderen')
+                        ->action(function (Collection $records): void {
+                            $count = 0;
+
+                            foreach ($records as $record) {
+                                if (! $record instanceof Position || ! $record->isOwnedBy(auth()->user())) {
+                                    continue;
+                                }
+
+                                if ($record->status !== 'scout') {
+                                    continue;
+                                }
+
+                                $record->delete();
+                                $count++;
+                            }
+
+                            FilamentNotifier::send(
+                                title: 'Scouts verwijderd',
+                                body: "{$count} scout(s) weggehaald.",
+                            );
+                        })
+                        ->deselectRecordsAfterCompletion(),
                     BulkActionGroup::make([
                         BulkAction::make('add_to_order_plan')
                             ->label('Naar Order Plan')
@@ -221,33 +250,6 @@ class ScoutsTable
                                 FilamentNotifier::send(
                                     title: 'Order Plan bijgewerkt',
                                     body: "{$count} scout(s) toegevoegd.",
-                                );
-                            })
-                            ->deselectRecordsAfterCompletion(),
-                        BulkAction::make('dismiss_scouts')
-                            ->label('Verwijderen')
-                            ->icon('heroicon-o-trash')
-                            ->color('danger')
-                            ->requiresConfirmation()
-                            ->action(function (Collection $records): void {
-                                $count = 0;
-
-                                foreach ($records as $record) {
-                                    if (! $record instanceof Position || ! $record->isOwnedBy(auth()->user())) {
-                                        continue;
-                                    }
-
-                                    if ($record->status !== 'scout') {
-                                        continue;
-                                    }
-
-                                    $record->delete();
-                                    $count++;
-                                }
-
-                                FilamentNotifier::send(
-                                    title: 'Scouts verwijderd',
-                                    body: "{$count} scout(s) weggehaald.",
                                 );
                             })
                             ->deselectRecordsAfterCompletion(),
@@ -276,7 +278,6 @@ class ScoutsTable
                                 );
                             })
                             ->deselectRecordsAfterCompletion(),
-                        DeleteBulkAction::make(),
                     ]),
                 ]);
         }

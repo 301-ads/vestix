@@ -291,7 +291,7 @@ function setRsiPaneVisible(el, visible) {
 
 /**
  * Short ranges (1W/1M) have few daily bars — fitContent stretches them into fat blocks.
- * Keep a TradingView-like viewport (~40–48 slots) so candles stay readable and right-aligned.
+ * Keep a fixed viewport (~44 slots) so candles stay readable and left-aligned.
  */
 function fitPriceChartTimeScale(chart, barCount, rightOffset = 8) {
     if (!chart || barCount < 2) {
@@ -303,8 +303,8 @@ function fitPriceChartTimeScale(chart, barCount, rightOffset = 8) {
     if (barCount < 40) {
         const viewport = Math.max(barCount + 4, 44);
         chart.timeScale().setVisibleLogicalRange({
-            from: barCount - viewport,
-            to: barCount - 1 + Math.min(4, rightOffset * 0.4),
+            from: 0,
+            to: viewport - 1,
         });
         return;
     }

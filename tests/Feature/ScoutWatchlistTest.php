@@ -1442,6 +1442,24 @@ class ScoutWatchlistTest extends TestCase
         $this->assertDatabaseMissing('positions', ['id' => $scout->id]);
     }
 
+    public function test_radar_bulk_dismiss_deletes_selected_scouts(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $this->actingAsFilamentUser($user, $squad);
+
+        $keep = Position::factory()->for($user)->scout()->create(['ticker' => 'KEEP']);
+        $a = Position::factory()->for($user)->scout()->create(['ticker' => 'DEL1']);
+        $b = Position::factory()->for($user)->scout()->create(['ticker' => 'DEL2']);
+
+        Livewire::test(ListScouts::class)
+            ->assertTableBulkActionExists('dismiss_scouts')
+            ->callTableBulkAction('dismiss_scouts', [$a, $b]);
+
+        $this->assertDatabaseMissing('positions', ['id' => $a->id]);
+        $this->assertDatabaseMissing('positions', ['id' => $b->id]);
+        $this->assertDatabaseHas('positions', ['id' => $keep->id]);
+    }
+
     public function test_actions_widget_lists_scouts_requiring_buy_stop_review(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();

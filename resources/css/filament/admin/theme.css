@@ -1031,9 +1031,8 @@
     display: none;
 }
 
-.vestix-radar-list .fi-ta-header-toolbar {
-    display: none;
-}
+/* Radar: do not force-hide the header toolbar — Alpine already shows it only when
+   records are selected (bulk actions). Hiding it permanently made selection useless. */
 
 .vestix-dashboard .fi-wi-widget.fi-wi-table .fi-ta-header-heading,
 .vestix-positions-list .fi-ta-header-heading,
