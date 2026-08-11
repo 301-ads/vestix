@@ -84,8 +84,18 @@ function teardown(el) {
     }
 }
 
+function lineValueAt(points, time) {
+    if (!points?.length || time == null) {
+        return null;
+    }
+
+    const match = points.find((point) => point.time === time || String(point.time) === String(time));
+
+    return match != null ? Number(match.value) : null;
+}
+
 function syncEntryMarker(state) {
-    const { chart, areaSeries, chartHost, markerHost, marker } = state;
+    const { chart, areaSeries, chartHost, markerHost, marker, points } = state;
 
     if (!markerHost || !chartHost || !chart || !areaSeries) {
         return;
@@ -97,8 +107,14 @@ function syncEntryMarker(state) {
         return;
     }
 
+    // Snap to the area series (close on that day), not the Entry price line.
+    const lineValue = lineValueAt(points, marker.time);
+    if (lineValue == null || Number.isNaN(lineValue)) {
+        return;
+    }
+
     const x = chart.timeScale().timeToCoordinate(marker.time);
-    const y = areaSeries.priceToCoordinate(Number(marker.value));
+    const y = areaSeries.priceToCoordinate(lineValue);
 
     if (x === null || y === null || Number.isNaN(x) || Number.isNaN(y)) {
         return;
@@ -111,10 +127,13 @@ function syncEntryMarker(state) {
         return;
     }
 
+    const size = 9;
     const dot = document.createElement('div');
     dot.className = 'vestix-price-chart-entry';
     dot.style.color = marker.color;
-    dot.style.transform = `translate(${Math.round(x - 5)}px, ${Math.round(y - 5)}px)`;
+    dot.style.width = `${size}px`;
+    dot.style.height = `${size}px`;
+    dot.style.transform = `translate(${Math.round(x - size / 2)}px, ${Math.round(y - size / 2)}px)`;
     dot.title = `Entry $${Number(marker.value).toFixed(2)}`;
     markerHost.appendChild(dot);
 }
@@ -216,8 +235,13 @@ async function loadChart(el, range = '3M') {
             markerHost.innerHTML = '';
         }
 
+        const theme = chartTheme(dark);
         const chart = createChart(chartHost, {
-            ...chartTheme(dark),
+            ...theme,
+            layout: {
+                ...theme.layout,
+                attributionLogo: false,
+            },
             crosshair: { mode: CrosshairMode.Normal },
             leftPriceScale: { visible: false },
             rightPriceScale: {
@@ -257,6 +281,7 @@ async function loadChart(el, range = '3M') {
             areaSeries,
             chartHost,
             markerHost,
+            points: payload.points ?? [],
             levels: payload.levels ?? {},
             marker: entryMarker,
             priceLines: {},
