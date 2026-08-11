@@ -4856,7 +4856,8 @@
     background: #09090b;
 }
 
-.vestix-price-chart__wrap [data-price-chart] {
+.vestix-price-chart__wrap [data-price-chart],
+.vestix-price-chart__wrap [data-price-chart-rsi] {
     width: 100%;
     display: block;
 }

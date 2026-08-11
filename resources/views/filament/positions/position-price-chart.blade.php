@@ -50,7 +50,7 @@
                 <span class="text-[10px] uppercase tracking-wide text-gray-500">RSI(14)</span>
                 <span class="h-px flex-1 bg-gray-200/80 dark:bg-white/10"></span>
             </div>
-            <div data-price-chart-rsi-wrap class="w-full" hidden>
+            <div data-price-chart-rsi-wrap class="vestix-price-chart__wrap w-full" hidden>
                 <div data-price-chart-rsi class="w-full overflow-hidden" style="min-height: 120px;"></div>
             </div>
         @endif
