@@ -149,6 +149,9 @@ return [
         'sma_slope_hard_fail_min_pct' => (float) env('SNIPER_SMA_SLOPE_HARD_FAIL_MIN_PCT', 0.0),
         // Groene bounce net onder SMA 20: geen hard fail, maar slechts 1/2 trampoline-punt. Long only.
         'trampoline_near_miss_pct' => (float) env('SNIPER_TRAMPOLINE_NEAR_MISS_PCT', 0.25),
+        // Long: Open moet (bijna) boven SMA20, of previous close erboven — anders sloopkogel.
+        'trampoline_approach_hard_fail_enabled' => filter_var(env('SNIPER_TRAMPOLINE_APPROACH_HARD_FAIL', true), FILTER_VALIDATE_BOOL),
+        'trampoline_open_tolerance_pct' => (float) env('SNIPER_TRAMPOLINE_OPEN_TOLERANCE_PCT', 0.2),
         // Short Route 1: SMA vandaag < 5d < 10d verplicht.
         'waterfall_required' => filter_var(env('SNIPER_WATERFALL_REQUIRED', true), FILTER_VALIDATE_BOOL),
         // Short Route 1: upper wick (High − Open) ≥ ratio × candle body.

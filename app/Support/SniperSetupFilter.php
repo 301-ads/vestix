@@ -10,6 +10,7 @@ class SniperSetupFilter
      *     close: float,
      *     high?: float,
      *     low?: float,
+     *     previousClose?: float|null,
      *     sma10: float,
      *     sma20: float,
      *     sma20FiveDaysAgo?: float|null,
@@ -32,7 +33,7 @@ class SniperSetupFilter
     }
 
     /**
-     * @param  array{open: float, close: float, high?: float, low?: float, sma10: float, sma20: float, sma20FiveDaysAgo?: float|null, sma50: float, rsi14: float}  $inputs
+     * @param  array{open: float, close: float, high?: float, low?: float, previousClose?: float|null, sma10: float, sma20: float, sma20FiveDaysAgo?: float|null, sma50: float, rsi14: float}  $inputs
      */
     public static function passesLong(array $inputs): bool
     {
@@ -60,6 +61,10 @@ class SniperSetupFilter
         }
 
         if (! self::passesLongSmaSlope($inputs)) {
+            return false;
+        }
+
+        if (! self::passesLongApproach($inputs)) {
             return false;
         }
 
@@ -130,6 +135,25 @@ class SniperSetupFilter
         return ScoutSetupScorecard::longSlopeFailReason([
             'latest_sma_20' => $inputs['sma20'],
             'sma_20_five_days_ago' => $inputs['sma20FiveDaysAgo'],
+        ]) === null;
+    }
+
+    /**
+     * When previousClose key is present, enforce the sloopkogel approach hard-fail.
+     * Legacy callers without the key keep prior math behavior.
+     *
+     * @param  array{open: float, sma20: float, previousClose?: float|null}  $inputs
+     */
+    private static function passesLongApproach(array $inputs): bool
+    {
+        if (! array_key_exists('previousClose', $inputs)) {
+            return true;
+        }
+
+        return ScoutSetupScorecard::longApproachFailReason([
+            'latest_open_price' => $inputs['open'],
+            'latest_sma_20' => $inputs['sma20'],
+            'previous_close' => $inputs['previousClose'],
         ]) === null;
     }
 

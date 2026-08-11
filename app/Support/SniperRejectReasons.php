@@ -91,6 +91,18 @@ class SniperRejectReasons
             }
         }
 
+        if (array_key_exists('previousClose', $inputs)) {
+            $approachFail = ScoutSetupScorecard::longApproachFailReason([
+                'latest_open_price' => $open,
+                'latest_sma_20' => $sma20,
+                'previous_close' => $inputs['previousClose'],
+            ]);
+
+            if ($approachFail !== null) {
+                $reasons[] = $approachFail;
+            }
+        }
+
         if (isset($inputs['high'], $inputs['low']) && CandleAnatomy::enabled()) {
             if (! CandleAnatomy::passesBar([
                 'open' => $open,

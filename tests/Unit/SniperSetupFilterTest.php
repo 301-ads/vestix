@@ -61,6 +61,50 @@ class SniperSetupFilterTest extends TestCase
         ]));
     }
 
+    public function test_long_rejects_sloopkogel_open_below_sma_with_previous_close_below(): void
+    {
+        $this->assertNull(SniperSetupFilter::evaluate([
+            'open' => 41.94,
+            'high' => 43.01,
+            'low' => 41.88,
+            'close' => 42.88,
+            'previousClose' => 41.50,
+            'sma10' => 43.20,
+            'sma20' => 42.65,
+            'sma20FiveDaysAgo' => 41.95,
+            'sma50' => 41.24,
+            'rsi14' => 53.0,
+        ]));
+
+        // Open boven SMA — legitieme landing.
+        $this->assertSame('long', SniperSetupFilter::evaluate([
+            'open' => 42.70,
+            'high' => 42.95,
+            'low' => 42.60,
+            'close' => 42.88,
+            'previousClose' => 41.50,
+            'sma10' => 43.20,
+            'sma20' => 42.65,
+            'sma20FiveDaysAgo' => 41.95,
+            'sma50' => 41.24,
+            'rsi14' => 53.0,
+        ]));
+
+        // Open onder SMA, maar previous close erboven — escape hatch.
+        $this->assertSame('long', SniperSetupFilter::evaluate([
+            'open' => 41.94,
+            'high' => 43.01,
+            'low' => 41.88,
+            'close' => 42.88,
+            'previousClose' => 42.80,
+            'sma10' => 43.20,
+            'sma20' => 42.65,
+            'sma20FiveDaysAgo' => 41.95,
+            'sma50' => 41.24,
+            'rsi14' => 53.0,
+        ]));
+    }
+
     public function test_long_rejects_outside_valstrik_or_rsi(): void
     {
         $this->assertNull(SniperSetupFilter::evaluate([

@@ -18,6 +18,7 @@ class ScoutSetupScorecard
      *     signal_high?: float|null,
      *     latest_open_price?: float|null,
      *     latest_close_price?: float|null,
+     *     previous_close?: float|null,
      *     latest_sma_20?: float|null,
      *     sma_20_five_days_ago?: float|null,
      *     sma_20_ten_days_ago?: float|null,
@@ -115,6 +116,12 @@ class ScoutSetupScorecard
 
         if ($close === null) {
             return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', 'Wacht op slotkoers (Close)');
+        }
+
+        $approachFail = self::longApproachFailReason($inputs);
+
+        if ($approachFail !== null) {
+            return self::criterion('trampoline', 'Trampoline-afstand', 0, 2, 'fail', $approachFail);
         }
 
         if ($close < $sma) {
@@ -610,6 +617,12 @@ class ScoutSetupScorecard
             $reasons[] = 'Close onder SMA 20 — trampoline gebroken';
         }
 
+        $approachFail = self::longApproachFailReason($inputs);
+
+        if ($approachFail !== null) {
+            $reasons[] = $approachFail;
+        }
+
         if ($open !== null && $close !== null && self::isFallingKnife($inputs, $open, $close)) {
             $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
         }
@@ -625,6 +638,57 @@ class ScoutSetupScorecard
             self::resolveCandleAnatomyHardFail($inputs),
             self::resolveFreeAirspaceHardFail($inputs),
             self::resolveEarningsHardFail($inputs),
+        );
+    }
+
+    /**
+     * Long trampoline approach: Open near/above SMA20, or previous close above SMA20.
+     * Otherwise the candle pierced the SMA from below (sloopkogel), not a bounce from above.
+     *
+     * @param  array<string, mixed>  $inputs
+     */
+    public static function longApproachFailReason(array $inputs): ?string
+    {
+        if (! self::trampolineApproachHardFailEnabled()) {
+            return null;
+        }
+
+        $sma = self::toFloat($inputs['latest_sma_20'] ?? null);
+        $open = self::resolveOpenPrice($inputs);
+
+        if ($sma === null || $sma <= 0) {
+            return null;
+        }
+
+        if ($open === null) {
+            return 'Openingskoers ontbreekt voor trampoline-aanvlieg check';
+        }
+
+        $openFloor = $sma * (1 - (self::trampolineOpenTolerancePct() / 100));
+
+        if ($open >= $openFloor) {
+            return null;
+        }
+
+        $previousClose = self::toFloat($inputs['previous_close'] ?? null);
+
+        if ($previousClose !== null && $previousClose >= $sma) {
+            return null;
+        }
+
+        if ($previousClose !== null) {
+            return sprintf(
+                'Sloopkogel — Open $%.2f onder SMA 20 $%.2f (vorige close $%.2f ook onder; doorboring van onderaf)',
+                $open,
+                $sma,
+                $previousClose,
+            );
+        }
+
+        return sprintf(
+            'Sloopkogel — Open $%.2f onder SMA 20 $%.2f (doorboring van onderaf)',
+            $open,
+            $sma,
         );
     }
 
@@ -961,6 +1025,16 @@ class ScoutSetupScorecard
         return (float) config('vestix.sniper_scorecard.trampoline_near_miss_pct', 0.25);
     }
 
+    public static function trampolineApproachHardFailEnabled(): bool
+    {
+        return (bool) config('vestix.sniper_scorecard.trampoline_approach_hard_fail_enabled', true);
+    }
+
+    public static function trampolineOpenTolerancePct(): float
+    {
+        return (float) config('vestix.sniper_scorecard.trampoline_open_tolerance_pct', 0.2);
+    }
+
     /**
      * @param  array<string, mixed>  $inputs
      */
@@ -1013,6 +1087,8 @@ class ScoutSetupScorecard
     {
         $maxPoints = self::maxPoints();
         $nearMissFactor = 1 - (self::trampolineNearMissPct() / 100);
+        $openFloorFactor = 1 - (self::trampolineOpenTolerancePct() / 100);
+        $approachHardFail = self::trampolineApproachHardFailEnabled() ? '1' : '0';
 
         return <<<SQL
 CASE
@@ -1031,6 +1107,11 @@ CASE
             AND latest_close_price >= latest_open_price
             AND latest_close_price >= latest_sma_20 * {$nearMissFactor}
         )
+        THEN 5
+    WHEN {$approachHardFail} = 1
+        AND (direction IS NULL OR direction = 'long')
+        AND latest_open_price IS NOT NULL AND latest_sma_20 IS NOT NULL
+        AND latest_open_price < latest_sma_20 * {$openFloorFactor}
         THEN 5
     WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price AND (direction IS NULL OR direction = 'long') THEN 5
     WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price > latest_open_price AND direction = 'short' THEN 5

@@ -19,6 +19,7 @@ use App\Enums\TrailingStopMode;
 use App\Services\AssetSyncService;
 use App\Services\ProtocolComplianceService;
 use App\Services\SquadActivityRecorder;
+use App\Support\ClosePriceTrend;
 use App\Support\EarningsExitSchedule;
 use App\Support\EntrySetupSnapshot;
 use App\Support\PositionSizing;
@@ -2216,6 +2217,14 @@ class Position extends Model
             'signal_high' => $overrides['signal_high'] ?? $this->signal_high,
             'latest_open_price' => $overrides['latest_open_price'] ?? $this->latest_open_price,
             'latest_close_price' => $overrides['latest_close_price'] ?? $this->latest_close_price,
+            'previous_close' => $overrides['previous_close'] ?? (
+                $this->latest_close_price !== null
+                    ? ClosePriceTrend::resolvePreviousSessionClose(
+                        (float) $this->latest_close_price,
+                        $this->recent_close_prices ?? [],
+                    )
+                    : null
+            ),
             'latest_sma_20' => $overrides['latest_sma_20'] ?? $this->latest_sma_20,
             'sma_20_five_days_ago' => $overrides['sma_20_five_days_ago'] ?? $this->sma_20_five_days_ago,
             'sma_20_ten_days_ago' => $overrides['sma_20_ten_days_ago'] ?? $this->sma_20_ten_days_ago,

@@ -445,6 +445,7 @@ class SniperScanServiceTest extends TestCase
             'sma10' => 101.5,
             'sma20' => 100.0,
             'sma20FiveDaysAgo' => 99.0,
+            'previousClose' => 99.5,
             'sma50' => 98.0,
             'rsi14' => 48.0,
         ];

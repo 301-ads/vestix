@@ -67,10 +67,10 @@ class ScoutSetupScorecardTest extends TestCase
 
     public function test_close_below_sma_scores_zero_trampoline_and_hard_fail(): void
     {
-        // 1% under SMA — outside near-miss band (0.25%).
+        // 1% under SMA — outside near-miss band (0.25%). Open blijft boven SMA (geen sloopkogel).
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 99.00,
-            'latest_open_price' => 99.50,
+            'latest_open_price' => 100.20,
             'latest_close_price' => 99.00,
         ]));
 
@@ -83,11 +83,13 @@ class ScoutSetupScorecardTest extends TestCase
     public function test_green_near_miss_below_sma_gets_benefit_of_the_doubt(): void
     {
         // LLY-achtig: ~0.18% onder SMA op groene kaars — 1/2 trampoline-punt, geen hard fail.
+        // Open onder SMA-floor, maar previous close erboven → geen sloopkogel.
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 1160.00,
             'latest_open_price' => 1165.00,
             'latest_close_price' => 1169.17,
             'latest_sma_20' => 1171.25,
+            'previous_close' => 1172.00,
         ]));
 
         $this->assertSame(1, $result['criteria'][0]['points']);
@@ -102,7 +104,7 @@ class ScoutSetupScorecardTest extends TestCase
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 99.00,
-            'latest_open_price' => 99.20,
+            'latest_open_price' => 100.10,
             'latest_close_price' => 99.50,
             'latest_sma_20' => 100.00,
         ]));
@@ -132,6 +134,64 @@ class ScoutSetupScorecardTest extends TestCase
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 99.50,
             'latest_close_price' => 100.50,
+        ]));
+
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame(2, $result['criteria'][0]['points']);
+        $this->assertStringContainsString('Rejection bounce', $result['criteria'][0]['detail']);
+    }
+
+    public function test_bp_sloopkogel_open_below_sma_hard_fails(): void
+    {
+        // Open ver onder SMA + previous close ook onder → doorboring van onderaf, geen trampoline.
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 41.88,
+            'signal_high' => 43.01,
+            'latest_open_price' => 41.94,
+            'latest_close_price' => 42.88,
+            'previous_close' => 41.50,
+            'latest_sma_20' => 42.65,
+            'sma_20_five_days_ago' => 41.95,
+            'sma_20_ten_days_ago' => 40.27,
+            'latest_sma_50' => 41.24,
+            'scout_rsi' => 53.62,
+            'pre_bounce_extension_atr' => 2.2,
+        ]));
+
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertSame(0, $result['criteria'][0]['points']);
+        $this->assertStringContainsString('Sloopkogel', $result['criteria'][0]['detail']);
+        $this->assertTrue(
+            collect($result['hardFailReasons'])->contains(
+                fn (string $reason): bool => str_contains($reason, 'Sloopkogel'),
+            ),
+        );
+    }
+
+    public function test_open_within_tolerance_below_sma_is_not_sloopkogel(): void
+    {
+        // Open 0.15% onder SMA — binnen 0.2% tolerantie.
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 99.50,
+            'latest_open_price' => 99.85,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'previous_close' => 99.00,
+        ]));
+
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame(2, $result['criteria'][0]['points']);
+        $this->assertStringContainsString('Rejection bounce', $result['criteria'][0]['detail']);
+    }
+
+    public function test_open_below_sma_passes_when_previous_close_was_above(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 99.00,
+            'latest_open_price' => 99.00,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'previous_close' => 100.20,
         ]));
 
         $this->assertSame([], $result['hardFailReasons']);
@@ -247,9 +307,10 @@ class ScoutSetupScorecardTest extends TestCase
     public function test_ajg_like_flat_five_day_sma_slope_hard_fails_despite_ten_day_rise(): void
     {
         // Soft 10d-slope kan nog slagen (juli-momentum), maar 5d is dalend → NO TRADE.
+        // Open boven SMA-floor zodat alleen slope-veto getest wordt (geen sloopkogel).
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 245.33,
-            'latest_open_price' => 247.00,
+            'latest_open_price' => 252.00,
             'latest_close_price' => 252.43,
             'latest_sma_20' => 251.92,
             'sma_20_five_days_ago' => 253.32,
@@ -323,6 +384,8 @@ class ScoutSetupScorecardTest extends TestCase
         // 5d stijgt (geen hard-fail), maar 10d daalt → soft score 0 zonder veto.
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'latest_sma_20' => 100.50,
+            'latest_open_price' => 100.60,
+            'latest_close_price' => 100.70,
             'sma_20_five_days_ago' => 99.50,
             'sma_20_ten_days_ago' => 101.00,
             'bounce_volume_above_average' => false,
