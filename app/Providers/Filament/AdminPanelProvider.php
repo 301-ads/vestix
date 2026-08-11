@@ -200,6 +200,10 @@ class AdminPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.hooks.position-price-chart')->render(),
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
                 fn (): string => view('filament.hooks.share-card-export')->render(),
             )
             ->renderHook(

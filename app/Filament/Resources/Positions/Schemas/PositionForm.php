@@ -2012,7 +2012,16 @@ class PositionForm
                     ->extraAttributes(['class' => 'position-cockpit-grid'])
                     ->schema(self::openCockpitCards())
                     ->columnSpanFull(),
+                self::priceChartSection(),
             ]);
+    }
+
+    private static function priceChartSection(): View
+    {
+        return View::make('filament.positions.position-price-chart')
+            ->viewData(fn (?Position $record): array => ['record' => $record])
+            ->columnSpanFull()
+            ->visible(fn (?Position $record): bool => $record?->status === 'open');
     }
 
     private static function scoutCockpitSection(): Section
