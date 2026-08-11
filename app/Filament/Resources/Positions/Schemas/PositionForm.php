@@ -18,7 +18,6 @@ use App\Support\EarningsExitDisplay;
 use App\Support\FreerideDisplay;
 use App\Support\PositionSizing;
 use App\Support\PreBounceExtensionCalculator;
-use App\Support\PremarketGatekeeperDisplay;
 use App\Support\RelativeVolumeCalculator;
 use App\Support\ScaleOutDisplay;
 use App\Support\ScoutSetupScorecard;
@@ -2021,7 +2020,7 @@ class PositionForm
         return View::make('filament.positions.position-price-chart')
             ->viewData(fn (?Position $record): array => ['record' => $record])
             ->columnSpanFull()
-            ->visible(fn (?Position $record): bool => $record?->status === 'open');
+            ->visible(fn (?Position $record): bool => in_array($record?->status, ['open', 'scout'], true));
     }
 
     private static function scoutCockpitSection(): Section
@@ -2046,10 +2045,7 @@ class PositionForm
                     ->extraAttributes(['class' => 'position-cockpit-grid'])
                     ->schema(self::scoutCockpitPrimaryCards())
                     ->columnSpanFull(),
-                Grid::make(4)
-                    ->extraAttributes(['class' => 'position-cockpit-grid position-cockpit-grid--premarket'])
-                    ->schema(self::scoutPremarketCards())
-                    ->columnSpanFull(),
+                self::priceChartSection(),
             ]);
     }
 
@@ -2135,23 +2131,6 @@ class PositionForm
                         'cardVariant' => $risk['cardVariant'] ?? 'amber',
                     ];
                 }),
-        ];
-    }
-
-    /**
-     * @return array<int, View>
-     */
-    private static function scoutPremarketCards(): array
-    {
-        return [
-            View::make('filament.positions.cockpit-stat-card')
-                ->visible(fn (?Position $record): bool => $record !== null && PremarketGatekeeperDisplay::isRelevant($record))
-                ->viewData(fn (Get $get, ?Position $record): array => PremarketGatekeeperDisplay::cockpitCardData($record)
-                    ?? [
-                        'label' => 'Pre-Market',
-                        'value' => '—',
-                        'cardVariant' => 'blue',
-                    ]),
         ];
     }
 

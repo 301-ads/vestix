@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Contracts\DailyBarProvider;
+use App\Enums\PremarketScanResult;
 use App\Models\Position;
 use App\Models\SniperDailyBar;
+use App\Support\PremarketGatekeeperDisplay;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -27,18 +29,7 @@ class PositionPriceChartService
     ) {}
 
     /**
-     * @return array{
-     *     ticker: string,
-     *     range: string,
-     *     intraday: bool,
-     *     points: list<array{time: int|string, value: float}>,
-     *     period_change: array{absolute: float, percent: float, positive: bool},
-     *     levels: array{entry: ?float, stop: ?float, target1: ?float},
-     *     markers: list<array{time: int|string, role: string, color: string, value: float}>,
-     *     entry_time: int|string|null,
-     *     short: bool,
-     *     demo: bool,
-     * }|null
+     * @return array<string, mixed>|null
      */
     public function build(Position $position, string $range = '3M'): ?array
     {
@@ -65,10 +56,19 @@ class PositionPriceChartService
         }
 
         $points = [];
+        $candles = [];
         foreach ($window as $bar) {
+            $close = round((float) $bar['close'], 4);
             $points[] = [
                 'time' => $bar['date'],
-                'value' => round((float) $bar['close'], 4),
+                'value' => $close,
+            ];
+            $candles[] = [
+                'time' => $bar['date'],
+                'open' => round((float) $bar['open'], 4),
+                'high' => round((float) $bar['high'], 4),
+                'low' => round((float) $bar['low'], 4),
+                'close' => $close,
             ];
         }
 
@@ -77,6 +77,7 @@ class PositionPriceChartService
             $range,
             $points,
             $bars,
+            $candles,
             intraday: false,
             demo: $demo,
         );
@@ -95,18 +96,7 @@ class PositionPriceChartService
     }
 
     /**
-     * @return array{
-     *     ticker: string,
-     *     range: string,
-     *     intraday: bool,
-     *     points: list<array{time: int, value: float}>,
-     *     period_change: array{absolute: float, percent: float, positive: bool},
-     *     levels: array{entry: ?float, stop: ?float, target1: ?float},
-     *     markers: list<array{time: int, role: string, color: string, value: float}>,
-     *     entry_time: int|null,
-     *     short: bool,
-     *     demo: bool,
-     * }|null
+     * @return array<string, mixed>|null
      */
     private function buildIntraday(Position $position): ?array
     {
@@ -126,10 +116,19 @@ class PositionPriceChartService
         }
 
         $points = [];
+        $candles = [];
         foreach ($bars as $bar) {
+            $close = round((float) $bar['close'], 4);
             $points[] = [
                 'time' => (int) $bar['time'],
-                'value' => round((float) $bar['close'], 4),
+                'value' => $close,
+            ];
+            $candles[] = [
+                'time' => (int) $bar['time'],
+                'open' => round((float) $bar['open'], 4),
+                'high' => round((float) $bar['high'], 4),
+                'low' => round((float) $bar['low'], 4),
+                'close' => $close,
             ];
         }
 
@@ -138,6 +137,7 @@ class PositionPriceChartService
             '1D',
             $points,
             $bars,
+            $candles,
             intraday: true,
             demo: $demo,
         );
@@ -146,24 +146,15 @@ class PositionPriceChartService
     /**
      * @param  list<array{time: int|string, value: float}>  $points
      * @param  list<array<string, mixed>>  $bars
-     * @return array{
-     *     ticker: string,
-     *     range: string,
-     *     intraday: bool,
-     *     points: list<array{time: int|string, value: float}>,
-     *     period_change: array{absolute: float, percent: float, positive: bool},
-     *     levels: array{entry: ?float, stop: ?float, target1: ?float},
-     *     markers: list<array{time: int|string, role: string, color: string, value: float}>,
-     *     entry_time: int|string|null,
-     *     short: bool,
-     *     demo: bool,
-     * }|null
+     * @param  list<array{time: int|string, open: float, high: float, low: float, close: float}>  $candles
+     * @return array<string, mixed>|null
      */
     private function finalizePayload(
         Position $position,
         string $range,
         array $points,
         array $bars,
+        array $candles,
         bool $intraday,
         bool $demo,
     ): ?array {
@@ -171,6 +162,7 @@ class PositionPriceChartService
             return null;
         }
 
+        $isScout = $position->status === 'scout';
         $first = (float) $points[0]['value'];
         $last = (float) $points[array_key_last($points)]['value'];
         $absolute = round($last - $first, 4);
@@ -186,7 +178,28 @@ class PositionPriceChartService
         $windowEnd = $points[array_key_last($points)]['time'];
         $markers = [];
 
-        if (
+        if ($isScout) {
+            $signalTime = $intraday
+                ? null
+                : optional($position->signal_bar_date ?? $position->detected_signal_bar_date)?->toDateString();
+
+            if (
+                $signalTime !== null
+                && $signalTime >= $windowStart
+                && $signalTime <= $windowEnd
+            ) {
+                $signalValue = $position->signal_high !== null
+                    ? (float) $position->signal_high
+                    : ($entryPrice ?? $last);
+
+                $markers[] = [
+                    'time' => $signalTime,
+                    'role' => 'signal',
+                    'color' => $short ? '#ef4444' : '#22c55e',
+                    'value' => $signalValue,
+                ];
+            }
+        } elseif (
             $entryTime !== null
             && $entryPrice !== null
             && $entryTime >= $windowStart
@@ -200,27 +213,113 @@ class PositionPriceChartService
             ];
         }
 
-        return [
+        $levels = [
+            'entry' => $entryPrice,
+            'stop' => $this->resolveStopLevel($position),
+            'target1' => $position->plannedBracketTarget1Price(),
+        ];
+
+        if ($isScout) {
+            $levels['signal_high'] = $position->signal_high !== null
+                ? (float) $position->signal_high
+                : null;
+            $levels['signal_low'] = $position->signal_low !== null
+                ? (float) $position->signal_low
+                : null;
+            $levels['sma20'] = $position->latest_sma_20 !== null
+                ? (float) $position->latest_sma_20
+                : null;
+        }
+
+        $payload = [
             'ticker' => $position->ticker,
             'range' => $range,
             'intraday' => $intraday,
+            'series' => $isScout ? 'candles' : 'area',
             'points' => $points,
             'period_change' => [
                 'absolute' => $absolute,
                 'percent' => $percent,
                 'positive' => $absolute >= 0,
             ],
-            'levels' => [
-                'entry' => $entryPrice,
-                'stop' => $position->current_sl !== null
-                    ? (float) $position->current_sl
-                    : ($position->initial_sl !== null ? (float) $position->initial_sl : null),
-                'target1' => $position->plannedBracketTarget1Price(),
-            ],
+            'levels' => $levels,
             'markers' => $markers,
             'entry_time' => $entryTime,
             'short' => $short,
             'demo' => $demo,
+        ];
+
+        if ($isScout) {
+            $payload['candles'] = $candles;
+            $payload['premarket'] = $this->resolvePremarketMeta($position);
+        }
+
+        return $payload;
+    }
+
+    private function resolveStopLevel(Position $position): ?float
+    {
+        if ($position->status === 'scout') {
+            if ($position->new_sl !== null) {
+                return (float) $position->new_sl;
+            }
+        }
+
+        if ($position->current_sl !== null) {
+            return (float) $position->current_sl;
+        }
+
+        return $position->initial_sl !== null ? (float) $position->initial_sl : null;
+    }
+
+    /**
+     * @return array{
+     *     price: float|null,
+     *     label: string|null,
+     *     description: string|null,
+     *     tone: string,
+     *     checked: bool
+     * }
+     */
+    private function resolvePremarketMeta(Position $position): array
+    {
+        $card = PremarketGatekeeperDisplay::cockpitCardData($position);
+
+        if ($card === null) {
+            return [
+                'price' => $position->premarket_price !== null
+                    ? (float) $position->premarket_price
+                    : null,
+                'label' => null,
+                'description' => PremarketGatekeeperDisplay::isRelevant($position)
+                    ? null
+                    : 'Nog geen pre-market check vandaag.',
+                'tone' => 'gray',
+                'checked' => PremarketGatekeeperDisplay::isRelevant($position),
+            ];
+        }
+
+        $price = $position->premarket_price !== null
+            ? (float) $position->premarket_price
+            : null;
+
+        $tone = match ($card['descriptionColor'] ?? 'gray') {
+            'danger' => 'danger',
+            'success' => 'success',
+            'warning' => 'warning',
+            default => 'gray',
+        };
+
+        $label = $position->premarket_scan_type instanceof PremarketScanResult
+            ? $position->premarket_scan_type->label()
+            : 'Pre-Market';
+
+        return [
+            'price' => $price,
+            'label' => $label,
+            'description' => $card['description'] ?? null,
+            'tone' => $tone,
+            'checked' => true,
         ];
     }
 

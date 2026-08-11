@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Contracts\DailyBarProvider;
+use App\Enums\PremarketScanResult;
 use App\Models\Position;
 use App\Models\SniperDailyBar;
 use App\Services\PositionPriceChartService;
@@ -90,6 +91,108 @@ class PositionPriceChartServiceTest extends TestCase
         $this->assertSame(108.0, $payload['levels']['stop']);
         $this->assertSame(110.0, $payload['levels']['entry']);
         $this->assertNotNull($payload['levels']['target1']);
+        $this->assertSame('area', $payload['series']);
+        $this->assertArrayNotHasKey('candles', $payload);
+        $this->assertArrayNotHasKey('premarket', $payload);
+    }
+
+    public function test_scout_payload_uses_candles_signal_levels_and_premarket_meta(): void
+    {
+        Cache::flush();
+        Carbon::setTestNow(Carbon::parse('2026-08-11 10:00:00', 'America/New_York'));
+
+        $bars = [];
+        $start = Carbon::parse('2026-05-01');
+
+        for ($i = 0; $i < 80; $i++) {
+            $close = 50 + ($i * 0.1);
+            $bars[] = [
+                'open' => $close - 0.2,
+                'high' => $close + 0.4,
+                'low' => $close - 0.4,
+                'close' => $close,
+                'volume' => 1_000_000,
+                'date' => $start->copy()->addWeekdays($i)->toDateString(),
+            ];
+        }
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')->andReturn([
+            'today' => $bars[array_key_last($bars)],
+            'adv30' => 1_000_000.0,
+            'bars' => $bars,
+        ]);
+
+        $position = Position::factory()->scout()->create([
+            'ticker' => 'SCOUT',
+            'direction' => 'long',
+            'entry_price' => 55.0,
+            'signal_high' => 54.5,
+            'signal_low' => 52.0,
+            'latest_atr_14' => 1.0,
+            'latest_sma_20' => 53.25,
+            'signal_bar_date' => '2026-07-15',
+            'premarket_price' => 56.10,
+            'premarket_scan_type' => PremarketScanResult::GapRisk,
+            'premarket_reference_price' => 54.5,
+            'premarket_distance_pct' => 2.9358,
+            'premarket_checked_at' => now(),
+        ]);
+
+        $payload = $this->makeService($dailyBars)->build($position, '3M');
+
+        $this->assertNotNull($payload);
+        $this->assertSame('candles', $payload['series']);
+        $this->assertArrayHasKey('candles', $payload);
+        $this->assertGreaterThanOrEqual(2, count($payload['candles']));
+        $this->assertArrayHasKey('open', $payload['candles'][0]);
+        $this->assertArrayHasKey('high', $payload['candles'][0]);
+        $this->assertArrayHasKey('low', $payload['candles'][0]);
+        $this->assertArrayHasKey('close', $payload['candles'][0]);
+
+        $this->assertSame(55.0, $payload['levels']['entry']);
+        $this->assertSame(54.5, $payload['levels']['signal_high']);
+        $this->assertSame(52.0, $payload['levels']['signal_low']);
+        $this->assertSame(53.25, $payload['levels']['sma20']);
+        $this->assertNotNull($payload['levels']['stop']);
+        $this->assertSame((float) $position->new_sl, $payload['levels']['stop']);
+        $this->assertNotNull($payload['levels']['target1']);
+
+        $this->assertNotEmpty($payload['markers']);
+        $this->assertSame('signal', $payload['markers'][0]['role']);
+        $this->assertSame('2026-07-15', $payload['markers'][0]['time']);
+
+        $this->assertSame(56.1, $payload['premarket']['price']);
+        $this->assertTrue($payload['premarket']['checked']);
+        $this->assertSame('danger', $payload['premarket']['tone']);
+        $this->assertNotNull($payload['premarket']['description']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_scout_premarket_meta_when_not_checked_today(): void
+    {
+        Cache::flush();
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')->andReturn(null);
+
+        $position = Position::factory()->scout()->create([
+            'ticker' => 'PMNONE',
+            'entry_price' => 40.0,
+            'signal_high' => 39.5,
+            'signal_low' => 38.0,
+            'latest_atr_14' => 0.8,
+            'premarket_checked_at' => null,
+        ]);
+
+        $payload = $this->makeService($dailyBars)->build($position, '1M');
+
+        $this->assertNotNull($payload);
+        $this->assertSame('candles', $payload['series']);
+        $this->assertFalse($payload['premarket']['checked']);
+        $this->assertSame('Nog geen pre-market check vandaag.', $payload['premarket']['description']);
+        $this->assertSame('gray', $payload['premarket']['tone']);
     }
 
     public function test_entry_marker_included_when_fill_day_in_window(): void

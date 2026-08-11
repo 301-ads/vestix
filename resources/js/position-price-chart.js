@@ -1,4 +1,4 @@
-import { createChart, ColorType, CrosshairMode, AreaSeries } from 'lightweight-charts';
+import { createChart, ColorType, CrosshairMode, AreaSeries, CandlestickSeries } from 'lightweight-charts';
 
 const RANGES = [
     { key: '1D', label: '1D' },
@@ -94,10 +94,20 @@ function lineValueAt(points, time) {
     return match != null ? Number(match.value) : null;
 }
 
-function syncEntryMarker(state) {
-    const { chart, areaSeries, chartHost, markerHost, marker, points } = state;
+function candleCloseAt(candles, time) {
+    if (!candles?.length || time == null) {
+        return null;
+    }
 
-    if (!markerHost || !chartHost || !chart || !areaSeries) {
+    const match = candles.find((candle) => candle.time === time || String(candle.time) === String(time));
+
+    return match != null ? Number(match.close) : null;
+}
+
+function syncEntryMarker(state) {
+    const { chart, primarySeries, chartHost, markerHost, marker, points, candles, seriesType } = state;
+
+    if (!markerHost || !chartHost || !chart || !primarySeries) {
         return;
     }
 
@@ -107,14 +117,16 @@ function syncEntryMarker(state) {
         return;
     }
 
-    // Snap to the area series (close on that day), not the Entry price line.
-    const lineValue = lineValueAt(points, marker.time);
+    const lineValue = seriesType === 'candles'
+        ? candleCloseAt(candles, marker.time)
+        : lineValueAt(points, marker.time);
+
     if (lineValue == null || Number.isNaN(lineValue)) {
         return;
     }
 
     const x = chart.timeScale().timeToCoordinate(marker.time);
-    const y = areaSeries.priceToCoordinate(lineValue);
+    const y = primarySeries.priceToCoordinate(lineValue);
 
     if (x === null || y === null || Number.isNaN(x) || Number.isNaN(y)) {
         return;
@@ -134,16 +146,17 @@ function syncEntryMarker(state) {
     dot.style.width = `${size}px`;
     dot.style.height = `${size}px`;
     dot.style.transform = `translate(${Math.round(x - size / 2)}px, ${Math.round(y - size / 2)}px)`;
-    dot.title = `Entry $${Number(marker.value).toFixed(2)}`;
+    const label = marker.role === 'signal' ? 'Signaal' : 'Entry';
+    dot.title = `${label} $${Number(marker.value).toFixed(2)}`;
     markerHost.appendChild(dot);
 }
 
 function applyPriceLines(state) {
-    const { areaSeries, priceLines, levels } = state;
+    const { primarySeries, priceLines, levels } = state;
 
     Object.values(priceLines).forEach((line) => {
         try {
-            areaSeries.removePriceLine(line);
+            primarySeries.removePriceLine(line);
         } catch {
             // already removed
         }
@@ -154,11 +167,14 @@ function applyPriceLines(state) {
         ['entry', '#22c55e', 'Entry'],
         ['stop', '#ef4444', 'SL'],
         ['target1', '#a855f7', 'T1'],
+        ['signal_high', '#38bdf8', 'H'],
+        ['signal_low', '#38bdf8', 'L'],
+        ['sma20', '#3b82f6', 'SMA20'],
     ];
 
     for (const [key, color, title] of levelMeta) {
         if (levels[key] != null) {
-            state.priceLines[key] = areaSeries.createPriceLine({
+            state.priceLines[key] = primarySeries.createPriceLine({
                 price: Number(levels[key]),
                 color,
                 lineWidth: 1,
@@ -181,6 +197,53 @@ function updatePeriodChange(el, periodChange) {
     host.textContent = `${formatSignedMoney(periodChange.absolute)} (${formatSignedPercent(periodChange.percent)})`;
     host.classList.toggle('vestix-price-chart__change--up', positive);
     host.classList.toggle('vestix-price-chart__change--down', !positive);
+}
+
+function updatePremarketStatus(el, premarket) {
+    const host = el.querySelector('[data-price-chart-premarket]');
+
+    if (!host) {
+        return;
+    }
+
+    if (!premarket) {
+        host.hidden = true;
+        host.textContent = '';
+        return;
+    }
+
+    const parts = [];
+
+    if (premarket.price != null) {
+        parts.push(`PM $${Number(premarket.price).toFixed(2)}`);
+    }
+
+    if (premarket.label) {
+        parts.push(premarket.label);
+    }
+
+    if (premarket.description) {
+        parts.push(premarket.description);
+    }
+
+    host.textContent = parts.join(' · ');
+    host.hidden = parts.length === 0;
+    host.classList.remove(
+        'text-rose-400',
+        'text-emerald-500',
+        'text-amber-500',
+        'text-gray-500',
+        'dark:text-gray-400',
+    );
+
+    const toneClass = {
+        danger: 'text-rose-400',
+        success: 'text-emerald-500',
+        warning: 'text-amber-500',
+        gray: 'text-gray-500 dark:text-gray-400',
+    }[premarket.tone || 'gray'] || 'text-gray-500 dark:text-gray-400';
+
+    toneClass.split(' ').forEach((cls) => host.classList.add(cls));
 }
 
 function setActiveRange(el, range) {
@@ -221,9 +284,12 @@ async function loadChart(el, range = '3M') {
         }
 
         const payload = await response.json();
+        const seriesType = payload.series === 'candles' ? 'candles' : 'area';
+        const hasPoints = payload?.points?.length >= 2;
+        const hasCandles = payload?.candles?.length >= 2;
 
-        if (!payload?.points?.length) {
-            throw new Error('Empty points');
+        if (seriesType === 'candles' ? !hasCandles : !hasPoints) {
+            throw new Error('Empty series');
         }
 
         const dark = isDarkMode();
@@ -259,29 +325,46 @@ async function loadChart(el, range = '3M') {
             width: chartHost.clientWidth || undefined,
         });
 
-        const areaSeries = chart.addSeries(AreaSeries, {
-            lineColor: colors.lineColor,
-            topColor: colors.topColor,
-            bottomColor: colors.bottomColor,
-            lineWidth: 2,
-            priceLineVisible: false,
-            lastValueVisible: true,
-            crosshairMarkerVisible: true,
-            crosshairMarkerRadius: 4,
-        });
+        let primarySeries;
 
-        areaSeries.setData(payload.points);
+        if (seriesType === 'candles') {
+            primarySeries = chart.addSeries(CandlestickSeries, {
+                upColor: '#22c55e',
+                downColor: '#ef4444',
+                borderVisible: false,
+                wickUpColor: '#22c55e',
+                wickDownColor: '#ef4444',
+                priceLineVisible: false,
+                lastValueVisible: true,
+            });
+            primarySeries.setData(payload.candles);
+        } else {
+            primarySeries = chart.addSeries(AreaSeries, {
+                lineColor: colors.lineColor,
+                topColor: colors.topColor,
+                bottomColor: colors.bottomColor,
+                lineWidth: 2,
+                priceLineVisible: false,
+                lastValueVisible: true,
+                crosshairMarkerVisible: true,
+                crosshairMarkerRadius: 4,
+            });
+            primarySeries.setData(payload.points);
+        }
+
         chart.timeScale().fitContent();
 
-        const entryMarker = payload.markers?.find((marker) => marker.role === 'entry') ?? null;
+        const entryMarker = payload.markers?.find((marker) => marker.role === 'entry' || marker.role === 'signal') ?? null;
 
         const state = {
             root: el,
             chart,
-            areaSeries,
+            primarySeries,
             chartHost,
             markerHost,
             points: payload.points ?? [],
+            candles: payload.candles ?? [],
+            seriesType,
             levels: payload.levels ?? {},
             marker: entryMarker,
             priceLines: {},
@@ -289,12 +372,13 @@ async function loadChart(el, range = '3M') {
 
         applyPriceLines(state);
         updatePeriodChange(el, payload.period_change);
+        updatePremarketStatus(el, payload.premarket);
 
         status.textContent = payload.demo
             ? `${payload.ticker} · demo-data`
             : payload.intraday
-                ? `${payload.ticker} · vandaag · ${payload.points.length}×5m`
-                : `${payload.ticker} · ${payload.points.length} dagen`;
+                ? `${payload.ticker} · vandaag · ${(payload.candles ?? payload.points).length}×5m`
+                : `${payload.ticker} · ${(payload.candles ?? payload.points).length} dagen`;
         status.classList.toggle('text-amber-500', Boolean(payload.demo));
 
         requestAnimationFrame(() => syncEntryMarker(state));
@@ -312,12 +396,14 @@ async function loadChart(el, range = '3M') {
         const themeObserver = new MutationObserver(() => {
             const nextDark = isDarkMode();
             chart.applyOptions(chartTheme(nextDark));
-            const nextColors = areaColors(positive, nextDark);
-            areaSeries.applyOptions({
-                lineColor: nextColors.lineColor,
-                topColor: nextColors.topColor,
-                bottomColor: nextColors.bottomColor,
-            });
+            if (seriesType === 'area') {
+                const nextColors = areaColors(positive, nextDark);
+                primarySeries.applyOptions({
+                    lineColor: nextColors.lineColor,
+                    topColor: nextColors.topColor,
+                    bottomColor: nextColors.bottomColor,
+                });
+            }
             syncEntryMarker(state);
         });
         themeObserver.observe(document.documentElement, {
@@ -339,6 +425,7 @@ async function loadChart(el, range = '3M') {
         status.classList.add('text-rose-400');
         status.hidden = false;
         updatePeriodChange(el, { absolute: 0, percent: 0, positive: true });
+        updatePremarketStatus(el, null);
         const change = el.querySelector('[data-price-chart-change]');
         if (change) {
             change.textContent = '—';
