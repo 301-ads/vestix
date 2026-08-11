@@ -35,6 +35,9 @@ class WatchTargetPrices extends Command
             return self::SUCCESS;
         }
 
+        // 16:15 ET sits in both the intraday window and after-close. Prefer the completed
+        // session mark path (fetchLivePrice after close) — do not skip; it repairs stale EH marks.
+
         $tickers = $this->tickersToWatch();
 
         if ($tickers->isEmpty()) {

@@ -131,6 +131,36 @@ class WatchTargetPricesTest extends TestCase
         $this->assertEquals(60.10, (float) $position->fresh()->latest_close_price);
     }
 
+    public function test_command_repairs_stale_mark_with_session_close_at_window_end(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-10 16:15:00', 'America/New_York'));
+        Queue::fake();
+
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'PINS',
+            'entry_price' => 23.79,
+            'initial_sl' => 23.00,
+            'current_sl' => 23.00,
+            'latest_close_price' => 23.52,
+            'quantity' => 59,
+            'status' => 'open',
+        ]);
+
+        $quoteProvider = Mockery::mock(QuoteProvider::class);
+        $quoteProvider->shouldReceive('fetchLivePrice')
+            ->once()
+            ->with('PINS')
+            ->andReturn(24.37);
+        $this->app->instance(QuoteProvider::class, $quoteProvider);
+
+        $this->artisan('vestix:watch-target-prices', ['--force' => true])
+            ->expectsOutput('PINS: $24.37')
+            ->assertSuccessful();
+
+        $this->assertEqualsWithDelta(24.37, (float) $position->fresh()->latest_close_price, 0.01);
+    }
+
     public function test_intraday_window_covers_premarket_and_regular_session(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-09 05:00:00', 'America/New_York'));

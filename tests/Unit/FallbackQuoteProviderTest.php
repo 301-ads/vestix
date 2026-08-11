@@ -200,6 +200,60 @@ class FallbackQuoteProviderTest extends TestCase
         $this->assertSame(42.40, $provider->fetchPremarketPrice('PECO', 42.79));
     }
 
+    public function test_after_market_close_live_price_uses_session_close_not_extended_hours(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-10 16:15:00', 'America/New_York'));
+        $this->enablePolygonRealtime();
+
+        $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
+        $finnhub->shouldReceive('fetchSessionQuote')->with('PINS')->once()->andReturn([
+            'close' => 24.37,
+            'previous_close' => 23.68,
+        ]);
+
+        $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
+        $alphaVantage->shouldNotReceive('fetchSessionQuote');
+
+        $polygon = Mockery::mock(PolygonQuoteProvider::class);
+        // Delayed last-trade must not be consulted after the close.
+        $polygon->shouldNotReceive('fetchSessionQuote');
+        $polygon->shouldNotReceive('fetchLivePrice');
+        $polygon->shouldNotReceive('fetchPremarketPrice');
+
+        $tv = Mockery::mock(TradingViewPremarketQuoteService::class);
+        $tv->shouldNotReceive('fetchPremarketQuote');
+
+        $yahoo = Mockery::mock(YahooFinanceChartQuoteService::class);
+        $yahoo->shouldReceive('fetchExtendedHoursLastPrice')->never();
+        $yahoo->shouldReceive('fetchLivePrice')->with('PINS')->once()->andReturn(null);
+
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon, $tv, $yahoo);
+
+        $this->assertSame(24.37, $provider->fetchLivePrice('PINS'));
+    }
+
+    public function test_after_market_close_prefers_yahoo_regular_market_price(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-10 16:30:00', 'America/New_York'));
+
+        $finnhub = Mockery::mock(FinnhubQuoteProvider::class);
+        $finnhub->shouldNotReceive('fetchSessionQuote');
+
+        $alphaVantage = Mockery::mock(AlphaVantageQuoteProvider::class);
+        $alphaVantage->shouldNotReceive('fetchSessionQuote');
+
+        $polygon = Mockery::mock(PolygonQuoteProvider::class);
+        $polygon->shouldNotReceive('fetchSessionQuote');
+
+        $yahoo = Mockery::mock(YahooFinanceChartQuoteService::class);
+        $yahoo->shouldReceive('fetchExtendedHoursLastPrice')->never();
+        $yahoo->shouldReceive('fetchLivePrice')->with('PINS')->once()->andReturn(24.37);
+
+        $provider = $this->makeProvider($finnhub, $alphaVantage, $polygon, null, $yahoo);
+
+        $this->assertSame(24.37, $provider->fetchLivePrice('PINS'));
+    }
+
     public function test_premarket_keeps_unavailable_when_tradingview_reports_no_eh_trades(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-13 08:30:00', 'America/New_York'));

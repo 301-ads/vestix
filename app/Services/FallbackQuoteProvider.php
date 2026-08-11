@@ -19,18 +19,33 @@ class FallbackQuoteProvider implements QuoteProvider
 
     public function fetchLivePrice(string $ticker): ?float
     {
-        // Outside RTH, prefer extended-hours prints so open P&L tracks IBKR/TV instead of yesterday's close.
-        if (UsMarketSession::isPremarketWindow() || UsMarketSession::isAfterMarketClose()) {
-            $extended = $this->fetchPremarketPrice($ticker);
+        // Premarket: real EH prints (TV/Yahoo) so open P&L tracks the tape — not a delayed last trade.
+        if (UsMarketSession::isPremarketWindow()) {
+            return $this->fetchPremarketPrice($ticker)
+                ?? $this->completedSessionClose($ticker);
+        }
 
-            if ($extended !== null) {
-                return $extended;
-            }
+        // After the US close: only the completed session mark. Delayed Polygon/EH last-trade
+        // prints (e.g. PINS 23.52) were overwriting Finnhub/Yahoo EOD (24.37) via the hourly watch.
+        if (UsMarketSession::isAfterMarketClose()) {
+            return $this->completedSessionClose($ticker);
+        }
+
+        // RTH: prefer Yahoo (same source as the position chart tip), then Finnhub/AV/Polygon.
+        return $this->completedSessionClose($ticker);
+    }
+
+    private function completedSessionClose(string $ticker): ?float
+    {
+        $yahoo = $this->yahooFinance->fetchLivePrice($ticker);
+
+        if ($yahoo !== null) {
+            return round($yahoo, 2);
         }
 
         $quote = $this->fetchSessionQuoteWithProvider($ticker);
 
-        return $quote['close'] ?? null;
+        return isset($quote['close']) ? round((float) $quote['close'], 2) : null;
     }
 
     public function fetchPremarketPrice(string $ticker, ?float $referenceClose = null): ?float
