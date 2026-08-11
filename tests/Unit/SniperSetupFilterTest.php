@@ -28,6 +28,39 @@ class SniperSetupFilterTest extends TestCase
         ]));
     }
 
+    public function test_long_rejects_flat_or_declining_sma20_five_day_slope(): void
+    {
+        $this->assertNull(SniperSetupFilter::evaluate([
+            'open' => 100.0,
+            'close' => 101.0,
+            'sma10' => 101.5,
+            'sma20' => 100.0,
+            'sma20FiveDaysAgo' => 100.0,
+            'sma50' => 98.0,
+            'rsi14' => 45.0,
+        ]));
+
+        $this->assertNull(SniperSetupFilter::evaluate([
+            'open' => 100.0,
+            'close' => 101.0,
+            'sma10' => 101.5,
+            'sma20' => 100.0,
+            'sma20FiveDaysAgo' => 100.5,
+            'sma50' => 98.0,
+            'rsi14' => 45.0,
+        ]));
+
+        $this->assertSame('long', SniperSetupFilter::evaluate([
+            'open' => 100.0,
+            'close' => 101.0,
+            'sma10' => 101.5,
+            'sma20' => 100.0,
+            'sma20FiveDaysAgo' => 99.5,
+            'sma50' => 98.0,
+            'rsi14' => 45.0,
+        ]));
+    }
+
     public function test_long_rejects_outside_valstrik_or_rsi(): void
     {
         $this->assertNull(SniperSetupFilter::evaluate([

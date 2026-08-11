@@ -17,6 +17,7 @@ class SniperLocalIndicators
      *     date: string,
      *     sma10: float,
      *     sma20: float,
+     *     sma20FiveDaysAgo: float|null,
      *     sma50: float,
      *     sma200: float|null,
      *     rsi14: float,
@@ -41,6 +42,11 @@ class SniperLocalIndicators
 
         $sma10 = TechnicalIndicators::sma($closes, 10);
         $sma20 = TechnicalIndicators::sma($closes, 20);
+        $sma20FiveDaysAgo = TechnicalIndicators::smaAtOffset(
+            $closes,
+            20,
+            ScoutSetupScorecard::smaSlopeHardFailLookbackDays(),
+        );
         $sma50 = TechnicalIndicators::sma($closes, 50);
         $sma200 = TechnicalIndicators::sma($closes, 200);
         $rsi14 = TechnicalIndicators::wilderRsi($closes, 14);
@@ -58,6 +64,7 @@ class SniperLocalIndicators
             'date' => $latest->date->toDateString(),
             'sma10' => $sma10,
             'sma20' => $sma20,
+            'sma20FiveDaysAgo' => $sma20FiveDaysAgo,
             'sma50' => $sma50,
             'sma200' => $sma200,
             'rsi14' => $rsi14,

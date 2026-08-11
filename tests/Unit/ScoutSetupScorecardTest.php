@@ -230,8 +230,10 @@ class ScoutSetupScorecardTest extends TestCase
 
     public function test_declining_sma_over_ten_days_scores_zero(): void
     {
+        // 5d-helling blijft positief zodat alleen de soft 10d-check faalt.
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'latest_sma_20' => 99.00,
+            'sma_20_five_days_ago' => 98.00,
             'sma_20_ten_days_ago' => 100.00,
             'bounce_volume_above_average' => false,
             'relative_volume' => null,
@@ -239,6 +241,66 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame(0, $result['criteria'][1]['points']);
         $this->assertStringContainsString('Dalende SMA over 10 dagen', $result['criteria'][1]['detail']);
+        $this->assertSame([], $result['hardFailReasons']);
+    }
+
+    public function test_ajg_like_flat_five_day_sma_slope_hard_fails_despite_ten_day_rise(): void
+    {
+        // Soft 10d-slope kan nog slagen (juli-momentum), maar 5d is dalend → NO TRADE.
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 245.33,
+            'latest_open_price' => 247.00,
+            'latest_close_price' => 252.43,
+            'latest_sma_20' => 251.92,
+            'sma_20_five_days_ago' => 253.32,
+            'sma_20_ten_days_ago' => 249.00,
+            'latest_sma_50' => 240.00,
+            'scout_rsi' => 54.53,
+            'pre_bounce_extension_atr' => 2.3,
+        ]));
+
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertNotEmpty($result['hardFailReasons']);
+        $this->assertTrue(
+            collect($result['hardFailReasons'])->contains(
+                fn (string $reason): bool => str_contains($reason, 'SMA-helling dalend over 5 dagen'),
+            ),
+        );
+        $this->assertSame(0, $result['criteria'][1]['points']);
+        $this->assertStringContainsString('SMA-helling dalend over 5 dagen', $result['criteria'][1]['detail']);
+    }
+
+    public function test_flat_five_day_sma_slope_hard_fails(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 100.00,
+            'sma_20_ten_days_ago' => 98.00,
+        ]));
+
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertTrue(
+            collect($result['hardFailReasons'])->contains(
+                fn (string $reason): bool => str_contains($reason, 'SMA-helling te vlak over 5 dagen'),
+            ),
+        );
+    }
+
+    public function test_rising_five_day_sma_slope_allows_a_setup(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
+        ]));
+
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame('A', $result['grade']);
+        $this->assertSame(10, $result['totalPoints']);
     }
 
     public function test_eog_scenario_fails_when_sma20_below_sma50(): void
@@ -258,8 +320,10 @@ class ScoutSetupScorecardTest extends TestCase
 
     public function test_fake_trend_fails_when_rising_vs_yesterday_but_declining_vs_ten_days(): void
     {
+        // 5d stijgt (geen hard-fail), maar 10d daalt → soft score 0 zonder veto.
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'latest_sma_20' => 100.50,
+            'sma_20_five_days_ago' => 99.50,
             'sma_20_ten_days_ago' => 101.00,
             'bounce_volume_above_average' => false,
             'relative_volume' => null,
@@ -267,6 +331,7 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame(0, $result['criteria'][1]['points']);
         $this->assertStringContainsString('Dalende SMA over 10 dagen', $result['criteria'][1]['detail']);
+        $this->assertSame([], $result['hardFailReasons']);
     }
 
     public function test_rsi_above_seventy_forces_no_trade_despite_high_score(): void
@@ -633,6 +698,7 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_open_price' => 100.00,
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
             'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,
@@ -661,6 +727,7 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_open_price' => 100.00,
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
             'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 68.00,
@@ -689,6 +756,7 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_open_price' => 100.00,
             'latest_close_price' => 101.00,
             'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
             'sma_20_ten_days_ago' => 98.00,
             'latest_sma_50' => 98.00,
             'scout_rsi' => 50.00,

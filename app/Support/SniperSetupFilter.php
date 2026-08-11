@@ -12,6 +12,7 @@ class SniperSetupFilter
      *     low?: float,
      *     sma10: float,
      *     sma20: float,
+     *     sma20FiveDaysAgo?: float|null,
      *     sma50: float,
      *     rsi14: float,
      * }  $inputs
@@ -31,7 +32,7 @@ class SniperSetupFilter
     }
 
     /**
-     * @param  array{open: float, close: float, high?: float, low?: float, sma10: float, sma20: float, sma50: float, rsi14: float}  $inputs
+     * @param  array{open: float, close: float, high?: float, low?: float, sma10: float, sma20: float, sma20FiveDaysAgo?: float|null, sma50: float, rsi14: float}  $inputs
      */
     public static function passesLong(array $inputs): bool
     {
@@ -55,6 +56,10 @@ class SniperSetupFilter
         }
 
         if ($close < $sma20 || $close > $sma20 * 1.03) {
+            return false;
+        }
+
+        if (! self::passesLongSmaSlope($inputs)) {
             return false;
         }
 
@@ -108,6 +113,24 @@ class SniperSetupFilter
     public static function passesMinPrice(float $close): bool
     {
         return $close >= self::minPrice();
+    }
+
+    /**
+     * When sma20FiveDaysAgo is present, enforce the scorecard long-slope hard-fail.
+     * Legacy callers without the key keep prior math behavior.
+     *
+     * @param  array{sma20: float, sma20FiveDaysAgo?: float|null}  $inputs
+     */
+    private static function passesLongSmaSlope(array $inputs): bool
+    {
+        if (! array_key_exists('sma20FiveDaysAgo', $inputs)) {
+            return true;
+        }
+
+        return ScoutSetupScorecard::longSlopeFailReason([
+            'latest_sma_20' => $inputs['sma20'],
+            'sma_20_five_days_ago' => $inputs['sma20FiveDaysAgo'],
+        ]) === null;
     }
 
     /**

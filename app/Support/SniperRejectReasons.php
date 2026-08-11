@@ -80,6 +80,17 @@ class SniperRejectReasons
             $reasons[] = 'Close >3% boven SMA20 (te extended)';
         }
 
+        if (array_key_exists('sma20FiveDaysAgo', $inputs)) {
+            $slopeFail = ScoutSetupScorecard::longSlopeFailReason([
+                'latest_sma_20' => $sma20,
+                'sma_20_five_days_ago' => $inputs['sma20FiveDaysAgo'],
+            ]);
+
+            if ($slopeFail !== null) {
+                $reasons[] = $slopeFail;
+            }
+        }
+
         if (isset($inputs['high'], $inputs['low']) && CandleAnatomy::enabled()) {
             if (! CandleAnatomy::passesBar([
                 'open' => $open,

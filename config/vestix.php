@@ -143,6 +143,10 @@ return [
         'max_points' => 10,
         'sma_slope_lookback_days' => (int) env('SNIPER_SMA_SLOPE_LOOKBACK_DAYS', 10),
         'sma_slope_min_pct' => (float) env('SNIPER_SMA_SLOPE_MIN_PCT', 0.3),
+        // Long: SMA20 vandaag moet stijgen t.o.v. N handelsdagen geleden (hard-fail veto).
+        'sma_slope_hard_fail_enabled' => filter_var(env('SNIPER_SMA_SLOPE_HARD_FAIL', true), FILTER_VALIDATE_BOOL),
+        'sma_slope_hard_fail_lookback_days' => (int) env('SNIPER_SMA_SLOPE_HARD_FAIL_LOOKBACK_DAYS', 5),
+        'sma_slope_hard_fail_min_pct' => (float) env('SNIPER_SMA_SLOPE_HARD_FAIL_MIN_PCT', 0.0),
         // Groene bounce net onder SMA 20: geen hard fail, maar slechts 1/2 trampoline-punt. Long only.
         'trampoline_near_miss_pct' => (float) env('SNIPER_TRAMPOLINE_NEAR_MISS_PCT', 0.25),
         // Short Route 1: SMA vandaag < 5d < 10d verplicht.

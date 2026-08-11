@@ -227,6 +227,12 @@ class ScoutSetupScorecard
      */
     private static function scoreSmaDirection(array $inputs): array
     {
+        $slopeFail = self::longSlopeFailReason($inputs);
+
+        if ($slopeFail !== null) {
+            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', $slopeFail);
+        }
+
         $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
         $lookbackDays = self::smaSlopeLookbackDays();
         $tenDaysAgo = self::toFloat($inputs['sma_20_ten_days_ago'] ?? null);
@@ -608,11 +614,77 @@ class ScoutSetupScorecard
             $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
         }
 
+        $slopeFail = self::longSlopeFailReason($inputs);
+
+        if ($slopeFail !== null) {
+            $reasons[] = $slopeFail;
+        }
+
         return array_merge(
             $reasons,
             self::resolveCandleAnatomyHardFail($inputs),
             self::resolveFreeAirspaceHardFail($inputs),
             self::resolveEarningsHardFail($inputs),
+        );
+    }
+
+    /**
+     * Long meewind: SMA20 vandaag moet stijgen t.o.v. N handelsdagen geleden.
+     *
+     * @param  array<string, mixed>  $inputs
+     */
+    public static function longSlopeFailReason(array $inputs): ?string
+    {
+        if (! self::smaSlopeHardFailEnabled()) {
+            return null;
+        }
+
+        $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
+        $fiveDaysAgo = self::toFloat($inputs['sma_20_five_days_ago'] ?? null);
+        $lookbackDays = self::smaSlopeHardFailLookbackDays();
+        $minPct = self::smaSlopeHardFailMinPct();
+
+        if ($latest === null || $fiveDaysAgo === null) {
+            return match (true) {
+                $latest !== null && $fiveDaysAgo === null => sprintf(
+                    'Haal marktdata op voor %d-daagse SMA-helling',
+                    $lookbackDays,
+                ),
+                default => 'SMA-helling data ontbreekt',
+            };
+        }
+
+        if ($fiveDaysAgo <= 0) {
+            return 'SMA-helling data ontbreekt';
+        }
+
+        $deltaPct = (($latest - $fiveDaysAgo) / $fiveDaysAgo) * 100;
+
+        if ($deltaPct > $minPct) {
+            return null;
+        }
+
+        if ($deltaPct < 0) {
+            return sprintf(
+                'SMA-helling dalend over %d dagen — Δ %.2f%% (meewind vereist)',
+                $lookbackDays,
+                $deltaPct,
+            );
+        }
+
+        if ($minPct <= 0.0) {
+            return sprintf(
+                'SMA-helling te vlak over %d dagen — Δ %.2f%% (meewind vereist)',
+                $lookbackDays,
+                $deltaPct,
+            );
+        }
+
+        return sprintf(
+            'SMA-helling te vlak over %d dagen — Δ %.2f%% (min %.2f%%)',
+            $lookbackDays,
+            $deltaPct,
+            $minPct,
         );
     }
 
@@ -1035,6 +1107,21 @@ SQL;
     public static function smaSlopeMinPct(): float
     {
         return (float) config('vestix.sniper_scorecard.sma_slope_min_pct', 0.3);
+    }
+
+    public static function smaSlopeHardFailEnabled(): bool
+    {
+        return (bool) config('vestix.sniper_scorecard.sma_slope_hard_fail_enabled', true);
+    }
+
+    public static function smaSlopeHardFailLookbackDays(): int
+    {
+        return (int) config('vestix.sniper_scorecard.sma_slope_hard_fail_lookback_days', 5);
+    }
+
+    public static function smaSlopeHardFailMinPct(): float
+    {
+        return (float) config('vestix.sniper_scorecard.sma_slope_hard_fail_min_pct', 0.0);
     }
 
     /**
