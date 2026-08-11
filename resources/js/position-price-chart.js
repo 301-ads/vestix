@@ -1,4 +1,4 @@
-import { createChart, ColorType, CrosshairMode, AreaSeries, CandlestickSeries } from 'lightweight-charts';
+import { createChart, ColorType, CrosshairMode, AreaSeries, CandlestickSeries, LineSeries } from 'lightweight-charts';
 
 const RANGES = [
     { key: '1D', label: '1D' },
@@ -41,6 +41,44 @@ function chartTheme(dark = isDarkMode()) {
             horzLines: { color: dark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
         },
     };
+}
+
+function rsiChartTheme(dark = isDarkMode()) {
+    return {
+        layout: {
+            background: {
+                type: ColorType.Solid,
+                color: dark ? '#09090b' : '#fafafa',
+            },
+            textColor: dark ? '#a1a1aa' : '#71717a',
+        },
+        grid: {
+            vertLines: { color: dark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
+            horzLines: { color: dark ? 'rgba(148,163,184,0.06)' : 'rgba(113,113,122,0.1)' },
+        },
+    };
+}
+
+function alignPaneWidths(chart, rsiChart) {
+    const minWidth = 72;
+    const width = Math.max(
+        chart.priceScale('right').width(),
+        rsiChart.priceScale('right').width(),
+        minWidth,
+    );
+
+    chart.priceScale('right').applyOptions({ minimumWidth: width });
+    rsiChart.priceScale('right').applyOptions({ minimumWidth: width });
+}
+
+function alignSeriesToCandles(candles, seriesRows) {
+    const byTime = new Map((seriesRows ?? []).map((row) => [row.time, row]));
+
+    return candles.map((candle) => {
+        const row = byTime.get(candle.time);
+
+        return row ?? { time: candle.time };
+    });
 }
 
 function csrfToken() {
@@ -94,18 +132,8 @@ function lineValueAt(points, time) {
     return match != null ? Number(match.value) : null;
 }
 
-function candleCloseAt(candles, time) {
-    if (!candles?.length || time == null) {
-        return null;
-    }
-
-    const match = candles.find((candle) => candle.time === time || String(candle.time) === String(time));
-
-    return match != null ? Number(match.close) : null;
-}
-
 function syncEntryMarker(state) {
-    const { chart, primarySeries, chartHost, markerHost, marker, points, candles, seriesType } = state;
+    const { chart, primarySeries, chartHost, markerHost, marker, points } = state;
 
     if (!markerHost || !chartHost || !chart || !primarySeries) {
         return;
@@ -117,9 +145,7 @@ function syncEntryMarker(state) {
         return;
     }
 
-    const lineValue = seriesType === 'candles'
-        ? candleCloseAt(candles, marker.time)
-        : lineValueAt(points, marker.time);
+    const lineValue = lineValueAt(points, marker.time);
 
     if (lineValue == null || Number.isNaN(lineValue)) {
         return;
@@ -146,8 +172,7 @@ function syncEntryMarker(state) {
     dot.style.width = `${size}px`;
     dot.style.height = `${size}px`;
     dot.style.transform = `translate(${Math.round(x - size / 2)}px, ${Math.round(y - size / 2)}px)`;
-    const label = marker.role === 'signal' ? 'Signaal' : 'Entry';
-    dot.title = `${label} $${Number(marker.value).toFixed(2)}`;
+    dot.title = `Entry $${Number(marker.value).toFixed(2)}`;
     markerHost.appendChild(dot);
 }
 
@@ -167,9 +192,6 @@ function applyPriceLines(state) {
         ['entry', '#22c55e', 'Entry'],
         ['stop', '#ef4444', 'SL'],
         ['target1', '#a855f7', 'T1'],
-        ['signal_high', '#38bdf8', 'H'],
-        ['signal_low', '#38bdf8', 'L'],
-        ['sma20', '#3b82f6', 'SMA20'],
     ];
 
     for (const [key, color, title] of levelMeta) {
@@ -254,11 +276,44 @@ function setActiveRange(el, range) {
     });
 }
 
+function setRsiPaneVisible(el, visible) {
+    const label = el.querySelector('[data-price-chart-rsi-label]');
+    const wrap = el.querySelector('[data-price-chart-rsi-wrap]');
+
+    if (label) {
+        label.hidden = !visible;
+    }
+
+    if (wrap) {
+        wrap.hidden = !visible;
+    }
+}
+
+function syncTimeScales(state) {
+    const { chart, rsiChart } = state;
+
+    if (!chart || !rsiChart) {
+        return;
+    }
+
+    chart.timeScale().applyOptions({ rightOffset: 10 });
+    rsiChart.timeScale().applyOptions({ rightOffset: 10 });
+    chart.timeScale().fitContent();
+    const range = chart.timeScale().getVisibleLogicalRange();
+
+    if (range) {
+        rsiChart.timeScale().setVisibleLogicalRange(range);
+    }
+
+    alignPaneWidths(chart, rsiChart);
+}
+
 async function loadChart(el, range = '3M') {
     const url = el.dataset.chartUrl;
     const status = el.querySelector('[data-price-chart-status]');
     const chartHost = el.querySelector('[data-price-chart]');
     const markerHost = el.querySelector('[data-price-chart-markers]');
+    const rsiHost = el.querySelector('[data-price-chart-rsi]');
 
     if (!url || !chartHost || !status) {
         return;
@@ -269,6 +324,7 @@ async function loadChart(el, range = '3M') {
     status.hidden = false;
     status.classList.remove('text-amber-500', 'text-rose-400');
     setActiveRange(el, range);
+    setRsiPaneVisible(el, false);
 
     try {
         const response = await fetch(`${url}?range=${encodeURIComponent(range)}`, {
@@ -295,12 +351,22 @@ async function loadChart(el, range = '3M') {
         const dark = isDarkMode();
         const positive = Boolean(payload.period_change?.positive);
         const colors = areaColors(positive, dark);
+        const showIndicators = seriesType === 'candles'
+            && !payload.intraday
+            && ((payload.sma20?.length ?? 0) > 0 || (payload.rsi14?.length ?? 0) > 0);
 
         chartHost.innerHTML = '';
         if (markerHost) {
             markerHost.innerHTML = '';
         }
+        if (rsiHost) {
+            rsiHost.innerHTML = '';
+        }
 
+        const priceScaleOptions = {
+            borderVisible: false,
+            minimumWidth: showIndicators ? 72 : 56,
+        };
         const theme = chartTheme(dark);
         const chart = createChart(chartHost, {
             ...theme,
@@ -310,13 +376,10 @@ async function loadChart(el, range = '3M') {
             },
             crosshair: { mode: CrosshairMode.Normal },
             leftPriceScale: { visible: false },
-            rightPriceScale: {
-                borderVisible: false,
-                minimumWidth: 56,
-            },
+            rightPriceScale: priceScaleOptions,
             timeScale: {
                 borderVisible: false,
-                rightOffset: 6,
+                rightOffset: showIndicators ? 10 : 6,
                 timeVisible: Boolean(payload.intraday),
                 secondsVisible: false,
             },
@@ -326,6 +389,9 @@ async function loadChart(el, range = '3M') {
         });
 
         let primarySeries;
+        let smaSeries = null;
+        let rsiChart = null;
+        let rsiSeries = null;
 
         if (seriesType === 'candles') {
             primarySeries = chart.addSeries(CandlestickSeries, {
@@ -338,6 +404,64 @@ async function loadChart(el, range = '3M') {
                 lastValueVisible: true,
             });
             primarySeries.setData(payload.candles);
+
+            if (showIndicators && (payload.sma20?.length ?? 0) > 0) {
+                smaSeries = chart.addSeries(LineSeries, {
+                    color: '#3b82f6',
+                    lineWidth: 2,
+                    title: 'SMA-20',
+                    priceLineVisible: false,
+                    lastValueVisible: true,
+                });
+                smaSeries.setData(alignSeriesToCandles(payload.candles, payload.sma20));
+            }
+
+            if (showIndicators && rsiHost && (payload.rsi14?.length ?? 0) > 0) {
+                setRsiPaneVisible(el, true);
+                const rsiTheme = rsiChartTheme(dark);
+                rsiChart = createChart(rsiHost, {
+                    ...rsiTheme,
+                    layout: {
+                        ...rsiTheme.layout,
+                        attributionLogo: false,
+                    },
+                    leftPriceScale: { visible: false },
+                    rightPriceScale: { ...priceScaleOptions },
+                    timeScale: {
+                        borderVisible: false,
+                        rightOffset: 10,
+                        timeVisible: false,
+                        secondsVisible: false,
+                    },
+                    height: 120,
+                    autoSize: true,
+                    width: chartHost.clientWidth || rsiHost.clientWidth || undefined,
+                });
+
+                rsiSeries = rsiChart.addSeries(LineSeries, {
+                    color: '#f59e0b',
+                    lineWidth: 2,
+                    title: 'RSI(14)',
+                    priceLineVisible: false,
+                });
+                rsiSeries.createPriceLine({
+                    price: 70,
+                    color: '#ef4444',
+                    lineWidth: 1,
+                    lineStyle: 2,
+                    axisLabelVisible: true,
+                    title: '70',
+                });
+                rsiSeries.createPriceLine({
+                    price: 30,
+                    color: '#22c55e',
+                    lineWidth: 1,
+                    lineStyle: 2,
+                    axisLabelVisible: true,
+                    title: '30',
+                });
+                rsiSeries.setData(alignSeriesToCandles(payload.candles, payload.rsi14));
+            }
         } else {
             primarySeries = chart.addSeries(AreaSeries, {
                 lineColor: colors.lineColor,
@@ -352,14 +476,18 @@ async function loadChart(el, range = '3M') {
             primarySeries.setData(payload.points);
         }
 
-        chart.timeScale().fitContent();
-
-        const entryMarker = payload.markers?.find((marker) => marker.role === 'entry' || marker.role === 'signal') ?? null;
+        // Scout candles: no fill marker (entry is still a planned buy-stop line only).
+        const entryMarker = seriesType === 'candles'
+            ? null
+            : (payload.markers?.find((marker) => marker.role === 'entry') ?? null);
 
         const state = {
             root: el,
             chart,
+            rsiChart,
             primarySeries,
+            smaSeries,
+            rsiSeries,
             chartHost,
             markerHost,
             points: payload.points ?? [],
@@ -374,6 +502,13 @@ async function loadChart(el, range = '3M') {
         updatePeriodChange(el, payload.period_change);
         updatePremarketStatus(el, payload.premarket);
 
+        if (rsiChart) {
+            syncTimeScales(state);
+            requestAnimationFrame(() => syncTimeScales(state));
+        } else {
+            chart.timeScale().fitContent();
+        }
+
         status.textContent = payload.demo
             ? `${payload.ticker} · demo-data`
             : payload.intraday
@@ -383,19 +518,35 @@ async function loadChart(el, range = '3M') {
 
         requestAnimationFrame(() => syncEntryMarker(state));
 
-        const onRangeChange = () => syncEntryMarker(state);
+        const onRangeChange = (visibleRange) => {
+            if (rsiChart && visibleRange) {
+                rsiChart.timeScale().setVisibleLogicalRange(visibleRange);
+            }
+            syncEntryMarker(state);
+        };
         chart.timeScale().subscribeVisibleLogicalRangeChange(onRangeChange);
 
-        const onResize = () => syncEntryMarker(state);
+        const onResize = () => {
+            if (rsiChart) {
+                alignPaneWidths(chart, rsiChart);
+            }
+            syncEntryMarker(state);
+        };
         const resizeObserver = typeof ResizeObserver !== 'undefined'
             ? new ResizeObserver(onResize)
             : null;
         resizeObserver?.observe(chartHost);
+        if (rsiHost) {
+            resizeObserver?.observe(rsiHost);
+        }
         window.addEventListener('resize', onResize);
 
         const themeObserver = new MutationObserver(() => {
             const nextDark = isDarkMode();
             chart.applyOptions(chartTheme(nextDark));
+            if (rsiChart) {
+                rsiChart.applyOptions(rsiChartTheme(nextDark));
+            }
             if (seriesType === 'area') {
                 const nextColors = areaColors(positive, nextDark);
                 primarySeries.applyOptions({
@@ -416,6 +567,7 @@ async function loadChart(el, range = '3M') {
             resizeObserver?.disconnect();
             window.removeEventListener('resize', onResize);
             chart.remove();
+            rsiChart?.remove();
         };
 
         el._vestixPriceChartState = state;
@@ -424,6 +576,7 @@ async function loadChart(el, range = '3M') {
         status.textContent = 'Koersgrafiek niet beschikbaar.';
         status.classList.add('text-rose-400');
         status.hidden = false;
+        setRsiPaneVisible(el, false);
         updatePeriodChange(el, { absolute: 0, percent: 0, positive: true });
         updatePremarketStatus(el, null);
         const change = el.querySelector('[data-price-chart-change]');

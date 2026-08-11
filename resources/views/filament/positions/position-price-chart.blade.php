@@ -45,11 +45,21 @@
             ></div>
         </div>
 
+        @if ($isScout)
+            <div class="flex items-center gap-2" data-price-chart-rsi-label hidden>
+                <span class="text-[10px] uppercase tracking-wide text-gray-500">RSI(14)</span>
+                <span class="h-px flex-1 bg-gray-200/80 dark:bg-white/10"></span>
+            </div>
+            <div data-price-chart-rsi-wrap class="w-full" hidden>
+                <div data-price-chart-rsi class="w-full overflow-hidden" style="min-height: 120px;"></div>
+            </div>
+        @endif
+
         <div class="vestix-price-chart__footer flex flex-wrap items-center justify-between gap-2">
             <div data-price-chart-ranges class="vestix-price-chart__ranges" role="group" aria-label="Timeframe"></div>
             <p class="text-[11px] text-gray-500 dark:text-gray-400">
                 @if ($isScout)
-                    kaarsen = OHLC · 1D incl. pre/post · lijnen = Entry / SL / T1 / Signaal / SMA20
+                    kaarsen · SMA20-curve · RSI(14) · lijnen = Entry / SL / T1
                 @else
                     1D = Yahoo 5m (gratis) · overige = dagkoersen · punt = entry · lijnen = Entry / SL / T1
                 @endif

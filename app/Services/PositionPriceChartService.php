@@ -7,6 +7,7 @@ use App\Enums\PremarketScanResult;
 use App\Models\Position;
 use App\Models\SniperDailyBar;
 use App\Support\PremarketGatekeeperDisplay;
+use App\Support\TechnicalIndicators;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -40,13 +41,14 @@ class PositionPriceChartService
         }
 
         $barCount = self::RANGE_BARS[$range];
+        // +40 covers SMA(20)/RSI(14) warmup before the visible window.
         $fetchLimit = max($barCount + 40, 100);
 
         $bars = $this->resolveBars($position->ticker, $fetchLimit);
         $demo = false;
 
         if ($bars === null || count($bars) < 2) {
-            $bars = $this->demoBars($position, $barCount + 20);
+            $bars = $this->demoBars($position, $barCount + 40);
             $demo = true;
         }
 
@@ -178,29 +180,10 @@ class PositionPriceChartService
         $windowEnd = $points[array_key_last($points)]['time'];
         $markers = [];
 
-        if ($isScout) {
-            $signalTime = $intraday
-                ? null
-                : optional($position->signal_bar_date ?? $position->detected_signal_bar_date)?->toDateString();
-
-            if (
-                $signalTime !== null
-                && $signalTime >= $windowStart
-                && $signalTime <= $windowEnd
-            ) {
-                $signalValue = $position->signal_high !== null
-                    ? (float) $position->signal_high
-                    : ($entryPrice ?? $last);
-
-                $markers[] = [
-                    'time' => $signalTime,
-                    'role' => 'signal',
-                    'color' => $short ? '#ef4444' : '#22c55e',
-                    'value' => $signalValue,
-                ];
-            }
-        } elseif (
-            $entryTime !== null
+        // Scout: only price lines (entry is still a plan, not a fill). Open: entry fill marker.
+        if (
+            ! $isScout
+            && $entryTime !== null
             && $entryPrice !== null
             && $entryTime >= $windowStart
             && $entryTime <= $windowEnd
@@ -218,18 +201,6 @@ class PositionPriceChartService
             'stop' => $this->resolveStopLevel($position),
             'target1' => $position->plannedBracketTarget1Price(),
         ];
-
-        if ($isScout) {
-            $levels['signal_high'] = $position->signal_high !== null
-                ? (float) $position->signal_high
-                : null;
-            $levels['signal_low'] = $position->signal_low !== null
-                ? (float) $position->signal_low
-                : null;
-            $levels['sma20'] = $position->latest_sma_20 !== null
-                ? (float) $position->latest_sma_20
-                : null;
-        }
 
         $payload = [
             'ticker' => $position->ticker,
@@ -252,9 +223,75 @@ class PositionPriceChartService
         if ($isScout) {
             $payload['candles'] = $candles;
             $payload['premarket'] = $this->resolvePremarketMeta($position);
+
+            // Daily sniper context only — 5m SMA/RSI is not the setup SMA.
+            if (! $intraday) {
+                $indicators = $this->buildDailyIndicatorSeries($bars, $candles);
+                $payload['sma20'] = $indicators['sma20'];
+                $payload['rsi14'] = $indicators['rsi14'];
+            } else {
+                $payload['sma20'] = [];
+                $payload['rsi14'] = [];
+            }
         }
 
         return $payload;
+    }
+
+    /**
+     * Historical SMA(20) / RSI(14) for the visible candle window, with warmup bars.
+     *
+     * @param  list<array{open?: float, high?: float, low?: float, close: float|int, date?: string, time?: int}>  $allBars
+     * @param  list<array{time: int|string, open: float, high: float, low: float, close: float}>  $visibleCandles
+     * @return array{sma20: list<array{time: int|string, value: float}>, rsi14: list<array{time: int|string, value: float}>}
+     */
+    private function buildDailyIndicatorSeries(array $allBars, array $visibleCandles): array
+    {
+        $sma20 = [];
+        $rsi14 = [];
+
+        if ($allBars === [] || $visibleCandles === []) {
+            return ['sma20' => $sma20, 'rsi14' => $rsi14];
+        }
+
+        $visibleTimes = [];
+        foreach ($visibleCandles as $candle) {
+            $visibleTimes[(string) $candle['time']] = true;
+        }
+
+        $warmup = 30;
+        $displayStart = max(0, count($allBars) - count($visibleCandles));
+        $displayEnd = count($allBars) - 1;
+        $calcStart = max(0, $displayStart - $warmup);
+
+        $closes = [];
+        for ($i = $calcStart; $i <= $displayEnd; $i++) {
+            $closes[] = (float) $allBars[$i]['close'];
+        }
+
+        for ($i = $displayStart; $i <= $displayEnd; $i++) {
+            $bar = $allBars[$i];
+            $time = $bar['date'] ?? $bar['time'] ?? null;
+
+            if ($time === null || ! isset($visibleTimes[(string) $time])) {
+                continue;
+            }
+
+            $closeOffset = $i - $calcStart;
+            $slice = array_slice($closes, 0, $closeOffset + 1);
+
+            $sma = TechnicalIndicators::sma($slice, 20);
+            if ($sma !== null) {
+                $sma20[] = ['time' => $time, 'value' => round($sma, 4)];
+            }
+
+            $rsi = TechnicalIndicators::wilderRsi($slice, 14);
+            if ($rsi !== null) {
+                $rsi14[] = ['time' => $time, 'value' => round($rsi, 2)];
+            }
+        }
+
+        return ['sma20' => $sma20, 'rsi14' => $rsi14];
     }
 
     private function resolveStopLevel(Position $position): ?float
@@ -334,13 +371,18 @@ class PositionPriceChartService
         return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($ticker, $limit): ?array {
             $local = $this->localBars($ticker, $limit);
 
-            if (count($local) >= min($limit, 30)) {
+            // Only skip remote when local history covers the full requested window.
+            // (Previously `min($limit, 30)` capped at 30, so 6M/1Y stuck on ~2–3 months of Sniper bars.)
+            if (count($local) >= $limit) {
                 return $local;
             }
 
+            // Calendar lookback must exceed trading-day limit (~1.7×).
+            $lookbackDays = (int) min(800, max((int) ceil($limit * 1.7), 60));
+
             $remote = $this->dailyBars->fetchRecentBars(
                 $ticker,
-                lookbackDays: (int) min(500, max($limit + 30, 60)),
+                lookbackDays: $lookbackDays,
                 limit: max($limit, 200),
             );
 
@@ -348,7 +390,7 @@ class PositionPriceChartService
                 return count($local) >= 2 ? $local : null;
             }
 
-            return array_values(array_map(
+            $remoteBars = array_values(array_map(
                 static fn (array $bar): array => [
                     'open' => (float) $bar['open'],
                     'high' => (float) $bar['high'],
@@ -359,6 +401,9 @@ class PositionPriceChartService
                 ],
                 $remote['bars'],
             ));
+
+            // Prefer the longer series when local and remote both exist.
+            return count($remoteBars) >= count($local) ? $remoteBars : $local;
         });
     }
 

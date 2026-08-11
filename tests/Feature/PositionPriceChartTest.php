@@ -75,7 +75,7 @@ class PositionPriceChartTest extends TestCase
             ]);
     }
 
-    public function test_scout_owner_gets_candle_payload_with_premarket_and_signal_levels(): void
+    public function test_scout_owner_gets_candle_payload_with_indicators_and_premarket(): void
     {
         Cache::flush();
         Carbon::setTestNow(Carbon::parse('2026-08-11 10:00:00', 'America/New_York'));
@@ -124,19 +124,23 @@ class PositionPriceChartTest extends TestCase
             ->assertJsonPath('ticker', 'RELX')
             ->assertJsonPath('series', 'candles')
             ->assertJsonPath('premarket.checked', true)
+            ->assertJsonMissingPath('levels.signal_high')
+            ->assertJsonMissingPath('levels.signal_low')
+            ->assertJsonMissingPath('levels.sma20')
             ->assertJsonStructure([
                 'candles' => [['time', 'open', 'high', 'low', 'close']],
+                'sma20' => [['time', 'value']],
+                'rsi14' => [['time', 'value']],
                 'premarket' => ['price', 'label', 'description', 'tone', 'checked'],
-                'levels' => ['entry', 'stop', 'target1', 'signal_high', 'signal_low', 'sma20'],
+                'levels' => ['entry', 'stop', 'target1'],
                 'markers',
             ]);
 
-        $this->assertSame(47.5, (float) $response->json('levels.signal_high'));
-        $this->assertSame(45.0, (float) $response->json('levels.signal_low'));
-        $this->assertSame(46.5, (float) $response->json('levels.sma20'));
         $this->assertSame(48.0, (float) $response->json('levels.entry'));
         $this->assertSame(49.25, (float) $response->json('premarket.price'));
-        $this->assertSame('signal', $response->json('markers.0.role'));
+        $this->assertSame([], $response->json('markers'));
+        $this->assertNotEmpty($response->json('sma20'));
+        $this->assertNotEmpty($response->json('rsi14'));
 
         Carbon::setTestNow();
     }

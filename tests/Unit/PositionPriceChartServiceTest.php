@@ -96,7 +96,7 @@ class PositionPriceChartServiceTest extends TestCase
         $this->assertArrayNotHasKey('premarket', $payload);
     }
 
-    public function test_scout_payload_uses_candles_signal_levels_and_premarket_meta(): void
+    public function test_scout_payload_uses_candles_indicators_and_premarket_meta(): void
     {
         Cache::flush();
         Carbon::setTestNow(Carbon::parse('2026-08-11 10:00:00', 'America/New_York'));
@@ -151,21 +151,76 @@ class PositionPriceChartServiceTest extends TestCase
         $this->assertArrayHasKey('close', $payload['candles'][0]);
 
         $this->assertSame(55.0, $payload['levels']['entry']);
-        $this->assertSame(54.5, $payload['levels']['signal_high']);
-        $this->assertSame(52.0, $payload['levels']['signal_low']);
-        $this->assertSame(53.25, $payload['levels']['sma20']);
+        $this->assertArrayNotHasKey('signal_high', $payload['levels']);
+        $this->assertArrayNotHasKey('signal_low', $payload['levels']);
+        $this->assertArrayNotHasKey('sma20', $payload['levels']);
         $this->assertNotNull($payload['levels']['stop']);
         $this->assertSame((float) $position->new_sl, $payload['levels']['stop']);
         $this->assertNotNull($payload['levels']['target1']);
+        $this->assertSame([], $payload['markers']);
 
-        $this->assertNotEmpty($payload['markers']);
-        $this->assertSame('signal', $payload['markers'][0]['role']);
-        $this->assertSame('2026-07-15', $payload['markers'][0]['time']);
+        $this->assertNotEmpty($payload['sma20']);
+        $this->assertArrayHasKey('time', $payload['sma20'][0]);
+        $this->assertArrayHasKey('value', $payload['sma20'][0]);
+        $this->assertNotEmpty($payload['rsi14']);
+        $this->assertArrayHasKey('time', $payload['rsi14'][0]);
+        $this->assertArrayHasKey('value', $payload['rsi14'][0]);
+        $this->assertGreaterThanOrEqual(0.0, $payload['rsi14'][0]['value']);
+        $this->assertLessThanOrEqual(100.0, $payload['rsi14'][0]['value']);
 
         $this->assertSame(56.1, $payload['premarket']['price']);
         $this->assertTrue($payload['premarket']['checked']);
         $this->assertSame('danger', $payload['premarket']['tone']);
         $this->assertNotNull($payload['premarket']['description']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_scout_intraday_omits_daily_indicator_series(): void
+    {
+        Cache::flush();
+        Carbon::setTestNow(Carbon::parse('2026-08-11 15:00:00', 'America/New_York'));
+
+        $yahooBars = [];
+        $start = Carbon::parse('2026-08-11 09:30:00', 'America/New_York');
+
+        for ($i = 0; $i < 12; $i++) {
+            $close = 24.0 + ($i * 0.1);
+            $yahooBars[] = [
+                'time' => $start->copy()->addMinutes($i * 5)->timestamp,
+                'open' => $close - 0.05,
+                'high' => $close + 0.05,
+                'low' => $close - 0.08,
+                'close' => $close,
+                'volume' => 10_000,
+            ];
+        }
+
+        $yahoo = Mockery::mock(YahooFinanceChartQuoteService::class);
+        $yahoo->shouldReceive('fetchIntradayBars')
+            ->once()
+            ->with('SCOUT1D', '5m', '1d', true)
+            ->andReturn($yahooBars);
+
+        $position = Position::factory()->scout()->create([
+            'ticker' => 'SCOUT1D',
+            'entry_price' => 24.5,
+            'signal_high' => 24.4,
+            'signal_low' => 23.8,
+            'latest_atr_14' => 0.4,
+        ]);
+
+        $payload = $this->makeService(
+            Mockery::mock(DailyBarProvider::class),
+            $yahoo,
+        )->build($position, '1D');
+
+        $this->assertNotNull($payload);
+        $this->assertSame('candles', $payload['series']);
+        $this->assertTrue($payload['intraday']);
+        $this->assertSame([], $payload['sma20']);
+        $this->assertSame([], $payload['rsi14']);
+        $this->assertArrayNotHasKey('signal_high', $payload['levels']);
 
         Carbon::setTestNow();
     }
@@ -255,6 +310,67 @@ class PositionPriceChartServiceTest extends TestCase
         $this->assertSame('2026-06-05', $payload['markers'][0]['time']);
         $this->assertSame(105.0, $payload['markers'][0]['value']);
         $this->assertSame('#22c55e', $payload['markers'][0]['color']);
+    }
+
+    public function test_insufficient_local_history_fetches_remote_for_longer_ranges(): void
+    {
+        Cache::flush();
+
+        $start = Carbon::parse('2026-05-01');
+        for ($i = 0; $i < 40; $i++) {
+            SniperDailyBar::query()->create([
+                'ticker' => 'WTRG',
+                'date' => $start->copy()->addWeekdays($i)->toDateString(),
+                'open' => 38.0,
+                'high' => 39.0,
+                'low' => 37.5,
+                'close' => 38.5 + ($i * 0.01),
+                'volume' => 1_000_000,
+            ]);
+        }
+
+        $remoteBars = [];
+        $remoteStart = Carbon::parse('2025-08-01');
+        for ($i = 0; $i < 200; $i++) {
+            $close = 35 + ($i * 0.02);
+            $remoteBars[] = [
+                'open' => $close - 0.1,
+                'high' => $close + 0.3,
+                'low' => $close - 0.3,
+                'close' => $close,
+                'volume' => 1_000_000,
+                'date' => $remoteStart->copy()->addWeekdays($i)->toDateString(),
+            ];
+        }
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')
+            ->once()
+            ->withArgs(function (string $ticker, int $lookbackDays, int $limit): bool {
+                return $ticker === 'WTRG'
+                    && $lookbackDays >= 200
+                    && $limit >= 172;
+            })
+            ->andReturn([
+                'today' => $remoteBars[array_key_last($remoteBars)],
+                'adv30' => 1_000_000.0,
+                'bars' => $remoteBars,
+            ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'WTRG',
+            'status' => 'open',
+            'entry_price' => 40.0,
+            'current_sl' => 38.0,
+            'quantity' => 10,
+        ]);
+
+        $payload = $this->makeService($dailyBars)->build($position, '6M');
+
+        $this->assertNotNull($payload);
+        $this->assertSame('6M', $payload['range']);
+        $this->assertCount(132, $payload['points']);
+        $this->assertFalse($payload['demo']);
     }
 
     public function test_demo_fallback_when_no_market_data(): void
