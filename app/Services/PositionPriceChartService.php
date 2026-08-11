@@ -10,9 +10,9 @@ use Illuminate\Support\Facades\Cache;
 
 class PositionPriceChartService
 {
-    public const RANGES = ['1W', '1M', '3M', '6M', '1Y'];
+    public const RANGES = ['1D', '1W', '1M', '3M', '6M', '1Y'];
 
-    /** Approximate trading-day windows per range key. */
+    /** Approximate trading-day windows per range key (daily ranges only). */
     private const RANGE_BARS = [
         '1W' => 5,
         '1M' => 22,
@@ -23,17 +23,19 @@ class PositionPriceChartService
 
     public function __construct(
         private DailyBarProvider $dailyBars,
+        private YahooFinanceChartQuoteService $yahoo,
     ) {}
 
     /**
      * @return array{
      *     ticker: string,
      *     range: string,
-     *     points: list<array{time: string, value: float}>,
+     *     intraday: bool,
+     *     points: list<array{time: int|string, value: float}>,
      *     period_change: array{absolute: float, percent: float, positive: bool},
      *     levels: array{entry: ?float, stop: ?float, target1: ?float},
-     *     markers: list<array{time: string, role: string, color: string, value: float}>,
-     *     entry_time: ?string,
+     *     markers: list<array{time: int|string, role: string, color: string, value: float}>,
+     *     entry_time: int|string|null,
      *     short: bool,
      *     demo: bool,
      * }|null
@@ -41,6 +43,11 @@ class PositionPriceChartService
     public function build(Position $position, string $range = '3M'): ?array
     {
         $range = $this->normalizeRange($range);
+
+        if ($range === '1D') {
+            return $this->buildIntraday($position);
+        }
+
         $barCount = self::RANGE_BARS[$range];
         $fetchLimit = max($barCount + 40, 100);
 
@@ -65,6 +72,105 @@ class PositionPriceChartService
             ];
         }
 
+        return $this->finalizePayload(
+            $position,
+            $range,
+            $points,
+            $bars,
+            intraday: false,
+            demo: $demo,
+        );
+    }
+
+    public function normalizeRange(string $range): string
+    {
+        $range = strtoupper(trim($range));
+
+        // UI label "1J" maps to API "1Y".
+        if ($range === '1J') {
+            $range = '1Y';
+        }
+
+        return in_array($range, self::RANGES, true) ? $range : '3M';
+    }
+
+    /**
+     * @return array{
+     *     ticker: string,
+     *     range: string,
+     *     intraday: bool,
+     *     points: list<array{time: int, value: float}>,
+     *     period_change: array{absolute: float, percent: float, positive: bool},
+     *     levels: array{entry: ?float, stop: ?float, target1: ?float},
+     *     markers: list<array{time: int, role: string, color: string, value: float}>,
+     *     entry_time: int|null,
+     *     short: bool,
+     *     demo: bool,
+     * }|null
+     */
+    private function buildIntraday(Position $position): ?array
+    {
+        $ticker = strtoupper(trim($position->ticker));
+        $cacheKey = "vestix:price-chart-intraday:{$ticker}:5m";
+
+        /** @var list<array{time: int, open: float, high: float, low: float, close: float, volume: float}>|null $bars */
+        $bars = Cache::remember($cacheKey, now()->addMinutes(3), function () use ($ticker) {
+            return $this->yahoo->fetchIntradayBars($ticker, interval: '5m', range: '1d', includePrePost: true);
+        });
+
+        $demo = false;
+
+        if ($bars === null || count($bars) < 2) {
+            $bars = $this->demoIntradayBars($position);
+            $demo = true;
+        }
+
+        $points = [];
+        foreach ($bars as $bar) {
+            $points[] = [
+                'time' => (int) $bar['time'],
+                'value' => round((float) $bar['close'], 4),
+            ];
+        }
+
+        return $this->finalizePayload(
+            $position,
+            '1D',
+            $points,
+            $bars,
+            intraday: true,
+            demo: $demo,
+        );
+    }
+
+    /**
+     * @param  list<array{time: int|string, value: float}>  $points
+     * @param  list<array<string, mixed>>  $bars
+     * @return array{
+     *     ticker: string,
+     *     range: string,
+     *     intraday: bool,
+     *     points: list<array{time: int|string, value: float}>,
+     *     period_change: array{absolute: float, percent: float, positive: bool},
+     *     levels: array{entry: ?float, stop: ?float, target1: ?float},
+     *     markers: list<array{time: int|string, role: string, color: string, value: float}>,
+     *     entry_time: int|string|null,
+     *     short: bool,
+     *     demo: bool,
+     * }|null
+     */
+    private function finalizePayload(
+        Position $position,
+        string $range,
+        array $points,
+        array $bars,
+        bool $intraday,
+        bool $demo,
+    ): ?array {
+        if (count($points) < 2) {
+            return null;
+        }
+
         $first = (float) $points[0]['value'];
         $last = (float) $points[array_key_last($points)]['value'];
         $absolute = round($last - $first, 4);
@@ -72,10 +178,12 @@ class PositionPriceChartService
 
         $short = $position->isShort();
         $entryPrice = $position->entry_price !== null ? (float) $position->entry_price : null;
-        $entryTime = $this->resolveEntryTime($bars, $position);
+        $entryTime = $intraday
+            ? $this->resolveIntradayEntryTime($bars, $position)
+            : $this->resolveEntryTime($bars, $position);
 
-        $windowStart = $window[0]['date'];
-        $windowEnd = $window[array_key_last($window)]['date'];
+        $windowStart = $points[0]['time'];
+        $windowEnd = $points[array_key_last($points)]['time'];
         $markers = [];
 
         if (
@@ -95,6 +203,7 @@ class PositionPriceChartService
         return [
             'ticker' => $position->ticker,
             'range' => $range,
+            'intraday' => $intraday,
             'points' => $points,
             'period_change' => [
                 'absolute' => $absolute,
@@ -113,18 +222,6 @@ class PositionPriceChartService
             'short' => $short,
             'demo' => $demo,
         ];
-    }
-
-    public function normalizeRange(string $range): string
-    {
-        $range = strtoupper(trim($range));
-
-        // UI label "1J" maps to API "1Y".
-        if ($range === '1J') {
-            $range = '1Y';
-        }
-
-        return in_array($range, self::RANGES, true) ? $range : '3M';
     }
 
     /**
@@ -250,6 +347,43 @@ class PositionPriceChartService
     }
 
     /**
+     * Only mark entry on the 1D chart when the fill is today (same NY session).
+     *
+     * @param  list<array{time: int, open?: float, high?: float, low?: float, close?: float}>  $bars
+     */
+    private function resolveIntradayEntryTime(array $bars, Position $position): ?int
+    {
+        if ($bars === [] || $position->entry_price === null) {
+            return null;
+        }
+
+        $entryDate = optional($position->entry_setup_captured_at)?->timezone('America/New_York')?->toDateString()
+            ?? optional($position->created_at)?->timezone('America/New_York')?->toDateString()
+            ?? optional($position->signal_bar_date)?->toDateString();
+
+        $todayNy = Carbon::now('America/New_York')->toDateString();
+
+        if ($entryDate !== $todayNy) {
+            return null;
+        }
+
+        $entryPrice = (float) $position->entry_price;
+        $short = $position->isShort();
+
+        foreach ($bars as $bar) {
+            $high = (float) ($bar['high'] ?? $bar['close'] ?? 0);
+            $low = (float) ($bar['low'] ?? $bar['close'] ?? 0);
+            $hit = $short ? ($low <= $entryPrice) : ($high >= $entryPrice);
+
+            if ($hit) {
+                return (int) $bar['time'];
+            }
+        }
+
+        return (int) $bars[0]['time'];
+    }
+
+    /**
      * @param  list<array{date: string}>  $bars
      */
     private function snapToBarDate(array $bars, ?string $date): ?string
@@ -319,6 +453,36 @@ class PositionPriceChartService
                 'close' => round($close, 4),
                 'volume' => 1_000_000 + ($i * 8_000),
                 'date' => $date,
+            ];
+            $price = $close;
+        }
+
+        return $bars;
+    }
+
+    /**
+     * @return list<array{time: int, open: float, high: float, low: float, close: float, volume: float}>
+     */
+    private function demoIntradayBars(Position $position): array
+    {
+        $entry = (float) ($position->entry_price ?? $position->latest_close_price ?? 100);
+        $start = Carbon::now('America/New_York')->startOfDay()->setTime(4, 0);
+        $price = $entry * 0.99;
+        $bars = [];
+
+        for ($i = 0; $i < 78; $i++) {
+            $time = $start->copy()->addMinutes($i * 5)->timestamp;
+            $noise = sin($i / 6) * ($entry * 0.002);
+            $close = $price + (($entry - $price) * 0.05) + $noise;
+            $open = $price;
+
+            $bars[] = [
+                'time' => $time,
+                'open' => round($open, 4),
+                'high' => round(max($open, $close) + abs($noise), 4),
+                'low' => round(min($open, $close) - abs($noise), 4),
+                'close' => round($close, 4),
+                'volume' => 50_000 + ($i * 100),
             ];
             $price = $close;
         }

@@ -1,6 +1,7 @@
 import { createChart, ColorType, CrosshairMode, AreaSeries } from 'lightweight-charts';
 
 const RANGES = [
+    { key: '1D', label: '1D' },
     { key: '1W', label: '1W' },
     { key: '1M', label: '1M' },
     { key: '3M', label: '3M' },
@@ -226,6 +227,8 @@ async function loadChart(el, range = '3M') {
             timeScale: {
                 borderVisible: false,
                 rightOffset: 6,
+                timeVisible: Boolean(payload.intraday),
+                secondsVisible: false,
             },
             height: 300,
             autoSize: true,
@@ -264,7 +267,9 @@ async function loadChart(el, range = '3M') {
 
         status.textContent = payload.demo
             ? `${payload.ticker} · demo-data`
-            : `${payload.ticker} · ${payload.points.length} dagen`;
+            : payload.intraday
+                ? `${payload.ticker} · vandaag · ${payload.points.length}×5m`
+                : `${payload.ticker} · ${payload.points.length} dagen`;
         status.classList.toggle('text-amber-500', Boolean(payload.demo));
 
         requestAnimationFrame(() => syncEntryMarker(state));
