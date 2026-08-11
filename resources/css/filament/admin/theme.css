@@ -4869,20 +4869,21 @@
     position: absolute;
     top: 0;
     left: 0;
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
     border-radius: 9999px;
     background: currentColor;
     box-shadow:
         0 0 0 2px #09090b,
-        0 0 10px color-mix(in srgb, currentColor 70%, transparent);
+        0 0 0 3px currentColor;
     will-change: transform;
+    pointer-events: none;
 }
 
 html:not(.dark) .vestix-price-chart-entry {
     box-shadow:
         0 0 0 2px #fafafa,
-        0 0 10px color-mix(in srgb, currentColor 55%, transparent);
+        0 0 0 3px currentColor;
 }
 
 .vestix-price-chart__change--up {
