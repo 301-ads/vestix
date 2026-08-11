@@ -108,7 +108,7 @@ class PositionRecordActions
 
                 if ($record->status === 'scout') {
                     $scorecard = $record->evaluateSetupScore();
-                    $record->update(['last_setup_score' => $scorecard['totalPoints']]);
+                    $record->persistLastSetupScorecard($scorecard);
                     $record->refresh();
                 }
 
@@ -146,6 +146,7 @@ class PositionRecordActions
                         'sector_trend_positive',
                         'pre_bounce_extension_atr',
                         'last_setup_score',
+                        'last_setup_grade',
                     ]);
                 }
             });

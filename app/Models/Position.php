@@ -75,6 +75,7 @@ class Position extends Model
             'sector_trend_positive' => 'boolean',
             'pre_bounce_extension_atr' => 'decimal:2',
             'last_setup_score' => 'integer',
+            'last_setup_grade' => 'string',
             'entry_setup_score' => 'integer',
             'entry_setup_promoted_a' => 'boolean',
             'entry_setup_promoted_a_plus' => 'boolean',
@@ -614,6 +615,7 @@ class Position extends Model
             'trader_promoted_a_plus',
             'trader_promoted_a_plus_at',
             'last_setup_score',
+            'last_setup_grade',
             'exit_price',
             'closed_at',
             'exit_chart_screenshot_path',
@@ -2153,6 +2155,7 @@ class Position extends Model
         }
 
         $this->update($payload);
+        $this->persistLastSetupScorecard();
     }
 
     public function clearAPromotion(): void
@@ -2165,6 +2168,7 @@ class Position extends Model
             'trader_promoted_a' => false,
             'trader_promoted_a_at' => null,
         ]);
+        $this->persistLastSetupScorecard();
     }
 
     public function promoteToAPlus(): void
@@ -2181,6 +2185,7 @@ class Position extends Model
         }
 
         $this->update($payload);
+        $this->persistLastSetupScorecard();
     }
 
     public function rejectVisualReview(): void
@@ -2207,6 +2212,7 @@ class Position extends Model
             'trader_promoted_a_plus_at' => null,
             'telegram_a_plus_alert_sent_at' => null,
         ]);
+        $this->persistLastSetupScorecard();
     }
 
     public function evaluateSetupScore(?array $overrides = null): array
@@ -2271,6 +2277,36 @@ class Position extends Model
     }
 
     /**
+     * Persist live scorecard points + grade for Radar sort/display consistency.
+     *
+     * @param  array{
+     *     totalPoints: int,
+     *     maxPoints: int,
+     *     grade: string,
+     *     gradeLabel: string,
+     *     hardFailReasons: array<int, string>,
+     * }|null  $scorecard
+     * @return array{
+     *     totalPoints: int,
+     *     maxPoints: int,
+     *     grade: string,
+     *     gradeLabel: string,
+     *     hardFailReasons: array<int, string>,
+     * }
+     */
+    public function persistLastSetupScorecard(?array $scorecard = null): array
+    {
+        $scorecard ??= $this->evaluateSetupScore();
+
+        $this->update([
+            'last_setup_score' => $scorecard['totalPoints'],
+            'last_setup_grade' => $scorecard['grade'],
+        ]);
+
+        return $scorecard;
+    }
+
+    /**
      * Persist scorecard hard-fail reasons for Radar learning UI.
      */
     public function persistSniperRejectReasons(): void
@@ -2282,6 +2318,7 @@ class Position extends Model
                 ? array_values($result['hardFailReasons'])
                 : null,
             'last_setup_score' => $result['totalPoints'],
+            'last_setup_grade' => $result['grade'],
         ])->saveQuietly();
     }
 }

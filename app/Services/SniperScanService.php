@@ -321,7 +321,7 @@ class SniperScanService
         }
 
         $scorecard = $position->evaluateSetupScore();
-        $position->update(['last_setup_score' => $scorecard['totalPoints']]);
+        $position->persistLastSetupScorecard($scorecard);
         $position->refresh();
 
         return $synced;

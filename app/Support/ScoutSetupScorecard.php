@@ -1087,11 +1087,16 @@ class ScoutSetupScorecard
     {
         $maxPoints = self::maxPoints();
         $nearMissFactor = 1 - (self::trampolineNearMissPct() / 100);
-        $openFloorFactor = 1 - (self::trampolineOpenTolerancePct() / 100);
-        $approachHardFail = self::trampolineApproachHardFailEnabled() ? '1' : '0';
 
+        // Prefer persisted last_setup_grade (matches live scorecard hard-fails).
+        // Fallback heuristics remain for rows not yet re-synced after the grade column was added.
         return <<<SQL
 CASE
+    WHEN last_setup_grade = 'A++' THEN 1
+    WHEN last_setup_grade = 'A' THEN 2
+    WHEN last_setup_grade = 'B' THEN 3
+    WHEN last_setup_grade = 'C' THEN 4
+    WHEN last_setup_grade = 'NO TRADE' THEN 5
     WHEN (signal_low IS NULL AND latest_close_price IS NULL) OR latest_sma_20 IS NULL OR scout_rsi IS NULL THEN 6
     WHEN direction = 'short' AND scout_rsi < 30 THEN 5
     WHEN scout_rsi > 70 AND (direction IS NULL OR direction = 'long') THEN 5
@@ -1107,11 +1112,6 @@ CASE
             AND latest_close_price >= latest_open_price
             AND latest_close_price >= latest_sma_20 * {$nearMissFactor}
         )
-        THEN 5
-    WHEN {$approachHardFail} = 1
-        AND (direction IS NULL OR direction = 'long')
-        AND latest_open_price IS NOT NULL AND latest_sma_20 IS NOT NULL
-        AND latest_open_price < latest_sma_20 * {$openFloorFactor}
         THEN 5
     WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price AND (direction IS NULL OR direction = 'long') THEN 5
     WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price > latest_open_price AND direction = 'short' THEN 5

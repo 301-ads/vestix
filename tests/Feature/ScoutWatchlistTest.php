@@ -1261,6 +1261,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
             'last_setup_score' => 6,
+            'last_setup_grade' => 'C',
         ]);
 
         $bSetup = Position::factory()->for($user)->scout()->create([
@@ -1270,6 +1271,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
             'last_setup_score' => 7,
+            'last_setup_grade' => 'B',
         ]);
 
         $bSetupStrong = Position::factory()->for($user)->scout()->create([
@@ -1279,6 +1281,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
             'last_setup_score' => 8,
+            'last_setup_grade' => 'B',
         ]);
 
         $weakSetup = Position::factory()->for($user)->scout()->create([
@@ -1288,6 +1291,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
             'last_setup_score' => 2,
+            'last_setup_grade' => 'NO TRADE',
         ]);
 
         $hardFailHighScore = Position::factory()->for($user)->scout()->create([
@@ -1297,6 +1301,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
             'last_setup_score' => 7,
+            'last_setup_grade' => 'NO TRADE',
         ]);
 
         $hardFailLowScore = Position::factory()->for($user)->scout()->create([
@@ -1306,6 +1311,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
             'last_setup_score' => 1,
+            'last_setup_grade' => 'NO TRADE',
         ]);
 
         $aMinus = Position::factory()->for($user)->scout()->create([
@@ -1315,6 +1321,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 55,
             'last_setup_score' => 8,
+            'last_setup_grade' => 'A',
             'trader_promoted_a' => true,
         ]);
 
@@ -1325,6 +1332,7 @@ class ScoutWatchlistTest extends TestCase
             'latest_sma_20' => 100.00,
             'scout_rsi' => 50,
             'last_setup_score' => 10,
+            'last_setup_grade' => 'A++',
             'trader_promoted_a_plus' => true,
         ]);
 
@@ -1340,6 +1348,55 @@ class ScoutWatchlistTest extends TestCase
         Livewire::test(ListScouts::class)
             ->assertOk()
             ->assertSeeInOrder(['APLS', 'AMNS', 'BSTR', 'BSET', 'CSET', 'FAIL', 'WEAK', 'LOWN']);
+    }
+
+    public function test_scouts_list_sorts_persisted_no_trade_after_letter_grades_even_with_high_score(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BHI',
+            'signal_low' => 100.50,
+            'latest_open_price' => 100.50,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00,
+            'scout_rsi' => 50,
+            'last_setup_score' => 7,
+            'last_setup_grade' => 'B',
+        ]);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'NINE',
+            'signal_low' => 100.50,
+            'latest_open_price' => 99.00,
+            'latest_close_price' => 100.50,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00,
+            'scout_rsi' => 50,
+            'last_setup_score' => 9,
+            'last_setup_grade' => 'NO TRADE',
+        ]);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'SEVN',
+            'signal_low' => 41.88,
+            'latest_open_price' => 41.94,
+            'latest_close_price' => 42.88,
+            'latest_sma_20' => 42.65,
+            'sma_20_five_days_ago' => 41.95,
+            'scout_rsi' => 53,
+            'last_setup_score' => 7,
+            'last_setup_grade' => 'NO TRADE',
+        ]);
+
+        $ordered = Position::scout()
+            ->forUser($user->id)
+            ->orderBySetupGrade('asc')
+            ->pluck('ticker')
+            ->all();
+
+        $this->assertSame(['BHI', 'NINE', 'SEVN'], $ordered);
     }
 
     public function test_scouts_list_polls_every_ten_seconds(): void

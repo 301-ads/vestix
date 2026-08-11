@@ -123,7 +123,7 @@ class FetchVestixData extends Command
                         $newScorecard,
                     );
 
-                    $position->update(['last_setup_score' => $newScorecard['totalPoints']]);
+                    $position->persistLastSetupScorecard($newScorecard);
                     $position->refresh();
                 }
 
@@ -242,7 +242,7 @@ class FetchVestixData extends Command
                             $newScorecard,
                         );
 
-                        $position->update(['last_setup_score' => $newScorecard['totalPoints']]);
+                        $position->persistLastSetupScorecard($newScorecard);
                         $position->refresh();
                     }
                 } else {
