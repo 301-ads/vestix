@@ -607,6 +607,49 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertContains('Vallend mes — hoog volume maar slotkoers onder openingskoers', $result['hardFailReasons']);
     }
 
+    public function test_red_hammer_with_strong_close_is_not_falling_knife(): void
+    {
+        // Red body, close in top of range — absorption, not a dump.
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_high' => 101.20,
+            'signal_low' => 99.50,
+            'latest_open_price' => 100.95,
+            'latest_close_price' => 100.90,
+            'latest_sma_20' => 100.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.45,
+            'bounce_day_volume' => 15_000_000,
+            'volume_sma_20' => 10_000_000,
+        ]));
+
+        $this->assertSame(1, $result['criteria'][3]['points']);
+        $this->assertSame('pass', $result['criteria'][3]['status']);
+        $this->assertStringContainsString('absorptie op rode hamer', $result['criteria'][3]['detail']);
+        $this->assertFalse(
+            collect($result['hardFailReasons'])->contains(fn (string $r): bool => str_contains($r, 'Vallend mes')),
+        );
+    }
+
+    public function test_weak_red_close_with_high_volume_remains_falling_knife(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_high' => 102.00,
+            'signal_low' => 98.00,
+            'latest_open_price' => 101.00,
+            'latest_close_price' => 99.00, // 25% of range
+            'latest_sma_20' => 98.50,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.45,
+            'bounce_day_volume' => 15_000_000,
+            'volume_sma_20' => 10_000_000,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][3]['points']);
+        $this->assertSame('fail', $result['criteria'][3]['status']);
+        $this->assertStringContainsString('Vallend mes', $result['criteria'][3]['detail']);
+        $this->assertContains('Vallend mes — hoog volume maar slotkoers onder openingskoers', $result['hardFailReasons']);
+    }
+
     public function test_volume_score_requires_open_price_when_volume_confirmed(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([

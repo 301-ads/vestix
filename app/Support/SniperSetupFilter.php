@@ -48,7 +48,8 @@ class SniperSetupFilter
             return false;
         }
 
-        if ($close <= $open) {
+        // Red candles are allowed only with OHLC proving buyer dominance (Röntgenfoto).
+        if ($close <= $open && ! self::hasOhlcRange($inputs)) {
             return false;
         }
 
@@ -155,6 +156,14 @@ class SniperSetupFilter
             'latest_sma_20' => $inputs['sma20'],
             'previous_close' => $inputs['previousClose'],
         ]) === null;
+    }
+
+    /**
+     * @param  array{high?: float, low?: float}  $inputs
+     */
+    private static function hasOhlcRange(array $inputs): bool
+    {
+        return isset($inputs['high'], $inputs['low']);
     }
 
     /**

@@ -126,4 +126,45 @@ class RadarV2FiltersTest extends TestCase
             'rsi14' => 45.0,
         ]));
     }
+
+    public function test_filter_accepts_red_hammer_with_strong_close(): void
+    {
+        // Red body, but close in upper quartile of the range (Röntgenfoto).
+        $this->assertSame('long', SniperSetupFilter::evaluate([
+            'open' => 100.95,
+            'high' => 101.20,
+            'low' => 99.50,
+            'close' => 100.90, // ~82% of range, still under open
+            'sma10' => 101.50,
+            'sma20' => 100.00,
+            'sma50' => 98.00,
+            'rsi14' => 45.0,
+        ]));
+    }
+
+    public function test_filter_rejects_weak_red_close(): void
+    {
+        $this->assertNull(SniperSetupFilter::evaluate([
+            'open' => 101.00,
+            'high' => 101.20,
+            'low' => 99.50,
+            'close' => 100.10, // red and only ~35% of range
+            'sma10' => 101.50,
+            'sma20' => 100.00,
+            'sma50' => 98.00,
+            'rsi14' => 45.0,
+        ]));
+    }
+
+    public function test_filter_rejects_red_candle_without_ohlc_range(): void
+    {
+        $this->assertNull(SniperSetupFilter::evaluate([
+            'open' => 100.95,
+            'close' => 100.90,
+            'sma10' => 101.50,
+            'sma20' => 100.00,
+            'sma50' => 98.00,
+            'rsi14' => 45.0,
+        ]));
+    }
 }

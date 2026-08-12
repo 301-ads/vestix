@@ -381,7 +381,9 @@ class ScoutSetupScorecard
             return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Vallend mes: hoog volume maar slotkoers onder openingskoers');
         }
 
-        if ($close >= $open) {
+        $buyerDominant = $close >= $open || self::hasBuyerDominantClose($inputs);
+
+        if ($buyerDominant) {
             if ($rvol === null) {
                 return self::criterion(
                     'volume',
@@ -410,16 +412,23 @@ class ScoutSetupScorecard
                 );
             }
 
+            $detail = $close >= $open
+                ? sprintf(
+                    'RVol %s — geen institutionele dump (groene kaars)',
+                    RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
+                )
+                : sprintf(
+                    'RVol %s — absorptie op rode hamer (sterke close)',
+                    RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
+                );
+
             return self::criterion(
                 'volume',
                 'Volume-overtuiging',
                 1,
                 1,
                 'pass',
-                sprintf(
-                    'RVol %s — geen institutionele dump (groene kaars)',
-                    RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
-                ),
+                $detail,
             );
         }
 
@@ -963,7 +972,8 @@ class ScoutSetupScorecard
     }
 
     /**
-     * Green candle that closes only a fraction below SMA 20 — benefit of the doubt.
+     * Green candle, or red hammer with buyer-dominant close (Röntgenfoto), closing
+     * only a fraction below SMA 20 — benefit of the doubt.
      *
      * @param  array<string, mixed>  $inputs
      */
@@ -982,7 +992,11 @@ class ScoutSetupScorecard
             return false;
         }
 
-        if ($open === null || $close < $open) {
+        if ($open === null) {
+            return false;
+        }
+
+        if ($close < $open && ! self::hasBuyerDominantClose($inputs)) {
             return false;
         }
 
@@ -1087,6 +1101,7 @@ class ScoutSetupScorecard
     {
         $maxPoints = self::maxPoints();
         $nearMissFactor = 1 - (self::trampolineNearMissPct() / 100);
+        $minClosingPct = CandleAnatomy::minClosingPct();
 
         // Prefer persisted last_setup_grade (matches live scorecard hard-fails).
         // Fallback heuristics remain for rows not yet re-synced after the grade column was added.
@@ -1109,11 +1124,30 @@ CASE
         AND latest_close_price < latest_sma_20
         AND NOT (
             latest_open_price IS NOT NULL
-            AND latest_close_price >= latest_open_price
             AND latest_close_price >= latest_sma_20 * {$nearMissFactor}
+            AND (
+                latest_close_price >= latest_open_price
+                OR (
+                    signal_high IS NOT NULL
+                    AND signal_low IS NOT NULL
+                    AND signal_high > signal_low
+                    AND ((latest_close_price - signal_low) / (signal_high - signal_low)) * 100 >= {$minClosingPct}
+                )
+            )
         )
         THEN 5
-    WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price < latest_open_price AND (direction IS NULL OR direction = 'long') THEN 5
+    WHEN bounce_volume_above_average = 1
+        AND latest_open_price IS NOT NULL
+        AND latest_close_price IS NOT NULL
+        AND latest_close_price < latest_open_price
+        AND (direction IS NULL OR direction = 'long')
+        AND (
+            signal_high IS NULL
+            OR signal_low IS NULL
+            OR signal_high <= signal_low
+            OR ((latest_close_price - signal_low) / (signal_high - signal_low)) * 100 < {$minClosingPct}
+        )
+        THEN 5
     WHEN bounce_volume_above_average = 1 AND latest_open_price IS NOT NULL AND latest_close_price IS NOT NULL AND latest_close_price > latest_open_price AND direction = 'short' THEN 5
     WHEN last_setup_score = {$maxPoints} AND trader_promoted_a_plus = 1 THEN 1
     WHEN last_setup_score >= {$maxPoints} - 1 THEN 2
@@ -1206,11 +1240,33 @@ SQL;
     }
 
     /**
+     * True when Röntgenfoto proves a buyer-dominant close (pct known and ≥ min).
+     * Missing OHLC does not count as dominant.
+     *
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function hasBuyerDominantClose(array $inputs): bool
+    {
+        $pct = CandleAnatomy::closingStrengthPct($inputs);
+
+        if ($pct === null) {
+            return false;
+        }
+
+        return $pct + 1e-9 >= CandleAnatomy::minClosingPct();
+    }
+
+    /**
      * @param  array<string, mixed>  $inputs
      */
     private static function isFallingKnife(array $inputs, float $open, float $close): bool
     {
         if ($close >= $open) {
+            return false;
+        }
+
+        // Strong close in range = absorption / hammer, not a falling knife.
+        if (self::hasBuyerDominantClose($inputs)) {
             return false;
         }
 

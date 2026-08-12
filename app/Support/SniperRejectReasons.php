@@ -66,8 +66,18 @@ class SniperRejectReasons
             $reasons[] = 'Close niet onder SMA10 (geen pullback)';
         }
 
-        if ($close <= $open) {
-            $reasons[] = 'Geen groene candle';
+        $hasRange = isset($inputs['high'], $inputs['low']);
+        $anatomyFails = $hasRange
+            && CandleAnatomy::enabled()
+            && ! CandleAnatomy::passesBar([
+                'open' => $open,
+                'high' => (float) $inputs['high'],
+                'low' => (float) $inputs['low'],
+                'close' => $close,
+            ], short: false);
+
+        if ($close <= $open && (! $hasRange || $anatomyFails)) {
+            $reasons[] = 'Rode kaars zonder sterke close (Röntgenfoto)';
         }
 
         if ($rsi < 40.0 || $rsi > 55.0) {
@@ -103,15 +113,8 @@ class SniperRejectReasons
             }
         }
 
-        if (isset($inputs['high'], $inputs['low']) && CandleAnatomy::enabled()) {
-            if (! CandleAnatomy::passesBar([
-                'open' => $open,
-                'high' => (float) $inputs['high'],
-                'low' => (float) $inputs['low'],
-                'close' => $close,
-            ], short: false)) {
-                $reasons[] = 'Röntgenfoto: close niet in bovenste 25% van de range';
-            }
+        if ($close > $open && $anatomyFails) {
+            $reasons[] = 'Röntgenfoto: close niet in bovenste 25% van de range';
         }
 
         return $reasons;
