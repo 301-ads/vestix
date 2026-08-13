@@ -47,6 +47,7 @@ class MarketDataFetcher
      *     pre_bounce_extension_atr?: float|null,
      *     latest_bounce_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
      *     latest_rejection_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
+     *     latest_session_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
      * }|null
      */
     public function fetchForTicker(
@@ -95,15 +96,23 @@ class MarketDataFetcher
 
         $bounceBar = $data['latest_bounce_bar'] ?? null;
         $rejectionBar = $data['latest_rejection_bar'] ?? null;
-        unset($data['latest_bounce_bar'], $data['latest_rejection_bar']);
+        $sessionBar = $data['latest_session_bar'] ?? null;
+        unset($data['latest_bounce_bar'], $data['latest_rejection_bar'], $data['latest_session_bar']);
 
         if ($position->status === 'scout') {
-            $signalBar = $position->isShort()
+            $patternBar = $position->isShort()
                 ? (is_array($rejectionBar) ? $rejectionBar : null)
                 : (is_array($bounceBar) ? $bounceBar : null);
+            $incomingClose = isset($data['latest_close_price'])
+                ? (float) $data['latest_close_price']
+                : null;
+            $throughMarket = $position->isPlannedEntryThroughMarket($incomingClose);
+            $signalBar = ($throughMarket && is_array($sessionBar))
+                ? $sessionBar
+                : $patternBar;
 
-            if ($signalBar !== null) {
-                $data['detected_signal_bar_date'] = $signalBar['date'];
+            if ($patternBar !== null) {
+                $data['detected_signal_bar_date'] = $patternBar['date'];
             }
 
             if ($this->shouldApplySignalCandle($position, $signalBar, $forceSignalRefresh, $data)) {
@@ -258,17 +267,13 @@ class MarketDataFetcher
             ? (float) $incoming['latest_close_price']
             : null;
 
+        // Consumed stop: always take the candidate bar (session high/low, not a stale bounce).
+        if ($position->isPlannedEntryThroughMarket($incomingClose)) {
+            return true;
+        }
+
         if ($position->isSignalCandleAutoRefreshLocked()) {
-            if ($position->signal_bar_date === null) {
-                return false;
-            }
-
-            if (! $position->isPlannedEntryThroughMarket($incomingClose)) {
-                return false;
-            }
-
-            // Through the tape: take a newer bounce, or today's expanded high/low.
-            return $signalBar['date'] >= $position->signal_bar_date->toDateString();
+            return false;
         }
 
         if ($position->signal_bar_date === null) {
@@ -355,6 +360,7 @@ class MarketDataFetcher
      *     avg_volume_30d?: int|null,
      *     latest_bounce_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
      *     latest_rejection_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
+     *     latest_session_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
      * }|null
      */
     private function fetchFromAlphaVantage(
@@ -449,6 +455,7 @@ class MarketDataFetcher
             $signalBars = SignalCandleResolver::resolveFromBars($bars['bars']);
             $payload['latest_bounce_bar'] = $signalBars['latest_bounce_bar'];
             $payload['latest_rejection_bar'] = $signalBars['latest_rejection_bar'];
+            $payload['latest_session_bar'] = PolygonMarketDataService::extractLatestSessionBar($bars['bars']);
         }
 
         return $payload;

@@ -2541,16 +2541,16 @@ class PositionForm
      */
     private static function geplandeEntryCardViewData(Get $get, ?Position $record): array
     {
-        $entry = $get('entry_price') ?? $record?->entry_price;
+        $entry = self::resolveGeplandeEntryPrice($get, $record);
         $distance = self::formatGeplandeEntryDistanceDescription($get, $record);
 
         return [
             'label' => 'Geplande Entry',
             'value' => self::formatUsd($entry),
-            'copyValue' => self::formatNewSlCopyValue($entry !== null && $entry !== '' ? (float) $entry : null),
+            'copyValue' => self::formatNewSlCopyValue($entry),
             'description' => $distance['text'] ?? null,
             'descriptionColor' => $distance['color'] ?? 'gray',
-            'cardVariant' => 'amber',
+            'cardVariant' => ($distance['through'] ?? false) ? 'rose' : 'amber',
         ];
     }
 
@@ -2606,37 +2606,59 @@ class PositionForm
         return number_format($newSl, 2, '.', '');
     }
 
+    private static function resolveGeplandeEntryPrice(Get $get, ?Position $record): ?float
+    {
+        $direction = self::resolveFormDirection($get, $record);
+        $atr = $get('latest_atr_14') ?? $record?->latest_atr_14;
+
+        $advised = $direction === TradeDirection::Short
+            ? Position::computeSellStop($get('signal_low') ?? $record?->signal_low, $atr)
+            : Position::computeBuyStop($get('signal_high') ?? $record?->signal_high, $atr);
+
+        if ($advised !== null) {
+            return $advised;
+        }
+
+        $entry = $get('entry_price') ?? $record?->entry_price;
+
+        return $entry !== null && $entry !== '' ? (float) $entry : null;
+    }
+
     /**
-     * @return array{text: string, color: string}|null
+     * @return array{text: string, color: string, through?: bool}|null
      */
     private static function formatGeplandeEntryDistanceDescription(Get $get, ?Position $record): ?array
     {
         $close = $get('latest_close_price') ?? $record?->latest_close_price;
-        $entry = $get('entry_price') ?? $record?->entry_price;
+        $entry = self::resolveGeplandeEntryPrice($get, $record);
 
-        if ($close === null || $close === '' || $entry === null || $entry === '') {
+        if ($close === null || $close === '' || $entry === null) {
             return null;
         }
 
         $close = (float) $close;
-        $entry = (float) $entry;
         $percentage = (($entry - $close) / $close) * 100;
+        $isShort = self::resolveFormDirection($get, $record) === TradeDirection::Short;
+        $through = $isShort ? $close < $entry : $close > $entry;
 
-        // Voor entry gebruiken we dezelfde kleurlogica als SL maar dan omgedraaid? Nee, we kijken gewoon
-        // naar "hoe ver is de entry nog weg t.o.v. de actuele koers".
-        // Eigenlijk is de kleur op de radar voor entry vaak neutraal, maar we houden het op amber/danger bij break.
-        $color = 'gray'; // Default if not using SlPriceProximity
-        $atr = $get('latest_atr_14') ?? $record?->latest_atr_14;
-        $atr = $atr !== null && $atr !== '' ? (float) $atr : null;
-        if ($atr !== null) {
-            $color = SlPriceProximity::color($close, $entry, $atr);
+        if ($through) {
+            return [
+                'text' => $isShort
+                    ? 'Sell-stop al boven de koers — herprijs de signaalkaars'
+                    : 'Buy-stop al onder de koers — herprijs de signaalkaars',
+                'color' => 'danger',
+                'through' => true,
+            ];
         }
 
+        $atr = $get('latest_atr_14') ?? $record?->latest_atr_14;
+        $atr = $atr !== null && $atr !== '' ? (float) $atr : null;
         $percentagePrefix = $percentage >= 0 ? '+' : '−';
 
         return [
             'text' => $percentagePrefix.number_format(abs($percentage), 2).'% t.o.v. koers',
-            'color' => $color,
+            'color' => $atr !== null ? SlPriceProximity::color($close, $entry, $atr) : 'gray',
+            'through' => false,
         ];
     }
 

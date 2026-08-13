@@ -46,6 +46,7 @@ class PolygonMarketDataService
      *     pre_bounce_extension_atr?: float|null,
      *     latest_bounce_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
      *     latest_rejection_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
+     *     latest_session_bar?: array{date: string, open: float, high: float, low: float, close: float, volume: float}|null,
      * }|null
      */
     public function fetchForTicker(
@@ -111,6 +112,7 @@ class PolygonMarketDataService
             'latest_atr_14' => $atr,
             'scout_rsi' => $rsi,
             'prior_day_low' => self::extractPriorDayLow($bars['bars']),
+            'latest_session_bar' => self::extractLatestSessionBar($bars['bars']),
         ];
 
         $volumeData = $this->resolveDepthMetrics(
@@ -160,6 +162,32 @@ class PolygonMarketDataService
         $priorBar = $bars[count($bars) - 2];
 
         return round((float) $priorBar['low'], 2);
+    }
+
+    /**
+     * @param  array<int, array{open?: float, high?: float, low?: float, close?: float, volume?: float, date?: string}>  $bars
+     * @return array{date: string, open: float, high: float, low: float, close: float, volume: float}|null
+     */
+    public static function extractLatestSessionBar(array $bars): ?array
+    {
+        if ($bars === []) {
+            return null;
+        }
+
+        $bar = $bars[array_key_last($bars)];
+
+        if (! isset($bar['date'], $bar['high'], $bar['low'], $bar['close'])) {
+            return null;
+        }
+
+        return [
+            'date' => (string) $bar['date'],
+            'open' => (float) ($bar['open'] ?? $bar['close']),
+            'high' => (float) $bar['high'],
+            'low' => (float) $bar['low'],
+            'close' => (float) $bar['close'],
+            'volume' => (float) ($bar['volume'] ?? 0),
+        ];
     }
 
     /**

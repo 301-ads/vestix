@@ -164,6 +164,61 @@ class MarketDataFetcherSignalCandleTest extends TestCase
         $this->assertFalse($scout->isPlannedEntryThroughMarket());
     }
 
+    public function test_through_market_reprices_from_session_bar_when_latest_bounce_is_stale(): void
+    {
+        $user = User::factory()->create();
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BRKB',
+            'direction' => TradeDirection::Long,
+            'signal_low' => 493.00,
+            'signal_high' => 498.50,
+            'signal_bar_date' => '2024-02-10',
+            'entry_price' => 499.62,
+            'latest_atr_14' => 11.20,
+            'latest_close_price' => 499.00,
+            'market_open_reminder_on' => now()->toDateString(),
+        ]);
+
+        $this->mockPolygonPayload([
+            'latest_open_price' => 513.98,
+            'latest_close_price' => 510.00,
+            'recent_close_prices' => [510.00],
+            'latest_sma_20' => 506.57,
+            'sma_20_five_days_ago' => 504.00,
+            'sma_20_ten_days_ago' => 501.00,
+            'latest_sma_50' => 498.00,
+            'latest_atr_14' => 11.20,
+            'scout_rsi' => 52.0,
+            'prior_day_low' => 507.96,
+            // Today is a red day — the bounce matcher still returns the consumed candle.
+            'latest_bounce_bar' => [
+                'date' => '2024-02-10',
+                'open' => 495.00,
+                'high' => 498.50,
+                'low' => 493.00,
+                'close' => 497.00,
+                'volume' => 3_200_000.0,
+            ],
+            'latest_rejection_bar' => null,
+            'latest_session_bar' => [
+                'date' => '2024-02-20',
+                'open' => 513.98,
+                'high' => 514.38,
+                'low' => 507.96,
+                'close' => 510.00,
+                'volume' => 4_600_000.0,
+            ],
+        ]);
+
+        app(MarketDataFetcher::class)->syncPosition($scout, withDelays: false);
+        $scout->refresh();
+
+        $this->assertSame('2024-02-20', $scout->signal_bar_date?->toDateString());
+        $this->assertEqualsWithDelta(514.38, (float) $scout->signal_high, 0.01);
+        $this->assertEqualsWithDelta(515.50, (float) $scout->entry_price, 0.01);
+        $this->assertFalse($scout->isPlannedEntryThroughMarket());
+    }
+
     public function test_same_signal_bar_still_applies_atr_buffer_to_raw_high_entry(): void
     {
         $user = User::factory()->create();
@@ -268,9 +323,9 @@ class MarketDataFetcherSignalCandleTest extends TestCase
         ]);
 
         $this->mockPolygonPayload([
-            'latest_open_price' => 22.00,
-            'latest_close_price' => 23.11,
-            'recent_close_prices' => [23.11],
+            'latest_open_price' => 20.80,
+            'latest_close_price' => 21.10,
+            'recent_close_prices' => [21.10],
             'latest_sma_20' => 22.50,
             'sma_20_five_days_ago' => 22.00,
             'sma_20_ten_days_ago' => 21.50,
