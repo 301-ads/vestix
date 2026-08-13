@@ -61,7 +61,7 @@ class SniperVisualReviewFilterTest extends TestCase
         $this->assertDatabaseMissing('positions', ['id' => $id]);
     }
 
-    public function test_pending_visual_review_blocks_order_plan_and_buy_stop(): void
+    public function test_pending_visual_review_blocks_buy_stop_until_order_plan(): void
     {
         $pending = Position::factory()->scout()->create([
             'source' => ScoutSource::SniperScan,
@@ -74,14 +74,15 @@ class SniperVisualReviewFilterTest extends TestCase
         ]);
 
         $this->assertTrue($pending->isPendingVisualReview());
-        $this->assertFalse($pending->canEnterOrderPlan());
+        $this->assertTrue($pending->canEnterOrderPlan());
         $this->assertFalse($pending->canMarkBuyStopPlaced());
 
-        $pending->approveVisualReview();
+        $pending->scheduleMarketOpenReminder();
         $pending->refresh();
 
         $this->assertSame(ScoutReviewStatus::ActiveScout, $pending->review_status);
         $this->assertFalse($pending->isPendingVisualReview());
+        $this->assertNotNull($pending->market_open_reminder_on);
         $this->assertTrue($pending->canEnterOrderPlan());
     }
 

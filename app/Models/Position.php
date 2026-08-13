@@ -369,6 +369,11 @@ class Position extends Model
 
     public function scheduleMarketOpenReminder(?Carbon $now = null): void
     {
+        // Order Plan-klik = impliciete visuele goedkeuring (Protocol Visuele Eindregie).
+        if ($this->isPendingVisualReview()) {
+            $this->approveVisualReview();
+        }
+
         $now ??= Carbon::now('Europe/Amsterdam');
 
         $this->update([
@@ -1292,8 +1297,7 @@ class Position extends Model
 
     public function canEnterOrderPlan(): bool
     {
-        return $this->entry_price !== null
-            && ! $this->isPendingVisualReview();
+        return $this->entry_price !== null;
     }
 
     public function canMarkBuyStopPlaced(): bool
