@@ -392,6 +392,232 @@ class SmartAllocationServiceTest extends TestCase
         $this->assertGreaterThanOrEqual(2, $result['allocations'][0]['quantity']);
     }
 
+    public function test_cash_cap_shrinks_lower_score_so_higher_score_keeps_min_quantity(): void
+    {
+        $user = User::factory()->create([
+            'trading_bankroll' => 5265.33,
+            'ibkr_net_liquidation' => 5265.33,
+            'ibkr_available_funds' => 5265.16,
+            'ibkr_settled_cash' => 5265.16,
+            'ibkr_last_success_at' => now(),
+            'ibkr_data_stale' => false,
+            'default_risk_percent' => 1.5,
+        ]);
+
+        // Tight stop → risk pie buys a large BRK.B notional that crowds out cash for SBLK.
+        $brk = $this->pricedScout(
+            $user,
+            ticker: 'BRK.B',
+            score: 8,
+            sector: 'XLF',
+            entry: 499.62,
+            signalLow: 497.82,
+            atr: 2.00,
+        );
+        $sblk = $this->pricedScout(
+            $user,
+            ticker: 'SBLK',
+            score: 10,
+            sector: 'XLI',
+            entry: 80.00,
+            signalLow: 63.00,
+            atr: 10.00,
+        );
+
+        $result = $this->service->allocate($user, [$brk, $sblk], SmartAllocationService::MODE_SMART);
+        $byTicker = collect($result['allocations'])->keyBy('ticker');
+
+        $this->assertArrayHasKey('SBLK', $byTicker->all());
+        $this->assertArrayHasKey('BRK.B', $byTicker->all());
+        $this->assertGreaterThanOrEqual(2, $byTicker['SBLK']['quantity']);
+        $this->assertGreaterThanOrEqual(2, $byTicker['BRK.B']['quantity']);
+        $this->assertLessThanOrEqual(5265.17, (float) collect($result['allocations'])->sum('investment'));
+        $this->assertNull(collect($result['exclusions'])->firstWhere('ticker', 'SBLK'));
+        $this->assertFalse($sblk->fresh()->isOrderPlanExcludedToday());
+    }
+
+    public function test_sticky_higher_score_is_retried_when_lower_score_can_shrink(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-13 10:00:00', 'Europe/Amsterdam'));
+
+        $user = User::factory()->create([
+            'trading_bankroll' => 5265.33,
+            'ibkr_net_liquidation' => 5265.33,
+            'ibkr_available_funds' => 5265.16,
+            'ibkr_settled_cash' => 5265.16,
+            'ibkr_last_success_at' => now(),
+            'ibkr_data_stale' => false,
+            'default_risk_percent' => 1.5,
+        ]);
+
+        $brk = $this->pricedScout(
+            $user,
+            ticker: 'BRK.B',
+            score: 8,
+            sector: 'XLF',
+            entry: 499.62,
+            signalLow: 493.62,
+            atr: 5.00,
+        );
+        $sblk = $this->pricedScout(
+            $user,
+            ticker: 'SBLK',
+            score: 10,
+            sector: 'XLI',
+            entry: 18.50,
+            signalLow: 17.40,
+            atr: 1.00,
+        );
+        $sblk->update(['order_plan_excluded_on' => '2026-08-13']);
+
+        $result = $this->service->allocate($user, [$brk, $sblk], SmartAllocationService::MODE_SMART);
+        $tickers = collect($result['allocations'])->pluck('ticker')->all();
+
+        $this->assertContains('SBLK', $tickers);
+        $this->assertContains('BRK.B', $tickers);
+        $this->assertGreaterThanOrEqual(2, collect($result['allocations'])->firstWhere('ticker', 'SBLK')['quantity']);
+        $this->assertNull($sblk->fresh()->order_plan_excluded_on);
+        $this->assertFalse(collect($result['exclusions'])->contains(
+            fn (array $exclusion): bool => $exclusion['ticker'] === 'SBLK'
+                && str_contains($exclusion['reason'], 'niet opnieuw verdeeld'),
+        ));
+    }
+
+    public function test_no_trade_hard_fail_does_not_crowd_out_live_a_setup(): void
+    {
+        $user = $this->userWithBankroll();
+
+        $cor = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->scorecardAttributes(10),
+            [
+                'ticker' => 'COR',
+                'last_setup_score' => 9,
+                'last_setup_grade' => 'A',
+                'entry_price' => 100.00,
+                'latest_atr_14' => 2.00,
+                'sector_etf' => 'XLV',
+                'target_1_rr' => 2.0,
+                'scout_rsi' => 76.00,
+                'quantity' => 10,
+            ],
+        ));
+        $this->assertSame('NO TRADE', $cor->evaluateSetupScore()['grade']);
+
+        $sblk = $this->scout($user, 'SBLK', score: 9, sector: 'XLI');
+        $brk = $this->scout($user, 'BRK.B', score: 8, sector: 'XLF');
+
+        $result = $this->service->allocate($user, [$cor, $sblk, $brk], SmartAllocationService::MODE_SMART);
+        $tickers = collect($result['allocations'])->pluck('ticker')->sort()->values()->all();
+
+        $this->assertSame(['BRK.B', 'SBLK'], $tickers);
+        $this->assertGreaterThanOrEqual(2, collect($result['allocations'])->firstWhere('ticker', 'SBLK')['quantity']);
+        $this->assertSame('COR', collect($result['exclusions'])->firstWhere('ticker', 'COR')['ticker']);
+        $this->assertStringContainsString('NO TRADE', collect($result['exclusions'])->firstWhere('ticker', 'COR')['reason']);
+        $this->assertFalse($sblk->fresh()->isOrderPlanExcludedToday());
+    }
+
+    public function test_sticky_a_setup_is_retried_when_no_trade_is_dropped_from_pie(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-13 10:00:00', 'Europe/Amsterdam'));
+
+        $user = $this->userWithBankroll();
+
+        $cor = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->scorecardAttributes(10),
+            [
+                'ticker' => 'COR',
+                'last_setup_score' => 9,
+                'last_setup_grade' => 'A',
+                'entry_price' => 100.00,
+                'latest_atr_14' => 2.00,
+                'sector_etf' => 'XLV',
+                'target_1_rr' => 2.0,
+                'scout_rsi' => 76.00,
+                'quantity' => 10,
+            ],
+        ));
+        $sblk = $this->scout($user, 'SBLK', score: 9, sector: 'XLI');
+        $sblk->update(['order_plan_excluded_on' => '2026-08-13']);
+        $brk = $this->scout($user, 'BRK.B', score: 8, sector: 'XLF');
+        $ecl = $this->scout($user, 'ECL', score: 8, sector: 'XLB');
+
+        $result = $this->service->allocate($user, [$cor, $sblk, $brk, $ecl], SmartAllocationService::MODE_SMART);
+        $tickers = collect($result['allocations'])->pluck('ticker')->sort()->values()->all();
+
+        $this->assertContains('SBLK', $tickers);
+        $this->assertNotContains('COR', $tickers);
+        $this->assertGreaterThanOrEqual(2, collect($result['allocations'])->firstWhere('ticker', 'SBLK')['quantity']);
+        $this->assertNull($sblk->fresh()->order_plan_excluded_on);
+        $this->assertStringContainsString('NO TRADE', collect($result['exclusions'])->firstWhere('ticker', 'COR')['reason']);
+        $this->assertFalse(collect($result['exclusions'])->contains(
+            fn (array $exclusion): bool => $exclusion['ticker'] === 'SBLK'
+                && str_contains($exclusion['reason'], 'niet opnieuw verdeeld'),
+        ));
+    }
+
+    public function test_persisted_no_trade_grade_is_excluded_when_live_scorecard_incomplete(): void
+    {
+        $user = $this->userWithBankroll();
+
+        $cor = $this->pricedScout(
+            $user,
+            ticker: 'COR',
+            score: 9,
+            sector: 'XLV',
+            entry: 100.00,
+            signalLow: 97.00,
+            atr: 2.00,
+        );
+        $cor->update(['last_setup_grade' => 'NO TRADE']);
+        $sblk = $this->scout($user, 'SBLK', score: 9, sector: 'XLI');
+
+        $result = $this->service->allocate($user, [$cor, $sblk], SmartAllocationService::MODE_SMART);
+
+        $this->assertSame(['SBLK'], collect($result['allocations'])->pluck('ticker')->all());
+        $this->assertStringContainsString('NO TRADE', collect($result['exclusions'])->firstWhere('ticker', 'COR')['reason']);
+    }
+
+    public function test_cash_cap_keeps_higher_score_when_both_min_lots_cannot_fit(): void
+    {
+        $user = User::factory()->create([
+            'trading_bankroll' => 5265.33,
+            'ibkr_net_liquidation' => 5265.33,
+            'ibkr_available_funds' => 1100.00,
+            'ibkr_settled_cash' => 1100.00,
+            'ibkr_last_success_at' => now(),
+            'ibkr_data_stale' => false,
+            'default_risk_percent' => 1.5,
+        ]);
+
+        $brk = $this->pricedScout(
+            $user,
+            ticker: 'BRK.B',
+            score: 8,
+            sector: 'XLF',
+            entry: 499.62,
+            signalLow: 497.82,
+            atr: 2.00,
+        );
+        $sblk = $this->pricedScout(
+            $user,
+            ticker: 'SBLK',
+            score: 10,
+            sector: 'XLI',
+            entry: 80.00,
+            signalLow: 79.50,
+            atr: 1.00,
+        );
+
+        $result = $this->service->allocate($user, [$brk, $sblk], SmartAllocationService::MODE_SMART);
+        $tickers = collect($result['allocations'])->pluck('ticker')->all();
+
+        $this->assertSame(['SBLK'], $tickers);
+        $this->assertGreaterThanOrEqual(2, $result['allocations'][0]['quantity']);
+        $this->assertLessThanOrEqual(1100.01, $result['allocations'][0]['investment']);
+        $this->assertSame('BRK.B', $result['exclusions'][0]['ticker']);
+        $this->assertStringContainsString('deployable cash', $result['exclusions'][0]['reason']);
+    }
+
     public function test_unaffordable_share_is_excluded_and_budget_redistributed(): void
     {
         $user = User::factory()->create([
@@ -658,13 +884,6 @@ class SmartAllocationServiceTest extends TestCase
                 'ticker' => 'SHRT',
                 'last_setup_score' => 10,
                 'entry_price' => 100.00,
-                'signal_high' => 100.10,
-                'latest_sma_20' => 100.05,
-                'sma_20_five_days_ago' => 101.00,
-                'sma_20_ten_days_ago' => 102.00,
-                'latest_sma_50' => 105.00,
-                'latest_open_price' => 100.05,
-                'latest_close_price' => 99.90,
                 'latest_atr_14' => 0.10,
                 'sector_etf' => 'XLF',
                 'target_1_rr' => 2.0,
@@ -705,7 +924,10 @@ class SmartAllocationServiceTest extends TestCase
                 'ticker' => 'COST',
                 'last_setup_score' => 10,
                 'entry_price' => 900.00,
-                'latest_sma_20' => 880.00,
+                'signal_low' => 852.00,
+                'latest_sma_20' => 898.00,
+                'latest_open_price' => 899.00,
+                'latest_close_price' => 901.00,
                 'latest_atr_14' => 20.00,
                 'sector_etf' => 'XLY',
                 'target_1_rr' => 2.0,
@@ -751,6 +973,29 @@ class SmartAllocationServiceTest extends TestCase
                 'quantity' => 10,
             ],
         ));
+    }
+
+    private function pricedScout(
+        User $user,
+        string $ticker,
+        int $score,
+        string $sector,
+        float $entry,
+        float $signalLow,
+        float $atr,
+    ): Position {
+        return Position::factory()->for($user)->scout()->create([
+            'ticker' => $ticker,
+            'last_setup_score' => $score,
+            'entry_price' => $entry,
+            'signal_low' => $signalLow,
+            'latest_atr_14' => $atr,
+            'latest_sma_20' => $entry,
+            'sector_etf' => $sector,
+            'target_1_rr' => 2.0,
+            'scout_rsi' => null,
+            'quantity' => null,
+        ]);
     }
 
     /**

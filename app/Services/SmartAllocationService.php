@@ -97,6 +97,10 @@ class SmartAllocationService
             TradeDirection::Long->value => [],
             TradeDirection::Short->value => [],
         ];
+        $stickyHoldsByDirection = [
+            TradeDirection::Long->value => [],
+            TradeDirection::Short->value => [],
+        ];
         $exclusions = [];
         $sectorExclusions = $this->portfolioRiskCoach->evaluateOrderPlanExclusions($user, $positions);
         $sectorExcludedIds = [];
@@ -116,7 +120,8 @@ class SmartAllocationService
             $ticker = (string) $position->ticker;
             $entry = $position->entry_price !== null ? (float) $position->entry_price : null;
             $stopLoss = $position->new_sl !== null ? (float) $position->new_sl : null;
-            $score = $this->resolveScore($position);
+            $scorecard = $this->resolveScorecard($position);
+            $score = $scorecard['score'];
             $directionKey = $position->isShort()
                 ? TradeDirection::Short->value
                 : TradeDirection::Long->value;
@@ -126,20 +131,43 @@ class SmartAllocationService
                 continue;
             }
 
-            if ($position->isOrderPlanExcludedToday()) {
+            if ($scorecard['no_trade']) {
+                if ($position->isOrderPlanExcludedToday()) {
+                    $exclusions[] = [
+                        'position_id' => (int) $position->id,
+                        'ticker' => $ticker,
+                        'reason' => sprintf(
+                            'Uitgesloten vandaag (min. %d aandelen paste niet) — niet opnieuw verdeeld',
+                            $minQuantity,
+                        ),
+                    ];
+
+                    continue;
+                }
+
                 $exclusions[] = [
                     'position_id' => (int) $position->id,
                     'ticker' => $ticker,
-                    'reason' => sprintf(
-                        'Uitgesloten vandaag (min. %d aandelen paste niet) — niet opnieuw verdeeld',
-                        $minQuantity,
-                    ),
+                    'reason' => 'NO TRADE (hard-fail) — geen kandidaat voor Smart Sizing',
                 ];
 
                 continue;
             }
 
             if ($score < $minScore) {
+                if ($position->isOrderPlanExcludedToday()) {
+                    $exclusions[] = [
+                        'position_id' => (int) $position->id,
+                        'ticker' => $ticker,
+                        'reason' => sprintf(
+                            'Uitgesloten vandaag (min. %d aandelen paste niet) — niet opnieuw verdeeld',
+                            $minQuantity,
+                        ),
+                    ];
+
+                    continue;
+                }
+
                 $exclusions[] = [
                     'position_id' => (int) $position->id,
                     'ticker' => $ticker,
@@ -206,7 +234,7 @@ class SmartAllocationService
                 ? strtoupper((string) $position->sector_etf)
                 : null;
 
-            $candidatesByDirection[$directionKey][] = [
+            $candidate = [
                 'position' => $position,
                 'ticker' => $ticker,
                 'score' => $score,
@@ -217,7 +245,22 @@ class SmartAllocationService
                 'sector' => $sector,
                 'risk_per_share' => $riskPerShare,
             ];
+
+            if ($position->isOrderPlanExcludedToday()) {
+                $stickyHoldsByDirection[$directionKey][] = $candidate;
+
+                continue;
+            }
+
+            $candidatesByDirection[$directionKey][] = $candidate;
         }
+
+        $this->releaseStickyHoldsThatOutscoreInPlay(
+            $stickyHoldsByDirection,
+            $candidatesByDirection,
+            $exclusions,
+            $minQuantity,
+        );
 
         $allocations = [];
 
@@ -347,8 +390,11 @@ class SmartAllocationService
                 return [];
             }
 
+            $round = $this->liftMinQuantitiesPreferringScore($round, $minQuantity, $bankroll);
+
             $affordable = [];
             $droppedIds = [];
+            $belowMin = [];
 
             foreach ($round as $row) {
                 if ($row['quantity'] >= $minQuantity) {
@@ -357,34 +403,67 @@ class SmartAllocationService
                     continue;
                 }
 
-                $positionId = (int) $row['position_id'];
-                $droppedIds[$positionId] = true;
-
-                $dropped = collect($working)->first(
-                    fn (array $candidate): bool => (int) $candidate['position']->id === $positionId,
-                );
-
-                if (is_array($dropped) && $dropped['position'] instanceof Position) {
-                    $dropped['position']->markOrderPlanExcludedToday();
-                }
-
-                $exclusions[] = [
-                    'position_id' => $positionId,
-                    'ticker' => $row['ticker'],
-                    'reason' => sprintf(
-                        'Min. %d aandelen kost $%s risico; toegekend $%s — budget herverdeeld',
-                        $minQuantity,
-                        number_format(abs($row['entry'] - $row['stop_loss']) * $minQuantity, 2),
-                        number_format($row['risk_dollars'], 2),
-                    ),
-                ];
+                $belowMin[] = $row;
             }
 
-            $allocations = $affordable;
+            if ($belowMin === []) {
+                $allocations = $affordable;
 
-            if ($droppedIds === []) {
                 break;
             }
+
+            $highestShortScore = max(array_column($belowMin, 'score'));
+            $lowestAffordableScore = $affordable === []
+                ? null
+                : min(array_column($affordable, 'score'));
+
+            if ($lowestAffordableScore !== null && $highestShortScore > $lowestAffordableScore) {
+                usort(
+                    $affordable,
+                    fn (array $a, array $b): int => $a['score'] <=> $b['score']
+                        ?: $b['investment'] <=> $a['investment']
+                        ?: strcmp((string) $a['ticker'], (string) $b['ticker']),
+                );
+                $crowding = $affordable[0];
+                $droppedIds[(int) $crowding['position_id']] = true;
+                $exclusions[] = [
+                    'position_id' => (int) $crowding['position_id'],
+                    'ticker' => (string) $crowding['ticker'],
+                    'reason' => sprintf(
+                        'Min. %d aandelen voor hogere score paste niet — budget herverdeeld',
+                        $minQuantity,
+                    ),
+                ];
+            } else {
+                foreach ($belowMin as $row) {
+                    $positionId = (int) $row['position_id'];
+                    $droppedIds[$positionId] = true;
+
+                    $dropped = collect($working)->first(
+                        fn (array $candidate): bool => (int) $candidate['position']->id === $positionId,
+                    );
+
+                    if (is_array($dropped) && $dropped['position'] instanceof Position) {
+                        $dropped['position']->markOrderPlanExcludedToday();
+                    }
+
+                    $exclusions[] = [
+                        'position_id' => $positionId,
+                        'ticker' => $row['ticker'],
+                        'reason' => sprintf(
+                            'Min. %d aandelen kost $%s risico; toegekend $%s — budget herverdeeld',
+                            $minQuantity,
+                            number_format(abs($row['entry'] - $row['stop_loss']) * $minQuantity, 2),
+                            number_format($row['risk_dollars'], 2),
+                        ),
+                    ];
+                }
+            }
+
+            $allocations = array_values(array_filter(
+                $affordable,
+                fn (array $row): bool => ! isset($droppedIds[(int) $row['position_id']]),
+            ));
 
             $working = array_values(array_filter(
                 $working,
@@ -595,7 +674,7 @@ class SmartAllocationService
 
     /**
      * Risk pie can imply notionals larger than deployable cash (tight stops).
-     * Scale quantities so Σ(qty × entry) fits the cash cap; drop names that fall below min qty.
+     * Shrink lower-score (or larger-notional) lots first so higher-score names keep min qty.
      *
      * @param  list<array{
      *     position_id: int,
@@ -659,78 +738,229 @@ class SmartAllocationService
 
         $minQuantity = $this->minQuantity();
         $working = $allocations;
-        $maxRounds = count($working) + 2;
 
-        while ($working !== [] && $maxRounds-- > 0) {
+        while ($working !== []) {
             $totalInvestment = array_sum(array_column($working, 'investment'));
 
             if ($totalInvestment <= $cashCap + 0.01) {
                 return $this->rebalanceWeightShares($working);
             }
 
-            $scale = $cashCap / $totalInvestment;
-            $scaled = [];
-            $dropped = false;
+            $donorIndex = $this->indexOfCashCapDonor($working, $minQuantity);
 
-            foreach ($working as $row) {
-                $newQty = (int) floor((int) $row['quantity'] * $scale);
-
-                if ($newQty < $minQuantity) {
-                    $exclusions[] = [
-                        'position_id' => (int) $row['position_id'],
-                        'ticker' => (string) $row['ticker'],
-                        'reason' => sprintf(
-                            'Inleg paste niet in deployable cash $%s (min. %d aandelen) — herverdeeld',
-                            number_format($cashCap, 2),
-                            $minQuantity,
-                        ),
-                    ];
-                    $dropped = true;
-
-                    continue;
-                }
-
-                $scaled[] = $this->resizeAllocationRow($row, $newQty, $bankroll);
-            }
-
-            $working = $scaled;
-
-            if (! $dropped) {
-                break;
-            }
-        }
-
-        // Floor rounding can still leave a few dollars over — trim largest lots.
-        while ($working !== []) {
-            $totalInvestment = array_sum(array_column($working, 'investment'));
-
-            if ($totalInvestment <= $cashCap + 0.01) {
-                break;
-            }
-
-            usort($working, fn (array $a, array $b): int => $b['investment'] <=> $a['investment']);
-            $largest = $working[0];
-            $newQty = (int) $largest['quantity'] - 1;
-
-            if ($newQty < $minQuantity) {
-                $exclusions[] = [
-                    'position_id' => (int) $largest['position_id'],
-                    'ticker' => (string) $largest['ticker'],
-                    'reason' => sprintf(
-                        'Inleg paste niet in deployable cash $%s (min. %d aandelen) — herverdeeld',
-                        number_format($cashCap, 2),
-                        $minQuantity,
-                    ),
-                ];
-                array_shift($working);
+            if ($donorIndex !== null) {
+                $donor = $working[$donorIndex];
+                $entry = (float) $donor['entry'];
+                $over = $totalInvestment - $cashCap;
+                $maxCut = (int) $donor['quantity'] - $minQuantity;
+                $sharesToCut = (int) max(1, min($maxCut, (int) ceil(($over / max($entry, 0.01)) - 1e-9)));
+                $working[$donorIndex] = $this->resizeAllocationRow(
+                    $donor,
+                    (int) $donor['quantity'] - $sharesToCut,
+                    $bankroll,
+                );
 
                 continue;
             }
 
-            $working[0] = $this->resizeAllocationRow($largest, $newQty, $bankroll);
+            usort(
+                $working,
+                fn (array $a, array $b): int => $a['score'] <=> $b['score']
+                    ?: $b['investment'] <=> $a['investment']
+                    ?: strcmp((string) $a['ticker'], (string) $b['ticker']),
+            );
+
+            $dropped = array_shift($working);
+            $exclusions[] = [
+                'position_id' => (int) $dropped['position_id'],
+                'ticker' => (string) $dropped['ticker'],
+                'reason' => sprintf(
+                    'Inleg paste niet in deployable cash $%s (min. %d aandelen) — herverdeeld',
+                    number_format($cashCap, 2),
+                    $minQuantity,
+                ),
+            ];
         }
 
-        return $this->rebalanceWeightShares($working);
+        return [];
+    }
+
+    /**
+     * Retry sticky exclusions that outscore an in-play candidate — they were crowded
+     * out by a lower-score lot, not genuinely unaffordable for min quantity.
+     *
+     * @param  array<string, list<array{position: Position, ticker: string, score: int, entry: float, stop_loss: float, target_1: float|null, reward_risk: float|null, sector: string|null, risk_per_share: float}>>  $stickyHoldsByDirection
+     * @param  array<string, list<array{position: Position, ticker: string, score: int, entry: float, stop_loss: float, target_1: float|null, reward_risk: float|null, sector: string|null, risk_per_share: float}>>  $candidatesByDirection
+     * @param  list<array{position_id: int, ticker: string, reason: string}>  $exclusions
+     */
+    private function releaseStickyHoldsThatOutscoreInPlay(
+        array $stickyHoldsByDirection,
+        array &$candidatesByDirection,
+        array &$exclusions,
+        int $minQuantity,
+    ): void {
+        $minInPlayScore = null;
+
+        foreach ($candidatesByDirection as $candidates) {
+            foreach ($candidates as $candidate) {
+                $score = (int) $candidate['score'];
+                $minInPlayScore = $minInPlayScore === null ? $score : min($minInPlayScore, $score);
+            }
+        }
+
+        foreach ($stickyHoldsByDirection as $directionKey => $holds) {
+            foreach ($holds as $candidate) {
+                if ($minInPlayScore !== null && (int) $candidate['score'] > $minInPlayScore) {
+                    $candidate['position']->update(['order_plan_excluded_on' => null]);
+                    $candidatesByDirection[$directionKey][] = $candidate;
+
+                    continue;
+                }
+
+                $exclusions[] = [
+                    'position_id' => (int) $candidate['position']->id,
+                    'ticker' => (string) $candidate['ticker'],
+                    'reason' => sprintf(
+                        'Uitgesloten vandaag (min. %d aandelen paste niet) — niet opnieuw verdeeld',
+                        $minQuantity,
+                    ),
+                ];
+            }
+        }
+    }
+
+    /**
+     * Raise names below min qty by taking shares from lower-or-equal score surplus.
+     *
+     * @param  list<array{
+     *     position_id: int,
+     *     ticker: string,
+     *     score: int,
+     *     quantity: int,
+     *     investment: float,
+     *     entry: float,
+     *     stop_loss: float,
+     *     weight: float,
+     * }>  $allocations
+     * @return list<array{
+     *     position_id: int,
+     *     ticker: string,
+     *     score: int,
+     *     quantity: int,
+     *     investment: float,
+     *     entry: float,
+     *     stop_loss: float,
+     *     weight: float,
+     * }>
+     */
+    private function liftMinQuantitiesPreferringScore(array $allocations, int $minQuantity, float $bankroll): array
+    {
+        if (count($allocations) < 2) {
+            return $allocations;
+        }
+
+        $byId = [];
+
+        foreach ($allocations as $row) {
+            $byId[(int) $row['position_id']] = $row;
+        }
+
+        $recipientIds = array_keys($byId);
+        usort(
+            $recipientIds,
+            fn (int $a, int $b): int => $byId[$b]['score'] <=> $byId[$a]['score']
+                ?: $byId[$b]['weight'] <=> $byId[$a]['weight']
+                ?: strcmp((string) $byId[$a]['ticker'], (string) $byId[$b]['ticker']),
+        );
+
+        foreach ($recipientIds as $recipientId) {
+            if ($byId[$recipientId]['quantity'] >= $minQuantity) {
+                continue;
+            }
+
+            $recipientRps = abs((float) $byId[$recipientId]['entry'] - (float) $byId[$recipientId]['stop_loss']);
+
+            if ($recipientRps <= 0) {
+                continue;
+            }
+
+            $donorIds = $recipientIds;
+            usort(
+                $donorIds,
+                fn (int $a, int $b): int => $byId[$a]['score'] <=> $byId[$b]['score']
+                    ?: $byId[$b]['investment'] <=> $byId[$a]['investment']
+                    ?: strcmp((string) $byId[$b]['ticker'], (string) $byId[$a]['ticker']),
+            );
+
+            foreach ($donorIds as $donorId) {
+                if ($donorId === $recipientId || $byId[$recipientId]['quantity'] >= $minQuantity) {
+                    continue;
+                }
+
+                if ((int) $byId[$donorId]['score'] > (int) $byId[$recipientId]['score']) {
+                    continue;
+                }
+
+                $donorRps = abs((float) $byId[$donorId]['entry'] - (float) $byId[$donorId]['stop_loss']);
+
+                if ($donorRps <= 0) {
+                    continue;
+                }
+
+                while (
+                    $byId[$recipientId]['quantity'] < $minQuantity
+                    && $byId[$donorId]['quantity'] > $minQuantity
+                ) {
+                    $sharesToCut = (int) max(1, (int) ceil($recipientRps / $donorRps - 1e-9));
+
+                    if ($byId[$donorId]['quantity'] - $sharesToCut < $minQuantity) {
+                        break;
+                    }
+
+                    $byId[$donorId] = $this->resizeAllocationRow(
+                        $byId[$donorId],
+                        (int) $byId[$donorId]['quantity'] - $sharesToCut,
+                        $bankroll,
+                    );
+                    $byId[$recipientId] = $this->resizeAllocationRow(
+                        $byId[$recipientId],
+                        (int) $byId[$recipientId]['quantity'] + 1,
+                        $bankroll,
+                    );
+                }
+            }
+        }
+
+        return array_values($byId);
+    }
+
+    /**
+     * @param  list<array{score: int, quantity: int, investment: float, ticker: string}>  $working
+     */
+    private function indexOfCashCapDonor(array $working, int $minQuantity): ?int
+    {
+        $bestIndex = null;
+        $best = null;
+
+        foreach ($working as $index => $row) {
+            if ((int) $row['quantity'] <= $minQuantity) {
+                continue;
+            }
+
+            if (
+                $best === null
+                || (int) $row['score'] < (int) $best['score']
+                || (
+                    (int) $row['score'] === (int) $best['score']
+                    && (float) $row['investment'] > (float) $best['investment']
+                )
+            ) {
+                $best = $row;
+                $bestIndex = $index;
+            }
+        }
+
+        return $bestIndex;
     }
 
     /**
@@ -867,13 +1097,39 @@ class SmartAllocationService
         return true;
     }
 
-    private function resolveScore(Position $position): int
+    /**
+     * Live scorecard points for weighting. NO TRADE / hard-fail is 0 so a stale
+     * last_setup_score (e.g. 9) cannot crowd out a real A-setup.
+     *
+     * @return array{score: int, grade: string, no_trade: bool}
+     */
+    private function resolveScorecard(Position $position): array
     {
-        if ($this->scorecardDataIncomplete($position)) {
-            return (int) ($position->last_setup_score ?? 0);
+        if (! $this->scorecardDataIncomplete($position)) {
+            $scorecard = $position->evaluateSetupScore();
+            $grade = (string) $scorecard['grade'];
+            $noTrade = $grade === 'NO TRADE' || $scorecard['hardFailReasons'] !== [];
+
+            return [
+                'score' => $noTrade ? 0 : (int) $scorecard['totalPoints'],
+                'grade' => $grade,
+                'no_trade' => $noTrade,
+            ];
         }
 
-        return (int) $position->evaluateSetupScore()['totalPoints'];
+        $grade = strtoupper(trim((string) ($position->last_setup_grade ?? '')));
+        $noTrade = $grade === 'NO TRADE';
+
+        return [
+            'score' => $noTrade ? 0 : (int) ($position->last_setup_score ?? 0),
+            'grade' => $grade,
+            'no_trade' => $noTrade,
+        ];
+    }
+
+    private function resolveScore(Position $position): int
+    {
+        return $this->resolveScorecard($position)['score'];
     }
 
     private function minQuantity(): int
