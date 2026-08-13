@@ -202,9 +202,21 @@
             <h4 class="vestix-smart-allocation__exclusions-heading">Uitgesloten</h4>
             <ul>
                 @foreach ($result['exclusions'] as $exclusion)
+                    @php
+                        $position = $scouts->firstWhere('id', (int) $exclusion['position_id']);
+                        $editUrl = $position !== null
+                            ? ScoutResource::getUrl('edit', ['record' => $position])
+                            : null;
+                    @endphp
                     <li class="vestix-smart-allocation__exclusion-row">
                         <span>
-                            <strong>{{ $exclusion['ticker'] }}</strong>
+                            @if ($editUrl)
+                                <a href="{{ $editUrl }}" class="vestix-smart-allocation__ticker-link">
+                                    <strong>{{ $exclusion['ticker'] }}</strong>
+                                </a>
+                            @else
+                                <strong>{{ $exclusion['ticker'] }}</strong>
+                            @endif
                             — {{ $exclusion['reason'] }}
                         </span>
                         @if ($removable)
