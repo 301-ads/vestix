@@ -84,6 +84,31 @@ class SniperVisualReviewFilterTest extends TestCase
         $this->assertFalse($pending->isPendingVisualReview());
         $this->assertNotNull($pending->market_open_reminder_on);
         $this->assertTrue($pending->canEnterOrderPlan());
+        $this->assertTrue($pending->canMarkBuyStopPlaced());
+    }
+
+    public function test_already_in_order_plan_enables_ticket_even_if_review_status_still_pending(): void
+    {
+        $inPlan = Position::factory()->scout()->create([
+            'source' => ScoutSource::SniperScan,
+            'review_status' => ScoutReviewStatus::PendingVisualReview,
+            'entry_price' => 100.00,
+            'quantity' => 41,
+            'latest_atr_14' => 2.00,
+            'latest_sma_20' => 99.00,
+            'latest_close_price' => 100.00,
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        $this->assertFalse($inPlan->isPendingVisualReview());
+        $this->assertTrue($inPlan->hasCompleteBracketPlan());
+        $this->assertTrue($inPlan->canMarkBuyStopPlaced());
+
+        $inPlan->approveVisualReview();
+        $inPlan->refresh();
+
+        $this->assertSame(ScoutReviewStatus::ActiveScout, $inPlan->review_status);
+        $this->assertTrue($inPlan->canMarkBuyStopPlaced());
     }
 
     public function test_manual_scout_without_review_status_can_enter_order_plan(): void

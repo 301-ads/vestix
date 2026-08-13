@@ -50,7 +50,6 @@ class SquadRadarResource extends Resource
 
         $squadIds = $user->squads()->pluck('squads.id');
         $query->whereIn('squad_id', $squadIds);
-        Position::syncPersistedSetupScorecards($query);
 
         return $query;
     }

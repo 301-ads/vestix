@@ -302,7 +302,7 @@ class Position extends Model
 
     /**
      * Re-persist live scorecard points/grade when they drifted from last_setup_*.
-     * Radar sort uses those columns; the Score cell renders the live scorecard.
+     * Call from market-data fetch / edit — never from Filament list GET or 10s poll.
      */
     public function syncPersistedSetupScorecardIfStale(): bool
     {
@@ -333,6 +333,9 @@ class Position extends Model
         return true;
     }
 
+    /**
+     * Batch helper for fetch/edit jobs. Do not call from Filament list GET or poll.
+     */
     public static function syncPersistedSetupScorecards(Builder $query): int
     {
         $synced = 0;
@@ -1338,7 +1341,8 @@ class Position extends Model
     {
         return $this->status === 'scout'
             && $this->source === ScoutSource::SniperScan
-            && $this->review_status === ScoutReviewStatus::PendingVisualReview;
+            && $this->review_status === ScoutReviewStatus::PendingVisualReview
+            && $this->market_open_reminder_on === null;
     }
 
     public function canEnterOrderPlan(): bool
@@ -2254,7 +2258,11 @@ class Position extends Model
 
     public function approveVisualReview(): void
     {
-        if (! $this->isPendingVisualReview()) {
+        if (
+            $this->status !== 'scout'
+            || $this->source !== ScoutSource::SniperScan
+            || $this->review_status !== ScoutReviewStatus::PendingVisualReview
+        ) {
             return;
         }
 

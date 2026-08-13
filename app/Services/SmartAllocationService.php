@@ -1070,6 +1070,8 @@ class SmartAllocationService
                 'risk_percent' => $allocation['risk_percent'],
             ]);
 
+            $position->approveVisualReview();
+
             $updated++;
         }
 

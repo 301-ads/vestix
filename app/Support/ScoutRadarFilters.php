@@ -3,8 +3,6 @@
 namespace App\Support;
 
 use App\Enums\ScoutPipelineStatus;
-use App\Enums\ScoutReviewStatus;
-use App\Enums\ScoutSource;
 use App\Models\Position;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
@@ -81,9 +79,7 @@ class ScoutRadarFilters
 
     public static function isPendingVisualReview(Position $scout): bool
     {
-        return $scout->status === 'scout'
-            && $scout->source === ScoutSource::SniperScan
-            && $scout->review_status === ScoutReviewStatus::PendingVisualReview;
+        return $scout->isPendingVisualReview();
     }
 
     public static function apply(Builder $query, ?string $focus): Builder

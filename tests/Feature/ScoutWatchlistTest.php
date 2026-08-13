@@ -7,6 +7,8 @@ use App\Enums\BrokerOrderStatus;
 use App\Enums\PositionVisibility;
 use App\Enums\PremarketScanResult;
 use App\Enums\ScoutPipelineStatus;
+use App\Enums\ScoutReviewStatus;
+use App\Enums\ScoutSource;
 use App\Enums\TradeDirection;
 use App\Filament\Resources\Positions\Pages\CreateScout;
 use App\Filament\Resources\Positions\Pages\EditScout;
@@ -976,6 +978,34 @@ class ScoutWatchlistTest extends TestCase
         $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
     }
 
+    public function test_order_ticket_enabled_when_sniper_scout_already_in_order_plan(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update(['primary_broker' => Broker::Ibkr]);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'SBLK',
+            'source' => ScoutSource::SniperScan,
+            'review_status' => ScoutReviewStatus::PendingVisualReview,
+            'broker' => Broker::Ibkr,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'entry_price' => 20.00,
+            'quantity' => 41,
+            'latest_atr_14' => 0.50,
+            'latest_sma_20' => 19.50,
+            'latest_close_price' => 20.00,
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        $this->assertFalse($scout->isPendingVisualReview());
+        $this->assertTrue($scout->hasCompleteBracketPlan());
+        $this->assertTrue($scout->canMarkBuyStopPlaced());
+
+        Livewire::test(ListScouts::class)
+            ->assertTableActionVisible('mark_buy_stop_placed', $scout)
+            ->assertTableActionEnabled('mark_buy_stop_placed', $scout);
+    }
+
     public function test_short_waterfall_alone_does_not_block_mark_buy_stop_placed(): void
     {
         $user = $this->authenticateFilament();
@@ -1385,7 +1415,7 @@ class ScoutWatchlistTest extends TestCase
         $this->assertSame(['APLS', 'AMNS', 'BSTR', 'BSET', 'CSET', 'FAIL', 'WEAK', 'LOWN'], $ordered);
     }
 
-    public function test_radar_list_sorts_by_live_scorecard_not_stale_persisted_grade(): void
+    public function test_radar_list_does_not_sync_write_setup_scorecards(): void
     {
         $user = $this->authenticateFilament();
 
@@ -1406,22 +1436,13 @@ class ScoutWatchlistTest extends TestCase
             ],
         ));
 
-        $staleOrder = Position::scout()
-            ->forUser($user->id)
-            ->orderBySetupGrade('asc')
-            ->pluck('ticker')
-            ->all();
+        Livewire::test(ListScouts::class)->assertOk();
+        Livewire::test(SetupRadarWidget::class)->assertOk();
 
-        $this->assertSame(['DAL', 'SBLK'], $staleOrder);
-
-        Livewire::test(ListScouts::class)
-            ->assertOk()
-            ->assertSeeInOrder(['SBLK', 'DAL']);
-
-        $this->assertSame(8, $dal->fresh()->last_setup_score);
-        $this->assertSame('B', $dal->fresh()->last_setup_grade);
-        $this->assertSame(9, $sblk->fresh()->last_setup_score);
-        $this->assertSame('A', $sblk->fresh()->last_setup_grade);
+        $this->assertSame(10, $dal->fresh()->last_setup_score);
+        $this->assertSame('A', $dal->fresh()->last_setup_grade);
+        $this->assertSame(7, $sblk->fresh()->last_setup_score);
+        $this->assertSame('B', $sblk->fresh()->last_setup_grade);
     }
 
     public function test_scouts_list_sorts_persisted_no_trade_after_letter_grades_even_with_high_score(): void

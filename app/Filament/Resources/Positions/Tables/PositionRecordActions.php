@@ -764,9 +764,7 @@ class PositionRecordActions
 
     public static function canRejectVisualReview(Position $record): bool
     {
-        return $record->status === 'scout'
-            && $record->source?->value === 'sniper_scan'
-            && $record->review_status?->value === 'pending_visual_review';
+        return $record->isPendingVisualReview();
     }
 
     public static function canPromoteToA(Position $record): bool

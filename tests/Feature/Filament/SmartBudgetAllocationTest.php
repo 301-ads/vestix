@@ -5,6 +5,8 @@ namespace Tests\Feature\Filament;
 use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
 use App\Enums\ScoutPipelineStatus;
+use App\Enums\ScoutReviewStatus;
+use App\Enums\ScoutSource;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Positions\Pages\ListScouts;
 use App\Filament\Widgets\OrderPlanTodayWidget;
@@ -277,6 +279,45 @@ class SmartBudgetAllocationTest extends TestCase
 
         Livewire::test(ExecutionPlanPanel::class)
             ->assertSeeLivewire(ExecutionPlanContent::class);
+    }
+
+    public function test_apply_allocation_approves_pending_visual_review(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 10000,
+            'default_risk_percent' => 1,
+            'primary_broker' => Broker::Ibkr,
+        ]);
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'SBLK',
+            'source' => ScoutSource::SniperScan,
+            'review_status' => ScoutReviewStatus::PendingVisualReview,
+            'broker' => Broker::Ibkr,
+            'last_setup_score' => 10,
+            'entry_price' => 20.00,
+            'latest_sma_20' => 19.50,
+            'latest_atr_14' => 0.50,
+            'latest_close_price' => 20.00,
+            'sector_etf' => 'XLI',
+            'quantity' => 1,
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+        ]);
+
+        $this->assertFalse($scout->isPendingVisualReview());
+
+        Livewire::test(ExecutionPlanContent::class)
+            ->call('applyAllocation');
+
+        $scout->refresh();
+
+        $this->assertSame(ScoutReviewStatus::ActiveScout, $scout->review_status);
+        $this->assertGreaterThan(1, (int) $scout->quantity);
+        $this->assertTrue($scout->canMarkBuyStopPlaced());
+
+        Livewire::test(ListScouts::class)
+            ->assertTableActionEnabled('mark_buy_stop_placed', $scout);
     }
 
     public function test_mark_buy_stop_after_allocation_activates_with_new_quantity(): void
