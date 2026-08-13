@@ -1383,10 +1383,45 @@ class ScoutWatchlistTest extends TestCase
 
         // Grade first (A++ → A → B → C → N), then score within grade (high → low).
         $this->assertSame(['APLS', 'AMNS', 'BSTR', 'BSET', 'CSET', 'FAIL', 'WEAK', 'LOWN'], $ordered);
+    }
+
+    public function test_radar_list_sorts_by_live_scorecard_not_stale_persisted_grade(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $dal = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->liveScorecardAttributes(8),
+            [
+                'ticker' => 'DAL',
+                'last_setup_score' => 10,
+                'last_setup_grade' => 'A',
+            ],
+        ));
+        $sblk = Position::factory()->for($user)->scout()->create(array_merge(
+            $this->liveScorecardAttributes(9),
+            [
+                'ticker' => 'SBLK',
+                'last_setup_score' => 7,
+                'last_setup_grade' => 'B',
+            ],
+        ));
+
+        $staleOrder = Position::scout()
+            ->forUser($user->id)
+            ->orderBySetupGrade('asc')
+            ->pluck('ticker')
+            ->all();
+
+        $this->assertSame(['DAL', 'SBLK'], $staleOrder);
 
         Livewire::test(ListScouts::class)
             ->assertOk()
-            ->assertSeeInOrder(['APLS', 'AMNS', 'BSTR', 'BSET', 'CSET', 'FAIL', 'WEAK', 'LOWN']);
+            ->assertSeeInOrder(['SBLK', 'DAL']);
+
+        $this->assertSame(8, $dal->fresh()->last_setup_score);
+        $this->assertSame('B', $dal->fresh()->last_setup_grade);
+        $this->assertSame(9, $sblk->fresh()->last_setup_score);
+        $this->assertSame('A', $sblk->fresh()->last_setup_grade);
     }
 
     public function test_scouts_list_sorts_persisted_no_trade_after_letter_grades_even_with_high_score(): void
@@ -1585,5 +1620,38 @@ class ScoutWatchlistTest extends TestCase
             'scout_rsi' => 50,
             'bounce_volume_above_average' => false,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function liveScorecardAttributes(int $score): array
+    {
+        $base = [
+            'signal_low' => 97.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
+            'sector_etf' => 'XLI',
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
+        ];
+
+        return match ($score) {
+            9 => array_merge($base, ['pre_bounce_extension_atr' => 1.0]),
+            8 => array_merge($base, [
+                'pre_bounce_extension_atr' => 1.0,
+                'scout_rsi' => 60.00,
+            ]),
+            default => $base,
+        };
     }
 }

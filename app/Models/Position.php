@@ -300,6 +300,52 @@ class Position extends Model
             ->orderBy('ticker');
     }
 
+    /**
+     * Re-persist live scorecard points/grade when they drifted from last_setup_*.
+     * Radar sort uses those columns; the Score cell renders the live scorecard.
+     */
+    public function syncPersistedSetupScorecardIfStale(): bool
+    {
+        $hasSignalAnchor = $this->isShort()
+            ? $this->signal_high !== null
+            : $this->signal_low !== null;
+
+        if (
+            ! $hasSignalAnchor
+            || $this->latest_sma_20 === null
+            || $this->scout_rsi === null
+            || $this->latest_close_price === null
+        ) {
+            return false;
+        }
+
+        $scorecard = $this->evaluateSetupScore();
+
+        if (
+            (int) ($this->last_setup_score ?? -1) === (int) $scorecard['totalPoints']
+            && (string) ($this->last_setup_grade ?? '') === (string) $scorecard['grade']
+        ) {
+            return false;
+        }
+
+        $this->persistLastSetupScorecard($scorecard);
+
+        return true;
+    }
+
+    public static function syncPersistedSetupScorecards(Builder $query): int
+    {
+        $synced = 0;
+
+        foreach ((clone $query)->reorder()->get() as $scout) {
+            if ($scout instanceof self && $scout->syncPersistedSetupScorecardIfStale()) {
+                $synced++;
+            }
+        }
+
+        return $synced;
+    }
+
     public function scopePersonalScouts(Builder $query, int $userId): Builder
     {
         return $query->scout()->nonLegacy()->forUser($userId);

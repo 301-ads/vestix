@@ -55,6 +55,7 @@ class ScoutResource extends Resource
 
         if ($userId) {
             $query->forUser($userId);
+            Position::syncPersistedSetupScorecards($query);
         }
 
         return $query;

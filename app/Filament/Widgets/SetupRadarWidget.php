@@ -51,11 +51,16 @@ class SetupRadarWidget extends TableWidget
             ->striped(false)
             ->heading('Setup Radar')
             ->searchable()
-            ->query(fn (): Builder => Position::scout()
-                ->nonLegacy()
-                ->forUser(auth()->id())
-                ->with('asset')
-                ->orderBySetupGrade('asc'))
+            ->query(function (): Builder {
+                $query = Position::scout()
+                    ->nonLegacy()
+                    ->forUser(auth()->id())
+                    ->with('asset');
+
+                Position::syncPersistedSetupScorecards($query);
+
+                return $query->orderBySetupGrade('asc');
+            })
             ->recordUrl(fn (Position $record): string => ScoutResource::getUrl('edit', ['record' => $record]))
             ->columns([
                 TickerColumn::wrap(
