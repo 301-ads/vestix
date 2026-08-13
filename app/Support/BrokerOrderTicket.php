@@ -159,13 +159,35 @@ class BrokerOrderTicket
     public static function forIbkrBracket(Position $position): array
     {
         $quantity = (float) ($position->quantity ?? 0);
-        $entry = (float) ($position->entry_price ?? 0);
+        $entry = $position->advisedEntryStop() ?? (float) ($position->entry_price ?? 0);
         $limitPrice = StopLimitBuffer::limitPriceForDirection($entry, $position->tradeDirection());
         $stopLoss = (float) ($position->new_sl ?? 0);
-        $target1 = (float) ($position->plannedBracketTarget1Price() ?? 0);
+        $riskPerShare = PositionSizing::riskPerShare($entry, $stopLoss, $position->tradeDirection());
+        $target1 = $riskPerShare !== null
+            ? (float) PositionSizing::targetPrice(
+                $entry,
+                $riskPerShare,
+                $position->effective_target_1_rr,
+                $position->tradeDirection(),
+            )
+            : (float) ($position->plannedBracketTarget1Price() ?? 0);
         $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
         $tpQty = (float) ($position->target_1_quantity ?? 0);
+        $tpHintPercent = $quantity > 0 ? (int) round(($tpQty / $quantity) * 100) : $fractionPercent;
         $isShort = $position->isShort();
+        $throughWarning = $position->isPlannedEntryThroughMarket()
+            ? ($isShort
+                ? sprintf(
+                    'Sell-stop %s ligt boven de koers %s — de setup is al geraakt. Herprijs de signaalkaars; plaats deze stop niet.',
+                    self::formatMoney($entry),
+                    self::formatMoney((float) $position->latest_close_price),
+                )
+                : sprintf(
+                    'Buy-stop %s ligt onder de koers %s — de setup is al geraakt. Herprijs de signaalkaars; plaats deze stop niet.',
+                    self::formatMoney($entry),
+                    self::formatMoney((float) $position->latest_close_price),
+                ))
+            : null;
 
         if ($isShort) {
             $hardFailReasons = $position->shortSniperHardFailReasons();
@@ -173,7 +195,7 @@ class BrokerOrderTicket
             return [
                 'title' => "IBKR Bracket Order — {$position->ticker} [SHORT]",
                 'intro' => null,
-                'warning' => 'LET OP: SHORT POSITIE. Gebruik SELL STOP LIMIT voor de instap.',
+                'warning' => $throughWarning ?? 'LET OP: SHORT POSITIE. Gebruik SELL STOP LIMIT voor de instap.',
                 'is_short' => true,
                 'sniper_hard_fails' => $hardFailReasons,
                 'show_sniper_vision_coming_soon' => true,
@@ -211,7 +233,7 @@ class BrokerOrderTicket
                         'hint' => sprintf(
                             'TradingView zet TP standaard op 100%%. Plaats eerst de bracket; wijzig daarna het TP-aantal naar %s (%d%%) om te schalen.',
                             self::formatQuantity($tpQty),
-                            $fractionPercent,
+                            $tpHintPercent,
                         ),
                     ],
                     [
@@ -229,7 +251,7 @@ class BrokerOrderTicket
         return [
             'title' => "IBKR Bracket Order — {$position->ticker}",
             'intro' => 'Neem dit exact over in TradingView: vink Take Profit en Stop Loss aan.',
-            'warning' => null,
+            'warning' => $throughWarning,
             'is_short' => false,
             'sniper_hard_fails' => [],
             'show_sniper_vision_coming_soon' => false,
@@ -266,7 +288,7 @@ class BrokerOrderTicket
                     'hint' => sprintf(
                         'TradingView zet TP standaard op 100%%. Plaats eerst de bracket; wijzig daarna het TP-aantal naar %s (%d%%) om te schalen.',
                         self::formatQuantity($tpQty),
-                        $fractionPercent,
+                        $tpHintPercent,
                     ),
                 ],
                 [

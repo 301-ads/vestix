@@ -2,8 +2,10 @@
 
 namespace Tests\Unit;
 
+use App\Enums\Broker;
 use App\Models\Asset;
 use App\Models\Position;
+use App\Models\User;
 use App\Support\BrokerOrderTicket;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -87,7 +89,7 @@ class BrokerOrderTicketTest extends TestCase
 
     public function test_limit_sell_ticket_formats_target_and_tranche(): void
     {
-        $user = \App\Models\User::factory()->create(['primary_broker' => \App\Enums\Broker::None]);
+        $user = User::factory()->create(['primary_broker' => Broker::None]);
 
         $position = Position::factory()->for($user)->make([
             'ticker' => 'GS',
@@ -115,7 +117,7 @@ class BrokerOrderTicketTest extends TestCase
 
     public function test_limit_sell_ticket_uses_revolut_target_1_copy_when_user_uses_revolut(): void
     {
-        $user = \App\Models\User::factory()->create(['primary_broker' => \App\Enums\Broker::Revolut]);
+        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
 
         $position = Position::factory()->for($user)->make([
             'ticker' => 'GS',
@@ -199,7 +201,7 @@ class BrokerOrderTicketTest extends TestCase
 
     public function test_limit_sell_ticket_blade_renders_target_details(): void
     {
-        $user = \App\Models\User::factory()->create(['primary_broker' => \App\Enums\Broker::None]);
+        $user = User::factory()->create(['primary_broker' => Broker::None]);
 
         $position = Position::factory()->for($user)->make([
             'ticker' => 'GS',
@@ -228,6 +230,7 @@ class BrokerOrderTicketTest extends TestCase
             'ticker' => 'COO',
             'entry_price' => 71.80,
             'quantity' => 34,
+            'latest_close_price' => 70.00,
             'latest_sma_20' => 69.00,
             'latest_atr_14' => 1.50,
             'first_tranche_fraction' => 0.5,
@@ -265,6 +268,7 @@ class BrokerOrderTicketTest extends TestCase
             'ticker' => 'COO',
             'entry_price' => 71.80,
             'quantity' => 34,
+            'latest_close_price' => 70.00,
             'latest_sma_20' => 69.00,
             'latest_atr_14' => 1.50,
         ]);
@@ -300,5 +304,53 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertStringContainsString('Nieuwe Stop-Loss', $html);
         $this->assertStringContainsString('vestix-broker-order-ticket__copy-btn', $html);
         $this->assertStringContainsString($ticket['rows'][2]['copy_value'], $html);
+    }
+
+    public function test_ibkr_bracket_ticket_uses_protocol_buy_stop_not_stale_raw_high(): void
+    {
+        $position = Position::factory()->scout()->make([
+            'ticker' => 'BRK.B',
+            'entry_price' => 498.50,
+            'signal_high' => 498.50,
+            'signal_low' => 493.00,
+            'quantity' => 5,
+            'latest_close_price' => 498.00,
+            'latest_sma_20' => 506.57,
+            'latest_atr_14' => 11.20,
+            'first_tranche_fraction' => 0.5,
+            'target_1_rr' => 2.0,
+        ]);
+
+        $ticket = BrokerOrderTicket::forIbkrBracket($position);
+
+        $this->assertSame('$499.62', $ticket['rows'][3]['value']); // 498.50 + 0.10×11.20
+        $this->assertSame('$499.87', $ticket['rows'][4]['value']);
+        $this->assertStringContainsString('3 stuks', $ticket['rows'][5]['hint']);
+        $this->assertStringContainsString('(60%)', $ticket['rows'][5]['hint']);
+        $this->assertNull($ticket['warning']);
+    }
+
+    public function test_ibkr_bracket_ticket_warns_when_buy_stop_is_through_the_tape(): void
+    {
+        $position = Position::factory()->scout()->make([
+            'ticker' => 'BRK.B',
+            'entry_price' => 499.62,
+            'signal_high' => 498.50,
+            'signal_low' => 493.00,
+            'quantity' => 5,
+            'latest_close_price' => 510.00,
+            'latest_sma_20' => 506.57,
+            'latest_atr_14' => 11.20,
+            'first_tranche_fraction' => 0.5,
+            'target_1_rr' => 2.0,
+        ]);
+
+        $ticket = BrokerOrderTicket::forIbkrBracket($position);
+
+        $this->assertNotNull($ticket['warning']);
+        $this->assertStringContainsString('Buy-stop', $ticket['warning']);
+        $this->assertStringContainsString('$510.00', $ticket['warning']);
+        $this->assertTrue($position->isPlannedEntryThroughMarket());
+        $this->assertFalse($position->canMarkBuyStopPlaced());
     }
 }

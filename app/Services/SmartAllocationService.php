@@ -118,7 +118,8 @@ class SmartAllocationService
             }
 
             $ticker = (string) $position->ticker;
-            $entry = $position->entry_price !== null ? (float) $position->entry_price : null;
+            $entry = $position->advisedEntryStop()
+                ?? ($position->entry_price !== null ? (float) $position->entry_price : null);
             $stopLoss = $position->new_sl !== null ? (float) $position->new_sl : null;
             $scorecard = $this->resolveScorecard($position);
             $score = $scorecard['score'];
@@ -182,6 +183,19 @@ class SmartAllocationService
                     'position_id' => (int) $position->id,
                     'ticker' => $ticker,
                     'reason' => 'Entry of stop-loss ontbreekt',
+                ];
+
+                continue;
+            }
+
+            if ($position->isPlannedEntryThroughMarket()) {
+                $exclusions[] = [
+                    'position_id' => (int) $position->id,
+                    'ticker' => $ticker,
+                    'reason' => sprintf(
+                        '%s al door de koers — herprijs de signaalkaars',
+                        $position->isShort() ? 'Sell-stop' : 'Buy-stop',
+                    ),
                 ];
 
                 continue;

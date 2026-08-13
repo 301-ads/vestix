@@ -425,6 +425,9 @@ class PositionRecordActions
                 if (! $record->canMarkBuyStopPlaced()) {
                     $body = match (true) {
                         $record->isPendingVisualReview() => 'Zet eerst in Order Plan (winkelwagen) of wijs af.',
+                        $record->isPlannedEntryThroughMarket() => $record->isShort()
+                            ? 'Sell-stop ligt boven de koers — herprijs de signaalkaars.'
+                            : 'Buy-stop ligt onder de koers — herprijs de signaalkaars.',
                         ($reasons = $record->shortSniperHardFailReasons()) !== [] => implode(' · ', $reasons),
                         default => 'Vul eerst entry, aantal en marktdata in of haal data op.',
                     };
@@ -463,6 +466,12 @@ class PositionRecordActions
 
         if ($record->isPendingVisualReview()) {
             return 'Zet eerst in Order Plan (winkelwagen) — dat is je visuele goedkeuring';
+        }
+
+        if ($record->isPlannedEntryThroughMarket()) {
+            return $record->isShort()
+                ? 'Sell-stop ligt boven de koers — herprijs de signaalkaars'
+                : 'Buy-stop ligt onder de koers — herprijs de signaalkaars';
         }
 
         $hardFails = $record->shortSniperHardFailReasons();

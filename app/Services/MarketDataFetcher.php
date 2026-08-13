@@ -106,7 +106,7 @@ class MarketDataFetcher
                 $data['detected_signal_bar_date'] = $signalBar['date'];
             }
 
-            if ($this->shouldApplySignalCandle($position, $signalBar, $forceSignalRefresh)) {
+            if ($this->shouldApplySignalCandle($position, $signalBar, $forceSignalRefresh, $data)) {
                 $signalAttributes = $this->buildSignalCandleAttributes(
                     $position,
                     $signalBar,
@@ -133,6 +133,11 @@ class MarketDataFetcher
         }
 
         $position->update($data);
+
+        if ($position->status === 'scout') {
+            $position->refresh();
+            $position->syncAdvisedEntryFromSignal();
+        }
 
         return true;
     }
@@ -233,11 +238,13 @@ class MarketDataFetcher
 
     /**
      * @param  array{date: string, open: float, high: float, low: float, close: float, volume: float}|null  $signalBar
+     * @param  array<string, mixed>  $incoming
      */
     private function shouldApplySignalCandle(
         Position $position,
         ?array $signalBar,
         bool $forceSignalRefresh,
+        array $incoming = [],
     ): bool {
         if ($signalBar === null) {
             return false;
@@ -247,8 +254,21 @@ class MarketDataFetcher
             return true;
         }
 
+        $incomingClose = isset($incoming['latest_close_price'])
+            ? (float) $incoming['latest_close_price']
+            : null;
+
         if ($position->isSignalCandleAutoRefreshLocked()) {
-            return false;
+            if ($position->signal_bar_date === null) {
+                return false;
+            }
+
+            if (! $position->isPlannedEntryThroughMarket($incomingClose)) {
+                return false;
+            }
+
+            // Through the tape: take a newer bounce, or today's expanded high/low.
+            return $signalBar['date'] >= $position->signal_bar_date->toDateString();
         }
 
         if ($position->signal_bar_date === null) {

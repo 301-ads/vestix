@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AutopsyTag;
+use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Models\Asset;
 use App\Models\Position;
@@ -49,11 +50,11 @@ class PositionAccessorTest extends TestCase
     {
         $this->assertSame(
             68.13,
-            Position::computeStructureStopLoss(67.00, 68.00, 1.30, \App\Enums\TradeDirection::Short),
+            Position::computeStructureStopLoss(67.00, 68.00, 1.30, TradeDirection::Short),
         );
         $this->assertSame(
             66.87,
-            Position::computeStructureStopLoss(67.00, 68.00, 1.30, \App\Enums\TradeDirection::Long),
+            Position::computeStructureStopLoss(67.00, 68.00, 1.30, TradeDirection::Long),
         );
     }
 
@@ -68,6 +69,36 @@ class PositionAccessorTest extends TestCase
 
         // Structure long SL = low − 0.10×ATR = 74.72 (clears the low), not SMA − ATR/2 = 76.10.
         $this->assertEquals(74.72, $scout->new_sl);
+    }
+
+    public function test_advised_entry_stop_uses_signal_high_plus_atr_buffer(): void
+    {
+        $scout = Position::factory()->scout()->make([
+            'signal_high' => 498.50,
+            'signal_low' => 493.00,
+            'latest_atr_14' => 11.20,
+            'entry_price' => 498.50,
+            'latest_close_price' => 498.00,
+        ]);
+
+        $this->assertEquals(499.62, $scout->advisedEntryStop());
+        $this->assertFalse($scout->isPlannedEntryThroughMarket());
+    }
+
+    public function test_planned_entry_is_through_market_when_last_is_above_buy_stop(): void
+    {
+        $scout = Position::factory()->scout()->make([
+            'signal_high' => 498.50,
+            'signal_low' => 493.00,
+            'latest_atr_14' => 11.20,
+            'entry_price' => 499.62,
+            'latest_close_price' => 510.00,
+            'latest_sma_20' => 506.57,
+            'quantity' => 5,
+        ]);
+
+        $this->assertTrue($scout->isPlannedEntryThroughMarket());
+        $this->assertFalse($scout->canMarkBuyStopPlaced());
     }
 
     public function test_buy_stop_returns_null_without_inputs(): void

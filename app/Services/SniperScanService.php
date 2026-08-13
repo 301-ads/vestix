@@ -226,6 +226,10 @@ class SniperScanService
             }
 
             $indicators = $hit['indicators'];
+            $atr = $indicators['atr14'] ?? null;
+            $plannedEntry = $direction === TradeDirection::Short
+                ? (Position::computeSellStop($indicators['low'], $atr) ?? $indicators['low'])
+                : (Position::computeBuyStop($indicators['high'], $atr) ?? $indicators['high']);
 
             $position = Position::query()->create([
                 'user_id' => $owner->id,
@@ -241,7 +245,7 @@ class SniperScanService
                 'signal_low' => $indicators['low'],
                 'signal_bar_date' => $indicators['date'],
                 'detected_signal_bar_date' => $indicators['date'],
-                'entry_price' => $indicators['high'],
+                'entry_price' => $plannedEntry,
                 'latest_open_price' => $indicators['open'],
                 'latest_close_price' => $indicators['close'],
                 'latest_sma_20' => $indicators['sma20'],

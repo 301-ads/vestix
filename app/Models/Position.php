@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\AutopsyTag;
 use App\Enums\Broker;
 use App\Enums\BrokerOrderStatus;
-use App\Enums\AutopsyTag;
 use App\Enums\EarningsExitUrgency;
 use App\Enums\ExecutionDigestStatus;
 use App\Enums\ExecutionTruthState;
@@ -1350,11 +1350,65 @@ class Position extends Model
         return $this->entry_price !== null;
     }
 
+    /**
+     * Protocol entry: signal extreme ± 0.10×ATR (not the raw candle high/low).
+     */
+    public function advisedEntryStop(): ?float
+    {
+        if ($this->isShort()) {
+            return self::computeSellStop($this->signal_low, $this->latest_atr_14);
+        }
+
+        return self::computeBuyStop($this->signal_high, $this->latest_atr_14);
+    }
+
+    public function syncAdvisedEntryFromSignal(): bool
+    {
+        if ($this->status !== 'scout') {
+            return false;
+        }
+
+        $advised = $this->advisedEntryStop();
+
+        if ($advised === null) {
+            return false;
+        }
+
+        if ($this->entry_price !== null && abs((float) $this->entry_price - $advised) < 0.005) {
+            return false;
+        }
+
+        $this->update(['entry_price' => $advised]);
+
+        return true;
+    }
+
+    /**
+     * Long buy-stop already below/at last, or short sell-stop already above/at last.
+     */
+    public function isPlannedEntryThroughMarket(?float $lastPrice = null): bool
+    {
+        $entry = $this->advisedEntryStop()
+            ?? ($this->entry_price !== null ? (float) $this->entry_price : null);
+        $last = $lastPrice ?? ($this->latest_close_price !== null ? (float) $this->latest_close_price : null);
+
+        if ($entry === null || $last === null || $entry <= 0) {
+            return false;
+        }
+
+        if ($this->isShort()) {
+            return $last < $entry;
+        }
+
+        return $last > $entry;
+    }
+
     public function canMarkBuyStopPlaced(): bool
     {
         return $this->hasCompleteBracketPlan()
             && ! $this->isBlockedByShortSniperHardFails()
-            && ! $this->isPendingVisualReview();
+            && ! $this->isPendingVisualReview()
+            && ! $this->isPlannedEntryThroughMarket();
     }
 
     public function getTarget1QuantityAttribute(): ?float

@@ -476,6 +476,7 @@ class ScoutWatchlistTest extends TestCase
             'ticker' => 'ESTF',
             'entry_price' => 50.00,
             'quantity' => 10,
+            'latest_close_price' => 50.00,
             'latest_sma_20' => 48.00,
             'latest_atr_14' => 2.00,
         ]);
@@ -930,6 +931,7 @@ class ScoutWatchlistTest extends TestCase
             'broker_order_status' => BrokerOrderStatus::Scout,
             'entry_price' => 50.00,
             'quantity' => 10,
+            'latest_close_price' => 50.00,
             'latest_sma_20' => 48.00,
             'latest_atr_14' => 2.00,
         ]);
@@ -953,6 +955,7 @@ class ScoutWatchlistTest extends TestCase
             'broker_order_status' => BrokerOrderStatus::Scout,
             'entry_price' => 71.80,
             'quantity' => 34,
+            'latest_close_price' => 71.80,
             'latest_sma_20' => 69.00,
             'latest_atr_14' => 1.50,
         ]);
@@ -1015,7 +1018,7 @@ class ScoutWatchlistTest extends TestCase
             'ticker' => 'CHOP',
             'broker' => Broker::Ibkr,
             'broker_order_status' => BrokerOrderStatus::Scout,
-            'entry_price' => 100.00,
+            'entry_price' => 98.50,
             'quantity' => 50,
             'latest_atr_14' => 2.00,
             'latest_sma_20' => 100.00,
@@ -1140,6 +1143,7 @@ class ScoutWatchlistTest extends TestCase
             'broker' => Broker::Revolut,
             'entry_price' => 71.80,
             'quantity' => 34,
+            'latest_close_price' => 71.80,
             'latest_sma_20' => 69.00,
             'latest_atr_14' => 1.50,
         ]);

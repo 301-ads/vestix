@@ -226,6 +226,7 @@ class SmartAllocationServiceTest extends TestCase
             'ticker' => 'PONY',
             'last_setup_score' => 8,
             'entry_price' => 100.00,
+            'latest_close_price' => 100.00,
             'latest_sma_20' => 102.00,
             'latest_atr_14' => 2.00,
             'sector_etf' => 'XLK',
@@ -272,6 +273,30 @@ class SmartAllocationServiceTest extends TestCase
 
         $this->assertCount(1, $result['allocations']);
         $this->assertSame('MISS', $result['exclusions'][0]['ticker']);
+    }
+
+    public function test_excludes_buy_stop_already_through_the_tape(): void
+    {
+        $user = $this->userWithBankroll();
+        $ok = $this->scout($user, 'OK', score: 8, sector: 'XLK');
+        $through = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BRK.B',
+            'last_setup_score' => 8,
+            'entry_price' => 499.62,
+            'signal_high' => 498.50,
+            'signal_low' => 493.00,
+            'latest_atr_14' => 11.20,
+            'latest_close_price' => 510.00,
+            'latest_sma_20' => 506.57,
+            'scout_rsi' => null,
+            'sector_etf' => 'XLF',
+        ]);
+
+        $result = $this->service->allocate($user, [$ok, $through], SmartAllocationService::MODE_SMART);
+
+        $this->assertSame(['OK'], collect($result['allocations'])->pluck('ticker')->all());
+        $this->assertSame('BRK.B', $result['exclusions'][0]['ticker']);
+        $this->assertStringContainsString('Buy-stop al door de koers', $result['exclusions'][0]['reason']);
     }
 
     public function test_risk_per_allocation_never_exceeds_pie(): void
@@ -630,6 +655,7 @@ class SmartAllocationServiceTest extends TestCase
             'ticker' => 'ALL',
             'last_setup_score' => 10,
             'entry_price' => 245.40,
+            'latest_close_price' => 245.40,
             'latest_sma_20' => 240.00,
             'latest_atr_14' => 4.00,
             'sector_etf' => 'XLF',
@@ -640,6 +666,7 @@ class SmartAllocationServiceTest extends TestCase
             'ticker' => 'LLY',
             'last_setup_score' => 8,
             'entry_price' => 1192.89,
+            'latest_close_price' => 1192.89,
             'latest_sma_20' => 1171.00,
             'latest_atr_14' => 20.00,
             'sector_etf' => 'XLV',
@@ -650,6 +677,7 @@ class SmartAllocationServiceTest extends TestCase
             'ticker' => 'KVUE',
             'last_setup_score' => 10,
             'entry_price' => 19.14,
+            'latest_close_price' => 19.14,
             'latest_sma_20' => 18.50,
             'latest_atr_14' => 0.40,
             'sector_etf' => 'XLP',
@@ -660,6 +688,7 @@ class SmartAllocationServiceTest extends TestCase
             'ticker' => 'SYY',
             'last_setup_score' => 9,
             'entry_price' => 82.91,
+            'latest_close_price' => 82.91,
             'latest_sma_20' => 82.09,
             'latest_atr_14' => 1.77,
             'sector_etf' => 'XLY',
@@ -700,6 +729,7 @@ class SmartAllocationServiceTest extends TestCase
             'ticker' => 'LLY',
             'last_setup_score' => 8,
             'entry_price' => 1192.89,
+            'latest_close_price' => 1192.89,
             'latest_sma_20' => 1171.00,
             'latest_atr_14' => 20.00,
             'signal_low' => 1141.20,
@@ -752,6 +782,7 @@ class SmartAllocationServiceTest extends TestCase
             'ticker' => 'JNJ',
             'broker_order_status' => BrokerOrderStatus::Pending,
             'entry_price' => 100.00,
+            'latest_close_price' => 100.00,
             'latest_sma_20' => 98.00,
             'latest_atr_14' => 2.00,
             'quantity' => 10,
@@ -763,6 +794,7 @@ class SmartAllocationServiceTest extends TestCase
             'ticker' => 'EMBJ',
             'last_setup_score' => 9,
             'entry_price' => 100.00,
+            'latest_close_price' => 100.00,
             'latest_sma_20' => 98.00,
             'latest_atr_14' => 2.00,
             'sector_etf' => 'XLK',
@@ -927,7 +959,7 @@ class SmartAllocationServiceTest extends TestCase
                 'signal_low' => 852.00,
                 'latest_sma_20' => 898.00,
                 'latest_open_price' => 899.00,
-                'latest_close_price' => 901.00,
+                'latest_close_price' => 900.00,
                 'latest_atr_14' => 20.00,
                 'sector_etf' => 'XLY',
                 'target_1_rr' => 2.0,
@@ -991,6 +1023,7 @@ class SmartAllocationServiceTest extends TestCase
             'signal_low' => $signalLow,
             'latest_atr_14' => $atr,
             'latest_sma_20' => $entry,
+            'latest_close_price' => $entry,
             'sector_etf' => $sector,
             'target_1_rr' => 2.0,
             'scout_rsi' => null,
@@ -1047,9 +1080,10 @@ class SmartAllocationServiceTest extends TestCase
 
         $base = [
             // signal_low must sit below entry (100) so structure SL is a valid long stop.
+            // Close stays at/under the buy-stop so Smart Sizing does not treat it as through the tape.
             'signal_low' => 97.00,
             'latest_open_price' => 100.00,
-            'latest_close_price' => 101.00,
+            'latest_close_price' => 100.00,
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.50,
             'sma_20_ten_days_ago' => 98.00,
