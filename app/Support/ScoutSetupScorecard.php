@@ -590,7 +590,7 @@ class ScoutSetupScorecard
             return self::criterion('extension', 'Elastiek-extensie', 0, 1, 'fail', 'Data ontbreekt');
         }
 
-        if ($extension >= $threshold) {
+        if (PreBounceExtensionCalculator::meetsThreshold($extension)) {
             return self::criterion(
                 'extension',
                 'Elastiek-extensie',

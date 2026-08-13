@@ -84,6 +84,13 @@ class TrampolineDepthMetricsTest extends TestCase
         $this->assertEquals(3.0, $extension);
     }
 
+    public function test_extension_meets_threshold_using_displayed_one_decimal(): void
+    {
+        $this->assertTrue(PreBounceExtensionCalculator::meetsThreshold(2.0));
+        $this->assertTrue(PreBounceExtensionCalculator::meetsThreshold(1.96));
+        $this->assertFalse(PreBounceExtensionCalculator::meetsThreshold(1.94));
+    }
+
     public function test_maps_health_care_alias_to_healthcare_etf(): void
     {
         config([

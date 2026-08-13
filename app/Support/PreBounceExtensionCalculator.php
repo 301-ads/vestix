@@ -12,6 +12,14 @@ class PreBounceExtensionCalculator
     }
 
     /**
+     * Score against the 1-decimal value shown on the scorecard, so +2.0 ATR meets min 2.0.
+     */
+    public static function meetsThreshold(float $extension): bool
+    {
+        return (float) sprintf('%.1f', $extension) >= self::extensionThreshold();
+    }
+
+    /**
      * @param  array<int, array{open: float, high: float, low: float, close: float, volume: float, date: string}>  $bars
      */
     public static function calculate(array $bars, float $sma20, float $atr14, int $lookbackDays = 20): ?float

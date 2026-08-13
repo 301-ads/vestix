@@ -439,6 +439,36 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertStringContainsString('hoge veer-potentie', $result['criteria'][5]['detail']);
     }
 
+    public function test_extension_scores_one_when_displayed_value_meets_minimum(): void
+    {
+        $atThreshold = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'pre_bounce_extension_atr' => 2.0,
+        ]));
+
+        $this->assertSame(1, $atThreshold['criteria'][5]['points']);
+        $this->assertSame('pass', $atThreshold['criteria'][5]['status']);
+        $this->assertStringContainsString('hoge veer-potentie', $atThreshold['criteria'][5]['detail']);
+
+        $roundsToTwo = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'pre_bounce_extension_atr' => 1.96,
+        ]));
+
+        $this->assertSame(1, $roundsToTwo['criteria'][5]['points']);
+        $this->assertSame('pass', $roundsToTwo['criteria'][5]['status']);
+        $this->assertStringContainsString('+2.0 ATR', $roundsToTwo['criteria'][5]['detail']);
+    }
+
+    public function test_extension_fails_when_displayed_value_is_below_minimum(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'pre_bounce_extension_atr' => 1.94,
+        ]));
+
+        $this->assertSame(0, $result['criteria'][5]['points']);
+        $this->assertSame('fail', $result['criteria'][5]['status']);
+        $this->assertStringContainsString('onvoldoende spanning', $result['criteria'][5]['detail']);
+    }
+
     #[DataProvider('trampolineDistanceProvider')]
     public function test_trampoline_distance_thresholds(float $landing, int $expectedPoints): void
     {

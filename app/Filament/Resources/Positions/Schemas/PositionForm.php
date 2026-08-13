@@ -1446,7 +1446,6 @@ class PositionForm
             };
 
         $extension = $get('pre_bounce_extension_atr') ?? $record?->pre_bounce_extension_atr;
-        $extensionThreshold = PreBounceExtensionCalculator::extensionThreshold();
         $extensionFloat = $extension !== null && $extension !== '' ? (float) $extension : null;
 
         $extensionLabel = $extensionFloat === null
@@ -1454,12 +1453,12 @@ class PositionForm
             : sprintf(
                 'Pre-bounce extensie: +%.1f ATR (%s)',
                 $extensionFloat,
-                $extensionFloat >= $extensionThreshold ? 'Hoge spanning' : 'Lage spanning',
+                PreBounceExtensionCalculator::meetsThreshold($extensionFloat) ? 'Hoge spanning' : 'Lage spanning',
             );
 
         $extensionTone = match (true) {
             $extensionFloat === null => 'muted',
-            $extensionFloat >= $extensionThreshold => 'success',
+            PreBounceExtensionCalculator::meetsThreshold($extensionFloat) => 'success',
             default => 'danger',
         };
 
