@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\TradeDirection;
 use App\Models\Position;
 use App\Models\User;
+use App\Support\SetupGradeDisplay;
 use Illuminate\Support\Collection;
 
 class PortfolioRiskCoachService
@@ -677,12 +678,12 @@ class PortfolioRiskCoachService
 
     private function resolveScoutScore(Position $position): int
     {
-        if ($position->last_setup_score !== null) {
-            return (int) $position->last_setup_score;
+        $scorecard = SetupGradeDisplay::resolveScore($position);
+
+        if ($scorecard !== null) {
+            return (int) $scorecard['totalPoints'];
         }
 
-        $scorecard = $position->evaluateSetupScore();
-
-        return (int) ($scorecard['totalPoints'] ?? 0);
+        return (int) ($position->last_setup_score ?? 0);
     }
 }

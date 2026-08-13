@@ -115,6 +115,22 @@ class PortfolioRiskCoachServiceTest extends TestCase
         $this->assertFalse($better->fresh()->isOrderPlanExcludedToday());
     }
 
+    public function test_sector_slot_keeps_live_scorecard_over_stale_last_setup_score(): void
+    {
+        $user = User::factory()->create();
+
+        $dal = $this->orderPlanScoutWithLiveScorecard($user, 'DAL', 'XLI', liveScore: 8, storedScore: 10);
+        $sblk = $this->orderPlanScoutWithLiveScorecard($user, 'SBLK', 'XLI', liveScore: 9, storedScore: 7);
+
+        $exclusions = $this->service->evaluateOrderPlanExclusions($user, [$dal, $sblk]);
+
+        $this->assertCount(1, $exclusions);
+        $this->assertSame('DAL', $exclusions[0]['ticker']);
+        $this->assertStringContainsString('behouden: SBLK', $exclusions[0]['reason']);
+        $this->assertFalse($sblk->fresh()->isOrderPlanExcludedToday());
+        $this->assertTrue($dal->fresh()->isOrderPlanExcludedToday());
+    }
+
     public function test_long_heavy_insight_when_mostly_long(): void
     {
         $user = User::factory()->create(['is_short_enabled' => true]);
@@ -262,5 +278,49 @@ class PortfolioRiskCoachServiceTest extends TestCase
             'market_open_reminder_on' => now()->toDateString(),
             'quantity' => 10,
         ]);
+    }
+
+    private function orderPlanScoutWithLiveScorecard(
+        User $user,
+        string $ticker,
+        string $sector,
+        int $liveScore,
+        int $storedScore,
+    ): Position {
+        $base = [
+            'signal_low' => 97.00,
+            'latest_open_price' => 100.00,
+            'latest_close_price' => 101.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.50,
+            'sma_20_ten_days_ago' => 98.00,
+            'latest_sma_50' => 98.00,
+            'scout_rsi' => 50.00,
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'bounce_day_volume' => 14_000_000,
+            'volume_sma_20' => 10_000_000,
+            'sector_trend_positive' => true,
+            'pre_bounce_extension_atr' => 2.50,
+        ];
+
+        $liveAttributes = match ($liveScore) {
+            9 => array_merge($base, ['pre_bounce_extension_atr' => 1.0]),
+            8 => array_merge($base, [
+                'pre_bounce_extension_atr' => 1.0,
+                'scout_rsi' => 60.00,
+            ]),
+            default => $base,
+        };
+
+        return Position::factory()->for($user)->scout()->create(array_merge($liveAttributes, [
+            'ticker' => $ticker,
+            'sector_etf' => $sector,
+            'direction' => TradeDirection::Long,
+            'last_setup_score' => $storedScore,
+            'entry_price' => 100.00,
+            'market_open_reminder_on' => now()->toDateString(),
+            'quantity' => 10,
+        ]));
     }
 }
