@@ -976,6 +976,45 @@ class ScoutWatchlistTest extends TestCase
         $this->assertSame(ScoutPipelineStatus::Active, $scout->scoutPipelineStatus());
     }
 
+    public function test_short_waterfall_alone_does_not_block_mark_buy_stop_placed(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update(['is_short_enabled' => true, 'primary_broker' => Broker::Ibkr]);
+
+        $scout = Position::factory()->for($user)->scout()->short()->create([
+            'ticker' => 'CHOP',
+            'broker' => Broker::Ibkr,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'entry_price' => 100.00,
+            'quantity' => 50,
+            'latest_atr_14' => 2.00,
+            'latest_sma_20' => 100.00,
+            'sma_20_five_days_ago' => 99.00, // breaks waterfall — operator domein
+            'sma_20_ten_days_ago' => 105.00,
+            'latest_sma_50' => 110.00,
+            'signal_high' => 101.50,
+            'latest_open_price' => 99.80,
+            'latest_close_price' => 99.20,
+            'scout_rsi' => 45.00,
+            'sector_etf' => 'XLY',
+            'sector_trend_positive' => false,
+            'pre_bounce_extension_atr' => 2.50,
+            'relative_volume' => 1.20,
+        ]);
+
+        $this->assertTrue($scout->hasCompleteBracketPlan());
+        $this->assertFalse($scout->isBlockedByShortSniperHardFails());
+        $this->assertTrue($scout->canMarkBuyStopPlaced());
+
+        $ticket = BrokerOrderTicket::forIbkrBracket($scout);
+        $this->assertTrue($ticket['show_sniper_vision_coming_soon']);
+        $this->assertSame([], $ticket['sniper_hard_fails']);
+
+        Livewire::test(ListScouts::class)
+            ->assertTableActionVisible('mark_buy_stop_placed', $scout)
+            ->assertTableActionEnabled('mark_buy_stop_placed', $scout);
+    }
+
     public function test_short_mark_buy_stop_placed_disabled_when_sniper_hard_fails(): void
     {
         $user = $this->authenticateFilament();
@@ -989,12 +1028,12 @@ class ScoutWatchlistTest extends TestCase
             'quantity' => 50,
             'latest_atr_14' => 2.00,
             'latest_sma_20' => 100.00,
-            'sma_20_five_days_ago' => 99.00, // breaks waterfall
+            'sma_20_five_days_ago' => 102.00,
             'sma_20_ten_days_ago' => 105.00,
             'latest_sma_50' => 110.00,
             'signal_high' => 101.50,
-            'latest_open_price' => 99.80,
-            'latest_close_price' => 99.20,
+            'latest_open_price' => 100.80,
+            'latest_close_price' => 100.50, // Close boven SMA 20 → hard fail
             'scout_rsi' => 45.00,
             'sector_etf' => 'XLY',
             'sector_trend_positive' => false,
@@ -1009,7 +1048,7 @@ class ScoutWatchlistTest extends TestCase
         $ticket = BrokerOrderTicket::forIbkrBracket($scout);
         $this->assertTrue($ticket['show_sniper_vision_coming_soon']);
         $this->assertNotEmpty($ticket['sniper_hard_fails']);
-        $this->assertContains('SMA-waterval ontbreekt — geen glijbaan (chop-risico)', $ticket['sniper_hard_fails']);
+        $this->assertContains('Close boven SMA 20 — geen short-trampoline', $ticket['sniper_hard_fails']);
 
         Livewire::test(ListScouts::class)
             ->assertTableActionVisible('mark_buy_stop_placed', $scout)

@@ -304,10 +304,9 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame([], $result['hardFailReasons']);
     }
 
-    public function test_ajg_like_flat_five_day_sma_slope_hard_fails_despite_ten_day_rise(): void
+    public function test_ajg_like_flat_five_day_sma_slope_warns_despite_ten_day_rise(): void
     {
-        // Soft 10d-slope kan nog slagen (juli-momentum), maar 5d is dalend → NO TRADE.
-        // Open boven SMA-floor zodat alleen slope-veto getest wordt (geen sloopkogel).
+        // Soft 10d-slope slaagt; 5d dalend → warn voor operator, geen NO TRADE.
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 245.33,
             'latest_open_price' => 252.00,
@@ -320,18 +319,14 @@ class ScoutSetupScorecardTest extends TestCase
             'pre_bounce_extension_atr' => 2.3,
         ]));
 
-        $this->assertSame('NO TRADE', $result['grade']);
-        $this->assertNotEmpty($result['hardFailReasons']);
-        $this->assertTrue(
-            collect($result['hardFailReasons'])->contains(
-                fn (string $reason): bool => str_contains($reason, 'SMA-helling dalend over 5 dagen'),
-            ),
-        );
-        $this->assertSame(0, $result['criteria'][1]['points']);
+        $this->assertNotSame('NO TRADE', $result['grade']);
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame(2, $result['criteria'][1]['points']);
+        $this->assertSame('warn', $result['criteria'][1]['status']);
         $this->assertStringContainsString('SMA-helling dalend over 5 dagen', $result['criteria'][1]['detail']);
     }
 
-    public function test_flat_five_day_sma_slope_hard_fails(): void
+    public function test_flat_five_day_sma_slope_warns_not_hard_fail(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 101.00,
@@ -341,12 +336,10 @@ class ScoutSetupScorecardTest extends TestCase
             'sma_20_ten_days_ago' => 98.00,
         ]));
 
-        $this->assertSame('NO TRADE', $result['grade']);
-        $this->assertTrue(
-            collect($result['hardFailReasons'])->contains(
-                fn (string $reason): bool => str_contains($reason, 'SMA-helling te vlak over 5 dagen'),
-            ),
-        );
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertNotSame('NO TRADE', $result['grade']);
+        $this->assertSame('warn', $result['criteria'][1]['status']);
+        $this->assertStringContainsString('SMA-helling te vlak over 5 dagen', $result['criteria'][1]['detail']);
     }
 
     public function test_rising_five_day_sma_slope_allows_a_setup(): void
@@ -937,7 +930,7 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertLessThanOrEqual(9, $result['totalPoints']);
     }
 
-    public function test_short_waterfall_requires_today_lt_five_lt_ten(): void
+    public function test_short_waterfall_missing_warns_without_hard_fail(): void
     {
         $pass = ScoutSetupScorecard::evaluate($this->baseShortInputs([
             'latest_sma_20' => 100.00,
@@ -949,7 +942,7 @@ class ScoutSetupScorecardTest extends TestCase
             'latest_close_price' => 99.00,
         ]));
 
-        $fail = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+        $warn = ScoutSetupScorecard::evaluate($this->baseShortInputs([
             'latest_sma_20' => 100.00,
             'sma_20_five_days_ago' => 99.00, // breaks today < 5d
             'sma_20_ten_days_ago' => 105.00,
@@ -961,19 +954,23 @@ class ScoutSetupScorecardTest extends TestCase
 
         $this->assertSame([], $pass['hardFailReasons']);
         $this->assertSame(2, $pass['criteria'][1]['points']);
-        $this->assertContains('SMA-waterval ontbreekt — geen glijbaan (chop-risico)', $fail['hardFailReasons']);
-        $this->assertSame(0, $fail['criteria'][1]['points']);
-        $this->assertSame('NO TRADE', $fail['grade']);
+        $this->assertSame([], $warn['hardFailReasons']);
+        $this->assertSame(0, $warn['criteria'][1]['points']);
+        $this->assertSame('warn', $warn['criteria'][1]['status']);
+        $this->assertStringContainsString('SMA-waterval ontbreekt', $warn['criteria'][1]['detail']);
+        $this->assertNotSame('NO TRADE', $warn['grade']);
     }
 
-    public function test_short_missing_five_day_sma_is_hard_fail(): void
+    public function test_short_missing_five_day_sma_warns_without_hard_fail(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
             'sma_20_five_days_ago' => null,
         ]));
 
-        $this->assertContains('Haal marktdata op voor 5-daagse SMA-waterval', $result['hardFailReasons']);
-        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame('warn', $result['criteria'][1]['status']);
+        $this->assertStringContainsString('Haal marktdata op voor 5-daagse SMA-waterval', $result['criteria'][1]['detail']);
+        $this->assertNotSame('NO TRADE', $result['grade']);
     }
 
     public function test_short_rejection_requires_high_to_tag_sma_ceiling(): void

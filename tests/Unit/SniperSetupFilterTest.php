@@ -28,9 +28,10 @@ class SniperSetupFilterTest extends TestCase
         ]));
     }
 
-    public function test_long_rejects_flat_or_declining_sma20_five_day_slope(): void
+    public function test_long_allows_flat_or_declining_sma20_five_day_slope_for_operator_review(): void
     {
-        $this->assertNull(SniperSetupFilter::evaluate([
+        // Protocol Visuele Eindregie: 5d-helling is geen scan-veto meer.
+        $this->assertSame('long', SniperSetupFilter::evaluate([
             'open' => 100.0,
             'close' => 101.0,
             'sma10' => 101.5,
@@ -40,7 +41,7 @@ class SniperSetupFilterTest extends TestCase
             'rsi14' => 45.0,
         ]));
 
-        $this->assertNull(SniperSetupFilter::evaluate([
+        $this->assertSame('long', SniperSetupFilter::evaluate([
             'open' => 100.0,
             'close' => 101.0,
             'sma10' => 101.5,

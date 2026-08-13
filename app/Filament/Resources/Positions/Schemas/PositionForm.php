@@ -15,6 +15,7 @@ use App\Services\TradingViewSymbolService;
 use App\Support\ChartScreenshotUpload;
 use App\Support\ClosePriceTrend;
 use App\Support\EarningsExitDisplay;
+use App\Support\FilamentNotifier;
 use App\Support\FreerideDisplay;
 use App\Support\PositionSizing;
 use App\Support\PreBounceExtensionCalculator;
@@ -741,6 +742,18 @@ class PositionForm
                 }
 
                 if ($state) {
+                    if ($record->isPendingVisualReview()) {
+                        $record->refresh();
+
+                        FilamentNotifier::send(
+                            title: 'Visuele review verplicht',
+                            body: 'Keur eerst goed (visuele Roltrap/Waterval) of wijs af — Order Plan blijft geblokkeerd.',
+                            status: 'warning',
+                        );
+
+                        return;
+                    }
+
                     $record->scheduleMarketOpenReminder();
                 } else {
                     $record->clearMarketOpenReminder();
@@ -748,12 +761,17 @@ class PositionForm
 
                 $record->refresh();
             })
-            ->disabled(fn (Get $get): bool => blank($get('entry_price')))
+            ->disabled(fn (Get $get, ?Position $record): bool => blank($get('entry_price'))
+                || ($record?->isPendingVisualReview() ?? false))
             ->hintIcon(
                 'heroicon-o-information-circle',
                 function (Get $get, ?Position $record): string {
                     if (blank($get('entry_price'))) {
                         return 'Vul eerst Low/High in zodat de buy-stop berekend is.';
+                    }
+
+                    if ($record?->isPendingVisualReview()) {
+                        return 'Eerst visueel goedkeuren of afwijzen — Order Plan blijft geblokkeerd.';
                     }
 
                     $record?->refresh();

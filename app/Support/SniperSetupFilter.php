@@ -61,10 +61,7 @@ class SniperSetupFilter
             return false;
         }
 
-        if (! self::passesLongSmaSlope($inputs)) {
-            return false;
-        }
-
+        // SMA-helling (Roltrap) is operator domein — Protocol Visuele Eindregie.
         if (! self::passesLongApproach($inputs)) {
             return false;
         }
@@ -119,24 +116,6 @@ class SniperSetupFilter
     public static function passesMinPrice(float $close): bool
     {
         return $close >= self::minPrice();
-    }
-
-    /**
-     * When sma20FiveDaysAgo is present, enforce the scorecard long-slope hard-fail.
-     * Legacy callers without the key keep prior math behavior.
-     *
-     * @param  array{sma20: float, sma20FiveDaysAgo?: float|null}  $inputs
-     */
-    private static function passesLongSmaSlope(array $inputs): bool
-    {
-        if (! array_key_exists('sma20FiveDaysAgo', $inputs)) {
-            return true;
-        }
-
-        return ScoutSetupScorecard::longSlopeFailReason([
-            'latest_sma_20' => $inputs['sma20'],
-            'sma_20_five_days_ago' => $inputs['sma20FiveDaysAgo'],
-        ]) === null;
     }
 
     /**

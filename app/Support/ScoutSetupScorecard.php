@@ -234,17 +234,12 @@ class ScoutSetupScorecard
      */
     private static function scoreSmaDirection(array $inputs): array
     {
-        $slopeFail = self::longSlopeFailReason($inputs);
-
-        if ($slopeFail !== null) {
-            return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', $slopeFail);
-        }
-
         $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
         $lookbackDays = self::smaSlopeLookbackDays();
         $tenDaysAgo = self::toFloat($inputs['sma_20_ten_days_ago'] ?? null);
         $sma50 = self::toFloat($inputs['latest_sma_50'] ?? null);
         $minSlopePct = self::smaSlopeMinPct();
+        $fiveDayWarn = self::longSlopeWarnReason($inputs);
 
         if ($latest === null || $tenDaysAgo === null || $sma50 === null) {
             $detail = match (true) {
@@ -279,6 +274,22 @@ class ScoutSetupScorecard
             return self::criterion('sma_direction', 'SMA trend (20/50)', 0, 2, 'fail', $detail);
         }
 
+        if ($fiveDayWarn !== null) {
+            return self::criterion(
+                'sma_direction',
+                'SMA trend (20/50)',
+                2,
+                2,
+                'warn',
+                sprintf(
+                    'Stijgende trend +%.2f%% over %dd + SMA 20 > SMA 50 — %s (visuele check)',
+                    $deltaPct,
+                    $lookbackDays,
+                    $fiveDayWarn,
+                ),
+            );
+        }
+
         return self::criterion(
             'sma_direction',
             'SMA trend (20/50)',
@@ -295,10 +306,10 @@ class ScoutSetupScorecard
      */
     private static function scoreSmaDirectionShort(array $inputs): array
     {
-        $waterfallFail = self::shortWaterfallFailReason($inputs);
+        $waterfallWarn = self::shortWaterfallWarnReason($inputs);
 
-        if ($waterfallFail !== null) {
-            return self::criterion('sma_direction', 'SMA-waterval', 0, 2, 'fail', $waterfallFail);
+        if ($waterfallWarn !== null) {
+            return self::criterion('sma_direction', 'SMA-waterval', 0, 2, 'warn', $waterfallWarn);
         }
 
         $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
@@ -636,11 +647,7 @@ class ScoutSetupScorecard
             $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
         }
 
-        $slopeFail = self::longSlopeFailReason($inputs);
-
-        if ($slopeFail !== null) {
-            $reasons[] = $slopeFail;
-        }
+        // SMA-helling is operator domein (Protocol Visuele Eindregie) — geen hard-fail.
 
         return array_merge(
             $reasons,
@@ -702,16 +709,12 @@ class ScoutSetupScorecard
     }
 
     /**
-     * Long meewind: SMA20 vandaag moet stijgen t.o.v. N handelsdagen geleden.
+     * Long 5d SMA-helling waarschuwing (geen veto — Protocol Visuele Eindregie).
      *
      * @param  array<string, mixed>  $inputs
      */
-    public static function longSlopeFailReason(array $inputs): ?string
+    public static function longSlopeWarnReason(array $inputs): ?string
     {
-        if (! self::smaSlopeHardFailEnabled()) {
-            return null;
-        }
-
         $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
         $fiveDaysAgo = self::toFloat($inputs['sma_20_five_days_ago'] ?? null);
         $lookbackDays = self::smaSlopeHardFailLookbackDays();
@@ -723,7 +726,7 @@ class ScoutSetupScorecard
                     'Haal marktdata op voor %d-daagse SMA-helling',
                     $lookbackDays,
                 ),
-                default => 'SMA-helling data ontbreekt',
+                default => null,
             };
         }
 
@@ -739,7 +742,7 @@ class ScoutSetupScorecard
 
         if ($deltaPct < 0) {
             return sprintf(
-                'SMA-helling dalend over %d dagen — Δ %.2f%% (meewind vereist)',
+                'SMA-helling dalend over %d dagen — Δ %.2f%%',
                 $lookbackDays,
                 $deltaPct,
             );
@@ -747,7 +750,7 @@ class ScoutSetupScorecard
 
         if ($minPct <= 0.0) {
             return sprintf(
-                'SMA-helling te vlak over %d dagen — Δ %.2f%% (meewind vereist)',
+                'SMA-helling te vlak over %d dagen — Δ %.2f%%',
                 $lookbackDays,
                 $deltaPct,
             );
@@ -759,6 +762,20 @@ class ScoutSetupScorecard
             $deltaPct,
             $minPct,
         );
+    }
+
+    /**
+     * @deprecated Use longSlopeWarnReason — 5d helling is geen hard-fail meer.
+     *
+     * @param  array<string, mixed>  $inputs
+     */
+    public static function longSlopeFailReason(array $inputs): ?string
+    {
+        if (! self::smaSlopeHardFailEnabled()) {
+            return null;
+        }
+
+        return self::longSlopeWarnReason($inputs);
     }
 
     /**
@@ -784,11 +801,7 @@ class ScoutSetupScorecard
             $reasons[] = 'Close boven SMA 20 — geen short-trampoline';
         }
 
-        $waterfallFail = self::shortWaterfallFailReason($inputs);
-
-        if ($waterfallFail !== null) {
-            $reasons[] = $waterfallFail;
-        }
+        // SMA-waterval is operator domein (Protocol Visuele Eindregie) — geen hard-fail.
 
         // Only evaluate rejection when close is not already above SMA (separate veto).
         if ($close === null || $sma === null || $close <= $sma) {
@@ -812,14 +825,12 @@ class ScoutSetupScorecard
     }
 
     /**
+     * Short SMA-waterval waarschuwing (geen veto — Protocol Visuele Eindregie).
+     *
      * @param  array<string, mixed>  $inputs
      */
-    public static function shortWaterfallFailReason(array $inputs): ?string
+    public static function shortWaterfallWarnReason(array $inputs): ?string
     {
-        if (! self::waterfallRequired()) {
-            return null;
-        }
-
         $latest = self::toFloat($inputs['latest_sma_20'] ?? null);
         $fiveDaysAgo = self::toFloat($inputs['sma_20_five_days_ago'] ?? null);
         $tenDaysAgo = self::toFloat($inputs['sma_20_ten_days_ago'] ?? null);
@@ -843,6 +854,20 @@ class ScoutSetupScorecard
         }
 
         return null;
+    }
+
+    /**
+     * @deprecated Use shortWaterfallWarnReason — waterval is geen hard-fail meer.
+     *
+     * @param  array<string, mixed>  $inputs
+     */
+    public static function shortWaterfallFailReason(array $inputs): ?string
+    {
+        if (! self::waterfallRequired()) {
+            return null;
+        }
+
+        return self::shortWaterfallWarnReason($inputs);
     }
 
     /**

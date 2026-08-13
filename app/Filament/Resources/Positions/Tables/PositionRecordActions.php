@@ -325,14 +325,15 @@ class PositionRecordActions
             ->label(fn (Position $record): string => $record->market_open_reminder_on !== null
                 ? 'Uit Order Plan'
                 : 'In Order Plan')
-            ->tooltip(fn (Position $record): string => $record->entry_price === null
-                ? 'Vul eerst je buy-stop entry in'
-                : ($record->market_open_reminder_on !== null
-                    ? 'Haal deze scout uit je Order Plan (winkelwagen + Telegram digest)'
-                    : sprintf(
-                        'Zet in Order Plan: winkelwagen + Telegram digest om %s',
-                        config('vestix.execution_digest.time', '15:31'),
-                    )))
+            ->tooltip(fn (Position $record): string => match (true) {
+                $record->entry_price === null => 'Vul eerst je buy-stop entry in',
+                $record->isPendingVisualReview() => 'Eerst visueel goedkeuren of afwijzen',
+                $record->market_open_reminder_on !== null => 'Haal deze scout uit je Order Plan (winkelwagen + Telegram digest)',
+                default => sprintf(
+                    'Zet in Order Plan: winkelwagen + Telegram digest om %s',
+                    config('vestix.execution_digest.time', '15:31'),
+                ),
+            })
             ->icon(fn (Position $record): string => $record->market_open_reminder_on !== null
                 ? 'heroicon-s-shopping-cart'
                 : 'heroicon-o-shopping-cart')
@@ -341,7 +342,8 @@ class PositionRecordActions
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && $record->scoutPipelineStatus() !== ScoutPipelineStatus::Active)
-            ->disabled(fn (Position $record): bool => $record->entry_price === null)
+            ->disabled(fn (Position $record): bool => ! $record->canEnterOrderPlan()
+                && $record->market_open_reminder_on === null)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
             ->action(function (Position $record, $livewire): void {
                 if ($record->entry_price === null) {
@@ -363,6 +365,16 @@ class PositionRecordActions
                     );
 
                     $livewire->dispatch('order-plan-updated');
+
+                    return;
+                }
+
+                if ($record->isPendingVisualReview()) {
+                    FilamentNotifier::send(
+                        title: 'Visuele review verplicht',
+                        body: 'Keur eerst goed (visuele Roltrap/Waterval) of wijs af — Order Plan blijft geblokkeerd.',
+                        status: 'warning',
+                    );
 
                     return;
                 }
@@ -423,13 +435,15 @@ class PositionRecordActions
             ->modalCancelActionLabel('Annuleren')
             ->action(function (Position $record): void {
                 if (! $record->canMarkBuyStopPlaced()) {
-                    $reasons = $record->shortSniperHardFailReasons();
+                    $body = match (true) {
+                        $record->isPendingVisualReview() => 'Eerst visueel goedkeuren of afwijzen — trekker blijft geblokkeerd.',
+                        ($reasons = $record->shortSniperHardFailReasons()) !== [] => implode(' · ', $reasons),
+                        default => 'Vul eerst entry, aantal en marktdata in of haal data op.',
+                    };
 
                     FilamentNotifier::send(
                         title: 'Order geblokkeerd',
-                        body: $reasons !== []
-                            ? implode(' · ', $reasons)
-                            : 'Vul eerst entry, aantal en marktdata in of haal data op.',
+                        body: $body,
                         status: 'danger',
                     );
 
@@ -457,6 +471,10 @@ class PositionRecordActions
     {
         if (! $record->hasCompleteBracketPlan()) {
             return 'Vul eerst entry, aantal en marktdata in of haal data op';
+        }
+
+        if ($record->isPendingVisualReview()) {
+            return 'Eerst visueel goedkeuren of afwijzen — trekker blijft geblokkeerd';
         }
 
         $hardFails = $record->shortSniperHardFailReasons();
@@ -729,6 +747,36 @@ class PositionRecordActions
                     body: "{$record->ticker} is handmatig gepromoveerd naar A.",
                 );
             });
+    }
+
+    public static function approveVisualReview(): Action
+    {
+        return Action::make('approve_visual_review')
+            ->label('Visueel goedkeuren')
+            ->tooltip('Bevestig de visuele Roltrap/Waterval (SMA-20 ~45°). Bij soepkom/whipsaw: Afwijzen.')
+            ->icon('heroicon-o-eye')
+            ->color('success')
+            ->iconButton()
+            ->visible(fn (Position $record): bool => self::canApproveVisualReview($record))
+            ->requiresConfirmation()
+            ->modalHeading('Visueel goedkeuren')
+            ->modalDescription('Je bevestigt de visuele Roltrap/Waterval-check (SMA-20 ~45°). Daarna mag deze scout naar Order Plan. Bij horizontale consolidatie, soepkommen of whipsaw: Afwijzen.')
+            ->modalSubmitActionLabel('Goedkeuren')
+            ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
+            ->action(function (Position $record): void {
+                $record->approveVisualReview();
+
+                FilamentNotifier::send(
+                    title: 'Visueel goedgekeurd',
+                    body: "{$record->ticker} is vrijgegeven voor Order Plan.",
+                );
+            });
+    }
+
+    public static function canApproveVisualReview(Position $record): bool
+    {
+        return $record->isPendingVisualReview()
+            && $record->isOwnedBy(auth()->user());
     }
 
     public static function rejectVisualReview(): Action

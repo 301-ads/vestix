@@ -1283,10 +1283,24 @@ class Position extends Model
         return $this->shortSniperHardFailReasons() !== [];
     }
 
+    public function isPendingVisualReview(): bool
+    {
+        return $this->status === 'scout'
+            && $this->source === ScoutSource::SniperScan
+            && $this->review_status === ScoutReviewStatus::PendingVisualReview;
+    }
+
+    public function canEnterOrderPlan(): bool
+    {
+        return $this->entry_price !== null
+            && ! $this->isPendingVisualReview();
+    }
+
     public function canMarkBuyStopPlaced(): bool
     {
         return $this->hasCompleteBracketPlan()
-            && ! $this->isBlockedByShortSniperHardFails();
+            && ! $this->isBlockedByShortSniperHardFails()
+            && ! $this->isPendingVisualReview();
     }
 
     public function getTarget1QuantityAttribute(): ?float
@@ -2186,6 +2200,17 @@ class Position extends Model
 
         $this->update($payload);
         $this->persistLastSetupScorecard();
+    }
+
+    public function approveVisualReview(): void
+    {
+        if (! $this->isPendingVisualReview()) {
+            return;
+        }
+
+        $this->update([
+            'review_status' => ScoutReviewStatus::ActiveScout,
+        ]);
     }
 
     public function rejectVisualReview(): void

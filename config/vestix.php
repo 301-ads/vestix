@@ -143,8 +143,8 @@ return [
         'max_points' => 10,
         'sma_slope_lookback_days' => (int) env('SNIPER_SMA_SLOPE_LOOKBACK_DAYS', 10),
         'sma_slope_min_pct' => (float) env('SNIPER_SMA_SLOPE_MIN_PCT', 0.3),
-        // Long: SMA20 vandaag moet stijgen t.o.v. N handelsdagen geleden (hard-fail veto).
-        'sma_slope_hard_fail_enabled' => filter_var(env('SNIPER_SMA_SLOPE_HARD_FAIL', true), FILTER_VALIDATE_BOOL),
+        // Long 5d SMA-helling: waarschuwing op scorecard, geen hard-fail (Protocol Visuele Eindregie).
+        'sma_slope_hard_fail_enabled' => filter_var(env('SNIPER_SMA_SLOPE_HARD_FAIL', false), FILTER_VALIDATE_BOOL),
         'sma_slope_hard_fail_lookback_days' => (int) env('SNIPER_SMA_SLOPE_HARD_FAIL_LOOKBACK_DAYS', 5),
         'sma_slope_hard_fail_min_pct' => (float) env('SNIPER_SMA_SLOPE_HARD_FAIL_MIN_PCT', 0.0),
         // Groene bounce net onder SMA 20: geen hard fail, maar slechts 1/2 trampoline-punt. Long only.
@@ -152,8 +152,8 @@ return [
         // Long: Open moet (bijna) boven SMA20, of previous close erboven — anders sloopkogel.
         'trampoline_approach_hard_fail_enabled' => filter_var(env('SNIPER_TRAMPOLINE_APPROACH_HARD_FAIL', true), FILTER_VALIDATE_BOOL),
         'trampoline_open_tolerance_pct' => (float) env('SNIPER_TRAMPOLINE_OPEN_TOLERANCE_PCT', 0.2),
-        // Short Route 1: SMA vandaag < 5d < 10d verplicht.
-        'waterfall_required' => filter_var(env('SNIPER_WATERFALL_REQUIRED', true), FILTER_VALIDATE_BOOL),
+        // Short SMA-waterval: scorecard sub-score/warn, geen hard-fail (Protocol Visuele Eindregie).
+        'waterfall_required' => filter_var(env('SNIPER_WATERFALL_REQUIRED', false), FILTER_VALIDATE_BOOL),
         // Short Route 1: upper wick (High − Open) ≥ ratio × candle body.
         'upper_wick_min_body_ratio' => (float) env('SNIPER_UPPER_WICK_MIN_BODY_RATIO', 1.5),
         // Minimum body floor as % of close so dojis cannot pass the wick check.
