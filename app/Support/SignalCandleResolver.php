@@ -82,4 +82,48 @@ class SignalCandleResolver
 
         return null;
     }
+
+    /**
+     * High/low extremes from the signal bar through the latest session.
+     *
+     * @param  array<int, array{date?: string, high?: float|int|string, low?: float|int|string}>  $bars
+     * @return array{high: float, low: float}|null
+     */
+    public static function extremesSince(array $bars, ?string $signalDate): ?array
+    {
+        if ($signalDate === null || $signalDate === '' || $bars === []) {
+            return null;
+        }
+
+        $high = null;
+        $low = null;
+
+        foreach ($bars as $bar) {
+            $date = (string) ($bar['date'] ?? '');
+
+            if ($date === '' || $date < $signalDate) {
+                continue;
+            }
+
+            $barHigh = isset($bar['high']) ? (float) $bar['high'] : null;
+            $barLow = isset($bar['low']) ? (float) $bar['low'] : null;
+
+            if ($barHigh !== null) {
+                $high = $high === null ? $barHigh : max($high, $barHigh);
+            }
+
+            if ($barLow !== null) {
+                $low = $low === null ? $barLow : min($low, $barLow);
+            }
+        }
+
+        if ($high === null || $low === null) {
+            return null;
+        }
+
+        return [
+            'high' => round($high, 2),
+            'low' => round($low, 2),
+        ];
+    }
 }

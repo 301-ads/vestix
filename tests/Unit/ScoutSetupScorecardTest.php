@@ -203,6 +203,7 @@ class ScoutSetupScorecardTest extends TestCase
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([
             'signal_low' => 66.65,
+            'latest_open_price' => 66.40,
             'latest_close_price' => 66.65,
             'latest_sma_20' => 66.32,
             'entry_price' => 68.19,
@@ -754,6 +755,126 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame('NO TRADE', $result['grade']);
         $this->assertSame('NO TRADE', $result['gradeLabel']);
         $this->assertContains('Earnings over 8 dagen — te weinig runway voor entry', $result['hardFailReasons']);
+    }
+
+    public function test_failed_breakout_after_buy_stop_is_hard_fail(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 27.56,
+            'signal_high' => 28.04,
+            'latest_open_price' => 28.27,
+            'latest_close_price' => 28.03,
+            'latest_sma_20' => 27.67,
+            'latest_atr_14' => 0.99,
+            'entry_price' => 28.13,
+            'post_signal_high' => 28.54,
+        ]));
+
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertTrue(
+            collect($result['hardFailReasons'])->contains(
+                fn (string $reason): bool => str_contains($reason, 'Breakout gefaald'),
+            ),
+        );
+    }
+
+    public function test_gapped_open_through_buy_stop_is_failed_breakout_without_post_signal_high(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 27.56,
+            'signal_high' => 28.04,
+            'latest_open_price' => 28.27,
+            'latest_close_price' => 28.03,
+            'latest_sma_20' => 27.67,
+            'latest_atr_14' => 0.99,
+            'entry_price' => 28.13,
+        ]));
+
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertTrue(
+            collect($result['hardFailReasons'])->contains(
+                fn (string $reason): bool => str_contains($reason, 'Breakout gefaald'),
+            ),
+        );
+    }
+
+    public function test_bounce_day_below_buy_stop_is_not_failed_breakout(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 27.56,
+            'signal_high' => 28.04,
+            'latest_open_price' => 27.64,
+            'latest_close_price' => 27.92,
+            'latest_sma_20' => 27.57,
+            'sma_20_five_days_ago' => 27.28,
+            'sma_20_ten_days_ago' => 26.91,
+            'latest_sma_50' => 26.70,
+            'latest_atr_14' => 0.98,
+            'entry_price' => 28.14,
+            'post_signal_high' => 28.04,
+        ]));
+
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame('A', $result['grade']);
+    }
+
+    public function test_failed_breakout_stays_after_later_session_opens_below_entry(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 27.56,
+            'signal_high' => 28.04,
+            'latest_open_price' => 28.00,
+            'latest_close_price' => 28.05,
+            'latest_sma_20' => 27.70,
+            'latest_atr_14' => 0.99,
+            'entry_price' => 28.13,
+            'post_signal_high' => 28.54,
+        ]));
+
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertTrue(
+            collect($result['hardFailReasons'])->contains(
+                fn (string $reason): bool => str_contains($reason, 'Breakout gefaald'),
+            ),
+        );
+    }
+
+    public function test_close_still_through_buy_stop_is_not_failed_breakout(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 27.56,
+            'signal_high' => 28.04,
+            'latest_open_price' => 28.27,
+            'latest_close_price' => 28.40,
+            'latest_sma_20' => 27.67,
+            'latest_atr_14' => 0.99,
+            'entry_price' => 28.13,
+            'post_signal_high' => 28.54,
+        ]));
+
+        $this->assertFalse(
+            collect($result['hardFailReasons'])->contains(
+                fn (string $reason): bool => str_contains($reason, 'Breakout gefaald'),
+            ),
+        );
+    }
+
+    public function test_failed_breakdown_after_sell_stop_is_hard_fail(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'signal_low' => 934.00,
+            'latest_open_price' => 932.50,
+            'latest_close_price' => 936.00,
+            'entry_price' => 933.80,
+            'post_signal_low' => 931.20,
+        ]));
+
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertTrue(
+            collect($result['hardFailReasons'])->contains(
+                fn (string $reason): bool => str_contains($reason, 'Breakdown gefaald'),
+            ),
+        );
     }
 
     public function test_earnings_beyond_window_is_not_hard_fail(): void

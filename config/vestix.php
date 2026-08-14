@@ -165,6 +165,8 @@ return [
         'candle_anatomy_enabled' => filter_var(env('SNIPER_CANDLE_ANATOMY_ENABLED', true), FILTER_VALIDATE_BOOL),
         'candle_anatomy_hard_fail' => filter_var(env('SNIPER_CANDLE_ANATOMY_HARD_FAIL', true), FILTER_VALIDATE_BOOL),
         'candle_anatomy_min_closing_pct' => (float) env('SNIPER_CANDLE_ANATOMY_MIN_CLOSING_PCT', 75.0),
+        // Buy/sell-stop already traded after the signal bar, close back on the origin side.
+        'failed_breakout_hard_fail' => filter_var(env('SNIPER_FAILED_BREAKOUT_HARD_FAIL', true), FILTER_VALIDATE_BOOL),
     ],
 
     'academy' => [

@@ -101,6 +101,25 @@ class PositionAccessorTest extends TestCase
         $this->assertFalse($scout->canMarkBuyStopPlaced());
     }
 
+    public function test_failed_breakout_blocks_buy_stop_when_close_is_back_below_entry(): void
+    {
+        $scout = Position::factory()->scout()->make([
+            'signal_high' => 28.04,
+            'signal_low' => 27.56,
+            'latest_atr_14' => 0.99,
+            'entry_price' => 28.13,
+            'latest_open_price' => 28.00,
+            'latest_close_price' => 28.03,
+            'latest_sma_20' => 27.67,
+            'post_signal_high' => 28.54,
+            'quantity' => 53,
+        ]);
+
+        $this->assertFalse($scout->isPlannedEntryThroughMarket());
+        $this->assertTrue($scout->isFailedBreakout());
+        $this->assertFalse($scout->canMarkBuyStopPlaced());
+    }
+
     public function test_buy_stop_returns_null_without_inputs(): void
     {
         $this->assertNull(Position::computeBuyStop(null, 1.30));

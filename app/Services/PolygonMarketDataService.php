@@ -113,6 +113,7 @@ class PolygonMarketDataService
             'scout_rsi' => $rsi,
             'prior_day_low' => self::extractPriorDayLow($bars['bars']),
             'latest_session_bar' => self::extractLatestSessionBar($bars['bars']),
+            'daily_bars' => $bars['bars'],
         ];
 
         $volumeData = $this->resolveDepthMetrics(

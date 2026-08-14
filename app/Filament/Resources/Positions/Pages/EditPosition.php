@@ -322,8 +322,13 @@ class EditPosition extends EditRecord
 
         return $record->evaluateSetupScore([
             'signal_low' => $this->data['signal_low'] ?? $record->signal_low,
+            'signal_high' => $this->data['signal_high'] ?? $record->signal_high,
+            'entry_price' => $this->data['entry_price'] ?? $record->entry_price,
+            'latest_atr_14' => $this->data['latest_atr_14'] ?? $record->latest_atr_14,
             'latest_open_price' => $this->data['latest_open_price'] ?? $record->latest_open_price,
             'latest_close_price' => $this->data['latest_close_price'] ?? $record->latest_close_price,
+            'post_signal_high' => $record->post_signal_high,
+            'post_signal_low' => $record->post_signal_low,
             'latest_sma_20' => $this->data['latest_sma_20'] ?? $record->latest_sma_20,
             'sma_20_five_days_ago' => $this->data['sma_20_five_days_ago'] ?? $record->sma_20_five_days_ago,
             'sma_20_ten_days_ago' => $this->data['sma_20_ten_days_ago'] ?? $record->sma_20_ten_days_ago,

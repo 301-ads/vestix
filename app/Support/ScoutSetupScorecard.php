@@ -16,8 +16,12 @@ class ScoutSetupScorecard
      *     direction?: TradeDirection|string|null,
      *     signal_low?: float|null,
      *     signal_high?: float|null,
+     *     entry_price?: float|null,
+     *     latest_atr_14?: float|null,
      *     latest_open_price?: float|null,
      *     latest_close_price?: float|null,
+     *     post_signal_high?: float|null,
+     *     post_signal_low?: float|null,
      *     previous_close?: float|null,
      *     latest_sma_20?: float|null,
      *     sma_20_five_days_ago?: float|null,
@@ -647,6 +651,12 @@ class ScoutSetupScorecard
             $reasons[] = 'Vallend mes — hoog volume maar slotkoers onder openingskoers';
         }
 
+        $breakoutFail = self::failedBreakoutFailReason($inputs);
+
+        if ($breakoutFail !== null) {
+            $reasons[] = $breakoutFail;
+        }
+
         // SMA-helling is operator domein (Protocol Visuele Eindregie) — geen hard-fail.
 
         return array_merge(
@@ -706,6 +716,58 @@ class ScoutSetupScorecard
             $open,
             $sma,
         );
+    }
+
+    /**
+     * Signal already traded through the planned stop, then closed back on the origin side.
+     *
+     * @param  array<string, mixed>  $inputs
+     */
+    public static function failedBreakoutFailReason(array $inputs): ?string
+    {
+        if (! self::failedBreakoutHardFailEnabled()) {
+            return null;
+        }
+
+        $entry = self::resolvePlannedEntry($inputs);
+        $close = self::resolveClosePrice($inputs);
+
+        if ($entry === null || $close === null) {
+            return null;
+        }
+
+        if (self::isShort($inputs)) {
+            $low = self::resolvePostSignalLow($inputs);
+
+            if ($low === null || $low > $entry || $close <= $entry) {
+                return null;
+            }
+
+            return sprintf(
+                'Breakdown gefaald — sell-stop $%s al geraakt (low $%s), close $%s terug boven entry',
+                number_format($entry, 2),
+                number_format($low, 2),
+                number_format($close, 2),
+            );
+        }
+
+        $high = self::resolvePostSignalHigh($inputs);
+
+        if ($high === null || $high < $entry || $close >= $entry) {
+            return null;
+        }
+
+        return sprintf(
+            'Breakout gefaald — buy-stop $%s al geraakt (high $%s), close $%s terug onder entry',
+            number_format($entry, 2),
+            number_format($high, 2),
+            number_format($close, 2),
+        );
+    }
+
+    public static function failedBreakoutHardFailEnabled(): bool
+    {
+        return (bool) config('vestix.sniper_scorecard.failed_breakout_hard_fail', true);
     }
 
     /**
@@ -814,6 +876,12 @@ class ScoutSetupScorecard
 
         if ($open !== null && $close !== null && self::isRisingRocket($inputs, $open, $close)) {
             $reasons[] = 'Stijgende raket — hoog volume maar slotkoers boven openingskoers';
+        }
+
+        $breakoutFail = self::failedBreakoutFailReason($inputs);
+
+        if ($breakoutFail !== null) {
+            $reasons[] = $breakoutFail;
         }
 
         return array_merge(
@@ -1228,6 +1296,80 @@ SQL;
             'status' => $status,
             'detail' => $detail,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function resolvePlannedEntry(array $inputs): ?float
+    {
+        $entry = self::toFloat($inputs['entry_price'] ?? null);
+
+        if ($entry !== null && $entry > 0) {
+            return $entry;
+        }
+
+        $atr = self::toFloat($inputs['latest_atr_14'] ?? null);
+
+        if ($atr === null || $atr <= 0) {
+            return null;
+        }
+
+        if (self::isShort($inputs)) {
+            $low = self::toFloat($inputs['signal_low'] ?? null);
+
+            if ($low === null || $low <= 0) {
+                return null;
+            }
+
+            return round(max(0.01, $low - (0.10 * $atr)), 2);
+        }
+
+        $high = self::toFloat($inputs['signal_high'] ?? null);
+
+        if ($high === null || $high <= 0) {
+            return null;
+        }
+
+        return round($high + (0.10 * $atr), 2);
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function resolvePostSignalHigh(array $inputs): ?float
+    {
+        $high = self::toFloat($inputs['post_signal_high'] ?? null);
+        $open = self::resolveOpenPrice($inputs);
+
+        if ($high === null) {
+            return $open;
+        }
+
+        if ($open === null) {
+            return $high;
+        }
+
+        return max($high, $open);
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function resolvePostSignalLow(array $inputs): ?float
+    {
+        $low = self::toFloat($inputs['post_signal_low'] ?? null);
+        $open = self::resolveOpenPrice($inputs);
+
+        if ($low === null) {
+            return $open;
+        }
+
+        if ($open === null) {
+            return $low;
+        }
+
+        return min($low, $open);
     }
 
     private static function toFloat(mixed $value): ?float

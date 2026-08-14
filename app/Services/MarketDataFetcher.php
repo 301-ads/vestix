@@ -97,7 +97,8 @@ class MarketDataFetcher
         $bounceBar = $data['latest_bounce_bar'] ?? null;
         $rejectionBar = $data['latest_rejection_bar'] ?? null;
         $sessionBar = $data['latest_session_bar'] ?? null;
-        unset($data['latest_bounce_bar'], $data['latest_rejection_bar'], $data['latest_session_bar']);
+        $dailyBars = is_array($data['daily_bars'] ?? null) ? $data['daily_bars'] : [];
+        unset($data['latest_bounce_bar'], $data['latest_rejection_bar'], $data['latest_session_bar'], $data['daily_bars']);
 
         if ($position->status === 'scout') {
             $patternBar = $position->isShort()
@@ -125,6 +126,16 @@ class MarketDataFetcher
                 if ($signalAttributes !== null) {
                     $data = array_merge($data, $signalAttributes);
                 }
+            }
+
+            $signalDate = isset($data['signal_bar_date'])
+                ? (string) $data['signal_bar_date']
+                : $position->signal_bar_date?->toDateString();
+            $extremes = SignalCandleResolver::extremesSince($dailyBars, $signalDate);
+
+            if ($extremes !== null) {
+                $data['post_signal_high'] = $extremes['high'];
+                $data['post_signal_low'] = $extremes['low'];
             }
         }
 
@@ -436,6 +447,10 @@ class MarketDataFetcher
             'latest_atr_14' => $atr,
             'scout_rsi' => $rsi,
             'prior_day_low' => $priorDayLow,
+            'latest_session_bar' => $bars !== null
+                ? PolygonMarketDataService::extractLatestSessionBar($bars['bars'])
+                : null,
+            'daily_bars' => $bars['bars'] ?? [],
         ];
 
         $volumeData = $this->resolveDepthMetrics(

@@ -401,6 +401,79 @@ class MarketDataFetcherSignalCandleTest extends TestCase
         $this->assertEqualsWithDelta(6.50, (float) $scout->entry_price, 0.01); // 6.60 - 0.1*1
     }
 
+    public function test_sync_stores_post_signal_extremes_from_later_session(): void
+    {
+        $user = User::factory()->create();
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BF.B',
+            'direction' => TradeDirection::Long,
+            'signal_low' => 27.56,
+            'signal_high' => 28.04,
+            'signal_bar_date' => '2026-08-12',
+            'entry_price' => 28.13,
+            'latest_atr_14' => 0.99,
+            'market_open_reminder_on' => null,
+        ]);
+
+        $this->mockPolygonPayload([
+            'latest_open_price' => 28.00,
+            'latest_close_price' => 28.03,
+            'recent_close_prices' => [28.03],
+            'latest_sma_20' => 27.67,
+            'sma_20_five_days_ago' => 27.43,
+            'sma_20_ten_days_ago' => 27.07,
+            'latest_sma_50' => 26.80,
+            'latest_atr_14' => 0.99,
+            'scout_rsi' => 54.5,
+            'prior_day_low' => 27.83,
+            'latest_bounce_bar' => [
+                'date' => '2026-08-12',
+                'open' => 27.64,
+                'high' => 28.04,
+                'low' => 27.56,
+                'close' => 27.92,
+                'volume' => 1_120_000.0,
+            ],
+            'latest_rejection_bar' => null,
+            'daily_bars' => [
+                [
+                    'date' => '2026-08-12',
+                    'open' => 27.64,
+                    'high' => 28.04,
+                    'low' => 27.56,
+                    'close' => 27.92,
+                    'volume' => 1_120_000.0,
+                ],
+                [
+                    'date' => '2026-08-13',
+                    'open' => 28.27,
+                    'high' => 28.54,
+                    'low' => 27.83,
+                    'close' => 28.03,
+                    'volume' => 1_430_000.0,
+                ],
+                [
+                    'date' => '2026-08-14',
+                    'open' => 28.00,
+                    'high' => 28.10,
+                    'low' => 27.90,
+                    'close' => 28.03,
+                    'volume' => 900_000.0,
+                ],
+            ],
+        ]);
+
+        $ok = app(MarketDataFetcher::class)->syncPosition($scout, withDelays: false);
+
+        $this->assertTrue($ok);
+        $scout->refresh();
+
+        $this->assertEqualsWithDelta(28.54, (float) $scout->post_signal_high, 0.01);
+        $this->assertEqualsWithDelta(27.56, (float) $scout->post_signal_low, 0.01);
+        $this->assertTrue($scout->isFailedBreakout());
+        $this->assertSame('NO TRADE', $scout->evaluateSetupScore()['grade']);
+    }
+
     /**
      * @param  array<string, mixed>  $payload
      */

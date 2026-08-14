@@ -428,6 +428,9 @@ class PositionRecordActions
                         $record->isPlannedEntryThroughMarket() => $record->isShort()
                             ? 'Sell-stop ligt boven de koers — herprijs de signaalkaars.'
                             : 'Buy-stop ligt onder de koers — herprijs de signaalkaars.',
+                        $record->isFailedBreakout() => $record->isShort()
+                            ? 'Sell-stop is al geraakt — wacht op een nieuwe rejection.'
+                            : 'Buy-stop is al geraakt — wacht op een nieuwe bounce.',
                         ($reasons = $record->shortSniperHardFailReasons()) !== [] => implode(' · ', $reasons),
                         default => 'Vul eerst entry, aantal en marktdata in of haal data op.',
                     };
@@ -472,6 +475,12 @@ class PositionRecordActions
             return $record->isShort()
                 ? 'Sell-stop ligt boven de koers — herprijs de signaalkaars'
                 : 'Buy-stop ligt onder de koers — herprijs de signaalkaars';
+        }
+
+        if ($record->isFailedBreakout()) {
+            return $record->isShort()
+                ? 'Sell-stop is al geraakt — wacht op een nieuwe rejection'
+                : 'Buy-stop is al geraakt — wacht op een nieuwe bounce';
         }
 
         $hardFails = $record->shortSniperHardFailReasons();
@@ -840,8 +849,12 @@ class PositionRecordActions
             'direction' => $record->tradeDirection(),
             'signal_low' => $record->signal_low,
             'signal_high' => $record->signal_high,
+            'entry_price' => $record->entry_price,
+            'latest_atr_14' => $record->latest_atr_14,
             'latest_open_price' => $record->latest_open_price,
             'latest_close_price' => $record->latest_close_price,
+            'post_signal_high' => $record->post_signal_high,
+            'post_signal_low' => $record->post_signal_low,
             'latest_sma_20' => $record->latest_sma_20,
             'sma_20_ten_days_ago' => $record->sma_20_ten_days_ago,
             'latest_sma_50' => $record->latest_sma_50,

@@ -67,6 +67,8 @@ class Position extends Model
             'signal_low' => 'decimal:2',
             'signal_bar_date' => 'date',
             'detected_signal_bar_date' => 'date',
+            'post_signal_high' => 'decimal:2',
+            'post_signal_low' => 'decimal:2',
             'scout_rsi' => 'decimal:2',
             'bounce_volume_above_average' => 'boolean',
             'relative_volume' => 'decimal:2',
@@ -1408,7 +1410,23 @@ class Position extends Model
         return $this->hasCompleteBracketPlan()
             && ! $this->isBlockedByShortSniperHardFails()
             && ! $this->isPendingVisualReview()
-            && ! $this->isPlannedEntryThroughMarket();
+            && ! $this->isPlannedEntryThroughMarket()
+            && ! $this->isFailedBreakout();
+    }
+
+    public function isFailedBreakout(): bool
+    {
+        return ScoutSetupScorecard::failedBreakoutFailReason([
+            'direction' => $this->tradeDirection(),
+            'entry_price' => $this->entry_price,
+            'signal_high' => $this->signal_high,
+            'signal_low' => $this->signal_low,
+            'latest_atr_14' => $this->latest_atr_14,
+            'latest_open_price' => $this->latest_open_price,
+            'latest_close_price' => $this->latest_close_price,
+            'post_signal_high' => $this->post_signal_high,
+            'post_signal_low' => $this->post_signal_low,
+        ]) !== null;
     }
 
     public function getTarget1QuantityAttribute(): ?float
@@ -2358,8 +2376,12 @@ class Position extends Model
             'direction' => $overrides['direction'] ?? $this->tradeDirection(),
             'signal_low' => $overrides['signal_low'] ?? $this->signal_low,
             'signal_high' => $overrides['signal_high'] ?? $this->signal_high,
+            'entry_price' => $overrides['entry_price'] ?? $this->entry_price,
+            'latest_atr_14' => $overrides['latest_atr_14'] ?? $this->latest_atr_14,
             'latest_open_price' => $overrides['latest_open_price'] ?? $this->latest_open_price,
             'latest_close_price' => $overrides['latest_close_price'] ?? $this->latest_close_price,
+            'post_signal_high' => $overrides['post_signal_high'] ?? $this->post_signal_high,
+            'post_signal_low' => $overrides['post_signal_low'] ?? $this->post_signal_low,
             'previous_close' => $overrides['previous_close'] ?? (
                 $this->latest_close_price !== null
                     ? ClosePriceTrend::resolvePreviousSessionClose(
@@ -2373,8 +2395,6 @@ class Position extends Model
             'sma_20_ten_days_ago' => $overrides['sma_20_ten_days_ago'] ?? $this->sma_20_ten_days_ago,
             'latest_sma_50' => $overrides['latest_sma_50'] ?? $this->latest_sma_50,
             'latest_sma_200' => $overrides['latest_sma_200'] ?? $this->latest_sma_200,
-            'latest_atr_14' => $overrides['latest_atr_14'] ?? $this->latest_atr_14,
-            'entry_price' => $overrides['entry_price'] ?? $this->entry_price,
             'stop_price' => $overrides['stop_price'] ?? ($this->initial_sl ?? $this->current_sl ?? $this->new_sl),
             'target_1_price' => $overrides['target_1_price'] ?? $this->target_1_price,
             'target_1_rr' => $overrides['target_1_rr'] ?? $this->target_1_rr,
