@@ -256,6 +256,47 @@ class SmartAllocationServiceTest extends TestCase
         $this->assertEqualsWithDelta(100.0, $result['allocations'][0]['risk_dollars'], 0.01);
     }
 
+    public function test_zero_bankroll_lists_cart_scouts_as_exclusions_instead_of_hiding_them(): void
+    {
+        $user = User::factory()->create([
+            'trading_bankroll' => 0,
+            'default_risk_percent' => 1.0,
+            'primary_broker' => Broker::Ibkr,
+            'ibkr_data_stale' => false,
+            'ibkr_last_success_at' => now(),
+        ]);
+
+        $a = $this->scout($user, 'CART', score: 8, sector: 'XLK');
+        $b = $this->scout($user, 'HOLD', score: 9, sector: 'XLF');
+
+        $result = $this->service->allocate($user, [$a, $b], SmartAllocationService::MODE_SMART);
+
+        $this->assertSame([], $result['allocations']);
+        $this->assertCount(2, $result['exclusions']);
+        $this->assertEqualsCanonicalizing(['CART', 'HOLD'], collect($result['exclusions'])->pluck('ticker')->all());
+        $this->assertStringContainsString('bankroll', strtolower($result['exclusions'][0]['reason']));
+    }
+
+    public function test_stale_ibkr_lists_cart_scouts_as_exclusions(): void
+    {
+        $user = User::factory()->create([
+            'trading_bankroll' => 10000,
+            'default_risk_percent' => 1.0,
+            'primary_broker' => Broker::Ibkr,
+            'ibkr_data_stale' => true,
+            'ibkr_last_success_at' => now()->subDays(10),
+        ]);
+
+        $scout = $this->scout($user, 'STALE', score: 8, sector: 'XLK');
+
+        $result = $this->service->allocate($user, [$scout], SmartAllocationService::MODE_SMART);
+
+        $this->assertSame([], $result['allocations']);
+        $this->assertCount(1, $result['exclusions']);
+        $this->assertSame('STALE', $result['exclusions'][0]['ticker']);
+        $this->assertStringContainsString('verouderd', $result['exclusions'][0]['reason']);
+    }
+
     public function test_excludes_missing_entry_or_stop(): void
     {
         $user = $this->userWithBankroll();

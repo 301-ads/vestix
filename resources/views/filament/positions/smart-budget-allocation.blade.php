@@ -96,8 +96,13 @@
 
     @if ($result['allocations'] === [])
         <p class="vestix-smart-allocation__empty">
-            Geen allocaties mogelijk. Controleer scores (≥ {{ config('vestix.smart_sizing.min_score', 7) }}),
-            IBKR bankroll en entry/stop-loss.
+            @if (($result['bankroll'] ?? 0) <= 0)
+                Geen allocaties: IBKR bankroll is $0 (of sync is verouderd).
+                Werk je bankroll/IBKR-sync bij — je {{ count($result['exclusions'] ?? []) ?: $scouts->count() }} setup(s) blijven in de winkelwagen.
+            @else
+                Geen allocaties mogelijk. Controleer scores (≥ {{ config('vestix.smart_sizing.min_score', 7) }}),
+                IBKR bankroll en entry/stop-loss.
+            @endif
         </p>
     @else
         <div class="vestix-smart-allocation__table-wrap">
@@ -199,7 +204,13 @@
 
     @if ($result['exclusions'] !== [])
         <div class="vestix-smart-allocation__exclusions">
-            <h4 class="vestix-smart-allocation__exclusions-heading">Uitgesloten</h4>
+            <h4 class="vestix-smart-allocation__exclusions-heading">
+                @if ($result['allocations'] === [])
+                    In winkelwagen — nog niet te alloceren
+                @else
+                    Uitgesloten
+                @endif
+            </h4>
             <ul>
                 @foreach ($result['exclusions'] as $exclusion)
                     @php
