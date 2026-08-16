@@ -506,6 +506,41 @@ class SmartBudgetAllocationTest extends TestCase
         $this->assertFalse($aapl->fresh()->isOrderPlanExcludedToday());
     }
 
+    public function test_zero_bankroll_still_lists_order_plan_tickers(): void
+    {
+        $user = $this->authenticateFilament();
+        $user->update([
+            'trading_bankroll' => 0,
+            'default_risk_percent' => 1.5,
+            'primary_broker' => Broker::Ibkr,
+            'ibkr_data_stale' => false,
+            'ibkr_last_success_at' => now(),
+        ]);
+
+        Position::factory()->for($user)->scout()->create([
+            'ticker' => 'ZERO',
+            'last_setup_score' => 8,
+            'entry_price' => 50.00,
+            'signal_low' => 48.00,
+            'latest_close_price' => 49.00,
+            'latest_sma_20' => 48.50,
+            'latest_atr_14' => 1.00,
+            'sector_etf' => 'XLK',
+            'market_open_reminder_on' => now('Europe/Amsterdam')->toDateString(),
+            'bounce_volume_above_average' => true,
+            'relative_volume' => 1.40,
+            'scout_rsi' => 50,
+            'sector_trend_positive' => true,
+        ]);
+
+        Livewire::test(ExecutionPlanContent::class)
+            ->assertSee('ZERO')
+            ->assertSee('In winkelwagen — nog niet te alloceren')
+            ->assertSee('bankroll')
+            ->assertSee('1 in winkelwagen')
+            ->assertDontSee('Nog geen setups in je Order Plan');
+    }
+
     public function test_radar_toggle_adds_scout_to_order_plan(): void
     {
         $user = $this->authenticateFilament();

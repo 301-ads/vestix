@@ -288,6 +288,16 @@ class SmartAllocationService
                 : $longPie['available'];
 
             if ($availablePie <= 0) {
+                $pieReason = $this->emptyPieExclusionReason($user, $bankroll, $directionKey);
+
+                foreach ($candidates as $candidate) {
+                    $exclusions[] = [
+                        'position_id' => (int) $candidate['position']->id,
+                        'ticker' => (string) $candidate['ticker'],
+                        'reason' => $pieReason,
+                    ];
+                }
+
                 continue;
             }
 
@@ -1051,6 +1061,21 @@ class SmartAllocationService
         }
 
         return $allocations;
+    }
+
+    private function emptyPieExclusionReason(User $user, float $bankroll, string $directionKey): string
+    {
+        if ($this->ibkrSyncHealth->blocksAutomatedExecution($user)) {
+            return 'IBKR-data verouderd — sync eerst (Forceer API Sync / vestix:sync-ibkr) vóór sizing';
+        }
+
+        if ($bankroll <= 0) {
+            return 'IBKR bankroll is $0 — vul Available Funds / Settled Cash of trading bankroll';
+        }
+
+        $label = $directionKey === TradeDirection::Short->value ? 'short' : 'long';
+
+        return "Geen beschikbare {$label}-risicopie over (al vol of 0%)";
     }
 
     /**

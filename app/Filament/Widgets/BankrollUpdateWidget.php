@@ -2,8 +2,10 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Pages\Dashboard;
 use App\Services\BankrollSnapshotService;
 use App\Services\Ibkr\IbkrSyncHealth;
+use App\Services\SmartAllocationService;
 use App\Support\FilamentNotifier;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Auth;
@@ -78,10 +80,41 @@ class BankrollUpdateWidget extends Widget
             ],
         )->validate();
 
-        app(BankrollSnapshotService::class)->recordSnapshot(
-            $user,
-            (float) $validated['bankrollAmount'],
-        );
+        $amount = round((float) $validated['bankrollAmount'], 2);
+        $wasStaleEscape = $this->ibkrStale;
+
+        if ($wasStaleEscape) {
+            // Escape hatch: unblock Smart Sizing which zeros bankroll while Flex is stale.
+            $user->forceFill([
+                'ibkr_net_liquidation' => $amount,
+                'ibkr_available_funds' => $amount,
+                'ibkr_settled_cash' => $amount,
+                'ibkr_data_stale' => false,
+                'ibkr_last_success_at' => now(),
+                'ibkr_last_error' => null,
+            ])->save();
+
+            $user = $user->fresh() ?? $user;
+            $this->ibkrStale = false;
+        }
+
+        app(BankrollSnapshotService::class)->recordSnapshot($user, $amount);
+
+        if ($wasStaleEscape) {
+            $pie = app(SmartAllocationService::class)->resolveSizingBankroll($user->fresh() ?? $user);
+
+            FilamentNotifier::send(
+                title: 'IBKR override opgeslagen',
+                body: sprintf(
+                    'Sizing is weer vrijgegeven (deployable ≈ $%s). Draai later vestix:sync-ibkr voor verse Flex-data.',
+                    number_format($pie, 2),
+                ),
+            );
+
+            $this->redirect(Dashboard::getUrl(), navigate: true);
+
+            return;
+        }
 
         FilamentNotifier::send(
             title: 'Bankroll bijgewerkt',
