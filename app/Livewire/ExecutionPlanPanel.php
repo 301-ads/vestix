@@ -9,10 +9,12 @@ use Livewire\Component;
 
 class ExecutionPlanPanel extends Component
 {
+    public int $refreshToken = 0;
+
     #[On('order-plan-updated')]
     public function refreshPlan(): void
     {
-        // Refresh badge when Order Plan membership changes.
+        $this->refreshToken++;
     }
 
     public function planCount(): int
@@ -23,13 +25,19 @@ class ExecutionPlanPanel extends Component
             return 0;
         }
 
-        return Position::orderPlanForUser((int) $userId)->count();
+        // Winkelwagen + “Actief” (buy-stops al gemarkeerd) — anders lijkt de cart leeg
+        // na een foutieve bulk-add die scouts op broker-Pending zette.
+        return Position::orderPlanForUser((int) $userId)->count()
+            + Position::activeOrderPlanForUser((int) $userId)->count();
     }
 
     public function render(): View
     {
+        $planCount = $this->planCount();
+
         return view('livewire.execution-plan-panel', [
-            'planCount' => $this->planCount(),
+            'planCount' => $planCount,
+            'contentKey' => 'execution-plan-panel-content-'.$planCount.'-'.$this->refreshToken,
         ]);
     }
 }

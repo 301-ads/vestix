@@ -10,6 +10,7 @@ use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\FilamentNotifier;
 use App\Support\FilamentPolling;
+use App\Support\OrderPlanBroadcast;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
 use App\Support\ScoutSectorCoachSignal;
@@ -231,8 +232,9 @@ class ScoutsTable
                             ->label('Naar Order Plan')
                             ->icon('heroicon-o-shopping-cart')
                             ->color('primary')
-                            ->action(function (Collection $records): void {
+                            ->action(function (Collection $records, $livewire): void {
                                 $count = 0;
+                                $skippedNoEntry = 0;
 
                                 foreach ($records as $record) {
                                     if (! $record instanceof Position || ! $record->isOwnedBy(auth()->user())) {
@@ -243,14 +245,47 @@ class ScoutsTable
                                         continue;
                                     }
 
-                                    $record->markSubmittedAtBroker();
+                                    if ($record->entry_price === null) {
+                                        $skippedNoEntry++;
+
+                                        continue;
+                                    }
+
+                                    // Already in Order Plan (winkelwagen) — leave as-is.
+                                    if ($record->market_open_reminder_on !== null) {
+                                        $count++;
+
+                                        continue;
+                                    }
+
+                                    // Skip scouts that already have a live broker order.
+                                    if ($record->scoutPipelineStatus() === ScoutPipelineStatus::Active) {
+                                        continue;
+                                    }
+
+                                    $record->scheduleMarketOpenReminder();
                                     $count++;
                                 }
 
-                                FilamentNotifier::send(
-                                    title: 'Order Plan bijgewerkt',
-                                    body: "{$count} scout(s) toegevoegd.",
-                                );
+                                if ($count > 0) {
+                                    FilamentNotifier::send(
+                                        title: 'Order Plan bijgewerkt',
+                                        body: "{$count} scout(s) in je winkelwagen gezet.",
+                                    );
+                                    OrderPlanBroadcast::dispatch($livewire);
+                                } elseif ($skippedNoEntry > 0) {
+                                    FilamentNotifier::send(
+                                        title: 'Entry ontbreekt',
+                                        body: 'Vul eerst een buy-stop entry in voordat je scouts in het Order Plan zet.',
+                                        status: 'warning',
+                                    );
+                                } else {
+                                    FilamentNotifier::send(
+                                        title: 'Niets toegevoegd',
+                                        body: 'Geen geschikte scouts geselecteerd voor het Order Plan.',
+                                        status: 'warning',
+                                    );
+                                }
                             })
                             ->deselectRecordsAfterCompletion(),
                         BulkAction::make('ghost_scouts')

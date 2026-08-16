@@ -493,7 +493,9 @@ class ScoutWatchlistTest extends TestCase
             ->assertActionHidden('activate_scout');
 
         $this->assertSame(BrokerOrderStatus::Scout, $scout->fresh()->broker_order_status);
-        $this->assertSame(ScoutPipelineStatus::Scout, $scout->fresh()->scoutPipelineStatus());
+        // Entry aanwezig → terug in Order Plan (winkelwagen), niet kale Pending-radar.
+        $this->assertSame(ScoutPipelineStatus::Pending, $scout->fresh()->scoutPipelineStatus());
+        $this->assertNotNull($scout->fresh()->market_open_reminder_on);
     }
 
     public function test_activate_scout_action_from_list(): void
@@ -1162,6 +1164,7 @@ class ScoutWatchlistTest extends TestCase
 
         $scout = Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
             'ticker' => 'KDP',
+            'entry_price' => 40.00,
         ]);
 
         Livewire::test(ListScouts::class)
@@ -1170,7 +1173,9 @@ class ScoutWatchlistTest extends TestCase
         $scout->refresh();
 
         $this->assertSame(BrokerOrderStatus::Scout, $scout->broker_order_status);
-        $this->assertSame(ScoutPipelineStatus::Scout, $scout->scoutPipelineStatus());
+        $this->assertNotNull($scout->market_open_reminder_on);
+        $this->assertSame(ScoutPipelineStatus::Pending, $scout->scoutPipelineStatus());
+        $this->assertTrue(Position::orderPlanForUser((int) $user->id)->contains('id', $scout->id));
     }
 
     public function test_activated_scout_disappears_from_radar_list(): void

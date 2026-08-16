@@ -695,12 +695,16 @@ class Position extends Model
         ]);
 
         if ($addToOrderPlan) {
-            $clone->broker_order_status = BrokerOrderStatus::Pending;
-            $clone->market_open_reminder_on = null;
+            // Winkelwagen = market_open_reminder_on na save — nooit broker Pending ("Actief").
+            $clone->broker_order_status = BrokerOrderStatus::Scout;
             $clone->order_plan_excluded_on = null;
         }
 
         $clone->save();
+
+        if ($addToOrderPlan && $clone->entry_price !== null) {
+            $clone->scheduleMarketOpenReminder();
+        }
 
         app(SquadActivityRecorder::class)->recordClone($this, $user);
 

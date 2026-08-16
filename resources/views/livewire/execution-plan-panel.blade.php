@@ -3,7 +3,11 @@
     use Illuminate\View\ComponentAttributeBag;
 @endphp
 
-<div class="fi-execution-plan" wire:key="execution-plan-panel">
+<div
+    class="fi-execution-plan"
+    wire:key="execution-plan-panel"
+    x-on:open-modal.window="if ($event.detail?.id === 'execution-plan') $wire.refreshPlan()"
+>
     <x-filament::modal
         id="execution-plan"
         slide-over
@@ -49,7 +53,7 @@
 
         <livewire:execution-plan-content
             layout="panel"
-            :key="'execution-plan-panel-content'"
+            :key="$contentKey"
         />
     </x-filament::modal>
 </div>
