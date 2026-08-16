@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Positions\Tables;
 
 use App\Enums\AutopsyTag;
 use App\Enums\BrokerOrderStatus;
+use App\Enums\ExecutionTruthState;
 use App\Enums\GapHerplanAction;
 use App\Enums\ScoutPipelineStatus;
 use App\Events\PositionLiquidated;
@@ -21,6 +22,7 @@ use App\Support\FilamentNotifier;
 use App\Support\IbkrFillPrice;
 use App\Support\MarketDataFetchDispatcher;
 use App\Support\MarketDataFreshness;
+use App\Support\OrderPlanBroadcast;
 use App\Support\PositionSizing;
 use App\Support\ScaleOutDisplay;
 use App\Support\ScoutSetupAlertService;
@@ -362,7 +364,7 @@ class PositionRecordActions
                         body: "{$record->ticker} staat niet meer in je Order Plan.",
                     );
 
-                    $livewire->dispatch('order-plan-updated');
+                    OrderPlanBroadcast::dispatch($livewire);
 
                     return;
                 }
@@ -379,7 +381,7 @@ class PositionRecordActions
                     ),
                 );
 
-                $livewire->dispatch('order-plan-updated');
+                OrderPlanBroadcast::dispatch($livewire);
             });
     }
 
@@ -497,24 +499,36 @@ class PositionRecordActions
     public static function clearBuyStop(bool $iconButton = true): Action
     {
         $action = Action::make('clear_buy_stop')
-            ->label('Order annuleren')
-            ->tooltip('Order bij broker geannuleerd — terug naar Pending')
-            ->icon('heroicon-o-no-symbol')
-            ->color('danger')
+            ->label('Terug naar winkelwagen')
+            ->tooltip('Haal uit Actief — terug naar Order Plan (winkelwagen)')
+            ->icon('heroicon-o-shopping-cart')
+            ->color('warning')
             ->visible(fn (Position $record): bool => $record->status === 'scout'
                 && $record->isOwnedBy(auth()->user())
                 && $record->scoutPipelineStatus() === ScoutPipelineStatus::Active)
             ->authorize(fn (Position $record): bool => auth()->user()?->can('update', $record) ?? false)
             ->requiresConfirmation()
-            ->modalHeading('Order annuleren')
-            ->modalDescription('Bevestig dat je de order bij je broker hebt geannuleerd. De scout gaat terug naar Pending.')
-            ->action(function (Position $record): void {
-                $record->update(['broker_order_status' => BrokerOrderStatus::Scout]);
+            ->modalHeading('Terug naar winkelwagen')
+            ->modalDescription('Gebruik dit als de scout per ongeluk op Actief stond (bijv. na bulk “Naar Order Plan”). Bevestig dat er geen live order bij je broker staat.')
+            ->action(function (Position $record, $livewire): void {
+                $record->update([
+                    'broker_order_status' => BrokerOrderStatus::Scout,
+                    'broker_submitted_at' => null,
+                    'execution_truth_state' => ExecutionTruthState::Planned,
+                    'data_source_label' => 'planned',
+                ]);
+
+                // Zet terug in de winkelwagen (was vaak een foutieve bulk-add → “Actief”).
+                if ($record->fresh()->entry_price !== null) {
+                    $record->scheduleMarketOpenReminder();
+                }
 
                 FilamentNotifier::send(
-                    title: 'Order geannuleerd',
-                    body: "{$record->ticker} staat weer op Pending — plaats opnieuw een order wanneer je klaar bent.",
+                    title: 'Terug in Order Plan',
+                    body: "{$record->ticker} staat weer in je winkelwagen — geen live broker-order meer.",
                 );
+
+                OrderPlanBroadcast::dispatch($livewire);
             });
 
         if ($iconButton) {

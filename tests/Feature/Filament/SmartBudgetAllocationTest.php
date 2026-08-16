@@ -290,6 +290,21 @@ class SmartBudgetAllocationTest extends TestCase
             ->assertSeeLivewire(ExecutionPlanContent::class);
     }
 
+    public function test_topbar_badge_counts_active_broker_pending_scouts(): void
+    {
+        $user = $this->authenticateFilament();
+
+        Position::factory()->for($user)->scout()->pendingBrokerOrder()->create([
+            'ticker' => 'ACTV',
+            'entry_price' => 12.00,
+            'market_open_reminder_on' => null,
+        ]);
+
+        Livewire::test(ExecutionPlanPanel::class)
+            ->assertSet('refreshToken', 0)
+            ->tap(fn ($component) => $this->assertSame(1, $component->instance()->planCount()));
+    }
+
     public function test_apply_allocation_approves_pending_visual_review(): void
     {
         $user = $this->authenticateFilament();

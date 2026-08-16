@@ -10,6 +10,7 @@ use App\Filament\Tables\Columns\TickerColumn;
 use App\Models\Position;
 use App\Support\FilamentNotifier;
 use App\Support\FilamentPolling;
+use App\Support\OrderPlanBroadcast;
 use App\Support\PremarketGatekeeperDisplay;
 use App\Support\ScoutRadarFilters;
 use App\Support\ScoutSectorCoachSignal;
@@ -271,7 +272,7 @@ class ScoutsTable
                                         title: 'Order Plan bijgewerkt',
                                         body: "{$count} scout(s) in je winkelwagen gezet.",
                                     );
-                                    $livewire->dispatch('order-plan-updated');
+                                    OrderPlanBroadcast::dispatch($livewire);
                                 } elseif ($skippedNoEntry > 0) {
                                     FilamentNotifier::send(
                                         title: 'Entry ontbreekt',

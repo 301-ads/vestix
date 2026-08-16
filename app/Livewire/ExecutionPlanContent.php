@@ -7,6 +7,7 @@ use App\Models\Position;
 use App\Models\User;
 use App\Services\SmartAllocationService;
 use App\Support\FilamentNotifier;
+use App\Support\OrderPlanBroadcast;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
@@ -88,7 +89,7 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
             body: "{$ticker} staat niet meer in je Order Plan.",
         );
 
-        $this->dispatch('order-plan-updated');
+        OrderPlanBroadcast::dispatch($this);
     }
 
     public function applyAllocation(): void
@@ -160,7 +161,7 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
             );
         }
 
-        $this->dispatch('order-plan-updated');
+        OrderPlanBroadcast::dispatch($this);
     }
 
     public function getDefaultActionRecord(Action $action): ?Model
@@ -313,7 +314,7 @@ class ExecutionPlanContent extends Component implements HasActions, HasSchemas
                 }
             })
             ->after(function (): void {
-                $this->dispatch('order-plan-updated');
+                OrderPlanBroadcast::dispatch($this);
             });
     }
 
