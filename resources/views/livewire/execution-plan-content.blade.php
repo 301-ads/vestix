@@ -56,7 +56,8 @@
 
             <div class="vestix-execution-plan__footer">
                 <p class="vestix-execution-plan__footer-summary">
-                    {{ $allocatedCount }} setup{{ $allocatedCount === 1 ? '' : 's' }}
+                    {{ $scouts->count() }} in winkelwagen
+                    · {{ $allocatedCount }} allocatie{{ $allocatedCount === 1 ? '' : 's' }}
                     · inleg ≈ ${{ number_format($totalInvestment, 2) }}
                     @if (($result['cash_capped'] ?? false))
                         · begrensd op deployable cash ${{ number_format($result['cash_available'] ?? 0, 2) }}
