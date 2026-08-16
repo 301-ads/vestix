@@ -142,7 +142,7 @@ class EditUserProfile extends EditProfile
                                             ->numeric()
                                             ->prefix('$')
                                             ->minValue(0)
-                                            ->helperText('Gelijk aan NLV in IBKR/TradingView. Wordt door Flex sync bijgewerkt.'),
+                                            ->helperText('Gelijk aan Net Liquidation in IBKR (cash + posities). Tel Available Funds er niet bij op — die cash zit al in NLV. Wordt door Flex sync bijgewerkt.'),
                                         TextInput::make('revolut_cash')
                                             ->label('Revolut cash')
                                             ->numeric()
@@ -493,9 +493,10 @@ class EditUserProfile extends EditProfile
             return;
         }
 
-        $equity = app(BankrollSnapshotService::class)->resolveAlphaEquity($user);
+        $snapshots = app(BankrollSnapshotService::class);
+        $equity = $snapshots->resolveAlphaEquity($user);
         $user->forceFill(['trading_bankroll' => $equity])->save();
-        app(BankrollSnapshotService::class)->recordSnapshot($user, $equity);
+        $snapshots->recordSnapshot($user, $equity, $snapshots->alphaTrackerSessionDate());
     }
 
     protected function alphaEquitySummary(): string

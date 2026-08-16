@@ -8,6 +8,7 @@ use App\Models\BankrollSnapshot;
 use App\Models\Position;
 use App\Models\User;
 use App\Services\Bankroll\ManualBankrollSource;
+use App\Support\UsMarketSession;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -20,6 +21,22 @@ class BankrollSnapshotService
     public function timezone(): string
     {
         return (string) config('vestix.bankroll_tracker.timezone', 'Europe/Amsterdam');
+    }
+
+    /**
+     * Alpha Tracker snapshot date: last completed US RTH session (bankroll timezone).
+     * Weekend / premarket saves must not invent a Sunday spike on the chart.
+     */
+    public function alphaTrackerSessionDate(?Carbon $now = null): Carbon
+    {
+        $session = UsMarketSession::expectedLastCompletedSessionDate(
+            ($now ?? now())->copy()->timezone('America/New_York'),
+        );
+
+        return $session
+            ->copy()
+            ->timezone($this->timezone())
+            ->startOfDay();
     }
 
     /**

@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Enums\AlertEventType;
 use App\Enums\Broker;
 use App\Filament\Pages\EditUserProfile;
+use App\Models\BankrollSnapshot;
 use App\Models\User;
 use App\Models\UserAlertPreference;
 use App\Services\BenchmarkCloseResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -145,6 +147,38 @@ class EditUserProfileTest extends TestCase
             'user_id' => $user->id,
             'amount' => 10130.70,
         ]);
+    }
+
+    public function test_profile_nlv_save_on_sunday_writes_friday_alpha_snapshot(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-16 20:00:00', 'Europe/Amsterdam'));
+
+        $this->mock(BenchmarkCloseResolver::class, function ($mock): void {
+            $mock->shouldReceive('benchmarkTicker')->andReturn('SPY');
+            $mock->shouldReceive('resolveTradingDayClose')->andReturn(776.34);
+        });
+
+        $user = User::factory()->create([
+            'primary_broker' => Broker::Ibkr,
+            'ibkr_net_liquidation' => 7993.10,
+            'trading_bankroll' => 7993.10,
+            'default_risk_percent' => 1,
+        ]);
+        $this->actingAs($user);
+
+        Livewire::test(EditUserProfile::class)
+            ->fillForm([
+                'ibkr_net_liquidation' => 7993.10,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $snapshot = BankrollSnapshot::query()->where('user_id', $user->id)->first();
+        $this->assertNotNull($snapshot);
+        $this->assertSame('2026-08-14', $snapshot->recorded_on->toDateString());
+        $this->assertEqualsWithDelta(7993.10, (float) $snapshot->amount, 0.01);
+
+        Carbon::setTestNow();
     }
 
     public function test_profile_saves_merged_alert_preferences(): void

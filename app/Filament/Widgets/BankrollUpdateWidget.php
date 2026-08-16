@@ -27,17 +27,25 @@ class BankrollUpdateWidget extends Widget
     public function mount(): void
     {
         $user = Auth::user();
-        $bankroll = $user?->trading_bankroll;
-
-        $this->bankrollAmount = $bankroll !== null
-            ? number_format((float) $bankroll, 2, '.', '')
-            : null;
 
         // Escape hatch only after a real sync went stale — not when Flex is
         // configured locally but has never succeeded (common local false positive).
         $this->ibkrStale = $user !== null
             && $user->ibkr_last_success_at !== null
             && app(IbkrSyncHealth::class)->isStale($user);
+
+        $prefill = null;
+
+        if ($user !== null) {
+            // Sizing uses min(AF, settled). Prefill that — never Alpha NLV / Revolut equity.
+            $prefill = $this->ibkrStale
+                ? ($user->ibkr_available_funds ?? $user->ibkr_settled_cash ?? $user->trading_bankroll)
+                : $user->trading_bankroll;
+        }
+
+        $this->bankrollAmount = $prefill !== null
+            ? number_format((float) $prefill, 2, '.', '')
+            : null;
     }
 
     public static function canView(): bool
@@ -82,11 +90,12 @@ class BankrollUpdateWidget extends Widget
 
         $amount = round((float) $validated['bankrollAmount'], 2);
         $wasStaleEscape = $this->ibkrStale;
+        $snapshots = app(BankrollSnapshotService::class);
 
         if ($wasStaleEscape) {
-            // Escape hatch: unblock Smart Sizing which zeros bankroll while Flex is stale.
+            // Unblock Order Plan sizing only. NLV already includes cash — do not
+            // copy AF into NLV or write an Alpha snapshot (that spiked YTD to 26%).
             $user->forceFill([
-                'ibkr_net_liquidation' => $amount,
                 'ibkr_available_funds' => $amount,
                 'ibkr_settled_cash' => $amount,
                 'ibkr_data_stale' => false,
@@ -96,9 +105,9 @@ class BankrollUpdateWidget extends Widget
 
             $user = $user->fresh() ?? $user;
             $this->ibkrStale = false;
+        } else {
+            $snapshots->recordSnapshot($user, $amount, $snapshots->alphaTrackerSessionDate());
         }
-
-        app(BankrollSnapshotService::class)->recordSnapshot($user, $amount);
 
         if ($wasStaleEscape) {
             $pie = app(SmartAllocationService::class)->resolveSizingBankroll($user->fresh() ?? $user);

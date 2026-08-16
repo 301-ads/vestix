@@ -3,7 +3,9 @@
 namespace Tests\Feature\Filament;
 
 use App\Filament\Widgets\BankrollUpdateWidget;
+use App\Models\BankrollSnapshot;
 use App\Models\User;
+use App\Services\SmartAllocationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -90,10 +92,11 @@ class BankrollUpdateWidgetIbkrTest extends TestCase
 
         $this->actingAs($user);
 
-        $this->assertSame(0.0, app(\App\Services\SmartAllocationService::class)->resolveSizingBankroll($user));
+        $this->assertSame(0.0, app(SmartAllocationService::class)->resolveSizingBankroll($user));
 
         Livewire::test(BankrollUpdateWidget::class)
             ->assertSet('ibkrStale', true)
+            ->assertSet('bankrollAmount', '10000.00')
             ->set('bankrollAmount', '12500.50')
             ->call('saveBankroll')
             ->assertHasNoErrors()
@@ -102,15 +105,17 @@ class BankrollUpdateWidgetIbkrTest extends TestCase
         $user->refresh();
 
         $this->assertFalse((bool) $user->ibkr_data_stale);
-        $this->assertEqualsWithDelta(12500.50, (float) $user->ibkr_net_liquidation, 0.01);
+        $this->assertEqualsWithDelta(10000.0, (float) $user->ibkr_net_liquidation, 0.01);
         $this->assertEqualsWithDelta(12500.50, (float) $user->ibkr_available_funds, 0.01);
         $this->assertEqualsWithDelta(12500.50, (float) $user->ibkr_settled_cash, 0.01);
+        $this->assertEqualsWithDelta(10000.0, (float) $user->trading_bankroll, 0.01);
         $this->assertFalse(app(\App\Services\Ibkr\IbkrSyncHealth::class)->blocksAutomatedExecution($user));
         $this->assertEqualsWithDelta(
             12500.50,
-            app(\App\Services\SmartAllocationService::class)->resolveSizingBankroll($user),
+            app(SmartAllocationService::class)->resolveSizingBankroll($user),
             0.01,
         );
+        $this->assertSame(0, BankrollSnapshot::query()->where('user_id', $user->id)->count());
 
         Carbon::setTestNow();
     }

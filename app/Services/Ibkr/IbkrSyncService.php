@@ -6,7 +6,6 @@ use App\Data\Ibkr\IbkrAccountSnapshot;
 use App\Enums\Broker;
 use App\Models\User;
 use App\Services\BankrollSnapshotService;
-use App\Support\UsMarketSession;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -108,7 +107,7 @@ class IbkrSyncService
                     $this->bankrollSnapshots->recordSnapshot(
                         $user,
                         $this->bankrollSnapshots->resolveAlphaEquity($user, $snapshot->netLiquidation),
-                        $this->alphaTrackerSessionDate(),
+                        $this->bankrollSnapshots->alphaTrackerSessionDate(),
                     );
 
                     // Warm SPY densify cache in console so Prestaties chart never blocks on live bars.
@@ -228,18 +227,4 @@ class IbkrSyncService
         $this->health->refreshStaleFlag($user->fresh() ?? $user, $attemptAt);
     }
 
-    /**
-     * Alpha Tracker snapshot date: last completed US RTH session (bankroll timezone).
-     */
-    private function alphaTrackerSessionDate(?Carbon $now = null): Carbon
-    {
-        $session = UsMarketSession::expectedLastCompletedSessionDate(
-            ($now ?? now())->copy()->timezone('America/New_York'),
-        );
-
-        return $session
-            ->copy()
-            ->timezone($this->bankrollSnapshots->timezone())
-            ->startOfDay();
-    }
 }

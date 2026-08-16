@@ -14,7 +14,8 @@
                     <p class="vestix-action-todo__instruction">
                         Flex sync is langer dan {{ (int) config('vestix.ibkr.stale_after_hours', 48) }} uur stil.
                         Automatische sizing/orders zijn geblokkeerd tot sync weer slaagt.
-                        Vul hieronder je actuele IBKR Net Liquidation in — dat deblokkeert Order Plan sizing meteen.
+                        Vul hieronder Available Funds (deployable) in — dat deblokkeert Order Plan.
+                        NLV/Alpha blijft ongemoeid: NLV bevat al je cash, tel AF daar niet bij op.
                     </p>
                 @else
                     <p class="vestix-action-todo__ticker">Bankroll bijwerken</p>
@@ -26,7 +27,7 @@
                 <form wire:submit="saveBankroll" class="mt-4 flex flex-wrap items-end gap-3">
                     <div class="min-w-[12rem] flex-1">
                         <label class="text-sm font-medium text-gray-950 dark:text-white" for="bankrollAmount">
-                            {{ $ibkrStale ? 'IBKR Net Liquidation (USD)' : 'Nieuw saldo' }}
+                            {{ $ibkrStale ? 'Available Funds (USD)' : 'Nieuw saldo' }}
                         </label>
                         <div class="mt-1 flex rounded-lg shadow-sm ring-1 ring-gray-950/10 dark:ring-white/20">
                             <span class="inline-flex items-center rounded-s-lg bg-gray-50 px-3 text-sm text-gray-500 dark:bg-white/5 dark:text-gray-400">$</span>

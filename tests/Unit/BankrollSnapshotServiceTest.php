@@ -206,4 +206,15 @@ class BankrollSnapshotServiceTest extends TestCase
             'amount' => 9289.74,
         ]);
     }
+
+    public function test_alpha_tracker_session_date_is_last_completed_us_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-16 20:00:00', 'Europe/Amsterdam'));
+
+        $date = app(BankrollSnapshotService::class)->alphaTrackerSessionDate();
+
+        $this->assertSame('2026-08-14', $date->toDateString());
+
+        Carbon::setTestNow();
+    }
 }
