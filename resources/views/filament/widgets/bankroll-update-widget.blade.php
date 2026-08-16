@@ -13,8 +13,8 @@
                     <p class="vestix-action-todo__ticker">IBKR data verouderd</p>
                     <p class="vestix-action-todo__instruction">
                         Flex sync is langer dan {{ (int) config('vestix.ibkr.stale_after_hours', 48) }} uur stil.
-                        Automatische sizing/orders zijn geblokkeerd tot <code>vestix:sync-ibkr</code> weer slaagt.
-                        Je kunt hieronder tijdelijk handmatig je NLV zetten als escape hatch.
+                        Automatische sizing/orders zijn geblokkeerd tot sync weer slaagt.
+                        Vul hieronder je actuele IBKR Net Liquidation in — dat deblokkeert Order Plan sizing meteen.
                     </p>
                 @else
                     <p class="vestix-action-todo__ticker">Bankroll bijwerken</p>
@@ -26,7 +26,7 @@
                 <form wire:submit="saveBankroll" class="mt-4 flex flex-wrap items-end gap-3">
                     <div class="min-w-[12rem] flex-1">
                         <label class="text-sm font-medium text-gray-950 dark:text-white" for="bankrollAmount">
-                            Nieuw saldo
+                            {{ $ibkrStale ? 'IBKR Net Liquidation (USD)' : 'Nieuw saldo' }}
                         </label>
                         <div class="mt-1 flex rounded-lg shadow-sm ring-1 ring-gray-950/10 dark:ring-white/20">
                             <span class="inline-flex items-center rounded-s-lg bg-gray-50 px-3 text-sm text-gray-500 dark:bg-white/5 dark:text-gray-400">$</span>
@@ -39,10 +39,14 @@
                                 class="block w-full rounded-e-lg border-0 bg-white px-3 py-2 text-sm text-gray-950 focus:ring-2 focus:ring-inset focus:ring-primary-600 dark:bg-gray-900 dark:text-white"
                             />
                         </div>
+                        @error('bankrollAmount')
+                            <p class="mt-1 text-sm text-danger-600 dark:text-danger-400">{{ $message }}</p>
+                        @enderror
                     </div>
 
-                    <x-filament::button type="submit" color="success" icon="heroicon-o-check">
-                        Opslaan
+                    <x-filament::button type="submit" color="success" icon="heroicon-o-check" wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="saveBankroll">Opslaan</span>
+                        <span wire:loading wire:target="saveBankroll">Bezig…</span>
                     </x-filament::button>
                 </form>
             </div>
