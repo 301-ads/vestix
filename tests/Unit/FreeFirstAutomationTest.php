@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Enums\Broker;
+use App\Enums\BrokerOrderStatus;
 use App\Enums\ExecutionTruthState;
 use App\Enums\GapHerplanAction;
 use App\Models\Position;
@@ -139,8 +140,12 @@ class FreeFirstAutomationTest extends TestCase
         $clone = $source->cloneForUser($cloner, addToOrderPlan: true);
 
         $this->assertSame($cloner->id, $clone->user_id);
-        $this->assertSame('pending', $clone->broker_order_status->value);
-        $this->assertSame(ExecutionTruthState::Planned, $clone->execution_truth_state);
+        $this->assertNotNull($clone->fresh()->market_open_reminder_on);
+        $this->assertSame(BrokerOrderStatus::Scout, $clone->fresh()->broker_order_status);
+        $this->assertSame(ExecutionTruthState::Planned, $clone->fresh()->execution_truth_state);
+        $this->assertTrue(
+            Position::orderPlanForUser((int) $cloner->id)->contains('id', $clone->id),
+        );
     }
 
     public function test_protocol_score_persists_on_archive(): void

@@ -510,4 +510,64 @@ class SmartBudgetAllocationTest extends TestCase
         $this->assertNotNull($scout->fresh()->market_open_reminder_on);
         $this->assertSame(1, Position::orderPlanForUser((int) $user->id)->count());
     }
+
+    public function test_bulk_add_to_order_plan_schedules_reminder_not_broker_submit(): void
+    {
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'CART',
+            'entry_price' => 55.00,
+            'latest_close_price' => 54.00,
+            'latest_sma_20' => 52.00,
+            'latest_atr_14' => 1.20,
+            'broker_order_status' => BrokerOrderStatus::Scout,
+            'market_open_reminder_on' => null,
+            'broker_submitted_at' => null,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->callTableBulkAction('add_to_order_plan', [$scout]);
+
+        $scout->refresh();
+
+        $this->assertNotNull($scout->market_open_reminder_on);
+        $this->assertSame(BrokerOrderStatus::Scout, $scout->broker_order_status);
+        $this->assertNull($scout->broker_submitted_at);
+        $this->assertSame(1, Position::orderPlanForUser((int) $user->id)->count());
+        $this->assertSame(0, Position::activeOrderPlanForUser((int) $user->id)->count());
+    }
+
+    public function test_weekend_toggle_keeps_scout_visible_in_order_plan_cart(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow(
+            \Illuminate\Support\Carbon::parse('2026-08-16 10:00:00', 'Europe/Amsterdam'),
+        );
+
+        $user = $this->authenticateFilament();
+
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'WKND',
+            'entry_price' => 33.00,
+            'latest_close_price' => 32.50,
+            'latest_sma_20' => 31.00,
+            'latest_atr_14' => 0.80,
+            'market_open_reminder_on' => null,
+        ]);
+
+        Livewire::test(ListScouts::class)
+            ->callTableAction('toggle_market_open_reminder', $scout);
+
+        $scout->refresh();
+
+        // Zondag → reminder op maandag, maar winkelwagen toont alle geplande scouts.
+        $this->assertSame('2026-08-17', $scout->market_open_reminder_on?->toDateString());
+        $this->assertSame(1, Position::orderPlanForUser((int) $user->id)->count());
+
+        Livewire::test(ExecutionPlanContent::class)
+            ->assertDontSee('Nog geen setups in je Order Plan')
+            ->assertSee('WKND');
+
+        \Illuminate\Support\Carbon::setTestNow();
+    }
 }
