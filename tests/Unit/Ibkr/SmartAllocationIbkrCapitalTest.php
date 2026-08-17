@@ -29,6 +29,11 @@ class SmartAllocationIbkrCapitalTest extends TestCase
         $bankroll = app(SmartAllocationService::class)->resolveSizingBankroll($user);
 
         $this->assertEqualsWithDelta(3800.0, $bankroll, 0.01);
+        $this->assertEqualsWithDelta(
+            5000.0,
+            app(SmartAllocationService::class)->resolveRiskBankroll($user),
+            0.01,
+        );
     }
 
     public function test_sizing_returns_zero_when_ibkr_data_is_stale(): void
@@ -42,6 +47,7 @@ class SmartAllocationIbkrCapitalTest extends TestCase
         ]);
 
         $this->assertSame(0.0, app(SmartAllocationService::class)->resolveSizingBankroll($user));
+        $this->assertSame(0.0, app(SmartAllocationService::class)->resolveRiskBankroll($user));
     }
 
     public function test_stub_reader_exposes_settled_cash_and_open_orders(): void

@@ -132,7 +132,7 @@ class EditUserProfile extends EditProfile
                             ->schema([
                                 Section::make('Position sizing')
                                     ->compact()
-                                    ->description('Alpha = IBKR NLV + Revolut (open MTM + cash). Order Plan gebruikt min(AF, Settled/Cash).')
+                                    ->description('Alpha = IBKR NLV + Revolut (open MTM + cash). Risicopie op Available Funds; inleg begrensd op min(AF, Settled/Cash).')
                                     ->schema([
                                         Placeholder::make('ibkr_sync_status')
                                             ->label('IBKR sync')
@@ -157,7 +157,7 @@ class EditUserProfile extends EditProfile
                                             ->numeric()
                                             ->prefix('$')
                                             ->minValue(0)
-                                            ->helperText('Voor Order Plan / Smart Sizing. Activity Flex levert dit veld vaak niet (alleen Cash) — sync overschrijft je AF dan niet. Order Plan gebruikt min(Available Funds, Settled/Cash).')
+                                            ->helperText('Risicopie voor Order Plan / Smart Sizing. Activity Flex levert dit veld vaak niet (alleen Cash) — sync overschrijft je AF dan niet. Inleg wordt begrensd op min(Available Funds, Settled/Cash).')
                                             ->visible(fn (): bool => $this->getUser()->ibkr_last_success_at !== null
                                                 || (string) config('vestix.ibkr.reader', 'stub') === 'flex'
                                                 || $this->getUser()->primary_broker === Broker::Ibkr),
@@ -850,21 +850,23 @@ class EditUserProfile extends EditProfile
 
         $settledLabel = $settled !== null ? '$'.number_format($settled, 2) : '—';
         $availableLabel = $available !== null ? '$'.number_format($available, 2) : '—';
-        $deployable = null;
+        $riskBase = $available ?? $settled;
+        $inlegMax = null;
 
         if ($settled !== null && $available !== null) {
-            $deployable = min($settled, $available);
+            $inlegMax = min($settled, $available);
         } elseif ($settled !== null) {
-            $deployable = $settled;
+            $inlegMax = $settled;
         } else {
-            $deployable = $available;
+            $inlegMax = $available;
         }
 
         return sprintf(
-            'Settled/Cash %s · Available Funds %s → Order Plan gebruikt $%s',
+            'Settled/Cash %s · Available Funds %s → risicopie op $%s, inleg max $%s',
             $settledLabel,
             $availableLabel,
-            number_format((float) $deployable, 2),
+            number_format((float) $riskBase, 2),
+            number_format((float) $inlegMax, 2),
         );
     }
 }

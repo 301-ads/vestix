@@ -47,6 +47,7 @@
         <p class="vestix-smart-allocation__intro">
             IBKR risicopie long:
             <strong>{{ number_format($pieBreakdown['long']['percent'], 2) }}%</strong>
+            van ${{ number_format($result['bankroll'], 2) }}
             = <strong>${{ number_format($pieBreakdown['long']['total'], 2) }}</strong>
             @if ($pieBreakdown['long']['committed'] > 0)
                 · al actief long: <strong>${{ number_format($pieBreakdown['long']['committed'], 2) }}</strong>
@@ -56,6 +57,7 @@
         <p class="vestix-smart-allocation__intro">
             IBKR risicopie short:
             <strong>{{ number_format($pieBreakdown['short']['percent'], 2) }}%</strong>
+            van ${{ number_format($result['bankroll'], 2) }}
             = <strong>${{ number_format($pieBreakdown['short']['total'], 2) }}</strong>
             @if ($pieBreakdown['short']['committed'] > 0)
                 · al actief short: <strong>${{ number_format($pieBreakdown['short']['committed'], 2) }}</strong>
@@ -122,7 +124,7 @@
                         <th>Risico $</th>
                         <th
                             x-data
-                            x-tooltip="{ content: 'Risico als percentage van je IBKR deployable cash (min Available Funds / Settled).', theme: $store.theme, trigger: 'mouseenter' }"
+                            x-tooltip="{ content: 'Risico als percentage van Available Funds (Order Plan-bankroll). Inleg wordt begrensd op min(AF, Settled).', theme: $store.theme, trigger: 'mouseenter' }"
                         >
                             Risico %
                         </th>

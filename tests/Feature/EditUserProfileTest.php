@@ -252,6 +252,7 @@ class EditUserProfileTest extends TestCase
             ->assertOk()
             ->assertSee('IBKR sync')
             ->assertSee('Synced')
-            ->assertSee('deployable');
+            ->assertSee('deployable')
+            ->assertSee('risicopie op');
     }
 }

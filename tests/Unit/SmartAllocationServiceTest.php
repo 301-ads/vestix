@@ -419,6 +419,40 @@ class SmartAllocationServiceTest extends TestCase
 
         // Profile NLV is already IBKR-only; Revolut opens must not shrink the pie again.
         $this->assertEqualsWithDelta(10000.0, $this->service->resolveSizingBankroll($user->fresh()), 0.01);
+        $this->assertEqualsWithDelta(10000.0, $this->service->resolveRiskBankroll($user->fresh()), 0.01);
+    }
+
+    public function test_risk_pie_uses_available_funds_while_inleg_is_capped_by_settled_cash(): void
+    {
+        $user = User::factory()->create([
+            'trading_bankroll' => 7993.10,
+            'ibkr_net_liquidation' => 7993.10,
+            'ibkr_available_funds' => 6037.34,
+            'ibkr_settled_cash' => 2689.79,
+            'ibkr_last_success_at' => now(),
+            'ibkr_data_stale' => false,
+            'default_risk_percent' => 1.5,
+            'is_short_enabled' => false,
+        ]);
+
+        $this->assertEqualsWithDelta(6037.34, $this->service->resolveRiskBankroll($user), 0.01);
+        $this->assertEqualsWithDelta(2689.79, $this->service->resolveSizingBankroll($user), 0.01);
+
+        $ben = $this->pricedScout($user, ticker: 'BEN', score: 9, sector: 'XLF', entry: 34.07, signalLow: 33.36, atr: 0.40);
+        $arwr = $this->pricedScout($user, ticker: 'ARWR', score: 9, sector: 'XLV', entry: 87.55, signalLow: 83.40, atr: 2.00);
+        $bmnr = $this->pricedScout($user, ticker: 'BMNR', score: 7, sector: 'XLK', entry: 18.34, signalLow: 17.29, atr: 0.60);
+
+        $result = $this->service->allocate($user, [$ben, $arwr, $bmnr], SmartAllocationService::MODE_SMART);
+
+        $this->assertEqualsWithDelta(6037.34, $result['bankroll'], 0.01);
+        $this->assertEqualsWithDelta(90.56, $result['pie_total'], 0.02);
+        $this->assertEqualsWithDelta(2689.79, $result['cash_available'], 0.01);
+        $this->assertGreaterThan(40.35, $result['pie']);
+        $this->assertNotEmpty($result['allocations']);
+
+        $totalInvestment = array_sum(array_column($result['allocations'], 'investment'));
+        $this->assertLessThanOrEqual(2689.80, $totalInvestment);
+        $this->assertGreaterThan(1127.45, $totalInvestment);
     }
 
     public function test_total_investment_is_capped_by_deployable_cash(): void

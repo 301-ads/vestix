@@ -23,8 +23,27 @@ class SmartAllocationService
     ) {}
 
     /**
-     * Deployable IBKR capital for sizing: min(Available Funds, Settled Cash).
-     * Falls back to NLV when settled/AF are unavailable (manual/stub mode).
+     * Risk-pie bankroll: Available Funds (Order Plan capital).
+     * Falls back to deployable cash, then NLV. 0 when IBKR data is stale.
+     */
+    public function resolveRiskBankroll(User $user): float
+    {
+        if ($this->ibkrSyncHealth->blocksAutomatedExecution($user)) {
+            return 0.0;
+        }
+
+        $available = $this->ibkrAccountReader->availableFunds($user);
+
+        if ($available > 0) {
+            return round($available, 2);
+        }
+
+        return $this->resolveSizingBankroll($user);
+    }
+
+    /**
+     * Deployable cash cap: min(Available Funds, Settled Cash).
+     * Never spend unsettled proceeds. Falls back to NLV when both are missing.
      * Returns 0 when IBKR data is stale and automation blocking is enabled.
      */
     public function resolveSizingBankroll(User $user): float
@@ -86,7 +105,8 @@ class SmartAllocationService
     public function allocate(User $user, iterable $positions, string $mode = self::MODE_SMART): array
     {
         $mode = $mode === self::MODE_EQUAL ? self::MODE_EQUAL : self::MODE_SMART;
-        $bankroll = $this->resolveSizingBankroll($user);
+        $bankroll = $this->resolveRiskBankroll($user);
+        $deployable = $this->resolveSizingBankroll($user);
         $longPie = $this->resolvePieBucket($user, $bankroll, TradeDirection::Long);
         $shortPie = $this->resolvePieBucket($user, $bankroll, TradeDirection::Short);
         $includeShortPie = $user->canUseShort();
@@ -326,7 +346,7 @@ class SmartAllocationService
 
         usort($allocations, fn (array $a, array $b): int => $b['weight'] <=> $a['weight']);
 
-        $cashCap = max(0.0, round($bankroll - $this->committedActiveInvestment($user), 2));
+        $cashCap = max(0.0, round($deployable - $this->committedActiveInvestment($user), 2));
         $beforeCashCap = array_sum(array_column($allocations, 'investment'));
         $allocations = $this->capAllocationsByDeployableCash(
             $allocations,
