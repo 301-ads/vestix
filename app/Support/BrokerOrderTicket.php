@@ -99,6 +99,62 @@ class BrokerOrderTicket
      *     submit_label: string,
      * }
      */
+    public static function forTarget1Raise(Position $position): array
+    {
+        $current = (float) ($position->storedTarget1LimitPrice() ?? $position->target_1_price ?? 0);
+        $pending = (float) ($position->pendingTarget1LimitPrice() ?? 0);
+        $difference = $pending - $current;
+        $isShort = $position->isShort();
+        $verb = $difference >= 0 ? 'Verhoog' : 'Verlaag';
+
+        return [
+            'title' => "{$position->ticker} — Target 1 aanpassen",
+            'intro' => $isShort
+                ? 'Fill lag onder je sell-stop. Neem de nieuwe Take Profit 1-op-1 over in je broker.'
+                : 'Fill lag boven je buy-stop. Neem de nieuwe Take Profit 1-op-1 over in je broker.',
+            'rows' => [
+                [
+                    'label' => 'Fill (entry)',
+                    'value' => self::formatMoney((float) ($position->entry_price ?? 0)),
+                ],
+                [
+                    'label' => 'Huidige Target 1',
+                    'value' => self::formatMoney($current),
+                    'tone' => 'old',
+                ],
+                [
+                    'label' => 'Nieuwe Target 1',
+                    'value' => self::formatMoney($pending),
+                    'copy_value' => self::formatCopyMoney($pending),
+                    'tone' => 'new',
+                    'accent' => true,
+                ],
+                [
+                    'label' => 'Verschil',
+                    'value' => sprintf('%s%s', $difference >= 0 ? '+' : '', self::formatMoney($difference)),
+                    'accent' => true,
+                ],
+            ],
+            'difference_label' => 'R/R 1:2 t.o.v. je fill',
+            'confirmation' => sprintf(
+                'Heb je de Take Profit in je broker gewijzigd van %s naar %s?',
+                self::formatMoney($current),
+                self::formatMoney($pending),
+            ),
+            'submit_label' => $verb.' Target 1',
+        ];
+    }
+
+    /**
+     * @return array{
+     *     title: string,
+     *     intro: string|null,
+     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>,
+     *     difference_label: string|null,
+     *     confirmation: string,
+     *     submit_label: string,
+     * }
+     */
     public static function forLimitSell(Position $position): array
     {
         if ($position->userUsesRevolutWorkflow()) {
@@ -162,15 +218,7 @@ class BrokerOrderTicket
         $entry = $position->advisedEntryStop() ?? (float) ($position->entry_price ?? 0);
         $limitPrice = StopLimitBuffer::limitPriceForDirection($entry, $position->tradeDirection());
         $stopLoss = (float) ($position->new_sl ?? 0);
-        $riskPerShare = PositionSizing::riskPerShare($entry, $stopLoss, $position->tradeDirection());
-        $target1 = $riskPerShare !== null
-            ? (float) PositionSizing::targetPrice(
-                $entry,
-                $riskPerShare,
-                $position->effective_target_1_rr,
-                $position->tradeDirection(),
-            )
-            : (float) ($position->plannedBracketTarget1Price() ?? 0);
+        $target1 = (float) ($position->copiedBracketTarget1Price() ?? 0);
         $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
         $tpQty = (float) ($position->target_1_quantity ?? 0);
         $tpHintPercent = $quantity > 0 ? (int) round(($tpQty / $quantity) * 100) : $fractionPercent;

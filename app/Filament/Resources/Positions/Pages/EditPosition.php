@@ -216,6 +216,8 @@ class EditPosition extends EditRecord
         unset($data['asset_earnings_date_override'], $data['asset_earnings_hour_override']);
 
         if (($this->getRecord()->status ?? null) === 'scout') {
+            unset($data['target_1_limit_price']);
+
             $direction = TradeDirection::tryFrom((string) ($data['direction'] ?? $this->getRecord()->direction?->value ?? ''))
                 ?? TradeDirection::Long;
 
@@ -265,6 +267,17 @@ class EditPosition extends EditRecord
             } else {
                 $data['visibility'] = PositionVisibility::Private->value;
                 $data['squad_id'] = null;
+            }
+        }
+
+        if (($this->getRecord()->status ?? null) === 'open') {
+            $pending = $this->getRecord()->pendingTarget1LimitPrice();
+            $limit = isset($data['target_1_limit_price']) && $data['target_1_limit_price'] !== '' && $data['target_1_limit_price'] !== null
+                ? (float) $data['target_1_limit_price']
+                : null;
+
+            if ($pending !== null && $limit !== null && abs($limit - $pending) < 0.005) {
+                $data['target_1_pending_limit_price'] = null;
             }
         }
 

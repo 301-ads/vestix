@@ -89,7 +89,8 @@ class PositionBrokerWorkflowTest extends TestCase
         $this->assertSame('open', $scout->status);
         $this->assertSame(Broker::Ibkr, $scout->broker);
         $this->assertNotNull($scout->initial_sl_placed_at);
-        $this->assertNull($scout->primaryActionType());
+        $this->assertSame(Position::PRIMARY_ACTION_RAISE_TARGET_1, $scout->primaryActionType());
+        $this->assertTrue($scout->hasPendingTarget1Raise());
     }
 
     public function test_manual_bankroll_source_returns_configured_amount(): void

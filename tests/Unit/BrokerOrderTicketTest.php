@@ -262,6 +262,45 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertSame('Order geplaatst', $ticket['submit_label']);
     }
 
+    public function test_ibkr_bracket_ticket_keeps_frozen_target_1_when_entry_drifts(): void
+    {
+        $position = Position::factory()->scout()->make([
+            'ticker' => 'EC',
+            'entry_price' => 16.58,
+            'quantity' => 92,
+            'latest_close_price' => 16.40,
+            'latest_sma_20' => 16.20,
+            'latest_atr_14' => 0.42,
+            'target_1_rr' => 2.0,
+            'target_1_limit_price' => 17.70,
+        ]);
+
+        $ticket = BrokerOrderTicket::forIbkrBracket($position);
+
+        $this->assertSame('$17.70', $ticket['rows'][5]['value']);
+        $this->assertSame('17.70', $ticket['rows'][5]['copy_value']);
+    }
+
+    public function test_target_1_raise_ticket_copies_new_limit(): void
+    {
+        $position = Position::factory()->make([
+            'ticker' => 'EC',
+            'entry_price' => 16.58,
+            'quantity' => 92,
+            'target_1_limit_price' => 17.70,
+            'target_1_pending_limit_price' => 17.76,
+        ]);
+
+        $ticket = BrokerOrderTicket::forTarget1Raise($position);
+
+        $this->assertSame('EC — Target 1 aanpassen', $ticket['title']);
+        $this->assertSame('$17.70', $ticket['rows'][1]['value']);
+        $this->assertSame('$17.76', $ticket['rows'][2]['value']);
+        $this->assertSame('17.76', $ticket['rows'][2]['copy_value']);
+        $this->assertSame('Verhoog Target 1', $ticket['submit_label']);
+        $this->assertStringContainsString('$17.76', $ticket['confirmation']);
+    }
+
     public function test_ibkr_bracket_ticket_blade_renders_copy_buttons(): void
     {
         $position = Position::factory()->scout()->make([

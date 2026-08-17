@@ -165,6 +165,15 @@ class ScaleOutDisplay
             }
         }
 
+        if ($position->hasPendingTarget1Raise()) {
+            $pending = (float) $position->pendingTarget1LimitPrice();
+            $current = (float) ($position->storedTarget1LimitPrice() ?? $position->target_1_price ?? 0);
+            $verb = $pending >= $current ? 'Verhoog' : 'Verlaag';
+            $details[] = '<span class="font-medium text-warning-600 dark:text-warning-400">'.$verb
+                .' Target 1 naar $'.number_format($pending, 2)
+                .' — fill wijkt af van je order-stop. Pas de broker-limit aan.</span>';
+        }
+
         foreach ($details as $detail) {
             $body .= '<p class="text-gray-600 dark:text-gray-300">'.$detail.'</p>';
         }

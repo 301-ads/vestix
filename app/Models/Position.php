@@ -100,6 +100,8 @@ class Position extends Model
             'scaled_out_at' => 'datetime',
             'realized_pnl' => 'decimal:2',
             'target_1_rr' => 'decimal:4',
+            'target_1_limit_price' => 'decimal:2',
+            'target_1_pending_limit_price' => 'decimal:2',
             'first_tranche_fraction' => 'decimal:4',
             'target_1_limit_placed_at' => 'datetime',
             'initial_sl' => 'decimal:2',
@@ -217,6 +219,8 @@ class Position extends Model
                 'scaled_out_at',
                 'realized_pnl',
                 'target_1_rr',
+                'target_1_limit_price',
+                'target_1_pending_limit_price',
                 'first_tranche_fraction',
                 'target_1_limit_placed_at',
                 'initial_sl_placed_at',
@@ -676,6 +680,8 @@ class Position extends Model
             'closed_at',
             'exit_chart_screenshot_path',
             'broker_submitted_at',
+            'target_1_limit_price',
+            'target_1_pending_limit_price',
             'execution_truth_state',
             'protocol_score',
             'protocol_score_details',
@@ -720,6 +726,7 @@ class Position extends Model
             'broker_order_status' => BrokerOrderStatus::Pending,
             'market_open_reminder_on' => null,
             'order_plan_excluded_on' => null,
+            'target_1_limit_price' => $this->storedTarget1LimitPrice() ?? $this->liveCopiedBracketTarget1Price(),
         ]);
     }
 
@@ -981,6 +988,19 @@ class Position extends Model
             throw new InvalidArgumentException('Marktdata ontbreekt — kan geen stop-loss berekenen.');
         }
 
+        $direction = $this->tradeDirection();
+        $copiedTarget1 = $this->storedTarget1LimitPrice() ?? $this->liveCopiedBracketTarget1Price();
+        $resolvedRr = $target1Rr
+            ?? ($this->target_1_rr !== null ? (float) $this->target_1_rr : self::defaultTarget1Rr());
+        $riskPerShare = PositionSizing::riskPerShare($entryPrice, $sl, $direction);
+        $pendingT1 = $copiedTarget1 !== null
+            ? $this->target1RaisePriceForFill($entryPrice, $sl, $resolvedRr)
+            : null;
+
+        if ($copiedTarget1 === null && $riskPerShare !== null) {
+            $copiedTarget1 = PositionSizing::targetPrice($entryPrice, $riskPerShare, $resolvedRr, $direction);
+        }
+
         $this->loadMissing('user');
 
         $broker = $this->user?->primary_broker?->value ?? $this->broker?->value ?? Broker::Revolut->value;
@@ -997,7 +1017,9 @@ class Position extends Model
             'current_sl' => $sl,
             'initial_sl' => $sl,
             'broker' => $broker,
-            'target_1_rr' => $target1Rr ?? self::defaultTarget1Rr(),
+            'target_1_rr' => $resolvedRr,
+            'target_1_limit_price' => $copiedTarget1,
+            'target_1_pending_limit_price' => $pendingT1,
             'first_tranche_fraction' => $firstTrancheFraction ?? self::defaultFirstTrancheFraction(),
             'premarket_price' => null,
             'premarket_scan_type' => null,
@@ -1254,7 +1276,153 @@ class Position extends Model
             : self::defaultFirstTrancheFraction();
     }
 
-    public function getTarget1PriceAttribute(): ?float
+    public function storedTarget1LimitPrice(): ?float
+    {
+        $value = $this->attributes['target_1_limit_price'] ?? null;
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return round((float) $value, 2);
+    }
+
+    public function pendingTarget1LimitPrice(): ?float
+    {
+        $value = $this->attributes['target_1_pending_limit_price'] ?? null;
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return round((float) $value, 2);
+    }
+
+    public function hasPendingTarget1Raise(): bool
+    {
+        $pending = $this->pendingTarget1LimitPrice();
+        $current = $this->storedTarget1LimitPrice();
+
+        if ($pending === null) {
+            return false;
+        }
+
+        if ($current === null) {
+            return true;
+        }
+
+        return abs($pending - $current) >= 0.01;
+    }
+
+    public function applyPendingTarget1Raise(): void
+    {
+        $pending = $this->pendingTarget1LimitPrice();
+
+        if ($pending === null) {
+            return;
+        }
+
+        $this->update([
+            'target_1_limit_price' => $pending,
+            'target_1_pending_limit_price' => null,
+        ]);
+    }
+
+    public function fillIsAdverseVersusPlan(float $plannedEntry, float $fill, float $epsilon = 0.01): bool
+    {
+        if ($this->isShort()) {
+            return round($plannedEntry - $fill, 2) >= $epsilon;
+        }
+
+        return round($fill - $plannedEntry, 2) >= $epsilon;
+    }
+
+    /**
+     * 1:R Target 1 required when fill is worse than the planned stop. Null if no broker raise is needed.
+     */
+    public function target1RaisePriceForFill(float $fill, ?float $stopLoss = null, ?float $rr = null): ?float
+    {
+        if ($fill <= 0) {
+            return null;
+        }
+
+        $plannedEntry = $this->advisedEntryStop()
+            ?? ($this->entry_price !== null ? (float) $this->entry_price : null);
+
+        if ($plannedEntry === null || ! $this->fillIsAdverseVersusPlan($plannedEntry, $fill)) {
+            return null;
+        }
+
+        $stopLoss ??= $this->status === 'scout'
+            ? ($this->new_sl !== null ? (float) $this->new_sl : null)
+            : ($this->initial_sl !== null ? (float) $this->initial_sl : ($this->current_sl !== null ? (float) $this->current_sl : null));
+        $rr ??= $this->effective_target_1_rr;
+
+        if ($stopLoss === null) {
+            return null;
+        }
+
+        $riskPerShare = PositionSizing::riskPerShare($fill, $stopLoss, $this->tradeDirection());
+
+        if ($riskPerShare === null) {
+            return null;
+        }
+
+        $newT1 = PositionSizing::targetPrice($fill, $riskPerShare, $rr, $this->tradeDirection());
+        $currentT1 = $this->copiedBracketTarget1Price();
+
+        if ($currentT1 === null) {
+            return $newT1;
+        }
+
+        if (abs($newT1 - $currentT1) < 0.01) {
+            return null;
+        }
+
+        if ($this->isShort()) {
+            return $newT1 < $currentT1 ? $newT1 : null;
+        }
+
+        return $newT1 > $currentT1 ? $newT1 : null;
+    }
+
+    /**
+     * Target 1 the trader copies to the broker: frozen limit if set, otherwise the live bracket plan.
+     */
+    public function copiedBracketTarget1Price(): ?float
+    {
+        return $this->storedTarget1LimitPrice() ?? $this->liveCopiedBracketTarget1Price();
+    }
+
+    /**
+     * Live 1:R Target 1 from the bracket ticket (advised entry + structure/new SL).
+     * Must be called while the row is still a scout — open `new_sl` is the trailing stop.
+     */
+    public function liveCopiedBracketTarget1Price(): ?float
+    {
+        $entry = $this->advisedEntryStop()
+            ?? ($this->entry_price !== null ? (float) $this->entry_price : null);
+        $stopLoss = $this->new_sl !== null ? (float) $this->new_sl : null;
+
+        if ($entry === null || $entry <= 0 || $stopLoss === null) {
+            return $this->computedTarget1PriceFromRisk();
+        }
+
+        $riskPerShare = PositionSizing::riskPerShare($entry, $stopLoss, $this->tradeDirection());
+
+        if ($riskPerShare === null) {
+            return $this->computedTarget1PriceFromRisk();
+        }
+
+        return PositionSizing::targetPrice(
+            $entry,
+            $riskPerShare,
+            $this->effective_target_1_rr,
+            $this->tradeDirection(),
+        );
+    }
+
+    public function computedTarget1PriceFromRisk(): ?float
     {
         if ($this->entry_price === null) {
             return null;
@@ -1284,13 +1452,26 @@ class Position extends Model
         );
     }
 
+    public function getTarget1PriceAttribute(): ?float
+    {
+        return $this->storedTarget1LimitPrice() ?? $this->computedTarget1PriceFromRisk();
+    }
+
     /**
      * Target 1 for scout bracket orders — uses computed new_sl when initial_sl is not set yet.
      */
     public function plannedBracketTarget1Price(): ?float
     {
-        if ($this->target_1_price !== null) {
-            return $this->target_1_price;
+        $stored = $this->storedTarget1LimitPrice();
+
+        if ($stored !== null) {
+            return $stored;
+        }
+
+        $computed = $this->computedTarget1PriceFromRisk();
+
+        if ($computed !== null) {
+            return $computed;
         }
 
         if ($this->entry_price === null || $this->new_sl === null) {
@@ -1720,6 +1901,8 @@ class Position extends Model
 
     public const PRIMARY_ACTION_PLACE_INITIAL_SL = 'PLACE_INITIAL_SL';
 
+    public const PRIMARY_ACTION_RAISE_TARGET_1 = 'RAISE_TARGET_1';
+
     /**
      * Resolve the single most important action for a position.
      *
@@ -1728,7 +1911,8 @@ class Position extends Model
      * 2. Stopped out   -> liquidate (mutually exclusive with Target 1)
      * 3. Earnings      -> exit before earnings
      * 4. Initial SL    -> place stop-loss at broker after activation
-     * 5. SL can raise  -> update stop-loss
+     * 5. Raise T1      -> fill worse than buy-stop; lift the broker take-profit
+     * 6. SL can raise  -> update stop-loss
      */
     public function primaryActionType(?Carbon $today = null): ?string
     {
@@ -1752,6 +1936,10 @@ class Position extends Model
 
         if (! $this->hasInitialSlPlaced() && ! $this->suppressesInitialSlTodo()) {
             return self::PRIMARY_ACTION_PLACE_INITIAL_SL;
+        }
+
+        if ($this->hasPendingTarget1Raise()) {
+            return self::PRIMARY_ACTION_RAISE_TARGET_1;
         }
 
         if ($this->action_command === 'UPDATE'

@@ -2,7 +2,9 @@
 
 namespace Tests\Unit;
 
+use App\Alerts\AlertDispatcher;
 use App\Enums\AlertEventType;
+use App\Enums\Broker;
 use App\Jobs\CheckPositionAlertTriggersJob;
 use App\Jobs\SendAlertJob;
 use App\Models\Position;
@@ -27,6 +29,92 @@ class ScaleOutTest extends TestCase
         ]);
 
         $this->assertEquals(50.74, $position->target_1_price);
+    }
+
+    public function test_stored_target_1_limit_does_not_move_when_entry_fill_changes(): void
+    {
+        $position = Position::factory()->make([
+            'entry_price' => 16.58,
+            'initial_sl' => 15.99,
+            'current_sl' => 16.32,
+            'target_1_rr' => 2.0,
+            'target_1_limit_price' => 17.70,
+        ]);
+
+        $this->assertEquals(17.70, $position->target_1_price);
+        $this->assertEquals(17.76, $position->computedTarget1PriceFromRisk());
+    }
+
+    public function test_activating_scout_freezes_copied_target_1_when_fill_differs_from_buy_stop(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 16.56,
+            'quantity' => 92,
+            'latest_close_price' => 16.40,
+            'latest_sma_20' => 16.20,
+            'latest_atr_14' => 0.42,
+            'target_1_rr' => 2.0,
+        ]);
+
+        $this->assertEquals(15.99, $scout->new_sl);
+        $this->assertEquals(17.70, $scout->plannedBracketTarget1Price());
+
+        $scout->activateAsPosition(16.58, 92);
+        $open = $scout->fresh();
+
+        $this->assertSame('open', $open->status);
+        $this->assertEquals(16.58, (float) $open->entry_price);
+        $this->assertEquals(15.99, (float) $open->initial_sl);
+        $this->assertEquals(17.70, $open->target_1_price);
+        $this->assertEquals(17.70, (float) $open->target_1_limit_price);
+        $this->assertEquals(17.76, $open->computedTarget1PriceFromRisk());
+        $this->assertEquals(17.76, $open->pendingTarget1LimitPrice());
+        $this->assertTrue($open->hasPendingTarget1Raise());
+
+        $open->markInitialSlPlaced();
+        $this->assertSame(Position::PRIMARY_ACTION_RAISE_TARGET_1, $open->fresh()->primaryActionType());
+
+        $open->applyPendingTarget1Raise();
+        $raised = $open->fresh();
+        $this->assertEquals(17.76, $raised->target_1_price);
+        $this->assertNull($raised->pendingTarget1LimitPrice());
+        $this->assertFalse($raised->hasPendingTarget1Raise());
+    }
+
+    public function test_activating_with_better_fill_does_not_queue_target_1_raise(): void
+    {
+        $scout = Position::factory()->scout()->create([
+            'entry_price' => 16.56,
+            'quantity' => 92,
+            'latest_sma_20' => 16.20,
+            'latest_atr_14' => 0.42,
+            'target_1_rr' => 2.0,
+        ]);
+
+        $scout->activateAsPosition(16.54, 92);
+        $open = $scout->fresh();
+
+        $this->assertEquals(17.70, $open->target_1_price);
+        $this->assertNull($open->pendingTarget1LimitPrice());
+        $this->assertFalse($open->hasPendingTarget1Raise());
+    }
+
+    public function test_marking_bracket_placed_freezes_target_1_against_later_entry_drift(): void
+    {
+        $scout = Position::factory()->scout()->create([
+            'entry_price' => 16.56,
+            'quantity' => 92,
+            'latest_sma_20' => 16.20,
+            'latest_atr_14' => 0.42,
+            'target_1_rr' => 2.0,
+        ]);
+
+        $scout->markSubmittedAtBroker();
+        $scout->update(['entry_price' => 16.58]);
+
+        $this->assertEquals(17.70, $scout->fresh()->target_1_price);
+        $this->assertEquals(17.70, (float) $scout->fresh()->target_1_limit_price);
     }
 
     public function test_target_1_quantity_uses_whole_shares_rounded_to_nearest(): void
@@ -214,7 +302,7 @@ class ScaleOutTest extends TestCase
             'quantity' => 100,
         ]);
 
-        (new CheckPositionAlertTriggersJob($position->id))->handle(app(\App\Alerts\AlertDispatcher::class));
+        (new CheckPositionAlertTriggersJob($position->id))->handle(app(AlertDispatcher::class));
 
         Queue::assertPushed(SendAlertJob::class, function (SendAlertJob $job) use ($position): bool {
             return $job->positionId === $position->id
@@ -367,7 +455,7 @@ class ScaleOutTest extends TestCase
 
     public function test_order_plan_hunt_phase_shows_active_step_one_number(): void
     {
-        $user = User::factory()->create(['primary_broker' => \App\Enums\Broker::None]);
+        $user = User::factory()->create(['primary_broker' => Broker::None]);
 
         $position = Position::factory()->for($user)->make([
             'status' => 'open',
@@ -389,7 +477,7 @@ class ScaleOutTest extends TestCase
 
     public function test_order_plan_hunt_phase_shows_revolut_monitoring_copy(): void
     {
-        $user = User::factory()->create(['primary_broker' => \App\Enums\Broker::Revolut]);
+        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
 
         $position = Position::factory()->for($user)->make([
             'status' => 'open',
@@ -488,7 +576,7 @@ class ScaleOutTest extends TestCase
             'status' => 'open',
         ]);
 
-        (new CheckPositionAlertTriggersJob($position->id))->handle(app(\App\Alerts\AlertDispatcher::class));
+        (new CheckPositionAlertTriggersJob($position->id))->handle(app(AlertDispatcher::class));
 
         Queue::assertNotPushed(SendAlertJob::class, function (SendAlertJob $job) use ($position): bool {
             return $job->positionId === $position->id

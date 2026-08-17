@@ -879,6 +879,8 @@ class PositionForm
 
                                 if ($isScoutForm($record, $operation)) {
                                     self::syncPlannedQuantityFromInvestment($set, $get, $record);
+                                } elseif (self::shouldKeepFrozenTakeProfit($get, $record)) {
+                                    self::syncTarget1RrFromTakeProfit($set, $get, $record);
                                 } else {
                                     self::syncTakeProfitPriceFromRr($set, $get, $record);
                                 }
@@ -933,16 +935,18 @@ class PositionForm
                         return ! $isScoutForm($record, $operation);
                     })
                     ->schema([
-                        TextInput::make('_take_profit_price')
+                        TextInput::make('target_1_limit_price')
                             ->label('Take Profit (Target 1)')
                             ->numeric()
                             ->prefix('$')
                             ->minValue(0.01)
-                            ->dehydrated(false)
+                            ->dehydrated(fn (?Position $record, string $operation): bool => ! $isScoutForm($record, $operation))
                             ->readOnly(fn (?Position $record): bool => self::isArchiveAnalysis($record))
                             ->helperText(fn (?Position $record): ?string => self::isArchiveAnalysis($record)
                                 ? null
-                                : 'Limit-prijs voor Target 1 — past R/R automatisch aan.')
+                                : ($record?->storedTarget1LimitPrice() !== null
+                                    ? 'Vastgelegde broker-limit — wijzigt niet mee met fill of trailing stop.'
+                                    : 'Limit-prijs voor Target 1 — past R/R automatisch aan.'))
                             ->extraFieldWrapperAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
                                 ? self::scoutTelemetryReadonlyWrapperAttributes()
                                 : [])
@@ -959,7 +963,9 @@ class PositionForm
                             ->readOnly(fn (?Position $record): bool => self::isArchiveAnalysis($record))
                             ->helperText(fn (?Position $record): ?string => self::isArchiveAnalysis($record)
                                 ? null
-                                : '1:2 = standaard — Take Profit herberekent mee.')
+                                : ($record?->storedTarget1LimitPrice() !== null
+                                    ? 'Past bij de vastgelegde limit t.o.v. je fill. Wijzig je dit, dan past Take Profit mee.'
+                                    : '1:2 = standaard — Take Profit herberekent mee.'))
                             ->extraFieldWrapperAttributes(fn (?Position $record): array => self::isArchiveAnalysis($record)
                                 ? self::scoutTelemetryReadonlyWrapperAttributes()
                                 : [])
@@ -1557,14 +1563,30 @@ class PositionForm
 
     private static function hydrateTarget1Fields(Set $set, Get $get, ?Position $record): void
     {
+        $storedLimit = self::numericFormValue($get('target_1_limit_price'))
+            ?? $record?->storedTarget1LimitPrice();
+
+        if ($storedLimit !== null) {
+            $set('target_1_limit_price', number_format($storedLimit, 2, '.', ''));
+            self::syncTarget1RrFromTakeProfit($set, $get, $record);
+
+            return;
+        }
+
         $rr = $get('target_1_rr');
 
         if (($rr === null || $rr === '') && $record !== null) {
             $rr = $record->target_1_rr ?? Position::defaultTarget1Rr();
-            $set('target_1_rr', number_format((float) $rr, 1, '.', ''));
+            $set('target_1_rr', number_format((float) $rr, 4, '.', ''));
         }
 
         self::syncTakeProfitPriceFromRr($set, $get, $record);
+    }
+
+    private static function shouldKeepFrozenTakeProfit(Get $get, ?Position $record): bool
+    {
+        return self::numericFormValue($get('target_1_limit_price')) !== null
+            || $record?->storedTarget1LimitPrice() !== null;
     }
 
     private static function syncTakeProfitPriceFromRr(Set $set, Get $get, ?Position $record): void
@@ -1574,13 +1596,13 @@ class PositionForm
         $riskPerShare = self::target1RiskPerShare($get, $record, $entry);
 
         if ($entry === null || $rr === null || $riskPerShare === null) {
-            $set('_take_profit_price', null);
+            $set('target_1_limit_price', null);
 
             return;
         }
 
         $direction = $record?->tradeDirection() ?? TradeDirection::Long;
-        $set('_take_profit_price', number_format(
+        $set('target_1_limit_price', number_format(
             PositionSizing::targetPrice($entry, $riskPerShare, $rr, $direction),
             2,
             '.',
@@ -1591,7 +1613,7 @@ class PositionForm
     private static function syncTarget1RrFromTakeProfit(Set $set, Get $get, ?Position $record): void
     {
         $entry = self::numericFormValue($get('entry_price') ?? $record?->entry_price);
-        $takeProfit = self::numericFormValue($get('_take_profit_price'));
+        $takeProfit = self::numericFormValue($get('target_1_limit_price'));
         $riskPerShare = self::target1RiskPerShare($get, $record, $entry);
 
         if ($entry === null || $takeProfit === null || $riskPerShare === null) {

@@ -82,6 +82,7 @@ class PositionsRequiringActionWidget extends TableWidget
             ->recordActions([
                 $this->outlinedRowAction(PositionRecordActions::markTarget1LimitPlaced()),
                 $this->outlinedRowAction(PositionRecordActions::markInitialSlPlaced()),
+                $this->outlinedRowAction(PositionRecordActions::raiseTarget1Limit()),
                 $this->outlinedRowAction(PositionRecordActions::markAsUpdated()),
                 $this->outlinedRowAction(PositionRecordActions::holdThroughEarnings()),
                 $this->outlinedRowAction(PositionRecordActions::archive())
@@ -156,6 +157,7 @@ class PositionsRequiringActionWidget extends TableWidget
             Position::PRIMARY_ACTION_EARNINGS => 'Earnings',
             Position::PRIMARY_ACTION_UPDATE_SL => 'Stop-Loss',
             Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'Initial SL',
+            Position::PRIMARY_ACTION_RAISE_TARGET_1 => 'Target 1',
             default => 'Actie',
         };
     }
@@ -190,6 +192,14 @@ class PositionsRequiringActionWidget extends TableWidget
                 'Stel Stop-Loss in op $%s bij je broker.',
                 number_format((float) ($record->current_sl ?? 0), 2),
             ),
+            Position::PRIMARY_ACTION_RAISE_TARGET_1 => sprintf(
+                '%s Target 1 van $%s naar $%s.',
+                ((float) ($record->pendingTarget1LimitPrice() ?? 0)) >= (float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0)
+                    ? 'Verhoog'
+                    : 'Verlaag',
+                number_format((float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0), 2),
+                number_format((float) ($record->pendingTarget1LimitPrice() ?? 0), 2),
+            ),
             default => '—',
         };
     }
@@ -210,6 +220,15 @@ class PositionsRequiringActionWidget extends TableWidget
                 'Stel Stop-Loss in op <span class="%s">$%s</span> bij je broker.',
                 $emphasis,
                 number_format((float) ($record->current_sl ?? 0), 2),
+            )),
+            Position::PRIMARY_ACTION_RAISE_TARGET_1 => new HtmlString(sprintf(
+                '%s Target 1 van $%s naar <span class="%s">$%s</span>.',
+                ((float) ($record->pendingTarget1LimitPrice() ?? 0)) >= (float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0)
+                    ? 'Verhoog'
+                    : 'Verlaag',
+                number_format((float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0), 2),
+                $emphasis,
+                number_format((float) ($record->pendingTarget1LimitPrice() ?? 0), 2),
             )),
             Position::PRIMARY_ACTION_TARGET_1 => new HtmlString($record->userUsesRevolutWorkflow()
                 ? sprintf(
@@ -285,6 +304,7 @@ class PositionsRequiringActionWidget extends TableWidget
             },
             Position::PRIMARY_ACTION_UPDATE_SL => 'info',
             Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'warning',
+            Position::PRIMARY_ACTION_RAISE_TARGET_1 => 'warning',
             default => 'gray',
         };
     }

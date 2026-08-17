@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Filament;
 
+use App\Contracts\QuoteProvider;
 use App\Enums\AutopsyTag;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Positions\Pages\CreatePosition;
@@ -317,6 +318,7 @@ class PositionResourceTest extends TestCase
 
         $this->assertEqualsWithDelta(2.5, (float) $position->fresh()->target_1_rr, 0.001);
         $this->assertEqualsWithDelta(71.21, (float) $position->fresh()->target_1_price, 0.01);
+        $this->assertEqualsWithDelta(71.21, (float) $position->fresh()->target_1_limit_price, 0.01);
     }
 
     public function test_confirm_sl_action_updates_current_sl(): void
@@ -713,11 +715,11 @@ class PositionResourceTest extends TestCase
             'current_sl' => 430.00,
         ]);
 
-        $quotes = \Mockery::mock(\App\Contracts\QuoteProvider::class);
+        $quotes = \Mockery::mock(QuoteProvider::class);
         $quotes->shouldReceive('fetchLivePrice')->andReturn(null);
         $quotes->shouldReceive('fetchPremarketPrice')->andReturn(null);
         $quotes->shouldReceive('fetchSessionQuote')->andReturn(null);
-        $this->app->instance(\App\Contracts\QuoteProvider::class, $quotes);
+        $this->app->instance(QuoteProvider::class, $quotes);
 
         Http::fake([
             'api.polygon.io/*' => Http::response([
