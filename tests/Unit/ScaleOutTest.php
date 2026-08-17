@@ -109,6 +109,7 @@ class ScaleOutTest extends TestCase
         $scout = Position::factory()->for($user)->scout()->create([
             'entry_price' => 16.56,
             'quantity' => 92,
+            'latest_close_price' => 16.40,
             'latest_sma_20' => 16.20,
             'latest_atr_14' => 0.42,
             'target_1_rr' => 2.0,
@@ -540,6 +541,29 @@ class ScaleOutTest extends TestCase
         $this->assertStringContainsString('Wijzig Take Profit naar', $html);
         $this->assertStringContainsString('21 stuks (50%)', $html);
         $this->assertStringContainsString('TradingView plaatst TP op 100%', $html);
+    }
+
+    public function test_order_plan_warns_ibkr_to_replace_stop_after_target_1_fill(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+
+        $position = Position::factory()->for($user)->make([
+            'status' => 'open',
+            'broker' => Broker::Ibkr,
+            'entry_price' => 16.58,
+            'initial_sl' => 15.99,
+            'current_sl' => 15.99,
+            'latest_close_price' => 17.80,
+            'quantity' => 92,
+            'target_1_qty_adjusted_at' => now(),
+        ]);
+
+        $html = ScaleOutDisplay::orderPlanHtml($position)->toHtml();
+
+        $this->assertTrue($position->isTarget1Hit());
+        $this->assertStringContainsString('Plaats een nieuwe stop op $16.58', $html);
+        $this->assertStringContainsString('46 stuks', $html);
+        $this->assertStringContainsString('IBKR annuleerde de bracket-SL', $html);
     }
 
     public function test_order_plan_hunt_phase_shows_revolut_monitoring_copy(): void

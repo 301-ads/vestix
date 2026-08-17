@@ -281,6 +281,7 @@ class PositionsTable
                 ActionGroup::make([
                     PositionRecordActions::scaleOut(),
                     PositionRecordActions::markInitialSlPlaced(),
+                    PositionRecordActions::placeRunnerStopLoss(),
                     PositionRecordActions::adjustTarget1AtBroker(),
                     PositionRecordActions::markAsUpdated(),
                     PositionRecordActions::shareSuccess(),

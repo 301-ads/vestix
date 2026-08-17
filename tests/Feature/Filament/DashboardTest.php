@@ -590,7 +590,7 @@ class DashboardTest extends TestCase
             'entry_price' => 10.00,
             'initial_sl' => 9.00,
             'current_sl' => 9.00,
-            'latest_close_price' => 12.00,
+            'latest_close_price' => 10.50,
             'latest_sma_20' => 9.00,
             'latest_atr_14' => 1.00,
             'quantity' => 100,
@@ -634,6 +634,42 @@ class DashboardTest extends TestCase
             ->assertDontSee('SBLK');
 
         $this->assertNotNull($position->fresh()->target_1_qty_adjusted_at);
+    }
+
+    public function test_action_widget_confirms_ibkr_runner_stop_after_target_1_fill(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $user->update(['primary_broker' => Broker::Ibkr]);
+
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'EC',
+            'broker' => Broker::Ibkr,
+            'entry_price' => 16.58,
+            'initial_sl' => 15.99,
+            'current_sl' => 15.99,
+            'latest_close_price' => 17.80,
+            'latest_sma_20' => 16.20,
+            'latest_atr_14' => 0.42,
+            'quantity' => 92,
+            'status' => 'open',
+            'target_1_qty_adjusted_at' => now(),
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertSee('EC')
+            ->assertSee('Plaats een nieuwe Stop-Loss op')
+            ->assertSee('$16.58')
+            ->assertSee('46 stuks (runner)')
+            ->assertDontSee('Stel Limit Sell in op')
+            ->assertTableActionVisible('place_runner_sl', $position)
+            ->callTableAction('place_runner_sl', $position)
+            ->assertDontSee('EC');
+
+        $fresh = $position->fresh();
+        $this->assertNotNull($fresh->runner_sl_placed_at);
+        $this->assertEquals(16.58, (float) $fresh->current_sl);
     }
 
     public function test_action_widget_hides_limit_sell_for_auto_runner_bypass_position(): void

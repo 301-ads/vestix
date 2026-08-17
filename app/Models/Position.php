@@ -103,6 +103,7 @@ class Position extends Model
             'target_1_limit_price' => 'decimal:2',
             'target_1_pending_limit_price' => 'decimal:2',
             'target_1_qty_adjusted_at' => 'datetime',
+            'runner_sl_placed_at' => 'datetime',
             'first_tranche_fraction' => 'decimal:4',
             'target_1_limit_placed_at' => 'datetime',
             'initial_sl' => 'decimal:2',
@@ -223,6 +224,7 @@ class Position extends Model
                 'target_1_limit_price',
                 'target_1_pending_limit_price',
                 'target_1_qty_adjusted_at',
+                'runner_sl_placed_at',
                 'first_tranche_fraction',
                 'target_1_limit_placed_at',
                 'initial_sl_placed_at',
@@ -685,6 +687,7 @@ class Position extends Model
             'target_1_limit_price',
             'target_1_pending_limit_price',
             'target_1_qty_adjusted_at',
+            'runner_sl_placed_at',
             'execution_truth_state',
             'protocol_score',
             'protocol_score_details',
@@ -1341,6 +1344,7 @@ class Position extends Model
         return $this->status === 'open'
             && $this->usesIbkrWorkflow()
             && ! $this->hasScaledOut()
+            && ! $this->isTarget1Hit()
             && ! $this->hasTarget1QtyAdjusted()
             && $this->target_1_quantity !== null;
     }
@@ -1373,6 +1377,87 @@ class Position extends Model
         if ($data !== []) {
             $this->update($data);
         }
+    }
+
+    public function runnerQuantity(): ?float
+    {
+        if ($this->hasScaledOut()) {
+            $remaining = $this->remaining_quantity;
+
+            return $remaining !== null && $remaining > 0.0001 ? (float) $remaining : null;
+        }
+
+        if ($this->quantity === null || $this->target_1_quantity === null) {
+            return null;
+        }
+
+        $runner = (float) $this->quantity - (float) $this->target_1_quantity;
+
+        return $runner > 0.0001 ? $runner : null;
+    }
+
+    /**
+     * Stop to re-place for the runner after IBKR cancels the bracket SL on a TP fill.
+     * Never worse than entry; keeps a trailing stop that is already past breakeven.
+     */
+    public function runnerStopLossPrice(): ?float
+    {
+        $entry = $this->entry_price !== null ? (float) $this->entry_price : null;
+        $current = $this->current_sl !== null ? (float) $this->current_sl : null;
+
+        if ($entry === null) {
+            return $current;
+        }
+
+        if ($this->isShort()) {
+            return $current !== null && $current > 0 ? min($current, $entry) : $entry;
+        }
+
+        return $current !== null ? max($current, $entry) : $entry;
+    }
+
+    public function hasRunnerSlPlaced(): bool
+    {
+        return $this->runner_sl_placed_at !== null;
+    }
+
+    public function needsRunnerSlReplace(): bool
+    {
+        return $this->status === 'open'
+            && $this->usesIbkrWorkflow()
+            && ! $this->hasRunnerSlPlaced()
+            && ($this->isTarget1Hit() || $this->hasScaledOut())
+            && $this->runnerQuantity() !== null
+            && $this->runnerStopLossPrice() !== null;
+    }
+
+    public function applyRunnerSlPlaced(): void
+    {
+        $sl = $this->runnerStopLossPrice();
+        $data = ['runner_sl_placed_at' => now()];
+
+        if ($sl !== null) {
+            $current = (float) ($this->current_sl ?? 0);
+            $shouldRaise = $this->isShort()
+                ? ($current <= 0 || $sl < $current)
+                : $sl > $current;
+
+            if ($shouldRaise) {
+                $data['current_sl'] = $sl;
+            }
+
+            $entry = $this->entry_price !== null ? (float) $this->entry_price : null;
+
+            if (
+                $entry !== null
+                && $this->freeride_secured_at === null
+                && ($this->isShort() ? $sl <= $entry : $sl >= $entry)
+            ) {
+                $data['freeride_secured_at'] = now();
+            }
+        }
+
+        $this->update($data);
     }
 
     public function fillIsAdverseVersusPlan(float $plannedEntry, float $fill, float $epsilon = 0.01): bool
@@ -1950,16 +2035,19 @@ class Position extends Model
 
     public const PRIMARY_ACTION_ADJUST_TARGET_1 = 'ADJUST_TARGET_1';
 
+    public const PRIMARY_ACTION_PLACE_RUNNER_SL = 'PLACE_RUNNER_SL';
+
     /**
      * Resolve the single most important action for a position.
      *
      * Hierarchy (only one action is ever surfaced per position):
      * 1. Target 1 hit  -> sell tranche (this also moves the SL to breakeven, so SL updates are irrelevant)
      * 2. Stopped out   -> liquidate (mutually exclusive with Target 1)
-     * 3. Earnings      -> exit before earnings
-     * 4. Initial SL    -> place stop-loss at broker after activation
-     * 5. Adjust T1     -> IBKR: TP from 100% to 50% (and raise price if fill was worse)
-     * 6. SL can raise  -> update stop-loss
+     * 3. Runner SL     -> IBKR cancelled the bracket stop when TP filled; re-place at breakeven
+     * 4. Earnings      -> exit before earnings
+     * 5. Initial SL    -> place stop-loss at broker after activation
+     * 6. Adjust T1     -> IBKR: TP from 100% to 50% (and raise price if fill was worse)
+     * 7. SL can raise  -> update stop-loss
      */
     public function primaryActionType(?Carbon $today = null): ?string
     {
@@ -1975,6 +2063,10 @@ class Position extends Model
 
         if ($this->action_command === 'STOPPED OUT') {
             return self::PRIMARY_ACTION_LIQUIDATION;
+        }
+
+        if ($this->needsRunnerSlReplace()) {
+            return self::PRIMARY_ACTION_PLACE_RUNNER_SL;
         }
 
         if ($this->requiresEarningsExit($today)) {

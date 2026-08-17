@@ -48,6 +48,58 @@ class BrokerOrderTicket
         ];
     }
 
+    /**
+     * @return array{
+     *     title: string,
+     *     intro: string|null,
+     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>,
+     *     difference_label: string|null,
+     *     confirmation: string,
+     *     submit_label: string,
+     * }
+     */
+    public static function forRunnerStopLoss(Position $position): array
+    {
+        $sl = (float) ($position->runnerStopLossPrice() ?? 0);
+        $qty = (float) ($position->runnerQuantity() ?? 0);
+        $isShort = $position->isShort();
+
+        return [
+            'title' => "{$position->ticker} — Runner Stop-Loss plaatsen",
+            'intro' => 'Take Profit is gevuld. IBKR annuleert dan de rest van de bracket, inclusief je stop. Plaats een nieuwe stop-loss voor de runner.',
+            'rows' => [
+                [
+                    'label' => 'Order type',
+                    'value' => $isShort ? 'BUY STOP' : 'SELL STOP',
+                ],
+                [
+                    'label' => 'Runner (aantal)',
+                    'value' => self::formatQuantity($qty),
+                    'copy_value' => self::formatCopyQuantity($qty),
+                    'accent' => true,
+                ],
+                [
+                    'label' => 'Stop-Loss (breakeven)',
+                    'value' => self::formatMoney($sl),
+                    'copy_value' => self::formatCopyMoney($sl),
+                    'accent' => true,
+                ],
+                [
+                    'label' => 'Entry',
+                    'value' => self::formatMoney((float) ($position->entry_price ?? 0)),
+                ],
+            ],
+            'difference_label' => 'Nieuwe losse stop — de bracket-SL is weg',
+            'confirmation' => sprintf(
+                'Heb je een nieuwe %s geplaatst op %s voor %s (runner)?',
+                $isShort ? 'BUY STOP' : 'SELL STOP',
+                self::formatMoney($sl),
+                self::formatQuantity($qty),
+            ),
+            'submit_label' => 'Runner-SL geplaatst',
+        ];
+    }
+
     public static function forStopLossUpdate(Position $position): array
     {
         $currentSl = (float) $position->current_sl;

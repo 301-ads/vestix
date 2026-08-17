@@ -289,6 +289,7 @@ class BrokerOrderTicketTest extends TestCase
             'broker' => Broker::Ibkr,
             'entry_price' => 16.58,
             'quantity' => 92,
+            'latest_close_price' => 16.40,
             'target_1_limit_price' => 17.70,
             'target_1_pending_limit_price' => 17.76,
         ]);
@@ -314,7 +315,10 @@ class BrokerOrderTicketTest extends TestCase
             'status' => 'open',
             'broker' => Broker::Ibkr,
             'entry_price' => 28.07,
+            'initial_sl' => 26.80,
+            'current_sl' => 26.80,
             'quantity' => 41,
+            'latest_close_price' => 29.00,
         ]);
 
         $ticket = BrokerOrderTicket::forTarget1Adjust($position);
@@ -326,6 +330,32 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertCount(2, $ticket['rows']);
         $this->assertStringContainsString('100%', $ticket['intro']);
         $this->assertSame('Take Profit aangepast', $ticket['submit_label']);
+    }
+
+    public function test_runner_stop_loss_ticket_copies_breakeven_and_runner_qty(): void
+    {
+        $position = Position::factory()->make([
+            'ticker' => 'EC',
+            'status' => 'open',
+            'broker' => Broker::Ibkr,
+            'entry_price' => 16.58,
+            'current_sl' => 15.99,
+            'quantity' => 92,
+            'latest_close_price' => 17.80,
+        ]);
+
+        $ticket = BrokerOrderTicket::forRunnerStopLoss($position);
+
+        $this->assertSame('EC — Runner Stop-Loss plaatsen', $ticket['title']);
+        $this->assertStringContainsString('annuleert', $ticket['intro']);
+        $this->assertSame('SELL STOP', $ticket['rows'][0]['value']);
+        $this->assertSame('46 stuks', $ticket['rows'][1]['value']);
+        $this->assertSame('46', $ticket['rows'][1]['copy_value']);
+        $this->assertSame('$16.58', $ticket['rows'][2]['value']);
+        $this->assertSame('16.58', $ticket['rows'][2]['copy_value']);
+        $this->assertSame('Runner-SL geplaatst', $ticket['submit_label']);
+        $this->assertStringContainsString('$16.58', $ticket['confirmation']);
+        $this->assertStringContainsString('46 stuks', $ticket['confirmation']);
     }
 
     public function test_ibkr_bracket_ticket_blade_renders_copy_buttons(): void

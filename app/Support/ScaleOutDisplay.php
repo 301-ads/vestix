@@ -180,6 +180,13 @@ class ScaleOutDisplay
                 .' — fill wijkt af van je order-stop. Pas de broker-limit aan.</span>';
         }
 
+        if ($position->needsRunnerSlReplace()) {
+            $details[] = '<span class="font-medium text-danger-600 dark:text-danger-400">Plaats een nieuwe stop op $'
+                .number_format((float) ($position->runnerStopLossPrice() ?? 0), 2)
+                .' voor '.self::formatQty((float) ($position->runnerQuantity() ?? 0))
+                .' stuks — IBKR annuleerde de bracket-SL toen Take Profit vulde.</span>';
+        }
+
         foreach ($details as $detail) {
             $body .= '<p class="text-gray-600 dark:text-gray-300">'.$detail.'</p>';
         }
@@ -205,6 +212,13 @@ class ScaleOutDisplay
 
         $body = '<p class="font-semibold text-gray-950 dark:text-white">Target 2 &middot; De Runner</p>'
             .'<p class="text-gray-600 dark:text-gray-300">Trailing stop onder de dagelijkse SMA 20.</p>';
+
+        if ($position->needsRunnerSlReplace()) {
+            $body .= '<p class="font-medium text-danger-600 dark:text-danger-400">Plaats eerst een nieuwe stop op $'
+                .number_format((float) ($position->runnerStopLossPrice() ?? 0), 2)
+                .' voor '.self::formatQty((float) ($position->runnerQuantity() ?? 0))
+                .' stuks — IBKR annuleerde de bracket-SL.</p>';
+        }
 
         return self::stepRow(
             self::numberMarker('2', $variant),

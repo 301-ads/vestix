@@ -1019,6 +1019,44 @@ class PositionRecordActions
             });
     }
 
+    public static function placeRunnerStopLoss(): Action
+    {
+        return Action::make('place_runner_sl')
+            ->label('Update')
+            ->tooltip('Nieuwe stop-loss voor de runner plaatsen — IBKR annuleerde de bracket-SL')
+            ->icon('heroicon-o-check')
+            ->color('success')
+            ->visible(fn (Position $record): bool => $record->primaryActionType() === Position::PRIMARY_ACTION_PLACE_RUNNER_SL)
+            ->requiresConfirmation()
+            ->modalHeading(fn (Position $record): string => BrokerOrderTicket::forRunnerStopLoss($record)['title'])
+            ->modalIcon(fn (Position $record): HtmlString => BrokerOrderTicket::modalIcon($record))
+            ->modalIconColor('gray')
+            ->extraModalWindowAttributes(['class' => 'vestix-broker-order-modal'])
+            ->modalContent(fn (Position $record): HtmlString => new HtmlString(
+                view('filament.positions.broker-order-ticket', [
+                    'ticket' => BrokerOrderTicket::forRunnerStopLoss($record),
+                ])->render()
+            ))
+            ->modalSubmitActionLabel(fn (Position $record): string => BrokerOrderTicket::forRunnerStopLoss($record)['submit_label'])
+            ->modalCancelActionLabel('Annuleren')
+            ->action(function (Position $record): void {
+                $sl = $record->runnerStopLossPrice();
+                $qty = $record->runnerQuantity();
+                $record->applyRunnerSlPlaced();
+
+                FilamentNotifier::send(
+                    title: "{$record->ticker}: Runner-SL geplaatst",
+                    body: $sl !== null && $qty !== null
+                        ? sprintf(
+                            '%s stuks op $%s',
+                            rtrim(rtrim(number_format($qty, 6, '.', ''), '0'), '.'),
+                            number_format($sl, 2),
+                        )
+                        : null,
+                );
+            });
+    }
+
     public static function markAsUpdated(): Action
     {
         return Action::make('mark_as_updated')
@@ -1147,7 +1185,9 @@ class PositionRecordActions
             ->modalHeading('Target 1 — gedeeltelijke verkoop')
             ->modalDescription(fn (Position $record): string => $record->isAutoRunnerBypass()
                 ? 'Log de werkelijke fill bij je broker. Je stop-loss blijft staan (ligt al op of boven entry).'
-                : 'Log de werkelijke fill bij je broker. Je stop-loss wordt automatisch naar breakeven (entry) verplaatst.')
+                : ($record->usesIbkrWorkflow()
+                    ? 'Log de werkelijke fill bij je broker. Vestix zet de stop op breakeven. IBKR annuleert de bracket-SL bij een TP-fill — plaats daarna een nieuwe stop voor de runner.'
+                    : 'Log de werkelijke fill bij je broker. Je stop-loss wordt automatisch naar breakeven (entry) verplaatst.'))
             ->schema([
                 TextInput::make('fill_price')
                     ->label('Werkelijke verkoopprijs')
@@ -1168,7 +1208,9 @@ class PositionRecordActions
                     ->label('Na verkoop')
                     ->content(fn (Position $record): string => $record->isAutoRunnerBypass()
                         ? 'Stop-loss blijft op de huidige prijs (al op/boven entry). Runner blijft trailen onder SMA 20.'
-                        : 'Stop-loss → entry (breakeven). Runner blijft trailen onder SMA 20.'),
+                        : ($record->usesIbkrWorkflow()
+                            ? 'Stop-loss → entry (breakeven). IBKR: plaats daarna een nieuwe stop voor de runner — de bracket-SL is weg.'
+                            : 'Stop-loss → entry (breakeven). Runner blijft trailen onder SMA 20.')),
             ])
             ->action(function (Position $record, array $data): void {
                 $record->scaleOut(

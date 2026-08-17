@@ -41,7 +41,7 @@ class PositionBrokerWorkflowTest extends TestCase
             'entry_price' => 10.00,
             'initial_sl' => 9.00,
             'current_sl' => 9.00,
-            'latest_close_price' => 12.00,
+            'latest_close_price' => 10.50,
             'latest_sma_20' => 9.00,
             'latest_atr_14' => 1.00,
             'quantity' => 100,
@@ -51,6 +51,83 @@ class PositionBrokerWorkflowTest extends TestCase
         $this->assertTrue($position->suppressesLimitSellTodo());
         $this->assertSame(Position::PRIMARY_ACTION_ADJUST_TARGET_1, $position->primaryActionType());
         $this->assertTrue($position->needsTarget1QtyAdjust());
+    }
+
+    public function test_ibkr_target_1_fill_queues_runner_stop_loss_replace(): void
+    {
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->create([
+            'broker' => Broker::Ibkr,
+            'entry_price' => 10.00,
+            'initial_sl' => 9.00,
+            'current_sl' => 9.00,
+            'latest_close_price' => 12.00,
+            'latest_sma_20' => 9.00,
+            'latest_atr_14' => 1.00,
+            'quantity' => 100,
+            'status' => 'open',
+            'target_1_qty_adjusted_at' => now(),
+        ]);
+
+        $this->assertTrue($position->isTarget1Hit());
+        $this->assertTrue($position->needsRunnerSlReplace());
+        $this->assertSame(50.0, $position->runnerQuantity());
+        $this->assertEquals(10.00, $position->runnerStopLossPrice());
+        $this->assertSame(Position::PRIMARY_ACTION_PLACE_RUNNER_SL, $position->primaryActionType());
+        $this->assertFalse($position->needsTarget1QtyAdjust());
+
+        $position->applyRunnerSlPlaced();
+        $fresh = $position->fresh();
+
+        $this->assertTrue($fresh->hasRunnerSlPlaced());
+        $this->assertEquals(10.00, (float) $fresh->current_sl);
+        $this->assertNotNull($fresh->freeride_secured_at);
+        $this->assertFalse($fresh->needsRunnerSlReplace());
+        $this->assertNotSame(Position::PRIMARY_ACTION_PLACE_RUNNER_SL, $fresh->primaryActionType());
+    }
+
+    public function test_ibkr_scale_out_queues_runner_stop_loss_even_if_price_has_not_synced(): void
+    {
+        $user = User::factory()->create();
+        $position = Position::factory()->for($user)->create([
+            'broker' => Broker::Ibkr,
+            'entry_price' => 10.00,
+            'initial_sl' => 9.00,
+            'current_sl' => 9.00,
+            'latest_close_price' => 11.50,
+            'latest_sma_20' => 9.00,
+            'latest_atr_14' => 1.00,
+            'quantity' => 100,
+            'status' => 'open',
+        ]);
+
+        $this->assertFalse($position->isTarget1Hit());
+        $position->scaleOut(12.00, 50);
+
+        $fresh = $position->fresh();
+        $this->assertTrue($fresh->needsRunnerSlReplace());
+        $this->assertSame(50.0, $fresh->runnerQuantity());
+        $this->assertSame(Position::PRIMARY_ACTION_PLACE_RUNNER_SL, $fresh->primaryActionType());
+    }
+
+    public function test_revolut_target_1_hit_does_not_queue_runner_stop_loss(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
+        $position = Position::factory()->for($user)->create([
+            'broker' => Broker::Revolut,
+            'entry_price' => 10.00,
+            'initial_sl' => 9.00,
+            'current_sl' => 9.00,
+            'latest_close_price' => 12.00,
+            'latest_sma_20' => 9.00,
+            'latest_atr_14' => 1.00,
+            'quantity' => 100,
+            'status' => 'open',
+        ]);
+
+        $this->assertTrue($position->isTarget1Hit());
+        $this->assertFalse($position->needsRunnerSlReplace());
+        $this->assertSame(Position::PRIMARY_ACTION_TARGET_1, $position->primaryActionType());
     }
 
     public function test_suppresses_initial_sl_todo_for_ibkr_bracket_workflow(): void

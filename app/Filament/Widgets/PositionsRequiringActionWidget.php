@@ -82,6 +82,7 @@ class PositionsRequiringActionWidget extends TableWidget
             ->recordActions([
                 $this->outlinedRowAction(PositionRecordActions::markTarget1LimitPlaced()),
                 $this->outlinedRowAction(PositionRecordActions::markInitialSlPlaced()),
+                $this->outlinedRowAction(PositionRecordActions::placeRunnerStopLoss()),
                 $this->outlinedRowAction(PositionRecordActions::adjustTarget1AtBroker()),
                 $this->outlinedRowAction(PositionRecordActions::markAsUpdated()),
                 $this->outlinedRowAction(PositionRecordActions::holdThroughEarnings()),
@@ -157,6 +158,7 @@ class PositionsRequiringActionWidget extends TableWidget
             Position::PRIMARY_ACTION_EARNINGS => 'Earnings',
             Position::PRIMARY_ACTION_UPDATE_SL => 'Stop-Loss',
             Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'Initial SL',
+            Position::PRIMARY_ACTION_PLACE_RUNNER_SL => 'Runner SL',
             Position::PRIMARY_ACTION_ADJUST_TARGET_1 => 'Take Profit',
             default => 'Actie',
         };
@@ -192,6 +194,7 @@ class PositionsRequiringActionWidget extends TableWidget
                 'Stel Stop-Loss in op $%s bij je broker.',
                 number_format((float) ($record->current_sl ?? 0), 2),
             ),
+            Position::PRIMARY_ACTION_PLACE_RUNNER_SL => $this->formatRunnerSlInstruction($record),
             Position::PRIMARY_ACTION_ADJUST_TARGET_1 => $this->formatTarget1AdjustInstruction($record),
             default => '—',
         };
@@ -214,6 +217,7 @@ class PositionsRequiringActionWidget extends TableWidget
                 $emphasis,
                 number_format((float) ($record->current_sl ?? 0), 2),
             )),
+            Position::PRIMARY_ACTION_PLACE_RUNNER_SL => $this->formatRunnerSlInstructionHtml($record, $emphasis),
             Position::PRIMARY_ACTION_ADJUST_TARGET_1 => $this->formatTarget1AdjustInstructionHtml($record, $emphasis),
             Position::PRIMARY_ACTION_TARGET_1 => new HtmlString($record->userUsesRevolutWorkflow()
                 ? sprintf(
@@ -230,6 +234,25 @@ class PositionsRequiringActionWidget extends TableWidget
                 )),
             default => new HtmlString(e($this->formatInstruction($record))),
         };
+    }
+
+    private function formatRunnerSlInstruction(Position $record): string
+    {
+        return sprintf(
+            'Plaats een nieuwe Stop-Loss op $%s voor %s (runner). IBKR annuleerde de bracket-stop toen Take Profit vulde.',
+            number_format((float) ($record->runnerStopLossPrice() ?? 0), 2),
+            rtrim(rtrim(number_format((float) ($record->runnerQuantity() ?? 0), 6, '.', ''), '0'), '.').' stuks',
+        );
+    }
+
+    private function formatRunnerSlInstructionHtml(Position $record, string $emphasis): HtmlString
+    {
+        return new HtmlString(sprintf(
+            'Plaats een nieuwe Stop-Loss op <span class="%s">$%s</span> voor %s (runner). IBKR annuleerde de bracket-stop toen Take Profit vulde.',
+            $emphasis,
+            number_format((float) ($record->runnerStopLossPrice() ?? 0), 2),
+            rtrim(rtrim(number_format((float) ($record->runnerQuantity() ?? 0), 6, '.', ''), '0'), '.').' stuks',
+        ));
     }
 
     private function formatTarget1AdjustInstruction(Position $record): string
@@ -355,6 +378,7 @@ class PositionsRequiringActionWidget extends TableWidget
             },
             Position::PRIMARY_ACTION_UPDATE_SL => 'info',
             Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'warning',
+            Position::PRIMARY_ACTION_PLACE_RUNNER_SL => 'danger',
             Position::PRIMARY_ACTION_ADJUST_TARGET_1 => 'warning',
             default => 'gray',
         };
