@@ -281,24 +281,51 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertSame('17.70', $ticket['rows'][5]['copy_value']);
     }
 
-    public function test_target_1_raise_ticket_copies_new_limit(): void
+    public function test_target_1_adjust_ticket_copies_qty_and_new_limit(): void
     {
         $position = Position::factory()->make([
             'ticker' => 'EC',
+            'status' => 'open',
+            'broker' => Broker::Ibkr,
             'entry_price' => 16.58,
             'quantity' => 92,
             'target_1_limit_price' => 17.70,
             'target_1_pending_limit_price' => 17.76,
         ]);
 
-        $ticket = BrokerOrderTicket::forTarget1Raise($position);
+        $ticket = BrokerOrderTicket::forTarget1Adjust($position);
 
-        $this->assertSame('EC — Target 1 aanpassen', $ticket['title']);
-        $this->assertSame('$17.70', $ticket['rows'][1]['value']);
-        $this->assertSame('$17.76', $ticket['rows'][2]['value']);
-        $this->assertSame('17.76', $ticket['rows'][2]['copy_value']);
-        $this->assertSame('Verhoog Target 1', $ticket['submit_label']);
+        $this->assertSame('EC — Take Profit aanpassen', $ticket['title']);
+        $this->assertSame('92 stuks (100%)', $ticket['rows'][0]['value']);
+        $this->assertSame('46 stuks (50%)', $ticket['rows'][1]['value']);
+        $this->assertSame('46', $ticket['rows'][1]['copy_value']);
+        $this->assertSame('$17.70', $ticket['rows'][3]['value']);
+        $this->assertSame('$17.76', $ticket['rows'][4]['value']);
+        $this->assertSame('17.76', $ticket['rows'][4]['copy_value']);
+        $this->assertSame('Take Profit aangepast', $ticket['submit_label']);
+        $this->assertStringContainsString('46 stuks', $ticket['confirmation']);
         $this->assertStringContainsString('$17.76', $ticket['confirmation']);
+    }
+
+    public function test_target_1_adjust_ticket_qty_only_when_fill_matches_plan(): void
+    {
+        $position = Position::factory()->make([
+            'ticker' => 'SBLK',
+            'status' => 'open',
+            'broker' => Broker::Ibkr,
+            'entry_price' => 28.07,
+            'quantity' => 41,
+        ]);
+
+        $ticket = BrokerOrderTicket::forTarget1Adjust($position);
+
+        $this->assertSame('SBLK — Take Profit aanpassen', $ticket['title']);
+        $this->assertSame('41 stuks (100%)', $ticket['rows'][0]['value']);
+        $this->assertSame('21 stuks (50%)', $ticket['rows'][1]['value']);
+        $this->assertSame('21', $ticket['rows'][1]['copy_value']);
+        $this->assertCount(2, $ticket['rows']);
+        $this->assertStringContainsString('100%', $ticket['intro']);
+        $this->assertSame('Take Profit aangepast', $ticket['submit_label']);
     }
 
     public function test_ibkr_bracket_ticket_blade_renders_copy_buttons(): void

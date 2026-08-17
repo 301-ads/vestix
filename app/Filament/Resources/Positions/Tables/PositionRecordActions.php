@@ -260,38 +260,56 @@ class PositionRecordActions
                     ->default(fn (): float => Position::defaultFirstTrancheFraction())
                     ->helperText('0.5 = 50% van de positie op Target 1'),
                 Placeholder::make('target_1_raise_preview')
-                    ->label('Target 1 aanpassen')
+                    ->label('Take Profit na fill')
                     ->visible(function (Get $get, Position $record): bool {
-                        return self::activationTarget1RaisePrice($record, $get) !== null;
+                        return self::activationNeedsTarget1QtyHint($record, $get)
+                            || self::activationTarget1RaisePrice($record, $get) !== null;
                     })
                     ->content(function (Get $get, Position $record): HtmlString {
+                        $parts = [];
+                        $quantity = self::numericActionValue($get('quantity'))
+                            ?? ($record->quantity !== null ? (float) $record->quantity : null);
+                        $fraction = self::numericActionValue($get('first_tranche_fraction'))
+                            ?? $record->effective_first_tranche_fraction;
+
+                        if (self::activationNeedsTarget1QtyHint($record, $get) && $quantity !== null) {
+                            $tpQty = Position::wholeShareTrancheQuantity($quantity, $fraction);
+                            $percent = (int) round($fraction * 100);
+
+                            if ($tpQty !== null) {
+                                $parts[] = '<p class="text-sm text-warning-600 dark:text-warning-400 font-medium">'
+                                    .'TradingView zet Take Profit op 100%. Na activatie: wijzig het TP-aantal naar '
+                                    .'<span class="font-semibold text-gray-950 dark:text-white">'
+                                    .rtrim(rtrim(number_format($tpQty, 6, '.', ''), '0'), '.')
+                                    .' stuks ('.$percent.'%)</span> zodat de runner blijft staan.</p>';
+                            }
+                        }
+
                         $newT1 = self::activationTarget1RaisePrice($record, $get);
                         $currentT1 = $record->copiedBracketTarget1Price();
                         $fill = self::numericActionValue($get('entry_price'));
 
-                        if ($newT1 === null || $currentT1 === null || $fill === null) {
-                            return new HtmlString('');
+                        if ($newT1 !== null && $currentT1 !== null && $fill !== null) {
+                            $planned = $record->advisedEntryStop()
+                                ?? ($record->entry_price !== null ? (float) $record->entry_price : null);
+                            $delta = $newT1 - $currentT1;
+                            $fillDelta = $planned !== null ? $fill - $planned : 0.0;
+                            $verb = $delta >= 0 ? 'Verhoog' : 'Verlaag';
+
+                            $parts[] = '<p class="text-sm text-warning-600 dark:text-warning-400 font-medium">'
+                                .'Fill $'.number_format($fill, 2)
+                                .($planned !== null
+                                    ? ' is $'.number_format(abs($fillDelta), 2).($fillDelta >= 0 ? ' boven' : ' onder').' je order-stop $'.number_format($planned, 2)
+                                    : '')
+                                .'.</p>'
+                                .'<p class="text-sm text-gray-600 dark:text-gray-300 mt-1">'.$verb.' Target 1 van $'
+                                .number_format($currentT1, 2).' naar <span class="font-semibold text-gray-950 dark:text-white">$'
+                                .number_format($newT1, 2).'</span> ('
+                                .($delta >= 0 ? '+' : '').'$'.number_format($delta, 2)
+                                .'). Na activeren krijg je een actie om dit 1-op-1 in je broker over te nemen.</p>';
                         }
 
-                        $planned = $record->advisedEntryStop()
-                            ?? ($record->entry_price !== null ? (float) $record->entry_price : null);
-                        $delta = $newT1 - $currentT1;
-                        $fillDelta = $planned !== null ? $fill - $planned : 0.0;
-                        $verb = $delta >= 0 ? 'Verhoog' : 'Verlaag';
-
-                        return new HtmlString(
-                            '<p class="text-sm text-warning-600 dark:text-warning-400 font-medium">'
-                            .'Fill $'.number_format($fill, 2)
-                            .($planned !== null
-                                ? ' is $'.number_format(abs($fillDelta), 2).($fillDelta >= 0 ? ' boven' : ' onder').' je order-stop $'.number_format($planned, 2)
-                                : '')
-                            .'.</p>'
-                            .'<p class="text-sm text-gray-600 dark:text-gray-300 mt-1">'.$verb.' Target 1 van $'
-                            .number_format($currentT1, 2).' naar <span class="font-semibold text-gray-950 dark:text-white">$'
-                            .number_format($newT1, 2).'</span> ('
-                            .($delta >= 0 ? '+' : '').'$'.number_format($delta, 2)
-                            .'). Na activeren krijg je een actie om dit 1-op-1 in je broker over te nemen.</p>'
-                        );
+                        return new HtmlString(implode('', $parts));
                     }),
                 Placeholder::make('sl_preview')
                     ->label('Broker stop-loss')
@@ -1037,35 +1055,44 @@ class PositionRecordActions
             });
     }
 
-    public static function raiseTarget1Limit(): Action
+    public static function adjustTarget1AtBroker(): Action
     {
-        return Action::make('raise_target_1_limit')
+        return Action::make('adjust_target_1')
             ->label('Update')
-            ->tooltip('Take Profit bij broker aanpassen aan je fill')
+            ->tooltip('Take Profit bij broker aanpassen (50% en eventueel nieuwe prijs)')
             ->icon('heroicon-o-check')
             ->color('success')
-            ->visible(fn (Position $record): bool => $record->primaryActionType() === Position::PRIMARY_ACTION_RAISE_TARGET_1)
+            ->visible(fn (Position $record): bool => $record->primaryActionType() === Position::PRIMARY_ACTION_ADJUST_TARGET_1)
             ->requiresConfirmation()
-            ->modalHeading(fn (Position $record): string => BrokerOrderTicket::forTarget1Raise($record)['title'])
+            ->modalHeading(fn (Position $record): string => BrokerOrderTicket::forTarget1Adjust($record)['title'])
             ->modalIcon(fn (Position $record): HtmlString => BrokerOrderTicket::modalIcon($record))
             ->modalIconColor('gray')
             ->extraModalWindowAttributes(['class' => 'vestix-broker-order-modal'])
             ->modalContent(fn (Position $record): HtmlString => new HtmlString(
                 view('filament.positions.broker-order-ticket', [
-                    'ticket' => BrokerOrderTicket::forTarget1Raise($record),
+                    'ticket' => BrokerOrderTicket::forTarget1Adjust($record),
                 ])->render()
             ))
-            ->modalSubmitActionLabel(fn (Position $record): string => BrokerOrderTicket::forTarget1Raise($record)['submit_label'])
+            ->modalSubmitActionLabel(fn (Position $record): string => BrokerOrderTicket::forTarget1Adjust($record)['submit_label'])
             ->modalCancelActionLabel('Annuleren')
             ->action(function (Position $record): void {
                 $pending = $record->pendingTarget1LimitPrice();
-                $record->applyPendingTarget1Raise();
+                $qty = $record->needsTarget1QtyAdjust() ? $record->target_1_quantity : null;
+                $record->applyTarget1BrokerAdjust();
+
+                $parts = [];
+
+                if ($qty !== null) {
+                    $parts[] = rtrim(rtrim(number_format((float) $qty, 6, '.', ''), '0'), '.').' stuks (50%)';
+                }
+
+                if ($pending !== null) {
+                    $parts[] = 'prijs $'.number_format($pending, 2);
+                }
 
                 FilamentNotifier::send(
-                    title: "{$record->ticker}: Target 1 aangepast",
-                    body: $pending !== null
-                        ? 'Nieuwe Take Profit: $'.number_format($pending, 2)
-                        : null,
+                    title: "{$record->ticker}: Take Profit aangepast",
+                    body: $parts !== [] ? implode(' · ', $parts) : null,
                 );
             });
     }
@@ -1285,6 +1312,18 @@ class PositionRecordActions
         }
 
         return is_numeric($value) ? (float) $value : null;
+    }
+
+    private static function activationNeedsTarget1QtyHint(Position $record, Get $get): bool
+    {
+        if (! $record->usesIbkrWorkflow()) {
+            return false;
+        }
+
+        $quantity = self::numericActionValue($get('quantity'))
+            ?? ($record->quantity !== null ? (float) $record->quantity : null);
+
+        return $quantity !== null && $quantity >= 2;
     }
 
     private static function activationTarget1RaisePrice(Position $record, Get $get): ?float

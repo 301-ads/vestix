@@ -49,7 +49,8 @@ class PositionBrokerWorkflowTest extends TestCase
         ]);
 
         $this->assertTrue($position->suppressesLimitSellTodo());
-        $this->assertNull($position->primaryActionType());
+        $this->assertSame(Position::PRIMARY_ACTION_ADJUST_TARGET_1, $position->primaryActionType());
+        $this->assertTrue($position->needsTarget1QtyAdjust());
     }
 
     public function test_suppresses_initial_sl_todo_for_ibkr_bracket_workflow(): void
@@ -68,7 +69,7 @@ class PositionBrokerWorkflowTest extends TestCase
         ]);
 
         $this->assertTrue($position->suppressesInitialSlTodo());
-        $this->assertNull($position->primaryActionType());
+        $this->assertSame(Position::PRIMARY_ACTION_ADJUST_TARGET_1, $position->primaryActionType());
     }
 
     public function test_activate_as_position_marks_initial_sl_placed_for_ibkr(): void
@@ -89,8 +90,9 @@ class PositionBrokerWorkflowTest extends TestCase
         $this->assertSame('open', $scout->status);
         $this->assertSame(Broker::Ibkr, $scout->broker);
         $this->assertNotNull($scout->initial_sl_placed_at);
-        $this->assertSame(Position::PRIMARY_ACTION_RAISE_TARGET_1, $scout->primaryActionType());
+        $this->assertSame(Position::PRIMARY_ACTION_ADJUST_TARGET_1, $scout->primaryActionType());
         $this->assertTrue($scout->hasPendingTarget1Raise());
+        $this->assertTrue($scout->needsTarget1QtyAdjust());
     }
 
     public function test_manual_bankroll_source_returns_configured_amount(): void
@@ -125,6 +127,7 @@ class PositionBrokerWorkflowTest extends TestCase
             'quantity' => 100,
             'status' => 'open',
             'initial_sl_placed_at' => now(),
+            'target_1_qty_adjusted_at' => now(),
         ]);
 
         // new_sl = 60 - 0.20 = 59.80 > 59.70 → UPDATE, but suppressed during RTH

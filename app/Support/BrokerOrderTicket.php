@@ -99,49 +99,95 @@ class BrokerOrderTicket
      *     submit_label: string,
      * }
      */
-    public static function forTarget1Raise(Position $position): array
+    public static function forTarget1Adjust(Position $position): array
     {
+        $needsQty = $position->needsTarget1QtyAdjust();
+        $needsPrice = $position->hasPendingTarget1Raise();
+        $qty = (float) ($position->target_1_quantity ?? 0);
+        $total = (float) ($position->quantity ?? 0);
+        $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
+        $isShort = $position->isShort();
         $current = (float) ($position->storedTarget1LimitPrice() ?? $position->target_1_price ?? 0);
         $pending = (float) ($position->pendingTarget1LimitPrice() ?? 0);
-        $difference = $pending - $current;
-        $isShort = $position->isShort();
-        $verb = $difference >= 0 ? 'Verhoog' : 'Verlaag';
+        $rows = [];
 
-        return [
-            'title' => "{$position->ticker} — Target 1 aanpassen",
-            'intro' => $isShort
+        if ($needsQty) {
+            $rows[] = [
+                'label' => 'Take Profit nu',
+                'value' => sprintf('%s (100%%)', self::formatQuantity($total)),
+                'tone' => 'old',
+            ];
+            $rows[] = [
+                'label' => 'Take Profit naar',
+                'value' => sprintf('%s (%d%%)', self::formatQuantity($qty), $fractionPercent),
+                'copy_value' => self::formatCopyQuantity($qty),
+                'tone' => 'new',
+                'accent' => true,
+            ];
+        }
+
+        if ($needsPrice) {
+            $difference = $pending - $current;
+            $rows[] = [
+                'label' => 'Fill (entry)',
+                'value' => self::formatMoney((float) ($position->entry_price ?? 0)),
+            ];
+            $rows[] = [
+                'label' => 'Huidige Target 1',
+                'value' => self::formatMoney($current),
+                'tone' => 'old',
+            ];
+            $rows[] = [
+                'label' => 'Nieuwe Target 1',
+                'value' => self::formatMoney($pending),
+                'copy_value' => self::formatCopyMoney($pending),
+                'tone' => 'new',
+                'accent' => true,
+            ];
+            $rows[] = [
+                'label' => 'Verschil',
+                'value' => sprintf('%s%s', $difference >= 0 ? '+' : '', self::formatMoney($difference)),
+                'accent' => true,
+            ];
+        }
+
+        $intro = match (true) {
+            $needsQty && $needsPrice => $isShort
+                ? 'TradingView zet TP op 100%. Zet het aantal op 50% en neem de nieuwe Take Profit over — je fill lag onder de sell-stop.'
+                : 'TradingView zet TP op 100%. Zet het aantal op 50% en neem de nieuwe Take Profit over — je fill lag boven de buy-stop.',
+            $needsQty => 'TradingView zet Take Profit standaard op 100%. Wijzig het TP-aantal naar 50% zodat de runner blijft staan.',
+            default => $isShort
                 ? 'Fill lag onder je sell-stop. Neem de nieuwe Take Profit 1-op-1 over in je broker.'
                 : 'Fill lag boven je buy-stop. Neem de nieuwe Take Profit 1-op-1 over in je broker.',
-            'rows' => [
-                [
-                    'label' => 'Fill (entry)',
-                    'value' => self::formatMoney((float) ($position->entry_price ?? 0)),
-                ],
-                [
-                    'label' => 'Huidige Target 1',
-                    'value' => self::formatMoney($current),
-                    'tone' => 'old',
-                ],
-                [
-                    'label' => 'Nieuwe Target 1',
-                    'value' => self::formatMoney($pending),
-                    'copy_value' => self::formatCopyMoney($pending),
-                    'tone' => 'new',
-                    'accent' => true,
-                ],
-                [
-                    'label' => 'Verschil',
-                    'value' => sprintf('%s%s', $difference >= 0 ? '+' : '', self::formatMoney($difference)),
-                    'accent' => true,
-                ],
-            ],
-            'difference_label' => 'R/R 1:2 t.o.v. je fill',
-            'confirmation' => sprintf(
+        };
+
+        $confirmation = match (true) {
+            $needsQty && $needsPrice => sprintf(
+                'Heb je in je broker het Take Profit-aantal naar %s (%d%%) gezet en de prijs gewijzigd van %s naar %s?',
+                self::formatQuantity($qty),
+                $fractionPercent,
+                self::formatMoney($current),
+                self::formatMoney($pending),
+            ),
+            $needsQty => sprintf(
+                'Heb je in je broker het Take Profit-aantal gewijzigd naar %s (%d%%)?',
+                self::formatQuantity($qty),
+                $fractionPercent,
+            ),
+            default => sprintf(
                 'Heb je de Take Profit in je broker gewijzigd van %s naar %s?',
                 self::formatMoney($current),
                 self::formatMoney($pending),
             ),
-            'submit_label' => $verb.' Target 1',
+        };
+
+        return [
+            'title' => "{$position->ticker} — Take Profit aanpassen",
+            'intro' => $intro,
+            'rows' => $rows,
+            'difference_label' => $needsPrice ? 'R/R 1:2 t.o.v. je fill' : 'TradingView zet TP op 100% tot je het aantal wijzigt',
+            'confirmation' => $confirmation,
+            'submit_label' => 'Take Profit aangepast',
         ];
     }
 

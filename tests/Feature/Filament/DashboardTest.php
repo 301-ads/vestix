@@ -6,6 +6,7 @@ use App\Enums\Broker;
 use App\Enums\EarningsReleaseHour;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Widgets\BankrollUpdateWidget;
+use App\Filament\Widgets\FirstRunChecklistWidget;
 use App\Filament\Widgets\OrderPlanTodayWidget;
 use App\Filament\Widgets\PortfolioExposureWidget;
 use App\Filament\Widgets\PortfolioTopFlopWidget;
@@ -18,6 +19,7 @@ use App\Models\User;
 use App\Support\MarketDataFreshness;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -39,7 +41,7 @@ class DashboardTest extends TestCase
 
     public function test_dashboard_header_keeps_freshness_beside_sync_on_one_row(): void
     {
-        \Illuminate\Support\Facades\Cache::put(
+        Cache::put(
             'vestix:last_api_fetch',
             now()->subDay()->toIso8601String(),
         );
@@ -201,7 +203,7 @@ class DashboardTest extends TestCase
         $widgets = (new Dashboard)->getWidgets();
 
         $this->assertSame([
-            \App\Filament\Widgets\FirstRunChecklistWidget::class,
+            FirstRunChecklistWidget::class,
             PositionsRequiringActionWidget::class,
             BankrollUpdateWidget::class,
             PortfolioExposureWidget::class,
@@ -546,8 +548,10 @@ class DashboardTest extends TestCase
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(PositionsRequiringActionWidget::class)
-            ->assertDontSee('ALL')
-            ->assertDontSee('Stel Stop-Loss in op');
+            ->assertSee('ALL')
+            ->assertDontSee('Stel Stop-Loss in op')
+            ->assertSee('Wijzig Take Profit van 100%')
+            ->assertSee('2 stuks (50%)');
     }
 
     public function test_action_widget_shows_limit_sell_instruction_for_non_revolut_broker(): void
@@ -596,8 +600,40 @@ class DashboardTest extends TestCase
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(PositionsRequiringActionWidget::class)
-            ->assertDontSee('TSLA')
-            ->assertDontSee('Stel Limit Sell in op');
+            ->assertSee('TSLA')
+            ->assertDontSee('Stel Limit Sell in op')
+            ->assertSee('Wijzig Take Profit van 100%')
+            ->assertSee('50 stuks (50%)');
+    }
+
+    public function test_action_widget_confirms_ibkr_take_profit_qty_adjust(): void
+    {
+        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
+        $user->update(['primary_broker' => Broker::Ibkr]);
+
+        $position = Position::factory()->for($user)->create([
+            'ticker' => 'SBLK',
+            'broker' => Broker::Ibkr,
+            'entry_price' => 28.07,
+            'initial_sl' => 26.80,
+            'current_sl' => 26.80,
+            'latest_close_price' => 29.00,
+            'latest_sma_20' => 26.80,
+            'latest_atr_14' => 0.80,
+            'quantity' => 41,
+            'status' => 'open',
+        ]);
+
+        $this->actingAsFilamentUser($user, $squad);
+
+        Livewire::test(PositionsRequiringActionWidget::class)
+            ->assertSee('SBLK')
+            ->assertSee('21 stuks (50%)')
+            ->assertTableActionVisible('adjust_target_1', $position)
+            ->callTableAction('adjust_target_1', $position)
+            ->assertDontSee('SBLK');
+
+        $this->assertNotNull($position->fresh()->target_1_qty_adjusted_at);
     }
 
     public function test_action_widget_hides_limit_sell_for_auto_runner_bypass_position(): void

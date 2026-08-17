@@ -71,15 +71,17 @@ class ScaleOutTest extends TestCase
         $this->assertEquals(17.76, $open->computedTarget1PriceFromRisk());
         $this->assertEquals(17.76, $open->pendingTarget1LimitPrice());
         $this->assertTrue($open->hasPendingTarget1Raise());
+        $this->assertTrue($open->needsTarget1QtyAdjust());
+        $this->assertSame(Position::PRIMARY_ACTION_ADJUST_TARGET_1, $open->fresh()->primaryActionType());
 
-        $open->markInitialSlPlaced();
-        $this->assertSame(Position::PRIMARY_ACTION_RAISE_TARGET_1, $open->fresh()->primaryActionType());
-
-        $open->applyPendingTarget1Raise();
+        $open->applyTarget1BrokerAdjust();
         $raised = $open->fresh();
         $this->assertEquals(17.76, $raised->target_1_price);
         $this->assertNull($raised->pendingTarget1LimitPrice());
         $this->assertFalse($raised->hasPendingTarget1Raise());
+        $this->assertTrue($raised->hasTarget1QtyAdjusted());
+        $this->assertFalse($raised->needsTarget1BrokerAdjust());
+        $this->assertNotSame(Position::PRIMARY_ACTION_ADJUST_TARGET_1, $raised->primaryActionType());
     }
 
     public function test_activating_with_better_fill_does_not_queue_target_1_raise(): void
@@ -98,6 +100,49 @@ class ScaleOutTest extends TestCase
         $this->assertEquals(17.70, $open->target_1_price);
         $this->assertNull($open->pendingTarget1LimitPrice());
         $this->assertFalse($open->hasPendingTarget1Raise());
+        $this->assertFalse($open->needsTarget1QtyAdjust());
+    }
+
+    public function test_ibkr_activation_queues_take_profit_qty_adjust_even_with_better_fill(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 16.56,
+            'quantity' => 92,
+            'latest_sma_20' => 16.20,
+            'latest_atr_14' => 0.42,
+            'target_1_rr' => 2.0,
+            'broker' => Broker::Ibkr,
+        ]);
+
+        $scout->activateAsPosition(16.54, 92);
+        $open = $scout->fresh();
+
+        $this->assertEquals(17.70, $open->target_1_price);
+        $this->assertNull($open->pendingTarget1LimitPrice());
+        $this->assertTrue($open->needsTarget1QtyAdjust());
+        $this->assertSame(46.0, $open->target_1_quantity);
+        $this->assertSame(Position::PRIMARY_ACTION_ADJUST_TARGET_1, $open->primaryActionType());
+    }
+
+    public function test_revolut_activation_does_not_queue_take_profit_qty_adjust(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
+        $scout = Position::factory()->for($user)->scout()->create([
+            'entry_price' => 16.56,
+            'quantity' => 92,
+            'latest_close_price' => 16.40,
+            'latest_sma_20' => 16.20,
+            'latest_atr_14' => 0.42,
+            'target_1_rr' => 2.0,
+        ]);
+
+        $scout->activateAsPosition(16.58, 92);
+        $open = $scout->fresh();
+
+        $this->assertTrue($open->hasPendingTarget1Raise());
+        $this->assertFalse($open->needsTarget1QtyAdjust());
+        $this->assertSame(Position::PRIMARY_ACTION_PLACE_INITIAL_SL, $open->primaryActionType());
     }
 
     public function test_marking_bracket_placed_freezes_target_1_against_later_entry_drift(): void
@@ -473,6 +518,28 @@ class ScaleOutTest extends TestCase
         $this->assertStringContainsString('bg-primary-500', $html);
         $this->assertStringContainsString('Target 1 &middot; Verkoop 50%', $html);
         $this->assertStringContainsString('Limit sell', $html);
+    }
+
+    public function test_order_plan_warns_ibkr_to_cut_take_profit_quantity_after_fill(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+
+        $position = Position::factory()->for($user)->make([
+            'status' => 'open',
+            'broker' => Broker::Ibkr,
+            'entry_price' => 28.07,
+            'initial_sl' => 26.80,
+            'current_sl' => 26.80,
+            'latest_close_price' => 29.00,
+            'quantity' => 41,
+        ]);
+
+        $html = ScaleOutDisplay::orderPlanHtml($position)->toHtml();
+
+        $this->assertStringContainsString('Limit sell', $html);
+        $this->assertStringContainsString('Wijzig Take Profit naar', $html);
+        $this->assertStringContainsString('21 stuks (50%)', $html);
+        $this->assertStringContainsString('TradingView plaatst TP op 100%', $html);
     }
 
     public function test_order_plan_hunt_phase_shows_revolut_monitoring_copy(): void

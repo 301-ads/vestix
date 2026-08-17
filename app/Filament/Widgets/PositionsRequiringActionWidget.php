@@ -82,7 +82,7 @@ class PositionsRequiringActionWidget extends TableWidget
             ->recordActions([
                 $this->outlinedRowAction(PositionRecordActions::markTarget1LimitPlaced()),
                 $this->outlinedRowAction(PositionRecordActions::markInitialSlPlaced()),
-                $this->outlinedRowAction(PositionRecordActions::raiseTarget1Limit()),
+                $this->outlinedRowAction(PositionRecordActions::adjustTarget1AtBroker()),
                 $this->outlinedRowAction(PositionRecordActions::markAsUpdated()),
                 $this->outlinedRowAction(PositionRecordActions::holdThroughEarnings()),
                 $this->outlinedRowAction(PositionRecordActions::archive())
@@ -157,7 +157,7 @@ class PositionsRequiringActionWidget extends TableWidget
             Position::PRIMARY_ACTION_EARNINGS => 'Earnings',
             Position::PRIMARY_ACTION_UPDATE_SL => 'Stop-Loss',
             Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'Initial SL',
-            Position::PRIMARY_ACTION_RAISE_TARGET_1 => 'Target 1',
+            Position::PRIMARY_ACTION_ADJUST_TARGET_1 => 'Take Profit',
             default => 'Actie',
         };
     }
@@ -192,14 +192,7 @@ class PositionsRequiringActionWidget extends TableWidget
                 'Stel Stop-Loss in op $%s bij je broker.',
                 number_format((float) ($record->current_sl ?? 0), 2),
             ),
-            Position::PRIMARY_ACTION_RAISE_TARGET_1 => sprintf(
-                '%s Target 1 van $%s naar $%s.',
-                ((float) ($record->pendingTarget1LimitPrice() ?? 0)) >= (float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0)
-                    ? 'Verhoog'
-                    : 'Verlaag',
-                number_format((float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0), 2),
-                number_format((float) ($record->pendingTarget1LimitPrice() ?? 0), 2),
-            ),
+            Position::PRIMARY_ACTION_ADJUST_TARGET_1 => $this->formatTarget1AdjustInstruction($record),
             default => '—',
         };
     }
@@ -221,15 +214,7 @@ class PositionsRequiringActionWidget extends TableWidget
                 $emphasis,
                 number_format((float) ($record->current_sl ?? 0), 2),
             )),
-            Position::PRIMARY_ACTION_RAISE_TARGET_1 => new HtmlString(sprintf(
-                '%s Target 1 van $%s naar <span class="%s">$%s</span>.',
-                ((float) ($record->pendingTarget1LimitPrice() ?? 0)) >= (float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0)
-                    ? 'Verhoog'
-                    : 'Verlaag',
-                number_format((float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0), 2),
-                $emphasis,
-                number_format((float) ($record->pendingTarget1LimitPrice() ?? 0), 2),
-            )),
+            Position::PRIMARY_ACTION_ADJUST_TARGET_1 => $this->formatTarget1AdjustInstructionHtml($record, $emphasis),
             Position::PRIMARY_ACTION_TARGET_1 => new HtmlString($record->userUsesRevolutWorkflow()
                 ? sprintf(
                     'Target 1 bereikt op <span class="%s">$%s</span>. Pas SL aan, verkoop %d%%, zet runner-SL op breakeven.',
@@ -245,6 +230,72 @@ class PositionsRequiringActionWidget extends TableWidget
                 )),
             default => new HtmlString(e($this->formatInstruction($record))),
         };
+    }
+
+    private function formatTarget1AdjustInstruction(Position $record): string
+    {
+        $parts = [];
+
+        if ($record->needsTarget1QtyAdjust() && $record->target_1_quantity !== null) {
+            $parts[] = sprintf(
+                'Wijzig Take Profit van 100%% naar %s (%d%%)',
+                rtrim(rtrim(number_format((float) $record->target_1_quantity, 6, '.', ''), '0'), '.').' stuks',
+                (int) round($record->effective_first_tranche_fraction * 100),
+            );
+        }
+
+        if ($record->hasPendingTarget1Raise()) {
+            $current = (float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0);
+            $pending = (float) ($record->pendingTarget1LimitPrice() ?? 0);
+            $parts[] = sprintf(
+                '%s Target 1 van $%s naar $%s',
+                $pending >= $current ? 'verhoog' : 'verlaag',
+                number_format($current, 2),
+                number_format($pending, 2),
+            );
+        }
+
+        if ($parts === []) {
+            return 'Pas Take Profit aan in je broker.';
+        }
+
+        $sentence = implode(' en ', $parts);
+
+        return ucfirst($sentence).'.';
+    }
+
+    private function formatTarget1AdjustInstructionHtml(Position $record, string $emphasis): HtmlString
+    {
+        $parts = [];
+
+        if ($record->needsTarget1QtyAdjust() && $record->target_1_quantity !== null) {
+            $parts[] = sprintf(
+                'Wijzig Take Profit van 100%% naar <span class="%s">%s (%d%%)</span>',
+                $emphasis,
+                rtrim(rtrim(number_format((float) $record->target_1_quantity, 6, '.', ''), '0'), '.').' stuks',
+                (int) round($record->effective_first_tranche_fraction * 100),
+            );
+        }
+
+        if ($record->hasPendingTarget1Raise()) {
+            $current = (float) ($record->storedTarget1LimitPrice() ?? $record->target_1_price ?? 0);
+            $pending = (float) ($record->pendingTarget1LimitPrice() ?? 0);
+            $parts[] = sprintf(
+                '%s Target 1 van $%s naar <span class="%s">$%s</span>',
+                $pending >= $current ? 'verhoog' : 'verlaag',
+                number_format($current, 2),
+                $emphasis,
+                number_format($pending, 2),
+            );
+        }
+
+        if ($parts === []) {
+            return new HtmlString('Pas Take Profit aan in je broker.');
+        }
+
+        $sentence = implode(' en ', $parts);
+
+        return new HtmlString(ucfirst($sentence).'.');
     }
 
     public function formatBuyStopInstruction(Position $record): string
@@ -304,7 +355,7 @@ class PositionsRequiringActionWidget extends TableWidget
             },
             Position::PRIMARY_ACTION_UPDATE_SL => 'info',
             Position::PRIMARY_ACTION_PLACE_INITIAL_SL => 'warning',
-            Position::PRIMARY_ACTION_RAISE_TARGET_1 => 'warning',
+            Position::PRIMARY_ACTION_ADJUST_TARGET_1 => 'warning',
             default => 'gray',
         };
     }

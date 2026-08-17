@@ -102,6 +102,7 @@ class Position extends Model
             'target_1_rr' => 'decimal:4',
             'target_1_limit_price' => 'decimal:2',
             'target_1_pending_limit_price' => 'decimal:2',
+            'target_1_qty_adjusted_at' => 'datetime',
             'first_tranche_fraction' => 'decimal:4',
             'target_1_limit_placed_at' => 'datetime',
             'initial_sl' => 'decimal:2',
@@ -221,6 +222,7 @@ class Position extends Model
                 'target_1_rr',
                 'target_1_limit_price',
                 'target_1_pending_limit_price',
+                'target_1_qty_adjusted_at',
                 'first_tranche_fraction',
                 'target_1_limit_placed_at',
                 'initial_sl_placed_at',
@@ -682,6 +684,7 @@ class Position extends Model
             'broker_submitted_at',
             'target_1_limit_price',
             'target_1_pending_limit_price',
+            'target_1_qty_adjusted_at',
             'execution_truth_state',
             'protocol_score',
             'protocol_score_details',
@@ -1328,6 +1331,50 @@ class Position extends Model
         ]);
     }
 
+    public function hasTarget1QtyAdjusted(): bool
+    {
+        return $this->target_1_qty_adjusted_at !== null;
+    }
+
+    public function needsTarget1QtyAdjust(): bool
+    {
+        return $this->status === 'open'
+            && $this->usesIbkrWorkflow()
+            && ! $this->hasScaledOut()
+            && ! $this->hasTarget1QtyAdjusted()
+            && $this->target_1_quantity !== null;
+    }
+
+    public function needsTarget1BrokerAdjust(): bool
+    {
+        return $this->needsTarget1QtyAdjust() || (
+            $this->status === 'open'
+            && $this->usesIbkrWorkflow()
+            && ! $this->hasScaledOut()
+            && $this->hasPendingTarget1Raise()
+        );
+    }
+
+    public function applyTarget1BrokerAdjust(): void
+    {
+        $data = [];
+
+        if ($this->needsTarget1QtyAdjust()) {
+            $data['target_1_qty_adjusted_at'] = now();
+        }
+
+        $pending = $this->pendingTarget1LimitPrice();
+
+        if ($pending !== null) {
+            $data['target_1_limit_price'] = $pending;
+            $data['target_1_pending_limit_price'] = null;
+        }
+
+        if ($data !== []) {
+            $this->update($data);
+        }
+    }
+
     public function fillIsAdverseVersusPlan(float $plannedEntry, float $fill, float $epsilon = 0.01): bool
     {
         if ($this->isShort()) {
@@ -1901,7 +1948,7 @@ class Position extends Model
 
     public const PRIMARY_ACTION_PLACE_INITIAL_SL = 'PLACE_INITIAL_SL';
 
-    public const PRIMARY_ACTION_RAISE_TARGET_1 = 'RAISE_TARGET_1';
+    public const PRIMARY_ACTION_ADJUST_TARGET_1 = 'ADJUST_TARGET_1';
 
     /**
      * Resolve the single most important action for a position.
@@ -1911,7 +1958,7 @@ class Position extends Model
      * 2. Stopped out   -> liquidate (mutually exclusive with Target 1)
      * 3. Earnings      -> exit before earnings
      * 4. Initial SL    -> place stop-loss at broker after activation
-     * 5. Raise T1      -> fill worse than buy-stop; lift the broker take-profit
+     * 5. Adjust T1     -> IBKR: TP from 100% to 50% (and raise price if fill was worse)
      * 6. SL can raise  -> update stop-loss
      */
     public function primaryActionType(?Carbon $today = null): ?string
@@ -1938,8 +1985,8 @@ class Position extends Model
             return self::PRIMARY_ACTION_PLACE_INITIAL_SL;
         }
 
-        if ($this->hasPendingTarget1Raise()) {
-            return self::PRIMARY_ACTION_RAISE_TARGET_1;
+        if ($this->needsTarget1BrokerAdjust()) {
+            return self::PRIMARY_ACTION_ADJUST_TARGET_1;
         }
 
         if ($this->action_command === 'UPDATE'

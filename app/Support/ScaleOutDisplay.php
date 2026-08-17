@@ -165,6 +165,12 @@ class ScaleOutDisplay
             }
         }
 
+        if ($position->needsTarget1QtyAdjust()) {
+            $details[] = '<span class="font-medium text-warning-600 dark:text-warning-400">Wijzig Take Profit naar '
+                .self::formatQty((float) $position->target_1_quantity)
+                .' stuks (50%) — TradingView plaatst TP op 100% tot de order gevuld is.</span>';
+        }
+
         if ($position->hasPendingTarget1Raise()) {
             $pending = (float) $position->pendingTarget1LimitPrice();
             $current = (float) ($position->storedTarget1LimitPrice() ?? $position->target_1_price ?? 0);
