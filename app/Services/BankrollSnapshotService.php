@@ -38,14 +38,13 @@ class BankrollSnapshotService
     }
 
     /**
-     * Alpha Tracker equity: IBKR Net Liquidation + Revolut cash (until transferred to IBKR).
+     * Alpha Tracker equity: IBKR Net Liquidation (incl. pending deposits logged via exits).
      */
     public function resolveAlphaEquity(User $user, ?float $ibkrNetLiquidation = null): float
     {
         $ibkr = $ibkrNetLiquidation ?? (float) ($user->ibkr_net_liquidation ?? 0);
-        $revolutCash = max(0.0, (float) ($user->revolut_cash ?? 0));
 
-        return round(max(0.0, $ibkr) + $revolutCash, 2);
+        return round(max(0.0, $ibkr), 2);
     }
 
     public function recordSnapshot(User $user, float $amount, ?Carbon $date = null): BankrollSnapshot
@@ -90,11 +89,9 @@ class BankrollSnapshotService
     public function fillMissingFromIbkrDailyEquity(
         User $user,
         array $equityByReportDate,
-        float $revolutCashAddon = 0.0,
     ): int {
         $filled = 0;
         $baseline = $user->baseline_date?->copy()->timezone($this->timezone())->startOfDay();
-        $revolutCashAddon = max(0.0, $revolutCashAddon);
         $latest = $this->latestSnapshot($user);
         $notBefore = $latest?->recorded_on->copy()->timezone($this->timezone())->startOfDay();
 
@@ -125,7 +122,7 @@ class BankrollSnapshotService
 
             $this->recordSnapshot(
                 $user,
-                round((float) $ibkrNlv + $revolutCashAddon, 2),
+                round((float) $ibkrNlv, 2),
                 $recordedOn,
             );
             $filled++;
