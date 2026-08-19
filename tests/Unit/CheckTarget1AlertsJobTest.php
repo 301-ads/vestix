@@ -20,7 +20,7 @@ class CheckTarget1AlertsJobTest extends TestCase
     {
         Queue::fake();
 
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $position = Position::factory()->for($user)->create([
             'entry_price' => 10.00,
@@ -43,7 +43,7 @@ class CheckTarget1AlertsJobTest extends TestCase
     {
         Queue::fake();
 
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $position = Position::factory()->for($user)->create([
             'entry_price' => 10.00,
@@ -67,7 +67,7 @@ class CheckTarget1AlertsJobTest extends TestCase
     {
         Queue::fake();
 
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $position = Position::factory()->for($user)->create([
             'entry_price' => 51.50,

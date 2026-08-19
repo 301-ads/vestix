@@ -1139,9 +1139,7 @@ class PositionRecordActions
     {
         return Action::make('mark_limit_placed')
             ->label('Update')
-            ->tooltip(fn (Position $record): string => $record->userUsesRevolutWorkflow()
-                ? 'Bevestig dat Target 1 is bereikt (Telegram of Revolut-notificatie)'
-                : 'Bevestig dat de limit sell bij je broker staat')
+            ->tooltip('Bevestig dat de limit sell bij je broker staat')
             ->icon('heroicon-o-check')
             ->color('success')
             ->visible(fn (Position $record): bool => $record->status === 'open'
@@ -1164,9 +1162,7 @@ class PositionRecordActions
                 $record->markTarget1LimitPlaced();
 
                 FilamentNotifier::send(
-                    title: $record->userUsesRevolutWorkflow()
-                        ? 'Target 1 bevestigd'
-                        : 'Limit sell gemarkeerd',
+                    title: 'Limit sell gemarkeerd',
                     body: "{$record->ticker}: de broker-to-do is afgevinkt.",
                 );
             });
@@ -1185,9 +1181,7 @@ class PositionRecordActions
             ->modalHeading('Target 1 — gedeeltelijke verkoop')
             ->modalDescription(fn (Position $record): string => $record->isAutoRunnerBypass()
                 ? 'Log de werkelijke fill bij je broker. Je stop-loss blijft staan (ligt al op of boven entry).'
-                : ($record->usesIbkrWorkflow()
-                    ? 'Log de werkelijke fill bij je broker. Vestix zet de stop op breakeven. IBKR annuleert de bracket-SL bij een TP-fill — plaats daarna een nieuwe stop voor de runner.'
-                    : 'Log de werkelijke fill bij je broker. Je stop-loss wordt automatisch naar breakeven (entry) verplaatst.'))
+                : 'Log de werkelijke fill bij je broker. Vestix zet de stop op breakeven. IBKR annuleert de bracket-SL bij een TP-fill — plaats daarna een nieuwe stop voor de runner.')
             ->schema([
                 TextInput::make('fill_price')
                     ->label('Werkelijke verkoopprijs')

@@ -156,13 +156,7 @@ class ScaleOutDisplay
         }
 
         if ($position->target_1_quantity !== null) {
-            if ($position->userUsesRevolutWorkflow()) {
-                $details[] = 'Vestix monitort Target 1 — Telegram-alert bij $'
-                    .number_format((float) $position->target_1_price, 2);
-                $details[] = 'Houd 100% stop-loss actief bij Revolut (geen limit order mogelijk)';
-            } else {
-                $details[] = 'Limit sell '.self::formatQty((float) $position->target_1_quantity).' stuks';
-            }
+            $details[] = 'Limit sell '.self::formatQty((float) $position->target_1_quantity).' stuks';
         }
 
         if ($position->needsTarget1QtyAdjust()) {

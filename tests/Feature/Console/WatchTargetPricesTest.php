@@ -43,8 +43,8 @@ class WatchTargetPricesTest extends TestCase
         Queue::fake();
         Cache::flush();
 
-        $revolutUser = User::factory()->create(['primary_broker' => Broker::Revolut]);
-        $otherUser = User::factory()->create(['primary_broker' => Broker::None]);
+        $revolutUser = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+        $otherUser = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $revolutPosition = Position::factory()->for($revolutUser)->create([
             'ticker' => 'AAPL',
@@ -105,7 +105,7 @@ class WatchTargetPricesTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'America/New_York'));
         Queue::fake();
 
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $position = Position::factory()->for($user)->create([
             'ticker' => 'BAC',

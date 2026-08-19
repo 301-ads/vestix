@@ -40,7 +40,7 @@ class FreeFirstAutomationTest extends TestCase
     {
         $user = User::factory()->create([
             'default_risk_percent' => 1,
-            'primary_broker' => Broker::Revolut,
+            'primary_broker' => Broker::Ibkr,
             'trading_bankroll' => 10000,
             'telegram_chat_id' => '123',
         ]);
@@ -64,6 +64,7 @@ class FreeFirstAutomationTest extends TestCase
             'user_id' => $user->id,
             'ticker' => 'AAPL',
             'status' => 'open',
+            'broker' => Broker::Ibkr,
             'quantity' => 8,
             'entry_price' => 100,
             'current_sl' => 95,
@@ -80,7 +81,7 @@ class FreeFirstAutomationTest extends TestCase
         $fresh = $position->fresh();
         $this->assertEquals(10.0, (float) $fresh->quantity);
         $this->assertSame('broker-synced', $fresh->data_source_label);
-        $this->assertSame('Revolut', $fresh->displayDataSourceLabel());
+        $this->assertSame('IBKR', $fresh->displayDataSourceLabel());
         $this->assertSame('Gesynchroniseerd · open positie', $fresh->executionTruthState()?->label());
     }
 

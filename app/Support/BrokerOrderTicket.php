@@ -255,10 +255,6 @@ class BrokerOrderTicket
      */
     public static function forLimitSell(Position $position): array
     {
-        if ($position->userUsesRevolutWorkflow()) {
-            return self::forRevolutTarget1Hit($position);
-        }
-
         $limitPrice = (float) ($position->target_1_price ?? 0);
         $sellQty = (float) ($position->target_1_quantity ?? 0);
         $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
@@ -446,59 +442,6 @@ class BrokerOrderTicket
             'difference_label' => null,
             'confirmation' => 'Heb je de bracket order in TradingView/IBKR verzonden?',
             'submit_label' => 'Order geplaatst',
-        ];
-    }
-
-    /**
-     * @return array{
-     *     title: string,
-     *     intro: string|null,
-     *     rows: list<array{label: string, value: string, accent?: bool, tone?: string, copy_value?: string, hint?: string}>,
-     *     difference_label: string|null,
-     *     confirmation: string,
-     *     submit_label: string,
-     * }
-     */
-    private static function forRevolutTarget1Hit(Position $position): array
-    {
-        $targetPrice = (float) ($position->target_1_price ?? 0);
-        $sellQty = (float) ($position->target_1_quantity ?? 0);
-        $fractionPercent = (int) round($position->effective_first_tranche_fraction * 100);
-
-        return [
-            'title' => "{$position->ticker} — Target 1 bereikt",
-            'intro' => null,
-            'rows' => [
-                [
-                    'label' => 'Totale positie',
-                    'value' => self::formatQuantity((float) ($position->quantity ?? 0)),
-                ],
-                [
-                    'label' => 'Te verkopen',
-                    'value' => sprintf(
-                        '%s (%d%%)',
-                        self::formatQuantity($sellQty),
-                        $fractionPercent,
-                    ),
-                ],
-                [
-                    'label' => 'Target prijs',
-                    'value' => self::formatMoney($targetPrice),
-                    'accent' => true,
-                ],
-                [
-                    'label' => 'Huidige Stop-Loss',
-                    'value' => self::formatMoney((float) ($position->current_sl ?? 0)),
-                ],
-            ],
-            'difference_label' => null,
-            'confirmation' => sprintf(
-                'Heb je Target 1 op %s gezien (Telegram of Revolut-notificatie) en ben je klaar om %s (%d%%) handmatig te verkopen?',
-                self::formatMoney($targetPrice),
-                self::formatQuantity($sellQty),
-                $fractionPercent,
-            ),
-            'submit_label' => 'Target 1 bevestigd',
         ];
     }
 

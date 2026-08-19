@@ -275,9 +275,6 @@ return [
     ],
 
     'brokers' => [
-        'revolut' => [
-            'stock_url' => env('REVOLUT_STOCK_URL_TEMPLATE', 'https://www.revolut.com/app-invest/stocks/{ticker}'),
-        ],
         'ibkr' => [
             'stock_url' => env('IBKR_STOCK_URL_TEMPLATE'),
         ],

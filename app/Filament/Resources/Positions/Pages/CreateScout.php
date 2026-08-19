@@ -72,7 +72,7 @@ class CreateScout extends CreateRecord
     {
         $data['status'] = 'scout';
         $data['user_id'] = auth()->id();
-        $data['broker'] = auth()->user()?->primary_broker?->value ?? Broker::Revolut->value;
+        $data['broker'] = auth()->user()?->primary_broker?->value ?? Broker::Ibkr->value;
 
         $direction = TradeDirection::tryFrom((string) ($data['direction'] ?? ''))
             ?? TradeDirection::Long;

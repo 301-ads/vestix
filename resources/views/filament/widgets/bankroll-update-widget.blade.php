@@ -20,7 +20,7 @@
                 @else
                     <p class="vestix-action-todo__ticker">Bankroll bijwerken</p>
                     <p class="vestix-action-todo__instruction">
-                        Vul je actuele saldo in uit je broker (Revolut: Beleggingsrekening). SPY-benchmark wordt automatisch opgeslagen voor je Alpha Tracker.
+                        Vul je actuele saldo in uit IBKR (Net Liquidation). SPY-benchmark wordt automatisch opgeslagen voor je Alpha Tracker.
                     </p>
                 @endif
 

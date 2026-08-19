@@ -468,11 +468,12 @@ class DashboardTest extends TestCase
         $this->assertSame('closed', $stoppedOut->fresh()->status);
     }
 
-    public function test_action_widget_shows_limit_sell_instruction_and_update_action(): void
+    public function test_action_widget_shows_runner_stop_loss_after_target_1_hit(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
 
         $targetHit = Position::factory()->for($user)->create([
+            'broker' => Broker::Ibkr,
             'ticker' => 'GS',
             'entry_price' => 10.00,
             'initial_sl' => 9.00,
@@ -482,48 +483,16 @@ class DashboardTest extends TestCase
             'latest_atr_14' => 1.00,
             'quantity' => 100,
             'status' => 'open',
+            'target_1_qty_adjusted_at' => now(),
         ]);
 
         $this->actingAsFilamentUser($user, $squad);
 
         Livewire::test(PositionsRequiringActionWidget::class)
             ->assertSee('GS')
-            ->assertSee('Target 1 bereikt op')
-            ->assertSee('$12.00')
-            ->assertSee('Pas SL aan, verkoop 50%')
-            ->assertTableActionVisible('mark_limit_placed', $targetHit)
-            ->callTableAction('mark_limit_placed', $targetHit)
-            ->assertDontSee('GS');
-    }
-
-    public function test_action_widget_shows_initial_stop_loss_after_activation(): void
-    {
-        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
-
-        $position = Position::factory()->for($user)->awaitingInitialSlPlacement()->create([
-            'ticker' => 'NVDA',
-            'broker' => Broker::Revolut,
-            'entry_price' => 79.50,
-            'initial_sl' => 76.10,
-            'quantity' => 12,
-            'latest_close_price' => 78.20,
-            'latest_sma_20' => 77.50,
-            'latest_atr_14' => 2.80,
-            'current_sl' => 76.10,
-            'status' => 'open',
-        ]);
-
-        $this->actingAsFilamentUser($user, $squad);
-
-        Livewire::test(PositionsRequiringActionWidget::class)
-            ->assertSee('NVDA')
-            ->assertSee('Stel Stop-Loss in op')
-            ->assertSee('$76.10')
-            ->assertTableActionVisible('mark_initial_sl_placed', $position)
-            ->callTableAction('mark_initial_sl_placed', $position)
-            ->assertDontSee('NVDA');
-
-        $this->assertNotNull($position->fresh()->initial_sl_placed_at);
+            ->assertSee('Plaats een nieuwe stop op')
+            ->assertSee('$10.00')
+            ->assertTableActionVisible('mark_runner_sl_placed', $targetHit);
     }
 
     public function test_action_widget_hides_initial_stop_loss_for_ibkr_bracket_positions(): void
@@ -554,35 +523,9 @@ class DashboardTest extends TestCase
             ->assertSee('2 stuks (50%)');
     }
 
-    public function test_action_widget_shows_limit_sell_instruction_for_non_revolut_broker(): void
+    public function test_action_widget_hides_limit_sell_for_ibkr_workflow(): void
     {
         ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
-        $user->update(['primary_broker' => Broker::None]);
-
-        Position::factory()->for($user)->create([
-            'ticker' => 'IBM',
-            'entry_price' => 10.00,
-            'initial_sl' => 9.00,
-            'current_sl' => 9.00,
-            'latest_close_price' => 12.00,
-            'latest_sma_20' => 9.00,
-            'latest_atr_14' => 1.00,
-            'quantity' => 100,
-            'status' => 'open',
-        ]);
-
-        $this->actingAsFilamentUser($user, $squad);
-
-        Livewire::test(PositionsRequiringActionWidget::class)
-            ->assertSee('IBM')
-            ->assertSee('Stel Limit Sell in op')
-            ->assertSee('voor 50% van je positie.');
-    }
-
-    public function test_action_widget_hides_limit_sell_for_ibkr_tagged_position(): void
-    {
-        ['user' => $user, 'squad' => $squad] = $this->createUserWithSquad();
-        $user->update(['primary_broker' => Broker::Revolut]);
 
         Position::factory()->for($user)->create([
             'broker' => Broker::Ibkr,

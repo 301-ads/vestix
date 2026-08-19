@@ -929,7 +929,7 @@ class ScoutWatchlistTest extends TestCase
 
         $scout = Position::factory()->for($user)->scout()->create([
             'ticker' => 'WIT',
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
             'broker_order_status' => BrokerOrderStatus::Scout,
             'entry_price' => 50.00,
             'quantity' => 10,
@@ -1142,7 +1142,7 @@ class ScoutWatchlistTest extends TestCase
 
         $scout = Position::factory()->for($user)->scout()->create([
             'ticker' => 'COO',
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
             'entry_price' => 71.80,
             'quantity' => 34,
             'latest_close_price' => 71.80,
@@ -1155,7 +1155,7 @@ class ScoutWatchlistTest extends TestCase
             ->assertDontSeeHtml('>IBKR</span>');
 
         $this->assertTrue($scout->fresh()->usesIbkrWorkflow());
-        $this->assertSame(Broker::Revolut, $scout->fresh()->broker);
+        $this->assertSame(Broker::Ibkr, $scout->fresh()->broker);
     }
 
     public function test_clear_buy_stop_resets_scout_status(): void

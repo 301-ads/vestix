@@ -67,7 +67,7 @@ class BankrollSnapshotServiceTest extends TestCase
         $this->assertEquals(25000.0, (float) $user->fresh()->trading_bankroll);
     }
 
-    public function test_resolve_alpha_equity_adds_open_revolut_positions_to_ibkr_nlv(): void
+    public function test_resolve_alpha_equity_adds_revolut_cash_to_ibkr_nlv(): void
     {
         $user = User::factory()->create([
             'ibkr_net_liquidation' => 7927.25,
@@ -78,26 +78,16 @@ class BankrollSnapshotServiceTest extends TestCase
         Position::factory()->for($user)->create([
             'ticker' => 'BAC',
             'status' => 'open',
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
             'quantity' => 22,
             'entry_price' => 51.50,
             'latest_close_price' => 63.22,
         ]);
 
-        Position::factory()->for($user)->create([
-            'ticker' => 'NU',
-            'status' => 'open',
-            'broker' => Broker::Ibkr,
-            'quantity' => 33,
-            'entry_price' => 13.85,
-            'latest_close_price' => 14.29,
-        ]);
-
         $service = app(BankrollSnapshotService::class);
 
-        $this->assertEqualsWithDelta(1390.84, $service->revolutOpenPositionsMarketValue($user), 0.01);
-        $this->assertEqualsWithDelta(7927.25 + 1390.84 + 2130.70, $service->resolveAlphaEquity($user), 0.01);
-        $this->assertEqualsWithDelta(7927.25 + 1390.84 + 2130.70, $service->resolveAlphaEquity($user, 7927.25), 0.01);
+        $this->assertEqualsWithDelta(7927.25 + 2130.70, $service->resolveAlphaEquity($user), 0.01);
+        $this->assertEqualsWithDelta(7927.25 + 2130.70, $service->resolveAlphaEquity($user, 7927.25), 0.01);
     }
 
     public function test_is_update_due_on_saturday_without_weekly_snapshot(): void
@@ -193,7 +183,7 @@ class BankrollSnapshotServiceTest extends TestCase
             '2026-07-17' => 4555.29,
             '2026-08-10' => 7866.94, // existing latest
             '2026-08-11' => 7900.00, // after latest → catch-up OK
-        ], 1389.74);
+        ], 2130.70);
 
         $this->assertSame(1, $filled);
         $this->assertDatabaseMissing('bankroll_snapshots', [
@@ -203,7 +193,7 @@ class BankrollSnapshotServiceTest extends TestCase
         $this->assertDatabaseHas('bankroll_snapshots', [
             'user_id' => $user->id,
             'recorded_on' => '2026-08-11 00:00:00',
-            'amount' => 9289.74,
+            'amount' => 10030.70,
         ]);
     }
 

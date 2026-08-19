@@ -90,7 +90,7 @@ class FreeFirstDemoSeeder extends Seeder
         // Checklist: 3/4 gedaan → widget zichtbaar (alerts nog open).
         $user->forceFill([
             'default_risk_percent' => 1.0,
-            'primary_broker' => Broker::Revolut,
+            'primary_broker' => Broker::Ibkr,
             'trading_bankroll' => 25000,
             'ibkr_net_liquidation' => 25000,
             'ibkr_available_funds' => 8000,
@@ -170,7 +170,7 @@ class FreeFirstDemoSeeder extends Seeder
             'initial_sl_placed_at' => now()->subDay(),
             'execution_truth_state' => ExecutionTruthState::SyncedOpen,
             'data_source_label' => 'broker-synced',
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
         ]);
 
         // Ghost in Vestix (niet in IBKR Flex)
@@ -187,7 +187,7 @@ class FreeFirstDemoSeeder extends Seeder
             'execution_truth_state' => ExecutionTruthState::SubmittedAtBroker,
             'broker_submitted_at' => now()->subHours(6),
             'data_source_label' => 'handmatig',
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
         ]);
 
         // PLACE_INITIAL_SL todo
@@ -204,7 +204,7 @@ class FreeFirstDemoSeeder extends Seeder
             'execution_truth_state' => ExecutionTruthState::SubmittedAtBroker,
             'broker_submitted_at' => now()->subHour(),
             'data_source_label' => 'handmatig',
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
         ]);
 
         // TARGET_1 hit (entry 100, SL 95 → risk 5 → T1 @ 110 with 2R)
@@ -222,7 +222,7 @@ class FreeFirstDemoSeeder extends Seeder
             'target_1_limit_placed_at' => null,
             'execution_truth_state' => ExecutionTruthState::SyncedOpen,
             'data_source_label' => 'broker-synced',
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
         ]);
 
         // STOPPED OUT liquidation todo
@@ -237,7 +237,7 @@ class FreeFirstDemoSeeder extends Seeder
             'latest_atr_14' => 8.00,
             'initial_sl_placed_at' => now()->subDays(3),
             'execution_truth_state' => ExecutionTruthState::SyncedOpen,
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
         ]);
 
         // Freeride / scaled-out runner for share-card + truth partial
@@ -258,7 +258,7 @@ class FreeFirstDemoSeeder extends Seeder
             'initial_sl_placed_at' => now()->subDays(4),
             'execution_truth_state' => ExecutionTruthState::SyncedPartial,
             'data_source_label' => 'broker-synced',
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
         ]);
     }
 
@@ -401,7 +401,7 @@ class FreeFirstDemoSeeder extends Seeder
                 'buy_stop_review_setup_grade' => $grade,
                 'execution_truth_state' => ExecutionTruthState::Closed,
                 'data_source_label' => 'handmatig',
-                'broker' => Broker::Revolut,
+                'broker' => Broker::Ibkr,
                 'direction' => TradeDirection::Long,
             ]);
 
@@ -427,7 +427,7 @@ class FreeFirstDemoSeeder extends Seeder
                 'initial_sl_placed_at' => now()->subDays(45 - $n),
                 'trade_journal' => 'Bulk demo trade',
                 'execution_truth_state' => ExecutionTruthState::Closed,
-                'broker' => Broker::Revolut,
+                'broker' => Broker::Ibkr,
             ]);
             $protocol->persistForClosed($position->fresh());
         }
@@ -476,7 +476,7 @@ class FreeFirstDemoSeeder extends Seeder
                 'visibility' => PositionVisibility::Private,
                 'direction' => TradeDirection::Long,
                 'is_legacy' => false,
-                'broker' => Broker::Revolut,
+                'broker' => Broker::Ibkr,
             ], $attrs),
         );
 
@@ -501,7 +501,7 @@ class FreeFirstDemoSeeder extends Seeder
                 'visibility' => PositionVisibility::Private,
                 'direction' => TradeDirection::Long,
                 'is_legacy' => false,
-                'broker' => Broker::Revolut,
+                'broker' => Broker::Ibkr,
                 'broker_order_status' => BrokerOrderStatus::Scout,
                 'source' => null,
                 'review_status' => null,
@@ -529,7 +529,7 @@ class FreeFirstDemoSeeder extends Seeder
                 'visibility' => PositionVisibility::Private,
                 'direction' => TradeDirection::Long,
                 'is_legacy' => false,
-                'broker' => Broker::Revolut,
+                'broker' => Broker::Ibkr,
                 'status' => 'closed',
             ], $attrs),
         );

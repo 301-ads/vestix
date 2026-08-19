@@ -239,7 +239,7 @@ class SniperScanService
                 'review_status' => ScoutReviewStatus::PendingVisualReview->value,
                 'direction' => $direction->value,
                 'visibility' => PositionVisibility::Private->value,
-                'broker' => $owner->primary_broker?->value ?? Broker::Revolut->value,
+                'broker' => $owner->primary_broker?->value ?? Broker::Ibkr->value,
                 'broker_order_status' => BrokerOrderStatus::Scout->value,
                 'signal_high' => $indicators['high'],
                 'signal_low' => $indicators['low'],

@@ -167,17 +167,11 @@ class PositionsRequiringActionWidget extends TableWidget
     public function formatInstruction(Position $record): string
     {
         return match ($record->primaryActionType()) {
-            Position::PRIMARY_ACTION_TARGET_1 => $record->userUsesRevolutWorkflow()
-                ? sprintf(
-                    'Target 1 bereikt op $%s. Pas SL aan, verkoop %d%%, zet runner-SL op breakeven.',
-                    number_format((float) ($record->target_1_price ?? 0), 2),
-                    (int) round($record->effective_first_tranche_fraction * 100),
-                )
-                : sprintf(
-                    'Stel Limit Sell in op $%s voor %d%% van je positie.',
-                    number_format((float) ($record->target_1_price ?? 0), 2),
-                    (int) round($record->effective_first_tranche_fraction * 100),
-                ),
+            Position::PRIMARY_ACTION_TARGET_1 => sprintf(
+                'Stel Limit Sell in op $%s voor %d%% van je positie.',
+                number_format((float) ($record->target_1_price ?? 0), 2),
+                (int) round($record->effective_first_tranche_fraction * 100),
+            ),
             Position::PRIMARY_ACTION_LIQUIDATION => sprintf(
                 'Koers ($%s) raakte je stop-loss ($%s). Sluit de positie (liquidatie).',
                 number_format((float) ($record->latest_close_price ?? 0), 2),
@@ -219,19 +213,12 @@ class PositionsRequiringActionWidget extends TableWidget
             )),
             Position::PRIMARY_ACTION_PLACE_RUNNER_SL => $this->formatRunnerSlInstructionHtml($record, $emphasis),
             Position::PRIMARY_ACTION_ADJUST_TARGET_1 => $this->formatTarget1AdjustInstructionHtml($record, $emphasis),
-            Position::PRIMARY_ACTION_TARGET_1 => new HtmlString($record->userUsesRevolutWorkflow()
-                ? sprintf(
-                    'Target 1 bereikt op <span class="%s">$%s</span>. Pas SL aan, verkoop %d%%, zet runner-SL op breakeven.',
-                    $emphasis,
-                    number_format((float) ($record->target_1_price ?? 0), 2),
-                    (int) round($record->effective_first_tranche_fraction * 100),
-                )
-                : sprintf(
-                    'Stel Limit Sell in op <span class="%s">$%s</span> voor %d%% van je positie.',
-                    $emphasis,
-                    number_format((float) ($record->target_1_price ?? 0), 2),
-                    (int) round($record->effective_first_tranche_fraction * 100),
-                )),
+            Position::PRIMARY_ACTION_TARGET_1 => new HtmlString(sprintf(
+                'Stel Limit Sell in op <span class="%s">$%s</span> voor %d%% van je positie.',
+                $emphasis,
+                number_format((float) ($record->target_1_price ?? 0), 2),
+                (int) round($record->effective_first_tranche_fraction * 100),
+            )),
             default => new HtmlString(e($this->formatInstruction($record))),
         };
     }

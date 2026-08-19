@@ -2,14 +2,12 @@
 
 namespace App\Support;
 
-use App\Enums\Broker;
 use App\Models\User;
 
 class FirstRunChecklist
 {
     public const STEPS = [
         'risk_percent',
-        'broker',
         'alerts',
         'bankroll',
     ];
@@ -35,12 +33,6 @@ class FirstRunChecklist
                 'label' => 'Risico per trade',
                 'done' => $user->default_risk_percent !== null,
                 'hint' => 'Stel je long risico-niveau in (bijv. 1%).',
-            ],
-            'broker' => [
-                'key' => 'broker',
-                'label' => 'Broker kiezen',
-                'done' => $user->primary_broker instanceof Broker,
-                'hint' => 'Revolut of IBKR — bepaalt order tickets.',
             ],
             'alerts' => [
                 'key' => 'alerts',

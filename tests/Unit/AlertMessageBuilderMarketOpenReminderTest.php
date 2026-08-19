@@ -14,10 +14,14 @@ class AlertMessageBuilderMarketOpenReminderTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_message_includes_entry_investment_and_revolut_link(): void
+    public function test_message_includes_entry_investment_and_ibkr_link_when_configured(): void
     {
+        config([
+            'vestix.brokers.ibkr.stock_url' => 'https://example.com/stocks/{ticker}',
+        ]);
+
         $user = User::factory()->create([
-            'primary_broker' => Broker::Revolut,
+            'primary_broker' => Broker::Ibkr,
         ]);
 
         $position = Position::factory()->scout()->create([
@@ -36,14 +40,18 @@ class AlertMessageBuilderMarketOpenReminderTest extends TestCase
         $this->assertStringContainsString('BUY-STOP REMINDER: AAPL', $message);
         $this->assertStringContainsString('$185.50', $message);
         $this->assertStringContainsString('Inleg: $371.00', $message);
-        $this->assertStringContainsString('Open in Revolut', $message);
-        $this->assertStringContainsString('app-invest/stocks/aapl', $message);
+        $this->assertStringContainsString('Open in IBKR', $message);
+        $this->assertStringContainsString('example.com/stocks/aapl', $message);
     }
 
-    public function test_message_omits_broker_link_when_none_selected(): void
+    public function test_message_omits_broker_link_when_ibkr_url_not_configured(): void
     {
+        config([
+            'vestix.brokers.ibkr.stock_url' => null,
+        ]);
+
         $user = User::factory()->create([
-            'primary_broker' => Broker::None,
+            'primary_broker' => Broker::Ibkr,
         ]);
 
         $position = Position::factory()->scout()->create([
@@ -58,7 +66,7 @@ class AlertMessageBuilderMarketOpenReminderTest extends TestCase
             ['user' => $user],
         );
 
-        $this->assertStringNotContainsString('Open in Revolut', $message);
+        $this->assertStringNotContainsString('Open in IBKR', $message);
         $this->assertStringContainsString('Open setup', $message);
     }
 }

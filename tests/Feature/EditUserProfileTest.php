@@ -29,7 +29,6 @@ class EditUserProfileTest extends TestCase
             ->assertSee('Trading Voorkeuren')
             ->assertSee('Telegram & Alerts')
             ->assertSee('Beveiliging')
-            ->assertSee('Mijn broker')
             ->assertSee('Order & Winst Executie')
             ->assertSee('Pre-Market & Kansen')
             ->assertSee('Risico & Earnings Waarschuwingen')
@@ -58,7 +57,7 @@ class EditUserProfileTest extends TestCase
         });
 
         $user = User::factory()->create([
-            'primary_broker' => Broker::Revolut,
+            'primary_broker' => Broker::Ibkr,
             'trading_bankroll' => 10000,
             'ibkr_net_liquidation' => 10000,
             'default_risk_percent' => 1,
@@ -184,7 +183,7 @@ class EditUserProfileTest extends TestCase
     public function test_profile_saves_merged_alert_preferences(): void
     {
         $user = User::factory()->create([
-            'primary_broker' => Broker::Revolut,
+            'primary_broker' => Broker::Ibkr,
             'trading_bankroll' => 10000,
             'default_risk_percent' => 1,
         ]);

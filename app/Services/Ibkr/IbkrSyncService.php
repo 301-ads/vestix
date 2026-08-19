@@ -90,18 +90,14 @@ class IbkrSyncService
                     // Morning Flex reflects the last completed US session — not "today"
                     // before the open. Dating Alpha Tracker on that session keeps NLV and
                     // SPY on the same closed trading day (avoids premarket SPY catch-up spikes).
-                    // Equity = IBKR NLV + open Revolut MTM so multi-broker capital stays in Prestaties.
-                    // Catch up only days after the newest snapshot (missed syncs). Never backfill
-                    // early history with IBKR + current Revolut — that invents fake drawdowns when
-                    // other Revolut holdings existed (HALO era). SPY densify covers the chart path.
+                    // Equity = IBKR NLV + remaining Revolut cash (until transferred).
                     $user = $user->fresh() ?? $user;
-                    $revolutAddon = $this->bankrollSnapshots->revolutOpenPositionsMarketValue($user)
-                        + max(0.0, (float) ($user->revolut_cash ?? 0));
+                    $revolutCashAddon = max(0.0, (float) ($user->revolut_cash ?? 0));
 
                     $this->bankrollSnapshots->fillMissingFromIbkrDailyEquity(
                         $user,
                         $snapshot->equityByReportDate,
-                        $revolutAddon,
+                        $revolutCashAddon,
                     );
 
                     $this->bankrollSnapshots->recordSnapshot(
@@ -211,7 +207,7 @@ class IbkrSyncService
             'ibkr_last_attempt_at' => $attemptAt,
             'ibkr_last_error' => null,
             'ibkr_data_stale' => false,
-            // Alpha bankroll includes Revolut open MTM; IBKR NLV stays in ibkr_net_liquidation.
+            // Alpha bankroll = IBKR NLV + remaining Revolut cash; IBKR NLV stays in ibkr_net_liquidation.
             'trading_bankroll' => $this->bankrollSnapshots
                 ->resolveAlphaEquity($user, $snapshot->netLiquidation),
         ])->save();

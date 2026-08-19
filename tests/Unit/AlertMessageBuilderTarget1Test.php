@@ -14,32 +14,9 @@ class AlertMessageBuilderTarget1Test extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_revolut_target_1_message_includes_manual_steps(): void
+    public function test_target_1_message_includes_breakeven_copy(): void
     {
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
-
-        $position = Position::factory()->for($user)->create([
-            'ticker' => 'AAPL',
-            'entry_price' => 10.00,
-            'initial_sl' => 9.00,
-            'current_sl' => 9.00,
-            'quantity' => 100,
-        ]);
-
-        $message = AlertMessageBuilder::forEvent(
-            AlertEventType::Target1Hit,
-            $position,
-            ['target_1_price' => $position->target_1_price],
-        );
-
-        $this->assertStringContainsString('handmatig bij Revolut', $message);
-        $this->assertStringContainsString('stop-loss tijdelijk', $message);
-        $this->assertStringContainsString('Log verkoop in Vestix', $message);
-    }
-
-    public function test_non_revolut_target_1_message_keeps_limit_sell_copy(): void
-    {
-        $user = User::factory()->create(['primary_broker' => Broker::None]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $position = Position::factory()->for($user)->create([
             'ticker' => 'AAPL',

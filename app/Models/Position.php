@@ -833,36 +833,8 @@ class Position extends Model
         $this->update($data);
 
         $fresh = $this->fresh() ?? $this;
-        $this->creditRevolutCashFromExit($fresh, $exitPrice);
 
         app(ProtocolComplianceService::class)->persistForClosed($fresh);
-    }
-
-    /**
-     * Revolut exits leave cash on Revolut — keep it in Alpha equity until withdrawn/transferred.
-     */
-    private function creditRevolutCashFromExit(self $position, float $exitPrice): void
-    {
-        if ($position->effectiveBroker() !== Broker::Revolut) {
-            return;
-        }
-
-        $user = $position->user;
-
-        if ($user === null) {
-            return;
-        }
-
-        $qty = abs((float) ($position->quantity ?? 0));
-
-        if ($qty <= 0 || $exitPrice <= 0) {
-            return;
-        }
-
-        $proceeds = round($qty * $exitPrice, 2);
-        $user->forceFill([
-            'revolut_cash' => round(max(0.0, (float) ($user->revolut_cash ?? 0)) + $proceeds, 2),
-        ])->save();
     }
 
     /**
@@ -1009,7 +981,7 @@ class Position extends Model
 
         $this->loadMissing('user');
 
-        $broker = $this->user?->primary_broker?->value ?? $this->broker?->value ?? Broker::Revolut->value;
+        $broker = $this->user?->primary_broker?->value ?? $this->broker?->value ?? Broker::Ibkr->value;
 
         // Capture before update: entry_price dirty-handling clears live promotions.
         $entrySnapshot = EntrySetupSnapshot::alreadyCaptured($this)
@@ -1097,7 +1069,7 @@ class Position extends Model
         if ($this->status === 'scout') {
             $this->loadMissing('user');
 
-            return $this->user?->primary_broker ?? Broker::Revolut;
+            return $this->user?->primary_broker ?? Broker::Ibkr;
         }
 
         if ($this->broker !== null) {
@@ -1106,17 +1078,12 @@ class Position extends Model
 
         $this->loadMissing('user');
 
-        return $this->user?->primary_broker ?? Broker::Revolut;
-    }
-
-    public function usesRevolutWorkflow(): bool
-    {
-        return $this->effectiveBroker() === Broker::Revolut;
+        return $this->user?->primary_broker ?? Broker::Ibkr;
     }
 
     public function usesIbkrWorkflow(): bool
     {
-        return $this->effectiveBroker() === Broker::Ibkr;
+        return true;
     }
 
     public function suppressesLimitSellTodo(): bool
@@ -1130,12 +1097,6 @@ class Position extends Model
     public function suppressesInitialSlTodo(): bool
     {
         return $this->usesIbkrWorkflow();
-    }
-
-    /** @deprecated Use usesRevolutWorkflow() — workflow is determined by position broker tag. */
-    public function userUsesRevolutWorkflow(): bool
-    {
-        return $this->usesRevolutWorkflow();
     }
 
     public function isTarget1Hit(): bool

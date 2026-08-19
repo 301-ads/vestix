@@ -85,7 +85,7 @@ class EditUserProfile extends EditProfile
                                     ]),
                                 Section::make('First-run checklist')
                                     ->compact()
-                                    ->description('Vier Free-First stappen. Wordt automatisch afgevinkt wanneer alles staat.')
+                                    ->description('Drie Free-First stappen. Wordt automatisch afgevinkt wanneer alles staat.')
                                     ->schema([
                                         Placeholder::make('first_run_status')
                                             ->label('Voortgang')
@@ -132,7 +132,7 @@ class EditUserProfile extends EditProfile
                             ->schema([
                                 Section::make('Position sizing')
                                     ->compact()
-                                    ->description('Alpha = IBKR NLV + Revolut (open MTM + cash). Risicopie op Available Funds; inleg begrensd op min(AF, Settled/Cash).')
+                                    ->description('Alpha = IBKR NLV + eventuele Revolut-cash (tot transfer). Risicopie op Available Funds; inleg begrensd op min(AF, Settled/Cash).')
                                     ->schema([
                                         Placeholder::make('ibkr_sync_status')
                                             ->label('IBKR sync')
@@ -148,7 +148,7 @@ class EditUserProfile extends EditProfile
                                             ->numeric()
                                             ->prefix('$')
                                             ->minValue(0)
-                                            ->helperText('Cash op Revolut (niet in open posities). Verkoop/archiveren van Revolut-posities schrijft hierbij bij; haal af bij opname of transfer naar IBKR.'),
+                                            ->helperText('Resterende cash op Revolut (niet in IBKR NLV). Zet op 0 na overboeking naar IBKR — anders telt Alpha dubbel.'),
                                         Placeholder::make('alpha_equity_summary')
                                             ->label('Alpha-vermogen')
                                             ->content(fn (): string => $this->alphaEquitySummary()),
@@ -191,6 +191,10 @@ class EditUserProfile extends EditProfile
                                             ->inline()
                                             ->visible(fn (Get $get): bool => (bool) $get('is_short_enabled'))
                                             ->helperText('Aparte risicopie voor short setups. Leeg = zelfde als long.'),
+                                        Toggle::make('is_short_enabled')
+                                            ->label('Activeer Short-Selling')
+                                            ->helperText('Alleen voor goedgekeurde margin-accounts bij IBKR. Zet dit uit als je geen shorts mag — de Short-optie verdwijnt dan uit Scout toevoegen.')
+                                            ->inline(false),
                                     ]),
                                 Section::make('Kapitaalbewegingen')
                                     ->compact()
@@ -207,22 +211,6 @@ class EditUserProfile extends EditProfile
                                                 'cashflows' => app(BankrollCashflowService::class)
                                                     ->recentForUser($this->getUser(), 50),
                                             ]),
-                                    ]),
-                                Section::make('Mijn broker')
-                                    ->compact()
-                                    ->description('Bepaalt hoe Vestix je begeleidt bij het uitvoeren van orders.')
-                                    ->schema([
-                                        ToggleButtons::make('primary_broker')
-                                            ->label('Broker')
-                                            ->options(Broker::options())
-                                            ->default(Broker::Revolut->value)
-                                            ->inline()
-                                            ->required()
-                                            ->helperText('Nieuwe scouts krijgen deze broker. Bestaande posities behouden hun oorspronkelijke tag. Revolut toont bevestigingsflows; IBKR gebruikt bracket orders; Geen/handmatig toont Limit Sell-instructies.'),
-                                        Toggle::make('is_short_enabled')
-                                            ->label('Activeer Short-Selling')
-                                            ->helperText('Alleen voor goedgekeurde margin-accounts. Zet dit uit als je broker shorts niet toestaat — de Short-optie verdwijnt dan uit Scout toevoegen.')
-                                            ->inline(false),
                                     ]),
                             ]),
                         Tab::make('Telegram & Alerts')
@@ -504,22 +492,24 @@ class EditUserProfile extends EditProfile
         $user = $this->getUser();
         $snapshots = app(BankrollSnapshotService::class);
         $ibkr = (float) ($user->ibkr_net_liquidation ?? 0);
-        $revolutMtm = $snapshots->revolutOpenPositionsMarketValue($user);
         $revolutCash = max(0.0, (float) ($user->revolut_cash ?? 0));
         $total = $snapshots->resolveAlphaEquity($user);
 
-        return sprintf(
-            'IBKR $%s + Revolut posities $%s + Revolut cash $%s = $%s',
-            number_format($ibkr, 2),
-            number_format($revolutMtm, 2),
-            number_format($revolutCash, 2),
-            number_format($total, 2),
-        );
+        if ($revolutCash > 0) {
+            return sprintf(
+                'IBKR $%s + Revolut cash $%s = $%s',
+                number_format($ibkr, 2),
+                number_format($revolutCash, 2),
+                number_format($total, 2),
+            );
+        }
+
+        return sprintf('IBKR $%s = $%s', number_format($ibkr, 2), number_format($total, 2));
     }
 
     protected function tradingBankrollHelperText(): string
     {
-        return 'Alpha-vermogen = IBKR NLV + open Revolut-posities + Revolut cash.';
+        return 'Alpha-vermogen = IBKR NLV + eventuele Revolut-cash (tot transfer).';
     }
 
     /**

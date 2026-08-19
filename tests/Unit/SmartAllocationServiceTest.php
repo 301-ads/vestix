@@ -410,7 +410,7 @@ class SmartAllocationServiceTest extends TestCase
         Position::factory()->for($user)->create([
             'ticker' => 'LEG',
             'status' => 'open',
-            'broker' => Broker::Revolut,
+            'broker' => Broker::Ibkr,
             'is_legacy' => false,
             'quantity' => 100,
             'entry_price' => 20,

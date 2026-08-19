@@ -8,11 +8,11 @@ class BrokerDeepLink
 {
     public static function forStock(?Broker $broker, string $ticker): ?string
     {
-        if ($broker === null || $broker === Broker::None) {
+        if ($broker === null || $broker !== Broker::Ibkr) {
             return null;
         }
 
-        $template = config("vestix.brokers.{$broker->value}.stock_url");
+        $template = config('vestix.brokers.ibkr.stock_url');
 
         if (! is_string($template) || $template === '') {
             return null;
@@ -23,10 +23,6 @@ class BrokerDeepLink
 
     public static function linkLabel(?Broker $broker): ?string
     {
-        return match ($broker) {
-            Broker::Revolut => 'Open in Revolut',
-            Broker::Ibkr => 'Open in IBKR',
-            default => null,
-        };
+        return $broker === Broker::Ibkr ? 'Open in IBKR' : null;
     }
 }

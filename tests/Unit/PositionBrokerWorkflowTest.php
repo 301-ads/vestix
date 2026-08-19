@@ -15,25 +15,23 @@ class PositionBrokerWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_uses_revolut_workflow_from_position_broker_tag(): void
+    public function test_uses_ibkr_workflow_for_all_positions(): void
     {
         $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
-        $position = Position::factory()->for($user)->create(['broker' => Broker::Revolut]);
-
-        $this->assertTrue($position->usesRevolutWorkflow());
-        $this->assertFalse($position->usesIbkrWorkflow());
-    }
-
-    public function test_uses_ibkr_workflow_from_position_broker_tag(): void
-    {
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
         $position = Position::factory()->for($user)->create(['broker' => Broker::Ibkr]);
 
         $this->assertTrue($position->usesIbkrWorkflow());
-        $this->assertFalse($position->usesRevolutWorkflow());
     }
 
-    public function test_suppresses_limit_sell_todo_for_ibkr_tagged_position(): void
+    public function test_effective_broker_falls_back_to_ibkr(): void
+    {
+        $user = User::factory()->create(['primary_broker' => null]);
+        $position = Position::factory()->for($user)->scout()->create(['broker' => null]);
+
+        $this->assertSame(Broker::Ibkr, $position->effectiveBroker());
+    }
+
+    public function test_suppresses_limit_sell_todo_for_ibkr_workflow(): void
     {
         $user = User::factory()->create();
         $position = Position::factory()->for($user)->create([
@@ -108,26 +106,6 @@ class PositionBrokerWorkflowTest extends TestCase
         $this->assertTrue($fresh->needsRunnerSlReplace());
         $this->assertSame(50.0, $fresh->runnerQuantity());
         $this->assertSame(Position::PRIMARY_ACTION_PLACE_RUNNER_SL, $fresh->primaryActionType());
-    }
-
-    public function test_revolut_target_1_hit_does_not_queue_runner_stop_loss(): void
-    {
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
-        $position = Position::factory()->for($user)->create([
-            'broker' => Broker::Revolut,
-            'entry_price' => 10.00,
-            'initial_sl' => 9.00,
-            'current_sl' => 9.00,
-            'latest_close_price' => 12.00,
-            'latest_sma_20' => 9.00,
-            'latest_atr_14' => 1.00,
-            'quantity' => 100,
-            'status' => 'open',
-        ]);
-
-        $this->assertTrue($position->isTarget1Hit());
-        $this->assertFalse($position->needsRunnerSlReplace());
-        $this->assertSame(Position::PRIMARY_ACTION_TARGET_1, $position->primaryActionType());
     }
 
     public function test_suppresses_initial_sl_todo_for_ibkr_bracket_workflow(): void

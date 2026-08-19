@@ -126,9 +126,9 @@ class ScaleOutTest extends TestCase
         $this->assertSame(Position::PRIMARY_ACTION_ADJUST_TARGET_1, $open->primaryActionType());
     }
 
-    public function test_revolut_activation_does_not_queue_take_profit_qty_adjust(): void
+    public function test_ibkr_activation_queues_take_profit_qty_adjust(): void
     {
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
         $scout = Position::factory()->for($user)->scout()->create([
             'entry_price' => 16.56,
             'quantity' => 92,
@@ -142,8 +142,8 @@ class ScaleOutTest extends TestCase
         $open = $scout->fresh();
 
         $this->assertTrue($open->hasPendingTarget1Raise());
-        $this->assertFalse($open->needsTarget1QtyAdjust());
-        $this->assertSame(Position::PRIMARY_ACTION_PLACE_INITIAL_SL, $open->primaryActionType());
+        $this->assertTrue($open->needsTarget1QtyAdjust());
+        $this->assertSame(Position::PRIMARY_ACTION_ADJUST_TARGET_1, $open->primaryActionType());
     }
 
     public function test_marking_bracket_placed_freezes_target_1_against_later_entry_drift(): void
@@ -277,11 +277,12 @@ class ScaleOutTest extends TestCase
         $this->assertEquals(3.5, (float) $position->risk_reward_ratio);
     }
 
-    public function test_requiring_action_includes_target_1_hit_positions(): void
+    public function test_requiring_action_includes_target_1_hit_positions_for_ibkr_runner_sl(): void
     {
         $user = User::factory()->create();
 
         $targetHit = Position::factory()->for($user)->create([
+            'broker' => Broker::Ibkr,
             'entry_price' => 10.00,
             'initial_sl' => 9.00,
             'current_sl' => 9.00,
@@ -289,6 +290,7 @@ class ScaleOutTest extends TestCase
             'latest_sma_20' => 11.00,
             'latest_atr_14' => 1.00,
             'quantity' => 100,
+            'target_1_qty_adjusted_at' => now(),
         ]);
 
         Position::factory()->for($user)->create([
@@ -301,16 +303,19 @@ class ScaleOutTest extends TestCase
             'quantity' => 100,
         ]);
 
+        $this->assertSame(Position::PRIMARY_ACTION_PLACE_RUNNER_SL, $targetHit->primaryActionType());
+
         $ids = Position::requiringActionForUser($user->id)->pluck('id');
 
         $this->assertTrue($ids->contains($targetHit->id));
     }
 
-    public function test_mark_target_1_limit_placed_removes_target_1_from_requiring_action(): void
+    public function test_apply_runner_sl_placed_removes_position_from_requiring_action(): void
     {
         $user = User::factory()->create();
 
         $targetHit = Position::factory()->for($user)->create([
+            'broker' => Broker::Ibkr,
             'entry_price' => 10.00,
             'initial_sl' => 9.00,
             'current_sl' => 9.00,
@@ -318,17 +323,18 @@ class ScaleOutTest extends TestCase
             'latest_sma_20' => 9.00,
             'latest_atr_14' => 1.00,
             'quantity' => 100,
+            'target_1_qty_adjusted_at' => now(),
         ]);
 
-        $this->assertSame(Position::PRIMARY_ACTION_TARGET_1, $targetHit->primaryActionType());
+        $this->assertSame(Position::PRIMARY_ACTION_PLACE_RUNNER_SL, $targetHit->primaryActionType());
         $this->assertTrue(
             Position::requiringActionForUser($user->id)->pluck('id')->contains($targetHit->id),
         );
 
-        $targetHit->markTarget1LimitPlaced();
+        $targetHit->applyRunnerSlPlaced();
         $targetHit->refresh();
 
-        $this->assertNotSame(Position::PRIMARY_ACTION_TARGET_1, $targetHit->primaryActionType());
+        $this->assertNotSame(Position::PRIMARY_ACTION_PLACE_RUNNER_SL, $targetHit->primaryActionType());
         $this->assertFalse(
             Position::requiringActionForUser($user->id)->pluck('id')->contains($targetHit->id),
         );
@@ -501,7 +507,7 @@ class ScaleOutTest extends TestCase
 
     public function test_order_plan_hunt_phase_shows_active_step_one_number(): void
     {
-        $user = User::factory()->create(['primary_broker' => Broker::None]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $position = Position::factory()->for($user)->make([
             'status' => 'open',
@@ -566,9 +572,9 @@ class ScaleOutTest extends TestCase
         $this->assertStringContainsString('IBKR annuleerde de bracket-SL', $html);
     }
 
-    public function test_order_plan_hunt_phase_shows_revolut_monitoring_copy(): void
+    public function test_order_plan_hunt_phase_shows_limit_sell_copy(): void
     {
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $position = Position::factory()->for($user)->make([
             'status' => 'open',
@@ -581,9 +587,8 @@ class ScaleOutTest extends TestCase
 
         $html = ScaleOutDisplay::orderPlanHtml($position)->toHtml();
 
-        $this->assertStringContainsString('Vestix monitort Target 1', $html);
-        $this->assertStringContainsString('100% stop-loss actief bij Revolut', $html);
-        $this->assertStringNotContainsString('Limit sell', $html);
+        $this->assertStringContainsString('Limit sell', $html);
+        $this->assertStringNotContainsString('100% stop-loss actief bij Revolut', $html);
     }
 
     public function test_order_plan_shows_green_checkmark_after_scale_out(): void
@@ -632,7 +637,7 @@ class ScaleOutTest extends TestCase
         $this->assertNotSame(Position::PRIMARY_ACTION_TARGET_1, $position->primaryActionType());
     }
 
-    public function test_requiring_action_excludes_auto_runner_bypass_target_1_position(): void
+    public function test_auto_runner_bypass_never_surfaces_target_1_limit_sell_action(): void
     {
         $user = User::factory()->create();
 
@@ -647,9 +652,10 @@ class ScaleOutTest extends TestCase
             'status' => 'open',
         ]);
 
-        $ids = Position::requiringActionForUser($user->id)->pluck('id');
-
-        $this->assertFalse($ids->contains($bypassPosition->id));
+        $this->assertTrue($bypassPosition->isTarget1Hit());
+        $this->assertTrue($bypassPosition->isAutoRunnerBypass());
+        $this->assertNotSame(Position::PRIMARY_ACTION_TARGET_1, $bypassPosition->primaryActionType());
+        $this->assertTrue($bypassPosition->canLogScaleOut());
     }
 
     public function test_target_1_hit_alert_not_queued_for_auto_runner_bypass(): void

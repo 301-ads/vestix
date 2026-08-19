@@ -89,7 +89,7 @@ class BrokerOrderTicketTest extends TestCase
 
     public function test_limit_sell_ticket_formats_target_and_tranche(): void
     {
-        $user = User::factory()->create(['primary_broker' => Broker::None]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $position = Position::factory()->for($user)->make([
             'ticker' => 'GS',
@@ -113,27 +113,6 @@ class BrokerOrderTicketTest extends TestCase
         $this->assertStringContainsString('50 stuks', $ticket['confirmation']);
         $this->assertStringContainsString('50%', $ticket['confirmation']);
         $this->assertSame('Confirm Limit Sell', $ticket['submit_label']);
-    }
-
-    public function test_limit_sell_ticket_uses_revolut_target_1_copy_when_user_uses_revolut(): void
-    {
-        $user = User::factory()->create(['primary_broker' => Broker::Revolut]);
-
-        $position = Position::factory()->for($user)->make([
-            'ticker' => 'GS',
-            'quantity' => 100,
-            'entry_price' => 10.00,
-            'initial_sl' => 9.00,
-            'current_sl' => 9.00,
-            'first_tranche_fraction' => 0.5,
-            'target_1_rr' => 2.0,
-        ]);
-
-        $ticket = BrokerOrderTicket::forLimitSell($position);
-
-        $this->assertSame('GS — Target 1 bereikt', $ticket['title']);
-        $this->assertStringContainsString('Telegram of Revolut-notificatie', $ticket['confirmation']);
-        $this->assertSame('Target 1 bevestigd', $ticket['submit_label']);
     }
 
     public function test_modal_icon_renders_ticker_avatar(): void
@@ -201,7 +180,7 @@ class BrokerOrderTicketTest extends TestCase
 
     public function test_limit_sell_ticket_blade_renders_target_details(): void
     {
-        $user = User::factory()->create(['primary_broker' => Broker::None]);
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
 
         $position = Position::factory()->for($user)->make([
             'ticker' => 'GS',

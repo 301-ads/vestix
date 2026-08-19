@@ -83,7 +83,7 @@ class DiscoverableUserSearchTest extends TestCase
         Livewire::test(EditUserProfile::class)
             ->fillForm([
                 'is_discoverable' => false,
-                'primary_broker' => Broker::Revolut->value,
+                'primary_broker' => Broker::Ibkr->value,
                 'default_risk_percent' => '1',
             ])
             ->call('save')

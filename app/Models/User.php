@@ -134,11 +134,6 @@ class User extends Authenticatable implements FilamentUser
         return $this->pushSubscriptions()->exists();
     }
 
-    public function usesRevolutWorkflow(): bool
-    {
-        return $this->primary_broker === Broker::Revolut;
-    }
-
     public function canUseShort(): bool
     {
         return (bool) $this->is_short_enabled;
