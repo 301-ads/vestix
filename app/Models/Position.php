@@ -834,15 +834,16 @@ class Position extends Model
         $this->update($data);
 
         $fresh = $this->fresh() ?? $this;
-        $this->creditExitProceedsToNlv($fresh, $exitPrice);
+        $this->creditExitProceedsToPendingCash($fresh, $exitPrice);
 
         app(ProtocolComplianceService::class)->persistForClosed($fresh);
     }
 
     /**
-     * Manual exits (e.g. Revolut sale before IBKR deposit) bump NLV until Flex sync catches up.
+     * Manual exits (e.g. Revolut sale before IBKR deposit) go into revolut_cash.
+     * That stays Flex-proof until the deposit lands in IBKR NLV.
      */
-    private function creditExitProceedsToNlv(self $position, float $exitPrice): void
+    private function creditExitProceedsToPendingCash(self $position, float $exitPrice): void
     {
         if ($position->resolvedDataSourceLabel() === 'broker-synced') {
             return;
@@ -861,15 +862,14 @@ class Position extends Model
         }
 
         $proceeds = round($qty * $exitPrice, 2);
-        $nlv = round(max(0.0, (float) ($user->ibkr_net_liquidation ?? 0)) + $proceeds, 2);
-
         $user->forceFill([
-            'ibkr_net_liquidation' => $nlv,
-            'trading_bankroll' => $nlv,
+            'revolut_cash' => round(max(0.0, (float) ($user->revolut_cash ?? 0)) + $proceeds, 2),
         ])->save();
 
         $snapshots = app(BankrollSnapshotService::class);
-        $snapshots->recordSnapshot($user, $nlv, $snapshots->alphaTrackerSessionDate());
+        $equity = $snapshots->resolveAlphaEquity($user->fresh() ?? $user);
+        $user->forceFill(['trading_bankroll' => $equity])->save();
+        $snapshots->recordSnapshot($user, $equity, $snapshots->alphaTrackerSessionDate());
     }
 
     /**
