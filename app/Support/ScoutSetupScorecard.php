@@ -468,7 +468,10 @@ class ScoutSetupScorecard
             return self::criterion('volume', 'Volume-overtuiging', 0, 1, 'fail', 'Stijgende raket: hoog volume maar slotkoers boven openingskoers');
         }
 
-        if ($close <= $open) {
+        // Red candle, or green shooting star with seller-dominant close (Röntgenfoto).
+        $sellerDominant = $close <= $open || self::hasBuyerDominantClose($inputs);
+
+        if ($sellerDominant) {
             if ($rvol === null) {
                 return self::criterion(
                     'volume',
@@ -497,16 +500,23 @@ class ScoutSetupScorecard
                 );
             }
 
+            $detail = $close <= $open
+                ? sprintf(
+                    'RVol %s — geen institutionele koop (rode kaars)',
+                    RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
+                )
+                : sprintf(
+                    'RVol %s — distributie op groene shooting star (sterke close)',
+                    RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
+                );
+
             return self::criterion(
                 'volume',
                 'Volume-overtuiging',
                 1,
                 1,
                 'pass',
-                sprintf(
-                    'RVol %s — geen institutionele koop (rode kaars)',
-                    RelativeVolumeCalculator::formatPercent($rvol) ?? '—',
-                ),
+                $detail,
             );
         }
 
@@ -939,7 +949,7 @@ class ScoutSetupScorecard
     }
 
     /**
-     * Short plafond + rode kaars + upper-wick rejection.
+     * Short plafond + upper-wick rejection (red candle or green shooting star).
      *
      * @param  array<string, mixed>  $inputs
      */
@@ -967,10 +977,6 @@ class ScoutSetupScorecard
             return 'Geen SMA-afwijzing — Close moet onder SMA 20';
         }
 
-        if ($close >= $open) {
-            return 'Geen rode rejection-kaars — Close moet onder Open';
-        }
-
         if (! self::hasSufficientUpperWickShort($high, $open, $close)) {
             return 'Upper wick te kort — geen institutionele afstraffing';
         }
@@ -987,7 +993,8 @@ class ScoutSetupScorecard
             return false;
         }
 
-        $upperWick = $high - $open;
+        // Wick above the body top — works for both red (open) and green (close) candles.
+        $upperWick = $high - max($open, $close);
 
         return $upperWick >= self::upperWickMinBodyRatio() * $bodyFloor;
     }

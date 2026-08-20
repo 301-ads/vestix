@@ -167,4 +167,46 @@ class RadarV2FiltersTest extends TestCase
             'rsi14' => 45.0,
         ]));
     }
+
+    public function test_filter_accepts_green_shooting_star_with_strong_close(): void
+    {
+        // Green body, but close in lower quartile of the range (Röntgenfoto for shorts).
+        $this->assertSame('short', SniperSetupFilter::evaluate([
+            'open' => 100.05,
+            'high' => 101.50,
+            'low' => 100.00,
+            'close' => 100.10, // ~6.7% from high → ~93% seller strength
+            'sma10' => 99.50,
+            'sma20' => 100.50,
+            'sma50' => 102.00,
+            'rsi14' => 45.0,
+        ]));
+    }
+
+    public function test_filter_rejects_weak_green_close_for_short(): void
+    {
+        // Green body under SMA, but close not in lower quartile — not seller-dominant.
+        $this->assertNull(SniperSetupFilter::evaluate([
+            'open' => 100.00,
+            'high' => 101.50,
+            'low' => 99.80,
+            'close' => 100.40, // ~65% seller strength, still under SMA
+            'sma10' => 99.50,
+            'sma20' => 100.50,
+            'sma50' => 102.00,
+            'rsi14' => 45.0,
+        ]));
+    }
+
+    public function test_filter_rejects_green_candle_without_ohlc_range_for_short(): void
+    {
+        $this->assertNull(SniperSetupFilter::evaluate([
+            'open' => 100.05,
+            'close' => 100.10,
+            'sma10' => 99.50,
+            'sma20' => 100.50,
+            'sma50' => 102.00,
+            'rsi14' => 45.0,
+        ]));
+    }
 }

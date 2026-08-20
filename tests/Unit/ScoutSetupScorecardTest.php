@@ -1168,6 +1168,44 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertSame(0, $result['criteria'][0]['points']);
     }
 
+    public function test_green_shooting_star_passes_short_rejection_without_red_body(): void
+    {
+        // Green body, high tags SMA, close under SMA, long upper wick above body top.
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'signal_high' => 945.00,
+            'signal_low' => 935.50,
+            'latest_open_price' => 935.70,
+            'latest_close_price' => 935.80,
+            'latest_sma_20' => 939.52,
+        ]));
+
+        $this->assertNotContains('Geen rode rejection-kaars — Close moet onder Open', $result['hardFailReasons']);
+        $this->assertSame([], $result['hardFailReasons']);
+        $this->assertSame(2, $result['criteria'][0]['points']);
+        $this->assertStringContainsString('Rejection', $result['criteria'][0]['detail']);
+        $this->assertSame(1, $result['criteria'][3]['points']);
+        $this->assertStringContainsString('shooting star', strtolower($result['criteria'][3]['detail']));
+    }
+
+    public function test_weak_green_candle_with_high_volume_remains_rising_rocket(): void
+    {
+        // Green close near high + high volume — rising rocket, not a short rejection.
+        $result = ScoutSetupScorecard::evaluate($this->baseShortInputs([
+            'signal_high' => 945.00,
+            'signal_low' => 935.00,
+            'latest_open_price' => 936.00,
+            'latest_close_price' => 944.00,
+            'latest_sma_20' => 939.52,
+            'relative_volume' => 1.45,
+            'bounce_day_volume' => 15_000_000,
+            'volume_sma_20' => 10_000_000,
+        ]));
+
+        $this->assertContains('Stijgende raket — hoog volume maar slotkoers boven openingskoers', $result['hardFailReasons']);
+        $this->assertSame(0, $result['criteria'][3]['points']);
+        $this->assertStringContainsString('Stijgende raket', $result['criteria'][3]['detail']);
+    }
+
     public function test_short_near_miss_above_sma_no_longer_escapes_hard_fail(): void
     {
         // Red candle ~0.18% above SMA — previously near-miss could pass.

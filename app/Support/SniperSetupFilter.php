@@ -89,7 +89,8 @@ class SniperSetupFilter
             return false;
         }
 
-        if ($close >= $open) {
+        // Green candles are allowed only with OHLC proving seller dominance (Röntgenfoto).
+        if ($close >= $open && ! self::hasOhlcRange($inputs)) {
             return false;
         }
 

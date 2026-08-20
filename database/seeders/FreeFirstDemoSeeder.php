@@ -111,7 +111,7 @@ class FreeFirstDemoSeeder extends Seeder
                 'sniper_last_rejects' => [
                     'date' => now('America/New_York')->toDateString(),
                     'samples' => [
-                        ['ticker' => 'XYZ', 'reasons' => ['Long: RSI 62.0 buiten 40–55', 'Short: Geen rode candle']],
+                        ['ticker' => 'XYZ', 'reasons' => ['Long: RSI 62.0 buiten 40–55', 'Short: Groene kaars zonder sterke close (Röntgenfoto)']],
                         ['ticker' => 'ABC', 'reasons' => ['Long: Close >3% boven SMA20 (te extended)']],
                         ['ticker' => 'DEF', 'reasons' => ['Long: SMA20 niet boven SMA50 (uptrend ontbreekt)']],
                     ],
