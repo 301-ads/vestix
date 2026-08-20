@@ -115,7 +115,7 @@ class EditUserProfileTest extends TestCase
         $this->assertEquals(5009.03, (float) $user->ibkr_available_funds);
     }
 
-    public function test_revolut_cash_is_included_in_alpha_snapshot(): void
+    public function test_nlv_save_updates_alpha_snapshot(): void
     {
         $this->mock(BenchmarkCloseResolver::class, function ($mock): void {
             $mock->shouldReceive('benchmarkTicker')->andReturn('SPY');
@@ -126,25 +126,23 @@ class EditUserProfileTest extends TestCase
             'primary_broker' => Broker::Ibkr,
             'ibkr_net_liquidation' => 8000,
             'trading_bankroll' => 8000,
-            'revolut_cash' => 0,
             'default_risk_percent' => 1,
         ]);
         $this->actingAs($user);
 
         Livewire::test(EditUserProfile::class)
             ->fillForm([
-                'ibkr_net_liquidation' => 8000,
-                'revolut_cash' => 2130.70,
+                'ibkr_net_liquidation' => 9609.10,
             ])
             ->call('save')
             ->assertHasNoFormErrors();
 
         $user->refresh();
-        $this->assertEquals(2130.70, (float) $user->revolut_cash);
-        $this->assertEquals(10130.70, (float) $user->trading_bankroll);
+        $this->assertEquals(9609.10, (float) $user->ibkr_net_liquidation);
+        $this->assertEquals(9609.10, (float) $user->trading_bankroll);
         $this->assertDatabaseHas('bankroll_snapshots', [
             'user_id' => $user->id,
-            'amount' => 10130.70,
+            'amount' => 9609.10,
         ]);
     }
 

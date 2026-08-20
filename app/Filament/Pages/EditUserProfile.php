@@ -132,7 +132,7 @@ class EditUserProfile extends EditProfile
                             ->schema([
                                 Section::make('Position sizing')
                                     ->compact()
-                                    ->description('Alpha = IBKR NLV + eventuele Revolut-cash (tot storting). Risicopie op Available Funds; inleg begrensd op min(AF, Settled/Cash).')
+                                    ->description('Alpha = IBKR Net Liquidation. Risicopie op Available Funds; inleg begrensd op min(AF, Settled/Cash).')
                                     ->schema([
                                         Placeholder::make('ibkr_sync_status')
                                             ->label('IBKR sync')
@@ -143,12 +143,6 @@ class EditUserProfile extends EditProfile
                                             ->prefix('$')
                                             ->minValue(0)
                                             ->helperText('Cash + posities bij IBKR. Tel Available Funds er niet bij op — die cash zit al in NLV. Wordt door Flex sync bijgewerkt.'),
-                                        TextInput::make('revolut_cash')
-                                            ->label('Revolut cash (pending IBKR)')
-                                            ->numeric()
-                                            ->prefix('$')
-                                            ->minValue(0)
-                                            ->helperText('Cash op Revolut die nog niet in IBKR staat (bv. BAC-verkoop). Zet op 0 zodra de storting in Flex/NLV zichtbaar is — anders telt Alpha dubbel.'),
                                         Placeholder::make('alpha_equity_summary')
                                             ->label('Alpha-vermogen')
                                             ->content(fn (): string => $this->alphaEquitySummary()),
@@ -446,13 +440,6 @@ class EditUserProfile extends EditProfile
             $data['ibkr_net_liquidation'] = round((float) $data['ibkr_net_liquidation'], 2);
         }
 
-        if (array_key_exists('revolut_cash', $data)) {
-            $this->shouldRecordBankrollSnapshot = true;
-            $data['revolut_cash'] = filled($data['revolut_cash'] ?? null)
-                ? round(max(0.0, (float) $data['revolut_cash']), 2)
-                : null;
-        }
-
         if (array_key_exists('ibkr_available_funds', $data) && filled($data['ibkr_available_funds'])) {
             // Keep Settled independent (from Flex Cash). Order Plan uses min(AF, Settled).
             $data['ibkr_available_funds'] = round((float) $data['ibkr_available_funds'], 2);
@@ -492,24 +479,14 @@ class EditUserProfile extends EditProfile
         $user = $this->getUser();
         $snapshots = app(BankrollSnapshotService::class);
         $ibkr = (float) ($user->ibkr_net_liquidation ?? 0);
-        $revolutCash = max(0.0, (float) ($user->revolut_cash ?? 0));
         $total = $snapshots->resolveAlphaEquity($user);
-
-        if ($revolutCash > 0) {
-            return sprintf(
-                'IBKR $%s + Revolut cash $%s = $%s',
-                number_format($ibkr, 2),
-                number_format($revolutCash, 2),
-                number_format($total, 2),
-            );
-        }
 
         return sprintf('IBKR $%s = $%s', number_format($ibkr, 2), number_format($total, 2));
     }
 
     protected function tradingBankrollHelperText(): string
     {
-        return 'Alpha-vermogen = IBKR NLV + eventuele Revolut-cash (tot storting).';
+        return 'Alpha-vermogen = IBKR Net Liquidation.';
     }
 
     /**

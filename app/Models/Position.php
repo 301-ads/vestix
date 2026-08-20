@@ -17,7 +17,6 @@ use App\Enums\ScoutSource;
 use App\Enums\TradeDirection;
 use App\Enums\TrailingStopMode;
 use App\Services\AssetSyncService;
-use App\Services\BankrollSnapshotService;
 use App\Services\ProtocolComplianceService;
 use App\Services\SquadActivityRecorder;
 use App\Support\ClosePriceTrend;
@@ -834,42 +833,8 @@ class Position extends Model
         $this->update($data);
 
         $fresh = $this->fresh() ?? $this;
-        $this->creditExitProceedsToPendingCash($fresh, $exitPrice);
 
         app(ProtocolComplianceService::class)->persistForClosed($fresh);
-    }
-
-    /**
-     * Manual exits (e.g. Revolut sale before IBKR deposit) go into revolut_cash.
-     * That stays Flex-proof until the deposit lands in IBKR NLV.
-     */
-    private function creditExitProceedsToPendingCash(self $position, float $exitPrice): void
-    {
-        if ($position->resolvedDataSourceLabel() === 'broker-synced') {
-            return;
-        }
-
-        $user = $position->user;
-
-        if ($user === null) {
-            return;
-        }
-
-        $qty = abs((float) ($position->quantity ?? 0));
-
-        if ($qty <= 0 || $exitPrice <= 0) {
-            return;
-        }
-
-        $proceeds = round($qty * $exitPrice, 2);
-        $user->forceFill([
-            'revolut_cash' => round(max(0.0, (float) ($user->revolut_cash ?? 0)) + $proceeds, 2),
-        ])->save();
-
-        $snapshots = app(BankrollSnapshotService::class);
-        $equity = $snapshots->resolveAlphaEquity($user->fresh() ?? $user);
-        $user->forceFill(['trading_bankroll' => $equity])->save();
-        $snapshots->recordSnapshot($user, $equity, $snapshots->alphaTrackerSessionDate());
     }
 
     /**
