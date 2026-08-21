@@ -244,4 +244,106 @@ class MarketDataFetcherLiveMarkTest extends TestCase
         $this->assertEqualsWithDelta(24.34, $mark, 0.01);
         $this->assertEqualsWithDelta(24.34, (float) $position->fresh()->latest_close_price, 0.01);
     }
+
+    public function test_open_representative_does_not_copy_live_mark_onto_scout(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-10 16:30:00', 'America/New_York'));
+
+        $user = User::factory()->create();
+        $open = Position::factory()->for($user)->create([
+            'ticker' => 'BEN',
+            'status' => 'open',
+            'entry_price' => 34.00,
+            'quantity' => 45,
+            'current_sl' => 33.41,
+            'latest_close_price' => 33.97,
+        ]);
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BEN',
+            'latest_close_price' => 32.58,
+            'latest_sma_20' => null,
+        ]);
+
+        $this->mockPolygonPayload([
+            'latest_open_price' => 33.00,
+            'latest_close_price' => 32.58,
+            'recent_close_prices' => [32.58],
+            'latest_sma_20' => 33.00,
+            'sma_20_five_days_ago' => 32.50,
+            'sma_20_ten_days_ago' => 32.00,
+            'latest_sma_50' => 31.00,
+            'latest_atr_14' => 1.00,
+            'scout_rsi' => 48.0,
+            'prior_day_low' => 32.00,
+        ]);
+
+        $quotes = Mockery::mock(QuoteProvider::class);
+        $quotes->shouldReceive('fetchLivePrice')->once()->with('BEN')->andReturn(33.97);
+        $this->app->instance(QuoteProvider::class, $quotes);
+
+        $fetcher = app(MarketDataFetcher::class);
+        $this->assertTrue($fetcher->syncPosition($open, withDelays: false));
+        $fetcher->propagateSharedMarketData($open->fresh());
+
+        $this->assertEqualsWithDelta(33.97, (float) $open->fresh()->latest_close_price, 0.01);
+        $this->assertEqualsWithDelta(32.58, (float) $scout->fresh()->latest_close_price, 0.01);
+        $this->assertEqualsWithDelta(33.00, (float) $scout->fresh()->latest_sma_20, 0.01);
+    }
+
+    public function test_scout_representative_does_not_copy_lagging_eod_onto_open(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-10 22:00:00', 'America/New_York'));
+
+        $user = User::factory()->create();
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BEN',
+            'latest_close_price' => 32.58,
+            'latest_sma_20' => null,
+        ]);
+        $open = Position::factory()->for($user)->create([
+            'ticker' => 'BEN',
+            'status' => 'open',
+            'entry_price' => 34.00,
+            'quantity' => 45,
+            'current_sl' => 33.41,
+            'latest_close_price' => 33.97,
+        ]);
+
+        $this->mockPolygonPayload([
+            'latest_open_price' => 33.00,
+            'latest_close_price' => 32.58,
+            'recent_close_prices' => [32.58],
+            'latest_sma_20' => 33.00,
+            'sma_20_five_days_ago' => 32.50,
+            'sma_20_ten_days_ago' => 32.00,
+            'latest_sma_50' => 31.00,
+            'latest_atr_14' => 1.00,
+            'scout_rsi' => 48.0,
+            'prior_day_low' => 32.00,
+        ]);
+
+        $quotes = Mockery::mock(QuoteProvider::class);
+        $quotes->shouldReceive('fetchLivePrice')->once()->with('BEN')->andReturn(33.97);
+        $this->app->instance(QuoteProvider::class, $quotes);
+
+        $fetcher = app(MarketDataFetcher::class);
+        $this->assertTrue($fetcher->syncPosition($scout, withDelays: false));
+        $fetcher->propagateSharedMarketData($scout->fresh());
+
+        $freshOpen = $open->fresh();
+        $this->assertEqualsWithDelta(32.58, (float) $scout->fresh()->latest_close_price, 0.01);
+        $this->assertEqualsWithDelta(33.97, (float) $freshOpen->latest_close_price, 0.01);
+        $this->assertEqualsWithDelta(33.00, (float) $freshOpen->latest_sma_20, 0.01);
+        $this->assertNotSame('STOPPED OUT', $freshOpen->action_command);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function mockPolygonPayload(array $payload): void
+    {
+        $polygon = Mockery::mock(PolygonMarketDataService::class);
+        $polygon->shouldReceive('fetchForTicker')->andReturn($payload);
+        $this->app->instance(PolygonMarketDataService::class, $polygon);
+    }
 }

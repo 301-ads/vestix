@@ -101,9 +101,20 @@ class FetchVestixData extends Command
             $query->forUser($userId);
         }
 
-        // One Polygon round-trip per ticker; fan-out shared marks after sync.
+        // Prefer an open row as the ticker representative so live overlay runs in
+        // syncPosition. Long/short scouts of the same symbol each need their own
+        // signal-candle pass (those fields are not in the shared fan-out).
         return $query->get()
-            ->unique(fn (Position $position): string => strtoupper(trim($position->ticker)))
+            ->sortBy(fn (Position $position): int => $position->status === 'open' ? 0 : 1)
+            ->unique(function (Position $position): string {
+                $ticker = strtoupper(trim($position->ticker));
+
+                if ($position->status !== 'scout') {
+                    return $ticker;
+                }
+
+                return $ticker.'|'.$position->tradeDirection()->value;
+            })
             ->values();
     }
 
