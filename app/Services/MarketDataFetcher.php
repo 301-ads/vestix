@@ -175,6 +175,11 @@ class MarketDataFetcher
     /**
      * Copy shared indicator/mark fields from a synced row onto every other tracked
      * position with the same ticker (other users benefit without a second Polygon call).
+     *
+     * latest_close_price is status-specific: open rows use a live/Yahoo mark for P&L,
+     * scouts keep the Polygon session close for signals/scorecards. Unique-by-ticker
+     * bulk sync can pick either status as the representative, so a live overlay is
+     * applied to every open sibling when the source itself is not open.
      */
     public function propagateSharedMarketData(Position $source): void
     {
@@ -186,7 +191,6 @@ class MarketDataFetcher
 
         $shared = array_filter([
             'latest_open_price' => $source->latest_open_price,
-            'latest_close_price' => $source->latest_close_price,
             'recent_close_prices' => $source->recent_close_prices,
             'latest_sma_20' => $source->latest_sma_20,
             'sma_20_five_days_ago' => $source->sma_20_five_days_ago,
@@ -208,19 +212,63 @@ class MarketDataFetcher
             'pre_bounce_extension_atr' => $source->pre_bounce_extension_atr,
         ], static fn (mixed $value): bool => $value !== null);
 
-        if ($shared === []) {
-            return;
+        if ($shared !== []) {
+            if (isset($shared['recent_close_prices']) && is_array($shared['recent_close_prices'])) {
+                $shared['recent_close_prices'] = json_encode($shared['recent_close_prices']);
+            }
+
+            Position::query()
+                ->tracked()
+                ->where('ticker', $ticker)
+                ->whereKeyNot($source->id)
+                ->update($shared);
         }
 
-        if (isset($shared['recent_close_prices']) && is_array($shared['recent_close_prices'])) {
-            $shared['recent_close_prices'] = json_encode($shared['recent_close_prices']);
+        if ($source->latest_close_price !== null) {
+            Position::query()
+                ->tracked()
+                ->where('ticker', $ticker)
+                ->where('status', $source->status)
+                ->whereKeyNot($source->id)
+                ->update(['latest_close_price' => $source->latest_close_price]);
         }
 
-        Position::query()
-            ->tracked()
-            ->where('ticker', $ticker)
-            ->whereKeyNot($source->id)
-            ->update($shared);
+        if ($source->status === 'open') {
+            $sessionClose = $this->sessionCloseFromRecentPrices($source);
+
+            if ($sessionClose !== null) {
+                Position::query()
+                    ->scout()
+                    ->where('ticker', $ticker)
+                    ->whereKeyNot($source->id)
+                    ->update(['latest_close_price' => $sessionClose]);
+            }
+        } else {
+            $openSibling = Position::query()
+                ->open()
+                ->where('ticker', $ticker)
+                ->first();
+
+            if ($openSibling !== null) {
+                $this->refreshOpenPositionLiveMark($openSibling);
+            }
+        }
+    }
+
+    /**
+     * Polygon EOD close from the shared bar series (not the live overlay on open rows).
+     */
+    private function sessionCloseFromRecentPrices(Position $source): ?float
+    {
+        $recent = $source->recent_close_prices;
+
+        if (! is_array($recent) || $recent === []) {
+            return null;
+        }
+
+        $last = end($recent);
+
+        return is_numeric($last) ? round((float) $last, 2) : null;
     }
 
     /**

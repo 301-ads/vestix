@@ -406,6 +406,109 @@ class FetchVestixDataTest extends TestCase
         );
     }
 
+    public function test_open_representative_does_not_overwrite_scout_close_with_live_mark(): void
+    {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+            'vestix.alpha_vantage.api_key' => null,
+        ]);
+
+        $user = User::factory()->create();
+        $open = Position::factory()->for($user)->create([
+            'ticker' => 'BEN',
+            'status' => 'open',
+            'entry_price' => 34.00,
+            'quantity' => 45,
+            'current_sl' => 33.41,
+            'latest_close_price' => 33.97,
+            'latest_sma_20' => null,
+            'latest_atr_14' => null,
+        ]);
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BEN',
+            'latest_close_price' => 32.10,
+            'latest_sma_20' => null,
+            'latest_atr_14' => null,
+        ]);
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 32.58),
+            ]),
+            'query1.finance.yahoo.com/*' => Http::response([
+                'chart' => [
+                    'result' => [
+                        [
+                            'meta' => ['regularMarketPrice' => 33.97],
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->artisan('vestix:fetch-data')
+            ->assertSuccessful();
+
+        $this->assertEqualsWithDelta(33.97, (float) $open->fresh()->latest_close_price, 0.01);
+        $this->assertEqualsWithDelta(32.58, (float) $scout->fresh()->latest_close_price, 0.01);
+        $this->assertNotNull($scout->fresh()->latest_sma_20);
+        $this->assertNotSame('STOPPED OUT', $open->fresh()->action_command);
+    }
+
+    public function test_scout_representative_does_not_overwrite_open_close_with_lagging_eod(): void
+    {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+            'vestix.alpha_vantage.api_key' => null,
+        ]);
+
+        $user = User::factory()->create();
+        $scout = Position::factory()->for($user)->scout()->create([
+            'ticker' => 'BEN',
+            'latest_close_price' => 32.10,
+            'latest_sma_20' => null,
+            'latest_atr_14' => null,
+        ]);
+        $open = Position::factory()->for($user)->create([
+            'ticker' => 'BEN',
+            'status' => 'open',
+            'entry_price' => 34.00,
+            'quantity' => 45,
+            'current_sl' => 33.41,
+            'latest_close_price' => 33.97,
+            'latest_sma_20' => null,
+            'latest_atr_14' => null,
+        ]);
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 32.58),
+            ]),
+            'query1.finance.yahoo.com/*' => Http::response([
+                'chart' => [
+                    'result' => [
+                        [
+                            'meta' => ['regularMarketPrice' => 33.97],
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->artisan('vestix:fetch-data')
+            ->assertSuccessful();
+
+        $freshOpen = $open->fresh();
+        $this->assertEqualsWithDelta(32.58, (float) $scout->fresh()->latest_close_price, 0.01);
+        $this->assertEqualsWithDelta(33.97, (float) $freshOpen->latest_close_price, 0.01);
+        $this->assertNotNull($freshOpen->latest_sma_20);
+        $this->assertNotSame('STOPPED OUT', $freshOpen->action_command);
+    }
+
     public function test_stale_sync_flag_is_cleared_automatically(): void
     {
         $user = User::factory()->create();
