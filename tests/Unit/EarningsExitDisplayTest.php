@@ -178,7 +178,9 @@ class EarningsExitDisplayTest extends TestCase
         $data = EarningsExitDisplay::scoutEntryAlertViewData($position);
 
         $this->assertSame('8 dagen', $data['daysLabel']);
-        $this->assertSame('Te weinig runway voor een nieuwe entry — setup wordt NO TRADE.', $data['subtitle']);
+        $this->assertStringContainsString('9 mrt. 2026', $data['subtitle']);
+        $this->assertStringContainsString('Te weinig runway voor een nieuwe entry', $data['subtitle']);
+        $this->assertStringContainsString('NO TRADE', $data['subtitle']);
         $this->assertNull($data['trailingNote']);
         $this->assertFalse($data['isDanger']);
     }

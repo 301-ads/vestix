@@ -757,6 +757,24 @@ class ScoutSetupScorecardTest extends TestCase
         $this->assertContains('Earnings over 8 dagen — te weinig runway voor entry', $result['hardFailReasons']);
     }
 
+    public function test_earnings_hard_fail_includes_report_date_when_known(): void
+    {
+        $result = ScoutSetupScorecard::evaluate($this->baseInputs([
+            'signal_low' => 101.00,
+            'latest_close_price' => 101.00,
+            'days_until_earnings' => 12,
+            'earnings_date' => '2026-09-02',
+        ]));
+
+        $this->assertSame('NO TRADE', $result['grade']);
+        $this->assertTrue(
+            collect($result['hardFailReasons'])->contains(
+                fn (string $reason): bool => str_contains($reason, 'Earnings over 12 dagen')
+                    && str_contains($reason, '2 sep. 2026'),
+            ),
+        );
+    }
+
     public function test_failed_breakout_after_buy_stop_is_hard_fail(): void
     {
         $result = ScoutSetupScorecard::evaluate($this->baseInputs([

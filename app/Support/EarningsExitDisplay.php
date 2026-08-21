@@ -128,6 +128,7 @@ class EarningsExitDisplay
         }
 
         $daysUntil = (int) $position->daysUntilEarnings();
+        $dateString = self::shortDateLabel($position->effectiveEarningsDate());
 
         $daysLabel = match (true) {
             $daysUntil === 0 => 'vandaag',
@@ -135,12 +136,25 @@ class EarningsExitDisplay
             default => $daysUntil.' dagen',
         };
 
+        $subtitle = $dateString !== null
+            ? "Verwacht op {$dateString}. Te weinig runway voor een nieuwe entry — setup wordt NO TRADE."
+            : 'Te weinig runway voor een nieuwe entry — setup wordt NO TRADE.';
+
         return [
             'daysLabel' => $daysLabel,
-            'subtitle' => 'Te weinig runway voor een nieuwe entry — setup wordt NO TRADE.',
+            'subtitle' => $subtitle,
             'trailingNote' => null,
             'isDanger' => $daysUntil <= self::DANGER_THRESHOLD_DAYS,
         ];
+    }
+
+    public static function shortDateLabel(?Carbon $date): ?string
+    {
+        if ($date === null) {
+            return null;
+        }
+
+        return $date->copy()->locale('nl')->isoFormat('D MMM Y');
     }
 
     public static function isSmartAlertVisible(?Position $position, string $operation): bool

@@ -78,7 +78,9 @@ class ScoutActivationEarningsOverrideTest extends TestCase
         $this->assertTrue(PositionRecordActions::scoutEarningsGateBlocks($position));
         $this->assertTrue(PositionRecordActions::scoutActivationDisabled($position));
         $this->assertFalse(PositionRecordActions::scoutEarningsOverrideRequired($position));
-        $this->assertStringContainsString('NO TRADE', PositionRecordActions::scoutActivationTooltip($position));
+        $tooltip = PositionRecordActions::scoutActivationTooltip($position);
+        $this->assertStringContainsString('NO TRADE', $tooltip);
+        $this->assertStringContainsString('9 mrt. 2026', $tooltip);
     }
 
     private function makeScout(

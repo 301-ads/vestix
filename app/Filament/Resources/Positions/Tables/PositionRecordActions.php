@@ -938,6 +938,7 @@ class PositionRecordActions
             'sector_trend_positive' => $record->sector_trend_positive,
             'pre_bounce_extension_atr' => $record->pre_bounce_extension_atr,
             'days_until_earnings' => $record->daysUntilEarnings(),
+            'earnings_date' => $record->effectiveEarningsDate()?->toDateString(),
             'in_earnings_quarantine' => $record->isInEarningsEntryQuarantine(),
         ];
     }
@@ -1507,6 +1508,11 @@ class PositionRecordActions
 
         if (EarningsExitDisplay::isWithinAlertWindow($record)) {
             $daysUntil = $record->daysUntilEarnings();
+            $dateLabel = EarningsExitDisplay::shortDateLabel($record->effectiveEarningsDate());
+
+            if ($daysUntil !== null && $dateLabel !== null) {
+                return "NO TRADE — earnings {$dateLabel} (over {$daysUntil} dagen, runway ≤14). Activatie geblokkeerd.";
+            }
 
             return $daysUntil !== null
                 ? "NO TRADE — earnings over {$daysUntil} dagen (runway ≤14 dagen). Activatie geblokkeerd."

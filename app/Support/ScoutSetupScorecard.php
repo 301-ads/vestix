@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\TradeDirection;
+use Illuminate\Support\Carbon;
 
 class ScoutSetupScorecard
 {
@@ -36,6 +37,7 @@ class ScoutSetupScorecard
      *     sector_trend_positive?: bool|null,
      *     pre_bounce_extension_atr?: float|null,
      *     days_until_earnings?: int|null,
+     *     earnings_date?: string|null,
      *     in_earnings_quarantine?: bool|null,
      * }  $inputs
      * @return array{
@@ -1065,7 +1067,10 @@ class ScoutSetupScorecard
         $windowDays = (int) config('vestix.pre_earnings_trailing.window_days', EarningsExitDisplay::ALERT_WINDOW_DAYS);
 
         if ($daysUntil >= 0 && $daysUntil <= $windowDays) {
-            return ["Earnings over {$daysUntil} dagen — te weinig runway voor entry"];
+            $dateLabel = self::earningsDateLabel($inputs);
+            $suffix = $dateLabel !== null ? " ({$dateLabel})" : '';
+
+            return ["Earnings over {$daysUntil} dagen{$suffix} — te weinig runway voor entry"];
         }
 
         return [];
@@ -1455,6 +1460,24 @@ SQL;
         }
 
         return $volume > $volumeSma20;
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     */
+    private static function earningsDateLabel(array $inputs): ?string
+    {
+        $raw = $inputs['earnings_date'] ?? null;
+
+        if (! is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        try {
+            return EarningsExitDisplay::shortDateLabel(Carbon::parse($raw));
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
