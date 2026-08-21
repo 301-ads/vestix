@@ -177,9 +177,9 @@ class MarketDataFetcher
      * position with the same ticker (other users benefit without a second Polygon call).
      *
      * latest_close_price is status-specific: open rows use a live/Yahoo mark for P&L,
-     * scouts keep the Polygon session close for signals/scorecards. Unique-by-ticker
-     * bulk sync can pick either status as the representative, so a live overlay is
-     * applied to every open sibling when the source itself is not open.
+     * scouts keep the Polygon session close for signals/scorecards. Bulk unique prefers
+     * an open representative, but a user-scoped scout sync can still be the source —
+     * never copy a scout EOD onto opens; overlay live marks on open siblings instead.
      */
     public function propagateSharedMarketData(Position $source): void
     {
