@@ -164,6 +164,8 @@ class PositionPriceChartService
             return null;
         }
 
+        [$points, $candles] = $this->overlayLiveMarkOnLastPoint($position, $points, $candles);
+
         $isScout = $position->status === 'scout';
         $first = (float) $points[0]['value'];
         $last = (float) $points[array_key_last($points)]['value'];
@@ -236,6 +238,42 @@ class PositionPriceChartService
         }
 
         return $payload;
+    }
+
+    /**
+     * Align the chart tip with Actuele Koers (`latest_close_price` live mark).
+     * Open + scout only — closed positions keep pure historical bars.
+     *
+     * @param  list<array{time: int|string, value: float}>  $points
+     * @param  list<array{time: int|string, open: float, high: float, low: float, close: float}>  $candles
+     * @return array{0: list<array{time: int|string, value: float}>, 1: list<array{time: int|string, open: float, high: float, low: float, close: float}>}
+     */
+    private function overlayLiveMarkOnLastPoint(Position $position, array $points, array $candles): array
+    {
+        if (! in_array($position->status, ['open', 'scout'], true)) {
+            return [$points, $candles];
+        }
+
+        if ($position->latest_close_price === null || (float) $position->latest_close_price <= 0) {
+            return [$points, $candles];
+        }
+
+        if ($points === []) {
+            return [$points, $candles];
+        }
+
+        $mark = round((float) $position->latest_close_price, 4);
+        $lastIndex = array_key_last($points);
+        $points[$lastIndex]['value'] = $mark;
+
+        if ($candles !== []) {
+            $candleIndex = array_key_last($candles);
+            $candles[$candleIndex]['close'] = $mark;
+            $candles[$candleIndex]['high'] = max((float) $candles[$candleIndex]['high'], $mark);
+            $candles[$candleIndex]['low'] = min((float) $candles[$candleIndex]['low'], $mark);
+        }
+
+        return [$points, $candles];
     }
 
     /**

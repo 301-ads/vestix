@@ -72,6 +72,7 @@ class PositionPriceChartServiceTest extends TestCase
             'initial_sl' => 105.0,
             'current_sl' => 108.0,
             'quantity' => 10,
+            'latest_close_price' => null,
             'signal_bar_date' => '2026-01-10',
             'created_at' => '2026-01-12 15:00:00',
         ]);
@@ -94,6 +95,151 @@ class PositionPriceChartServiceTest extends TestCase
         $this->assertSame('area', $payload['series']);
         $this->assertArrayNotHasKey('candles', $payload);
         $this->assertArrayNotHasKey('premarket', $payload);
+    }
+
+    public function test_open_chart_last_point_follows_live_mark(): void
+    {
+        Cache::flush();
+
+        $bars = [];
+        $start = Carbon::parse('2026-01-02');
+
+        for ($i = 0; $i < 40; $i++) {
+            $close = 90 + $i * 0.15;
+            $bars[] = [
+                'open' => $close - 0.5,
+                'high' => $close + 1,
+                'low' => $close - 1,
+                'close' => $close,
+                'volume' => 1_000_000,
+                'date' => $start->copy()->addWeekdays($i)->toDateString(),
+            ];
+        }
+
+        $bars[array_key_last($bars)]['close'] = 96.07;
+        $bars[array_key_last($bars)]['high'] = 97.00;
+        $bars[array_key_last($bars)]['low'] = 95.50;
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')->andReturn([
+            'today' => $bars[array_key_last($bars)],
+            'adv30' => 1_000_000.0,
+            'bars' => $bars,
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'EXE',
+            'status' => 'open',
+            'direction' => 'long',
+            'entry_price' => 95.03,
+            'current_sl' => 92.58,
+            'quantity' => 18,
+            'latest_close_price' => 95.02,
+        ]);
+
+        $payload = $this->makeService($dailyBars)->build($position, '3M');
+
+        $this->assertNotNull($payload);
+        $lastPoint = $payload['points'][array_key_last($payload['points'])];
+        $this->assertEqualsWithDelta(95.02, $lastPoint['value'], 0.001);
+        $this->assertEqualsWithDelta(
+            round(95.02 - (float) $payload['points'][0]['value'], 4),
+            $payload['period_change']['absolute'],
+            0.001,
+        );
+    }
+
+    public function test_open_chart_without_live_mark_keeps_bar_close(): void
+    {
+        Cache::flush();
+
+        $bars = [];
+        $start = Carbon::parse('2026-01-02');
+
+        for ($i = 0; $i < 40; $i++) {
+            $close = 100 + $i;
+            $bars[] = [
+                'open' => $close - 0.5,
+                'high' => $close + 1,
+                'low' => $close - 1,
+                'close' => $close,
+                'volume' => 1_000_000,
+                'date' => $start->copy()->addWeekdays($i)->toDateString(),
+            ];
+        }
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')->andReturn([
+            'today' => $bars[array_key_last($bars)],
+            'adv30' => 1_000_000.0,
+            'bars' => $bars,
+        ]);
+
+        $position = Position::factory()->create([
+            'ticker' => 'BAC',
+            'status' => 'open',
+            'direction' => 'long',
+            'entry_price' => 110.0,
+            'current_sl' => 108.0,
+            'quantity' => 10,
+            'latest_close_price' => null,
+        ]);
+
+        $payload = $this->makeService($dailyBars)->build($position, '1W');
+
+        $this->assertNotNull($payload);
+        $lastPoint = $payload['points'][array_key_last($payload['points'])];
+        $this->assertEqualsWithDelta(139.0, $lastPoint['value'], 0.001);
+    }
+
+    public function test_scout_candle_high_low_expand_to_include_live_mark(): void
+    {
+        Cache::flush();
+        Carbon::setTestNow(Carbon::parse('2026-08-11 10:00:00', 'America/New_York'));
+
+        $bars = [];
+        $start = Carbon::parse('2026-05-01');
+
+        for ($i = 0; $i < 80; $i++) {
+            $close = 50 + ($i * 0.1);
+            $bars[] = [
+                'open' => $close - 0.2,
+                'high' => $close + 0.4,
+                'low' => $close - 0.4,
+                'close' => $close,
+                'volume' => 1_000_000,
+                'date' => $start->copy()->addWeekdays($i)->toDateString(),
+            ];
+        }
+
+        $lastBarClose = (float) $bars[array_key_last($bars)]['close'];
+
+        $dailyBars = Mockery::mock(DailyBarProvider::class);
+        $dailyBars->shouldReceive('fetchRecentBars')->andReturn([
+            'today' => $bars[array_key_last($bars)],
+            'adv30' => 1_000_000.0,
+            'bars' => $bars,
+        ]);
+
+        $position = Position::factory()->scout()->create([
+            'ticker' => 'MARK',
+            'entry_price' => 55.0,
+            'signal_high' => 54.0,
+            'signal_low' => 52.0,
+            'latest_atr_14' => 1.0,
+            'latest_close_price' => $lastBarClose + 2.0,
+            'premarket_checked_at' => null,
+        ]);
+
+        $payload = $this->makeService($dailyBars)->build($position, '3M');
+
+        $this->assertNotNull($payload);
+        $lastCandle = $payload['candles'][array_key_last($payload['candles'])];
+        $this->assertEqualsWithDelta($lastBarClose + 2.0, $lastCandle['close'], 0.001);
+        $this->assertGreaterThanOrEqual($lastCandle['close'], $lastCandle['high']);
+        $this->assertLessThanOrEqual($lastCandle['close'], $lastCandle['low']);
+
+        Carbon::setTestNow();
     }
 
     public function test_scout_payload_uses_candles_indicators_and_premarket_meta(): void
