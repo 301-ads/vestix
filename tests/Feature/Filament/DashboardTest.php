@@ -96,6 +96,38 @@ class DashboardTest extends TestCase
             ->callAction('sync_api');
 
         $this->assertFalse(MarketDataFreshness::isSyncInProgress());
+        $this->assertFalse(MarketDataFreshness::isApiSyncBusy());
+    }
+
+    public function test_other_users_sync_does_not_show_sync_bezig_for_me(): void
+    {
+        ['user' => $userA, 'squad' => $squadA] = $this->createUserWithSquad();
+        ['user' => $userB, 'squad' => $squadB] = $this->createUserWithSquad();
+
+        Cache::put(
+            MarketDataFreshness::userSyncKey($userA->id),
+            now()->toIso8601String(),
+            now()->addHour(),
+        );
+        Cache::put('vestix:api_sync_busy', now()->toIso8601String(), now()->addHour());
+        Cache::put('vestix:last_api_fetch', now()->subHour()->toIso8601String());
+
+        $this->assertTrue(MarketDataFreshness::isSyncInProgress($userA->id));
+        $this->assertFalse(MarketDataFreshness::isSyncInProgress($userB->id));
+        $this->assertTrue(MarketDataFreshness::isApiSyncBusy());
+        $this->assertSame('Sync bezig…', MarketDataFreshness::subheading($userA->id));
+        $this->assertNotSame('Sync bezig…', MarketDataFreshness::subheading($userB->id));
+        $this->assertStringContainsString(
+            'Er loopt al een sync',
+            MarketDataFreshness::tooltip($userB->id),
+        );
+
+        $this->actingAsFilamentUser($userB, $squadB);
+
+        $this->get('/admin')
+            ->assertOk()
+            ->assertDontSee('Sync bezig')
+            ->assertSee('Forceer API Sync');
     }
 
     public function test_force_sync_stores_database_notification(): void

@@ -120,4 +120,38 @@ class OverboughtAlertTest extends TestCase
 
         $this->assertEquals(0, PositionAlert::query()->where('event_type', AlertEventType::Overbought)->count());
     }
+
+    public function test_stopped_out_alert_is_cleared_when_mark_recovers_above_sl(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+        $position = Position::factory()->create([
+            'user_id' => $user->id,
+            'status' => 'open',
+            'ticker' => 'BEN',
+            'latest_close_price' => 33.97,
+            'latest_sma_20' => 33.00,
+            'latest_atr_14' => 1.00,
+            'current_sl' => 33.41,
+        ]);
+
+        PositionAlert::query()->create([
+            'user_id' => $user->id,
+            'position_id' => $position->id,
+            'event_type' => AlertEventType::StoppedOut,
+            'channel_type' => AlertChannelType::Telegram,
+            'payload' => [],
+            'sent_at' => now(),
+        ]);
+
+        $this->assertNotSame('STOPPED OUT', $position->action_command);
+
+        (new CheckPositionAlertTriggersJob($position->id))->handle(app(AlertDispatcher::class));
+
+        $this->assertEquals(0, PositionAlert::query()->where('event_type', AlertEventType::StoppedOut)->count());
+        Queue::assertNotPushed(SendAlertJob::class, function (SendAlertJob $job): bool {
+            return $job->event === AlertEventType::StoppedOut;
+        });
+    }
 }

@@ -59,7 +59,7 @@ class FetchVestixData extends Command
         }
 
         try {
-            MarketDataFreshness::markSyncStarted();
+            MarketDataFreshness::markSyncStarted($userId);
 
             if ($positionId !== null) {
                 return $this->runSinglePositionSync(
@@ -78,16 +78,33 @@ class FetchVestixData extends Command
                 ? 'Sniper Engine (scouts): API data + signaalkaars ophalen...'
                 : 'Sniper Engine gestart: API data ophalen...');
 
-            $positions = $scoutsOnly
-                ? Position::scout()->get()
-                : Position::tracked()->get();
+            $positions = $this->resolvePositionsToSync($userId, $scoutsOnly);
 
             return $this->runBulkSync($marketDataFetcher, $scoutSetupAlertService, $positions, $userId);
         } finally {
             $lock->release();
-            MarketDataFreshness::markSyncFinished();
+            MarketDataFreshness::markSyncFinished($userId);
             $this->clearPendingSyncFlags($positionId, $userId, $ticker);
         }
+    }
+
+    /**
+     * @return Collection<int, Position>
+     */
+    private function resolvePositionsToSync(?int $userId, bool $scoutsOnly): Collection
+    {
+        $query = $scoutsOnly
+            ? Position::scout()
+            : Position::tracked();
+
+        if ($userId !== null) {
+            $query->forUser($userId);
+        }
+
+        // One Polygon round-trip per ticker; fan-out shared marks after sync.
+        return $query->get()
+            ->unique(fn (Position $position): string => strtoupper(trim($position->ticker)))
+            ->values();
     }
 
     private function runSinglePositionSync(
@@ -114,6 +131,7 @@ class FetchVestixData extends Command
 
             if ($marketDataFetcher->syncPosition($position, withDelays: false)) {
                 $position->refresh();
+                $marketDataFetcher->propagateSharedMarketData($position);
 
                 if ($position->status === 'scout' && $previousScore !== null) {
                     $newScorecard = $position->evaluateSetupScore();
@@ -233,6 +251,7 @@ class FetchVestixData extends Command
                     $updated++;
 
                     $position->refresh();
+                    $marketDataFetcher->propagateSharedMarketData($position);
 
                     if ($position->status === 'scout' && $previousScore !== null) {
                         $newScorecard = $position->evaluateSetupScore();
@@ -464,7 +483,8 @@ class FetchVestixData extends Command
             return User::query()->whereKey($userId)->get();
         }
 
-        return User::all();
+        // Scheduled runs have no requester — do not spam every Filament user.
+        return collect();
     }
 
     private function formatEarningsSyncSnippet(Position $position): ?string

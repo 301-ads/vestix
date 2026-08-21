@@ -51,7 +51,8 @@ class PositionRecordActions
             ->icon('heroicon-o-arrow-path')
             ->color('success')
             ->disabled(fn (Position $record): bool => MarketDataFreshness::isPositionSyncInProgress($record->id)
-                || MarketDataFreshness::isSyncInProgress())
+                || MarketDataFreshness::isSyncInProgress()
+                || MarketDataFreshness::isApiSyncBusy())
             ->visible(fn (Position $record): bool => in_array($record->status, ['open', 'scout'], true))
             ->action(function (Position $record, $livewire): void {
                 if ($record->status === 'open') {
@@ -101,7 +102,8 @@ class PositionRecordActions
                 && $record->isOwnedBy(auth()->user())
                 && (auth()->user()?->can('update', $record) ?? false))
             ->disabled(fn (Position $record): bool => MarketDataFreshness::isPositionSyncInProgress($record->id)
-                || MarketDataFreshness::isSyncInProgress())
+                || MarketDataFreshness::isSyncInProgress()
+                || MarketDataFreshness::isApiSyncBusy())
             ->requiresConfirmation()
             ->modalHeading('Signaalkaars vernieuwen?')
             ->modalDescription('Low/High en entry worden overschreven met de nieuwste bounce- of rejection-kaars uit de marktdata. Gebruik dit voor Order Plan-setups die vastzitten op een oude kaars.')
@@ -1479,7 +1481,8 @@ class PositionRecordActions
     public static function scoutActivationDisabled(Position $record): bool
     {
         if (MarketDataFreshness::isPositionSyncInProgress($record->id)
-            || MarketDataFreshness::isSyncInProgress()) {
+            || MarketDataFreshness::isSyncInProgress()
+            || MarketDataFreshness::isApiSyncBusy()) {
             return true;
         }
 
@@ -1489,8 +1492,11 @@ class PositionRecordActions
     public static function scoutActivationTooltip(Position $record): string
     {
         if (MarketDataFreshness::isPositionSyncInProgress($record->id)
-            || MarketDataFreshness::isSyncInProgress()) {
-            return 'Marktdata wordt opgehaald — even geduld';
+            || MarketDataFreshness::isSyncInProgress()
+            || MarketDataFreshness::isApiSyncBusy()) {
+            return MarketDataFreshness::isSyncInProgress() || MarketDataFreshness::isPositionSyncInProgress($record->id)
+                ? 'Marktdata wordt opgehaald — even geduld'
+                : 'Er loopt al een sync. Probeer zo meteen opnieuw.';
         }
 
         if ($record->isInEarningsEntryQuarantine()) {

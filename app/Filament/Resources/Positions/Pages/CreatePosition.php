@@ -43,13 +43,14 @@ class CreatePosition extends CreateRecord
                 ->disabled(function (): bool {
                     $ticker = strtoupper(trim((string) ($this->form->getRawState()['ticker'] ?? '')));
                     $userId = auth()->id();
+                    $busy = MarketDataFreshness::isSyncInProgress()
+                        || MarketDataFreshness::isApiSyncBusy();
 
                     if ($ticker === '' || $userId === null) {
-                        return MarketDataFreshness::isSyncInProgress();
+                        return $busy;
                     }
 
-                    return MarketDataFreshness::isTickerSyncInProgress($userId, $ticker)
-                        || MarketDataFreshness::isSyncInProgress();
+                    return MarketDataFreshness::isTickerSyncInProgress($userId, $ticker) || $busy;
                 })
                 ->action(function (): void {
                     $ticker = strtoupper(trim((string) ($this->form->getRawState()['ticker'] ?? '')));

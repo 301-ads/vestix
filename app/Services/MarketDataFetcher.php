@@ -139,16 +139,26 @@ class MarketDataFetcher
             }
         }
 
-        // Open P&L should track live/EH marks during the session — EOD bars alone stay on prior close
-        // until the session completes (Forceer API Sync overdag overschreef IBKR-live marks).
+        // Open P&L should track live/EH marks — EOD bars alone can lag a session and
+        // falsely trigger STOPPED OUT (e.g. BEN 32.58 vs live 33.97).
         if ($position->status === 'open') {
+            $polygonClose = isset($data['latest_close_price'])
+                ? (float) $data['latest_close_price']
+                : null;
+            $existingClose = $position->latest_close_price !== null
+                ? (float) $position->latest_close_price
+                : null;
+
             $liveMark = $this->resolveOpenPositionLiveMark(
                 $position->ticker,
-                isset($data['latest_close_price']) ? (float) $data['latest_close_price'] : null,
+                $polygonClose,
             );
 
             if ($liveMark !== null) {
                 $data['latest_close_price'] = $liveMark;
+            } elseif ($existingClose !== null) {
+                // Live overlay unavailable: keep the stored mark instead of a lagging daily bar.
+                $data['latest_close_price'] = $existingClose;
             }
         }
 
@@ -160,6 +170,57 @@ class MarketDataFetcher
         }
 
         return true;
+    }
+
+    /**
+     * Copy shared indicator/mark fields from a synced row onto every other tracked
+     * position with the same ticker (other users benefit without a second Polygon call).
+     */
+    public function propagateSharedMarketData(Position $source): void
+    {
+        $ticker = strtoupper(trim($source->ticker));
+
+        if ($ticker === '') {
+            return;
+        }
+
+        $shared = array_filter([
+            'latest_open_price' => $source->latest_open_price,
+            'latest_close_price' => $source->latest_close_price,
+            'recent_close_prices' => $source->recent_close_prices,
+            'latest_sma_20' => $source->latest_sma_20,
+            'sma_20_five_days_ago' => $source->sma_20_five_days_ago,
+            'sma_20_ten_days_ago' => $source->sma_20_ten_days_ago,
+            'latest_sma_50' => $source->latest_sma_50,
+            'latest_sma_200' => $source->latest_sma_200,
+            'latest_atr_14' => $source->latest_atr_14,
+            'scout_rsi' => $source->scout_rsi,
+            'prior_day_low' => $source->prior_day_low,
+            'bounce_volume_above_average' => $source->bounce_volume_above_average,
+            'bounce_day_volume' => $source->bounce_day_volume,
+            'avg_volume_30d' => $source->avg_volume_30d,
+            'relative_volume' => $source->relative_volume,
+            'volume_sma_20' => $source->volume_sma_20,
+            'sector_etf' => $source->sector_etf,
+            'sector_close' => $source->sector_close,
+            'sector_sma_50' => $source->sector_sma_50,
+            'sector_trend_positive' => $source->sector_trend_positive,
+            'pre_bounce_extension_atr' => $source->pre_bounce_extension_atr,
+        ], static fn (mixed $value): bool => $value !== null);
+
+        if ($shared === []) {
+            return;
+        }
+
+        if (isset($shared['recent_close_prices']) && is_array($shared['recent_close_prices'])) {
+            $shared['recent_close_prices'] = json_encode($shared['recent_close_prices']);
+        }
+
+        Position::query()
+            ->tracked()
+            ->where('ticker', $ticker)
+            ->whereKeyNot($source->id)
+            ->update($shared);
     }
 
     /**
@@ -231,17 +292,11 @@ class MarketDataFetcher
             return $live !== null ? round($live, 2) : null;
         }
 
-        // During RTH (and the 16:15 boundary still inside the watch window), prefer live
-        // marks so open P&L tracks the tape / completed session — never delayed EH last trades.
-        if (UsMarketSession::isIntradayTargetWatchWindow()) {
-            $live = $this->quotes->fetchLivePrice($ticker);
+        // RTH watch window and overnight/after-close: prefer Yahoo/session mark so a
+        // lagging Polygon daily bar cannot overwrite the real last close / tape.
+        $live = $this->quotes->fetchLivePrice($ticker);
 
-            return $live !== null ? round($live, 2) : null;
-        }
-
-        // Overnight after the watch window: keep the completed session close from daily bars
-        // / session-quote refresh. Use refreshOpenPositionLiveMark() to repair stale marks.
-        return null;
+        return $live !== null ? round($live, 2) : null;
     }
 
     /**

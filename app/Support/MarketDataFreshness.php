@@ -13,16 +13,30 @@ class MarketDataFreshness
 
     private const TICKER_FETCH_TTL_MINUTES = 30;
 
-    public static function isSyncInProgress(): bool
+    private const LEGACY_SYNC_KEY = 'vestix:sync_in_progress';
+
+    private const API_SYNC_BUSY_KEY = 'vestix:api_sync_busy';
+
+    /**
+     * True when this user's Forceer API Sync (or equivalent) is running.
+     * Cron / other users do not flip this for everyone.
+     */
+    public static function isSyncInProgress(?int $userId = null): bool
     {
-        $startedAt = self::resolveTimestamp(Cache::get('vestix:sync_in_progress'));
+        $userId ??= auth()->id();
+
+        if ($userId === null) {
+            return false;
+        }
+
+        $startedAt = self::resolveTimestamp(Cache::get(self::userSyncKey($userId)));
 
         if ($startedAt === null) {
             return false;
         }
 
         if ($startedAt->lessThan(now()->subMinutes(self::STALE_MINUTES))) {
-            self::markSyncFinished();
+            self::markSyncFinished($userId);
 
             return false;
         }
@@ -30,14 +44,54 @@ class MarketDataFreshness
         return true;
     }
 
-    public static function markSyncStarted(): void
+    /**
+     * True while any vestix:fetch-data run holds the shared Polygon lock path
+     * (per-user force sync or scheduled EOD). Used to disable sync buttons without
+     * showing "Sync bezig…" for other users.
+     */
+    public static function isApiSyncBusy(): bool
     {
-        Cache::put('vestix:sync_in_progress', now()->toIso8601String(), now()->addHours(2));
+        self::forgetLegacyGlobalSyncFlag();
+
+        $startedAt = self::resolveTimestamp(Cache::get(self::API_SYNC_BUSY_KEY));
+
+        if ($startedAt === null) {
+            return false;
+        }
+
+        if ($startedAt->lessThan(now()->subMinutes(self::STALE_MINUTES))) {
+            Cache::forget(self::API_SYNC_BUSY_KEY);
+
+            return false;
+        }
+
+        return true;
     }
 
-    public static function markSyncFinished(): void
+    public static function markSyncStarted(?int $userId = null): void
     {
-        Cache::forget('vestix:sync_in_progress');
+        self::forgetLegacyGlobalSyncFlag();
+
+        Cache::put(self::API_SYNC_BUSY_KEY, now()->toIso8601String(), now()->addHours(2));
+
+        if ($userId !== null) {
+            Cache::put(self::userSyncKey($userId), now()->toIso8601String(), now()->addHours(2));
+        }
+    }
+
+    public static function markSyncFinished(?int $userId = null): void
+    {
+        self::forgetLegacyGlobalSyncFlag();
+        Cache::forget(self::API_SYNC_BUSY_KEY);
+
+        if ($userId !== null) {
+            Cache::forget(self::userSyncKey($userId));
+        }
+    }
+
+    public static function userSyncKey(int $userId): string
+    {
+        return 'vestix:sync_in_progress:'.$userId;
     }
 
     public static function markPositionSyncStarted(int $positionId, ?int $userId = null): void
@@ -185,9 +239,9 @@ class MarketDataFreshness
         return collect($timestamps)->max();
     }
 
-    public static function subheading(): string
+    public static function subheading(?int $userId = null): string
     {
-        if (self::isSyncInProgress()) {
+        if (self::isSyncInProgress($userId)) {
             return 'Sync bezig…';
         }
 
@@ -200,16 +254,23 @@ class MarketDataFreshness
         return $lastFetch->diffForHumans();
     }
 
-    public static function tooltip(): string
+    public static function tooltip(?int $userId = null): string
     {
-        if (self::isSyncInProgress()) {
-            $startedAt = self::resolveTimestamp(Cache::get('vestix:sync_in_progress'));
+        if (self::isSyncInProgress($userId)) {
+            $userId ??= auth()->id();
+            $startedAt = $userId !== null
+                ? self::resolveTimestamp(Cache::get(self::userSyncKey($userId)))
+                : null;
 
             if ($startedAt) {
                 return 'API-sync gestart '.$startedAt->diffForHumans().'. Dit kan enkele minuten duren.';
             }
 
             return 'API-sync is bezig. Dit kan enkele minuten duren.';
+        }
+
+        if (self::isApiSyncBusy()) {
+            return 'Er loopt al een sync. Probeer zo meteen opnieuw.';
         }
 
         $eodFetch = self::lastEodFetchAt();
@@ -253,6 +314,11 @@ class MarketDataFreshness
         }
 
         return 'danger';
+    }
+
+    private static function forgetLegacyGlobalSyncFlag(): void
+    {
+        Cache::forget(self::LEGACY_SYNC_KEY);
     }
 
     private static function lastPositionMarketDataUpdate(): ?Carbon

@@ -14,14 +14,15 @@
         }
     }
 
-    $syncInProgress = MarketDataFreshness::isSyncInProgress()
-        || ($positionId !== null && MarketDataFreshness::isPositionSyncInProgress($positionId));
+    $ownSyncInProgress = MarketDataFreshness::isSyncInProgress();
+    $positionSyncInProgress = $positionId !== null && MarketDataFreshness::isPositionSyncInProgress($positionId);
+    $syncInProgress = $ownSyncInProgress || $positionSyncInProgress;
 
     $label = $syncInProgress
         ? 'Sync bezig…'
         : MarketDataFreshness::subheading();
 
-    $tooltip = $syncInProgress && $positionId !== null && MarketDataFreshness::isPositionSyncInProgress($positionId)
+    $tooltip = $positionSyncInProgress && ! $ownSyncInProgress
         ? 'Marktdata voor deze ticker wordt opgehaald.'
         : MarketDataFreshness::tooltip();
 @endphp

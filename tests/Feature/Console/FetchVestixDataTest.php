@@ -58,6 +58,7 @@ class FetchVestixDataTest extends TestCase
 
         Cache::forget('vestix:last_api_fetch');
         Cache::forget('vestix:sync_in_progress');
+        Cache::forget('vestix:api_sync_busy');
         Cache::forget('vestix:polygon:last_request_at');
         Cache::lock(MarketDataFetcher::syncLockKey())->forceRelease();
     }
@@ -130,6 +131,15 @@ class FetchVestixDataTest extends TestCase
 
         Http::fake([
             'api.polygon.io/*' => Http::response(['status' => 'ERROR']),
+            'query1.finance.yahoo.com/*' => Http::response([
+                'chart' => [
+                    'result' => [
+                        [
+                            'meta' => ['regularMarketPrice' => 78.20],
+                        ],
+                    ],
+                ],
+            ]),
             'www.alphavantage.co/*' => Http::sequence()
                 ->push([
                     'Global Quote' => [
@@ -265,20 +275,155 @@ class FetchVestixDataTest extends TestCase
 
     public function test_command_clears_sync_in_progress_flag(): void
     {
-        Cache::put('vestix:sync_in_progress', now()->toIso8601String(), now()->addHour());
+        $user = User::factory()->create();
+        Cache::put(MarketDataFreshness::userSyncKey($user->id), now()->toIso8601String(), now()->addHour());
+        Cache::put('vestix:api_sync_busy', now()->toIso8601String(), now()->addHour());
+
+        $this->artisan('vestix:fetch-data', ['--user-id' => $user->id])
+            ->assertSuccessful();
+
+        $this->assertFalse(MarketDataFreshness::isSyncInProgress($user->id));
+        $this->assertFalse(MarketDataFreshness::isApiSyncBusy());
+    }
+
+    public function test_cron_sync_does_not_set_user_sync_flag(): void
+    {
+        $user = User::factory()->create();
 
         $this->artisan('vestix:fetch-data')
             ->assertSuccessful();
 
-        $this->assertFalse(MarketDataFreshness::isSyncInProgress());
+        $this->assertFalse(MarketDataFreshness::isSyncInProgress($user->id));
+        $this->assertFalse(MarketDataFreshness::isApiSyncBusy());
+        $this->assertNull(Cache::get(MarketDataFreshness::userSyncKey($user->id)));
+    }
+
+    public function test_user_scoped_sync_does_not_update_other_users_distinct_tickers(): void
+    {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+            'vestix.alpha_vantage.api_key' => null,
+        ]);
+
+        $userA = User::factory()->create();
+        $userB = User::factory()->create();
+
+        $positionA = Position::factory()->for($userA)->create([
+            'ticker' => 'MSFT',
+            'status' => 'open',
+            'latest_close_price' => 10.00,
+            'latest_sma_20' => null,
+            'latest_atr_14' => null,
+            'current_sl' => 9.00,
+        ]);
+        $positionB = Position::factory()->for($userB)->create([
+            'ticker' => 'AAPL',
+            'status' => 'open',
+            'latest_close_price' => 11.00,
+            'latest_sma_20' => null,
+            'latest_atr_14' => null,
+            'current_sl' => 10.00,
+        ]);
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 78.20),
+            ]),
+            'query1.finance.yahoo.com/*' => Http::response([
+                'chart' => [
+                    'result' => [
+                        [
+                            'meta' => ['regularMarketPrice' => 78.20],
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->artisan('vestix:fetch-data', ['--user-id' => $userA->id])
+            ->assertSuccessful();
+
+        $this->assertNotNull($positionA->fresh()->latest_sma_20);
+        $this->assertNull($positionB->fresh()->latest_sma_20);
+        $this->assertEqualsWithDelta(11.00, (float) $positionB->fresh()->latest_close_price, 0.01);
+    }
+
+    public function test_user_scoped_sync_fans_out_shared_ticker_marks(): void
+    {
+        config([
+            'vestix.polygon.api_key' => 'test-polygon-key',
+            'vestix.polygon.base_url' => 'https://api.polygon.io',
+            'vestix.alpha_vantage.api_key' => null,
+        ]);
+
+        $userA = User::factory()->create();
+        $userB = User::factory()->create();
+
+        $positionA = Position::factory()->for($userA)->create([
+            'ticker' => 'MSFT',
+            'status' => 'open',
+            'latest_close_price' => 10.00,
+            'latest_sma_20' => null,
+            'latest_atr_14' => null,
+            'current_sl' => 9.00,
+        ]);
+        $positionB = Position::factory()->for($userB)->create([
+            'ticker' => 'MSFT',
+            'status' => 'open',
+            'latest_close_price' => 10.00,
+            'latest_sma_20' => null,
+            'latest_atr_14' => null,
+            'current_sl' => 9.00,
+        ]);
+
+        Http::fake([
+            'api.polygon.io/*' => Http::response([
+                'status' => 'OK',
+                'results' => PolygonFixtures::dailyBars(latestClose: 78.20),
+            ]),
+            'query1.finance.yahoo.com/*' => Http::response([
+                'chart' => [
+                    'result' => [
+                        [
+                            'meta' => ['regularMarketPrice' => 78.20],
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->artisan('vestix:fetch-data', ['--user-id' => $userA->id])
+            ->assertSuccessful();
+
+        $this->assertNotNull($positionA->fresh()->latest_sma_20);
+        $this->assertNotNull($positionB->fresh()->latest_sma_20);
+        $this->assertEqualsWithDelta(
+            (float) $positionA->fresh()->latest_close_price,
+            (float) $positionB->fresh()->latest_close_price,
+            0.01,
+        );
     }
 
     public function test_stale_sync_flag_is_cleared_automatically(): void
     {
-        Cache::put('vestix:sync_in_progress', now()->subMinutes(25)->toIso8601String(), now()->addHour());
+        $user = User::factory()->create();
+        Cache::put(MarketDataFreshness::userSyncKey($user->id), now()->subMinutes(25)->toIso8601String(), now()->addHour());
+        Cache::put('vestix:api_sync_busy', now()->subMinutes(25)->toIso8601String(), now()->addHour());
+
+        $this->assertFalse(MarketDataFreshness::isSyncInProgress($user->id));
+        $this->assertFalse(MarketDataFreshness::isApiSyncBusy());
+        $this->assertNull(Cache::get(MarketDataFreshness::userSyncKey($user->id)));
+        $this->assertNull(Cache::get('vestix:api_sync_busy'));
+    }
+
+    public function test_legacy_global_sync_flag_is_ignored(): void
+    {
+        Cache::put('vestix:sync_in_progress', now()->toIso8601String(), now()->addHour());
 
         $this->assertFalse(MarketDataFreshness::isSyncInProgress());
-        $this->assertNull(Cache::get('vestix:sync_in_progress'));
+        $this->assertFalse(MarketDataFreshness::isApiSyncBusy());
     }
 
     public function test_command_sends_completion_notification_to_user(): void

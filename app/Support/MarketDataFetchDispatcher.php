@@ -18,7 +18,7 @@ class MarketDataFetchDispatcher
             return false;
         }
 
-        if (MarketDataFreshness::isSyncInProgress()) {
+        if (MarketDataFreshness::isSyncInProgress() || MarketDataFreshness::isApiSyncBusy()) {
             FilamentNotifier::send(
                 title: 'API-sync bezig',
                 body: 'Er loopt al een marktdata-sync. Wacht even en probeer opnieuw.',
@@ -71,7 +71,7 @@ class MarketDataFetchDispatcher
             return false;
         }
 
-        if (MarketDataFreshness::isSyncInProgress()) {
+        if (MarketDataFreshness::isSyncInProgress($userId) || MarketDataFreshness::isApiSyncBusy()) {
             FilamentNotifier::send(
                 title: 'API-sync bezig',
                 body: 'Er loopt al een marktdata-sync. Wacht even en probeer opnieuw.',
