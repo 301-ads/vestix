@@ -66,9 +66,15 @@ class FlexIbkrAccountReader implements IbkrAccountReader
 
     private function ensureSynced(User $user): void
     {
+        if (! $user->hasIbkrFlexConnection()) {
+            throw new RuntimeException(
+                'IBKR Flex is not connected for this user. Add token + query ID in Trading Voorkeuren.',
+            );
+        }
+
         if ($user->ibkr_net_liquidation === null && $user->ibkr_last_success_at === null) {
             throw new RuntimeException(
-                'IBKR Flex sync has not run yet. Run `php artisan vestix:sync-ibkr` or set IBKR_READER=stub.',
+                'IBKR Flex sync has not run yet. Use “Test koppeling” in profile or run `php artisan vestix:sync-ibkr`.',
             );
         }
     }

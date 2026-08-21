@@ -3,10 +3,11 @@
 namespace App\Services\Ibkr;
 
 use App\Data\Ibkr\IbkrAccountSnapshot;
-use App\Enums\Broker;
+use App\Models\ApiCredential;
 use App\Models\User;
 use App\Services\BankrollSnapshotService;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -23,62 +24,63 @@ class IbkrSyncService
     ) {}
 
     /**
+     * Sync each connected user with their own Flex credentials.
+     * Never fans one statement out to multiple users. Never falls back to env tokens.
+     *
      * @return array{
      *     users: int,
+     *     synced: int,
+     *     failed: int,
      *     cashflows_imported: int,
      *     cashflows_skipped: int,
      *     cashflow_details: list<array<string, mixed>>,
      *     snapshot: array<string, mixed>|null,
      *     success: bool,
-     *     error: string|null
+     *     error: string|null,
+     *     results: list<array{user_id: int, success: bool, error: string|null, snapshot: array<string, mixed>|null}>
      * }
-     */
-    /**
-     * @param  string|null  $statementXml  Optional portal-downloaded Flex XML (bypasses Web Service).
+     *
+     * @param  string|null  $statementXml  Optional portal-downloaded Flex XML (bypasses Web Service; still requires --user with credentials).
      */
     public function sync(?User $onlyUser = null, ?string $statementXml = null): array
     {
-        $users = $onlyUser !== null
-            ? collect([$onlyUser])
-            : User::query()
-                ->where(function ($query): void {
-                    $query->where('primary_broker', Broker::Ibkr->value)
-                        ->orWhereNotNull('trading_bankroll');
-                })
-                ->get();
+        if ($statementXml !== null && $onlyUser === null) {
+            return $this->emptyFailure(
+                'File/XML import requires --user= pointing at a user with IBKR Flex credentials.',
+            );
+        }
+
+        $users = $this->resolveUsers($onlyUser);
+
+        if ($users->isEmpty()) {
+            $message = $onlyUser !== null
+                ? "User [{$onlyUser->id}] has no IBKR Flex credentials. Connect token + query ID in profile first."
+                : 'No users with IBKR Flex credentials. Connect via profile or run vestix:migrate-ibkr-flex-owner.';
+
+            return $this->emptyFailure($message);
+        }
 
         $attemptAt = now();
         $cashflowsImported = 0;
         $cashflowsSkipped = 0;
         $cashflowDetails = [];
+        $results = [];
+        $lastSnapshot = null;
+        $firstError = null;
+        $synced = 0;
+        $failed = 0;
+        $delayMs = max(0, (int) config('vestix.ibkr.flex.inter_user_delay_ms', 2000));
 
-        try {
-            $xml = $statementXml ?? $this->flexClient->fetchStatementXml();
-            $snapshot = $this->parser->parse($xml);
-
-            try {
-                $openOrders = $this->openOrdersClient->fetchOpenOrders();
-                $snapshot = new IbkrAccountSnapshot(
-                    netLiquidation: $snapshot->netLiquidation,
-                    availableFunds: $snapshot->availableFunds,
-                    settledCash: $snapshot->settledCash,
-                    baseCurrency: $snapshot->baseCurrency,
-                    openPositions: $snapshot->openPositions,
-                    openOrders: $openOrders,
-                    cashTransactions: $snapshot->cashTransactions,
-                    metadata: $snapshot->metadata,
-                    availableFundsIsExplicit: $snapshot->availableFundsIsExplicit,
-                    equityByReportDate: $snapshot->equityByReportDate,
-                );
-            } catch (Throwable $ordersException) {
-                if ((bool) config('vestix.ibkr.client_portal.enabled', false)) {
-                    Log::warning('IBKR open-orders sync failed; continuing with balances.', [
-                        'error' => $ordersException->getMessage(),
-                    ]);
-                }
+        foreach ($users->values() as $index => $user) {
+            if ($index > 0 && $statementXml === null && $delayMs > 0) {
+                usleep($delayMs * 1000);
             }
 
-            foreach ($users as $user) {
+            try {
+                $xml = $statementXml ?? $this->fetchXmlForUser($user);
+                $snapshot = $this->parser->parse($xml);
+                $snapshot = $this->maybeAttachOpenOrders($user, $snapshot);
+
                 $this->persistSuccess($user, $snapshot, $attemptAt);
 
                 $result = $this->cashflowImporter->import($user, $snapshot);
@@ -87,9 +89,6 @@ class IbkrSyncService
                 $cashflowDetails = [...$cashflowDetails, ...$result->details];
 
                 if ((bool) config('vestix.ibkr.sync_bankroll_snapshot', true)) {
-                    // Morning Flex reflects the last completed US session — not "today"
-                    // before the open. Dating Alpha Tracker on that session keeps NLV and
-                    // SPY on the same closed trading day (avoids premarket SPY catch-up spikes).
                     $user = $user->fresh() ?? $user;
 
                     $this->bankrollSnapshots->fillMissingFromIbkrDailyEquity(
@@ -103,37 +102,148 @@ class IbkrSyncService
                         $this->bankrollSnapshots->alphaTrackerSessionDate(),
                     );
 
-                    // Warm SPY densify cache in console so Prestaties chart never blocks on live bars.
                     $this->bankrollSnapshots->warmAlphaBenchmarkCloses($user);
                 }
-            }
 
-            return [
-                'users' => $users->count(),
-                'cashflows_imported' => $cashflowsImported,
-                'cashflows_skipped' => $cashflowsSkipped,
-                'cashflow_details' => $cashflowDetails,
-                'snapshot' => $this->snapshotSummary($snapshot),
-                'success' => true,
-                'error' => null,
-            ];
-        } catch (Throwable $exception) {
-            foreach ($users as $user) {
+                $summary = $this->snapshotSummary($snapshot);
+                $lastSnapshot = $summary;
+                $synced++;
+                $results[] = [
+                    'user_id' => $user->id,
+                    'success' => true,
+                    'error' => null,
+                    'snapshot' => $summary,
+                ];
+            } catch (Throwable $exception) {
                 $this->persistFailure($user, $attemptAt, $exception->getMessage());
+                $failed++;
+                $firstError ??= $exception->getMessage();
+                $results[] = [
+                    'user_id' => $user->id,
+                    'success' => false,
+                    'error' => $exception->getMessage(),
+                    'snapshot' => null,
+                ];
+
+                Log::error('IBKR sync failed for user.', [
+                    'user_id' => $user->id,
+                    'error' => $exception->getMessage(),
+                ]);
             }
-
-            Log::error('IBKR sync failed.', ['error' => $exception->getMessage()]);
-
-            return [
-                'users' => $users->count(),
-                'cashflows_imported' => 0,
-                'cashflows_skipped' => 0,
-                'cashflow_details' => [],
-                'snapshot' => null,
-                'success' => false,
-                'error' => $exception->getMessage(),
-            ];
         }
+
+        return [
+            'users' => $users->count(),
+            'synced' => $synced,
+            'failed' => $failed,
+            'cashflows_imported' => $cashflowsImported,
+            'cashflows_skipped' => $cashflowsSkipped,
+            'cashflow_details' => $cashflowDetails,
+            'snapshot' => $lastSnapshot,
+            'success' => $failed === 0 && $synced > 0,
+            'error' => $firstError,
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    private function resolveUsers(?User $onlyUser): Collection
+    {
+        if ($onlyUser !== null) {
+            return $onlyUser->hasIbkrFlexConnection()
+                ? collect([$onlyUser])
+                : collect();
+        }
+
+        return User::query()
+            ->whereHas('apiCredentials', function ($query): void {
+                $query->where('provider', ApiCredential::PROVIDER_IBKR_FLEX);
+            })
+            ->get()
+            ->filter(fn (User $user): bool => $user->hasIbkrFlexConnection())
+            ->values();
+    }
+
+    private function fetchXmlForUser(User $user): string
+    {
+        $credentials = $user->ibkrFlexCredentials();
+
+        if ($credentials === null) {
+            throw new \RuntimeException(
+                'IBKR Flex credentials missing for this user. Connect token + query ID in profile.',
+            );
+        }
+
+        return $this->flexClient->fetchStatementXml($credentials['token'], $credentials['query_id']);
+    }
+
+    private function maybeAttachOpenOrders(User $user, IbkrAccountSnapshot $snapshot): IbkrAccountSnapshot
+    {
+        $ownerId = (int) config('vestix.ibkr.client_portal.owner_user_id', 0);
+
+        if ($ownerId <= 0 || $user->id !== $ownerId) {
+            return $snapshot;
+        }
+
+        try {
+            $openOrders = $this->openOrdersClient->fetchOpenOrders();
+
+            return new IbkrAccountSnapshot(
+                netLiquidation: $snapshot->netLiquidation,
+                availableFunds: $snapshot->availableFunds,
+                settledCash: $snapshot->settledCash,
+                baseCurrency: $snapshot->baseCurrency,
+                openPositions: $snapshot->openPositions,
+                openOrders: $openOrders,
+                cashTransactions: $snapshot->cashTransactions,
+                metadata: $snapshot->metadata,
+                availableFundsIsExplicit: $snapshot->availableFundsIsExplicit,
+                equityByReportDate: $snapshot->equityByReportDate,
+            );
+        } catch (Throwable $ordersException) {
+            if ((bool) config('vestix.ibkr.client_portal.enabled', false)) {
+                Log::warning('IBKR open-orders sync failed; continuing with balances.', [
+                    'user_id' => $user->id,
+                    'error' => $ordersException->getMessage(),
+                ]);
+            }
+        }
+
+        return $snapshot;
+    }
+
+    /**
+     * @return array{
+     *     users: int,
+     *     synced: int,
+     *     failed: int,
+     *     cashflows_imported: int,
+     *     cashflows_skipped: int,
+     *     cashflow_details: list<array<string, mixed>>,
+     *     snapshot: null,
+     *     success: false,
+     *     error: string,
+     *     results: list<array{user_id: int, success: bool, error: string|null, snapshot: array<string, mixed>|null}>
+     * }
+     */
+    private function emptyFailure(string $message): array
+    {
+        Log::warning('IBKR sync skipped.', ['error' => $message]);
+
+        return [
+            'users' => 0,
+            'synced' => 0,
+            'failed' => 0,
+            'cashflows_imported' => 0,
+            'cashflows_skipped' => 0,
+            'cashflow_details' => [],
+            'snapshot' => null,
+            'success' => false,
+            'error' => $message,
+            'results' => [],
+        ];
     }
 
     /**
@@ -219,5 +329,4 @@ class IbkrSyncService
 
         $this->health->refreshStaleFlag($user->fresh() ?? $user, $attemptAt);
     }
-
 }

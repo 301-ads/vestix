@@ -15,18 +15,18 @@ class SyncIbkrAccountCommandTest extends TestCase
     public function test_details_flag_prints_flex_statement_and_cashflow_reasons(): void
     {
         config([
-            'vestix.ibkr.flex.token' => 'token',
-            'vestix.ibkr.flex.query_id' => '123',
             'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
             'vestix.ibkr.flex.poll_delay_ms' => 1,
+            'vestix.ibkr.flex.inter_user_delay_ms' => 0,
             'vestix.ibkr.client_portal.enabled' => false,
             'vestix.ibkr.sync_bankroll_snapshot' => false,
         ]);
 
-        User::factory()->create([
+        $user = User::factory()->create([
             'primary_broker' => Broker::Ibkr,
             'trading_bankroll' => 1000,
         ]);
+        $user->storeIbkrFlexCredentials('token', '123');
 
         $statement = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_usd.xml'));
 
@@ -58,6 +58,7 @@ class SyncIbkrAccountCommandTest extends TestCase
             'primary_broker' => Broker::Ibkr,
             'trading_bankroll' => 1000,
         ]);
+        $user->storeIbkrFlexCredentials('token', '123');
 
         $path = base_path('tests/Fixtures/ibkr/flex_statement_real_structure.xml');
 
@@ -79,5 +80,18 @@ class SyncIbkrAccountCommandTest extends TestCase
         $this->assertEquals(2723.73, (float) $user->ibkr_settled_cash);
         $this->assertFalse((bool) $user->ibkr_data_stale);
         $this->assertSame(2, $user->bankrollCashflows()->count());
+    }
+
+    public function test_file_option_requires_user_with_credentials(): void
+    {
+        $user = User::factory()->create();
+        $path = base_path('tests/Fixtures/ibkr/flex_statement_usd.xml');
+
+        $this->artisan('vestix:sync-ibkr', [
+            '--file' => $path,
+            '--user' => $user->id,
+        ])
+            ->expectsOutputToContain('no IBKR Flex credentials')
+            ->assertFailed();
     }
 }

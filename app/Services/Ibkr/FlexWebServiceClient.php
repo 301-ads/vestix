@@ -24,7 +24,8 @@ class FlexWebServiceClient
 
         if ($token === '' || $queryId === '') {
             throw new RuntimeException(
-                'IBKR Flex is not configured. Set IBKR_FLEX_TOKEN and IBKR_FLEX_QUERY_ID.',
+                'IBKR Flex credentials missing. Connect token + query ID per user in profile '
+                .'(or pass token/queryId explicitly). Env IBKR_FLEX_* is only for migrate/probe.',
             );
         }
 

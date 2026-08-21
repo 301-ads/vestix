@@ -44,8 +44,9 @@ class FirstRunChecklist
                 'key' => 'bankroll',
                 'label' => 'Bankroll / IBKR Flex',
                 'done' => $user->trading_bankroll !== null
-                    || $user->ibkr_last_success_at !== null,
-                'hint' => 'Vul NLV in of sync IBKR Flex.',
+                    || $user->ibkr_last_success_at !== null
+                    || $user->hasIbkrFlexConnection(),
+                'hint' => 'Koppel IBKR Flex (token + Query ID) onder Trading Voorkeuren, of vul NLV handmatig in.',
             ],
         ];
 

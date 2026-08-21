@@ -76,9 +76,23 @@ class IbkrAccountReaderTest extends TestCase
     public function test_flex_reader_throws_until_synced(): void
     {
         $user = User::factory()->create();
+        $user->storeIbkrFlexCredentials('token', '123');
         $reader = new FlexIbkrAccountReader;
 
         $this->expectException(RuntimeException::class);
+        $reader->netLiquidationValue($user);
+    }
+
+    public function test_flex_reader_throws_without_connection(): void
+    {
+        $user = User::factory()->create([
+            'ibkr_net_liquidation' => 10634.60,
+            'ibkr_last_success_at' => now(),
+        ]);
+        $reader = new FlexIbkrAccountReader;
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('not connected');
         $reader->netLiquidationValue($user);
     }
 
@@ -98,6 +112,7 @@ class IbkrAccountReaderTest extends TestCase
             ]],
             'ibkr_last_success_at' => now(),
         ]);
+        $user->storeIbkrFlexCredentials('token', '123');
 
         $reader = new FlexIbkrAccountReader;
 

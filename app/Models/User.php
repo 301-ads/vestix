@@ -94,6 +94,64 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(ApiCredential::class);
     }
 
+    public function ibkrFlexCredential(): ?ApiCredential
+    {
+        return $this->apiCredentials()
+            ->where('provider', ApiCredential::PROVIDER_IBKR_FLEX)
+            ->first();
+    }
+
+    public function hasIbkrFlexConnection(): bool
+    {
+        $credential = $this->ibkrFlexCredential();
+
+        return $credential !== null && $credential->hasCompleteFlexCredentials();
+    }
+
+    /**
+     * @return array{token: string, query_id: string}|null
+     */
+    public function ibkrFlexCredentials(): ?array
+    {
+        $credential = $this->ibkrFlexCredential();
+
+        if ($credential === null || ! $credential->hasCompleteFlexCredentials()) {
+            return null;
+        }
+
+        return [
+            'token' => (string) $credential->flexToken(),
+            'query_id' => (string) $credential->flexQueryId(),
+        ];
+    }
+
+    public function storeIbkrFlexCredentials(string $token, string $queryId): ApiCredential
+    {
+        $existing = $this->ibkrFlexCredential();
+        $payload = [
+            'token' => $token,
+            'query_id' => $queryId,
+        ];
+
+        if ($existing !== null) {
+            $existing->forceFill(['encrypted_credentials' => $payload])->save();
+
+            return $existing->fresh() ?? $existing;
+        }
+
+        return $this->apiCredentials()->create([
+            'provider' => ApiCredential::PROVIDER_IBKR_FLEX,
+            'encrypted_credentials' => $payload,
+        ]);
+    }
+
+    public function clearIbkrFlexCredentials(): void
+    {
+        $this->apiCredentials()
+            ->where('provider', ApiCredential::PROVIDER_IBKR_FLEX)
+            ->delete();
+    }
+
     public function resolveTelegramChatId(): ?string
     {
         if (filled($this->telegram_chat_id)) {

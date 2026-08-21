@@ -36,6 +36,11 @@ class IbkrSyncHealth
             return false;
         }
 
+        // Flex balances are only trusted when this user has their own token + query.
+        if ((string) config('vestix.ibkr.reader', 'stub') === 'flex' && ! $user->hasIbkrFlexConnection()) {
+            return true;
+        }
+
         return $this->isStale($user, $now);
     }
 

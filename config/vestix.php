@@ -226,6 +226,8 @@ return [
         'block_automation_when_stale' => filter_var(env('IBKR_BLOCK_AUTOMATION_WHEN_STALE', true), FILTER_VALIDATE_BOOL),
         'sync_bankroll_snapshot' => filter_var(env('IBKR_SYNC_BANKROLL_SNAPSHOT', true), FILTER_VALIDATE_BOOL),
         'flex' => [
+            // Legacy env credentials — used only by migrate-ibkr-flex-owner / probe-ibkr-flex.
+            // Production sync reads per-user api_credentials (provider=ibkr_flex), never this fallback.
             'token' => env('IBKR_FLEX_TOKEN'),
             'query_id' => env('IBKR_FLEX_QUERY_ID'),
             // Current IBKR Campus endpoint. Legacy Universal/servlet still works if set explicitly.
@@ -235,11 +237,15 @@ return [
             'send_request_attempts' => (int) env('IBKR_FLEX_SEND_REQUEST_ATTEMPTS', 3),
             'poll_attempts' => (int) env('IBKR_FLEX_POLL_ATTEMPTS', 8),
             'poll_delay_ms' => (int) env('IBKR_FLEX_POLL_DELAY_MS', 1500),
+            // Pause between users during scheduled multi-account sync (IBKR 1025 lockout).
+            'inter_user_delay_ms' => (int) env('IBKR_FLEX_INTER_USER_DELAY_MS', 2000),
         ],
         'client_portal' => [
             'enabled' => filter_var(env('IBKR_CP_ENABLED', false), FILTER_VALIDATE_BOOL),
             'base_url' => env('IBKR_CP_BASE_URL', 'https://localhost:5000'),
             'timeout_seconds' => (int) env('IBKR_CP_TIMEOUT', 15),
+            // Single shared CP Gateway — only attach open orders when syncing this user id (0 = never).
+            'owner_user_id' => (int) env('IBKR_CP_OWNER_USER_ID', 0),
         ],
         'cashflow' => [
             'allowlist' => [

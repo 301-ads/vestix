@@ -10,6 +10,8 @@ class ApiCredential extends Model
 {
     use HasFactory;
 
+    public const PROVIDER_IBKR_FLEX = 'ibkr_flex';
+
     protected $fillable = [
         'user_id',
         'provider',
@@ -26,5 +28,24 @@ class ApiCredential extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function flexToken(): ?string
+    {
+        $token = $this->encrypted_credentials['token'] ?? null;
+
+        return filled($token) ? (string) $token : null;
+    }
+
+    public function flexQueryId(): ?string
+    {
+        $queryId = $this->encrypted_credentials['query_id'] ?? null;
+
+        return filled($queryId) ? (string) $queryId : null;
+    }
+
+    public function hasCompleteFlexCredentials(): bool
+    {
+        return $this->flexToken() !== null && $this->flexQueryId() !== null;
     }
 }

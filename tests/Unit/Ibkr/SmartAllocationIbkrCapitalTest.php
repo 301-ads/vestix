@@ -24,7 +24,10 @@ class SmartAllocationIbkrCapitalTest extends TestCase
             'default_risk_percent' => 1,
         ]);
 
-        config(['vestix.ibkr.block_automation_when_stale' => true]);
+        config([
+            'vestix.ibkr.reader' => 'stub',
+            'vestix.ibkr.block_automation_when_stale' => true,
+        ]);
 
         $bankroll = app(SmartAllocationService::class)->resolveSizingBankroll($user);
 
@@ -38,6 +41,8 @@ class SmartAllocationIbkrCapitalTest extends TestCase
 
     public function test_sizing_returns_zero_when_ibkr_data_is_stale(): void
     {
+        config(['vestix.ibkr.reader' => 'stub']);
+
         $user = User::factory()->create([
             'trading_bankroll' => 10000,
             'ibkr_available_funds' => 5000,
@@ -48,6 +53,31 @@ class SmartAllocationIbkrCapitalTest extends TestCase
 
         $this->assertSame(0.0, app(SmartAllocationService::class)->resolveSizingBankroll($user));
         $this->assertSame(0.0, app(SmartAllocationService::class)->resolveRiskBankroll($user));
+    }
+
+    public function test_sizing_returns_zero_on_flex_reader_without_own_connection(): void
+    {
+        config([
+            'vestix.ibkr.reader' => 'flex',
+            'vestix.ibkr.block_automation_when_stale' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'ibkr_available_funds' => 5000,
+            'ibkr_settled_cash' => 3800,
+            'ibkr_last_success_at' => now(),
+            'ibkr_data_stale' => false,
+        ]);
+
+        $this->assertSame(0.0, app(SmartAllocationService::class)->resolveSizingBankroll($user));
+
+        $user->storeIbkrFlexCredentials('token', '123');
+
+        $this->assertEqualsWithDelta(
+            3800.0,
+            app(SmartAllocationService::class)->resolveSizingBankroll($user->fresh() ?? $user),
+            0.01,
+        );
     }
 
     public function test_stub_reader_exposes_settled_cash_and_open_orders(): void

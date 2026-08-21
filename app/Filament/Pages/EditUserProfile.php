@@ -11,6 +11,7 @@ use App\Models\UserAlertPreference;
 use App\Services\BankrollCashflowService;
 use App\Services\BankrollSnapshotService;
 use App\Services\Ibkr\IbkrSyncHealth;
+use App\Services\Ibkr\IbkrSyncService;
 use App\Services\TelegramLinkService;
 use App\Services\WebPushSender;
 use App\Support\PositionSizing;
@@ -53,6 +54,9 @@ class EditUserProfile extends EditProfile
     {
         $this->cacheAction($this->editCashflowAction());
         $this->cacheAction($this->deleteCashflowAction());
+        $this->cacheAction($this->saveIbkrFlexAction());
+        $this->cacheAction($this->testIbkrFlexAction());
+        $this->cacheAction($this->disconnectIbkrFlexAction());
     }
 
     public function form(Schema $schema): Schema
@@ -130,6 +134,24 @@ class EditUserProfile extends EditProfile
                         Tab::make('Trading Voorkeuren')
                             ->icon(Heroicon::OutlinedCog6Tooth)
                             ->schema([
+                                Section::make('IBKR Flex-koppeling')
+                                    ->compact()
+                                    ->description('Koppel je eigen Interactive Brokers Flex Web Service zodat Vestix jouw NLV, Available Funds en stortingen ophaalt — niet die van iemand anders.')
+                                    ->schema([
+                                        Placeholder::make('ibkr_flex_connection_status')
+                                            ->label('Status')
+                                            ->content(fn (): HtmlString => $this->ibkrFlexConnectionStatusHtml()),
+                                        Placeholder::make('ibkr_flex_instructions')
+                                            ->label('Zo vind je token en Query ID')
+                                            ->content(fn (): HtmlString => $this->ibkrFlexInstructionsHtml()),
+                                        Actions::make([
+                                            $this->saveIbkrFlexAction(),
+                                            $this->testIbkrFlexAction(),
+                                            $this->disconnectIbkrFlexAction(),
+                                        ])
+                                            ->alignment(Alignment::Start)
+                                            ->verticalAlignment(VerticalAlignment::Start),
+                                    ]),
                                 Section::make('Position sizing')
                                     ->compact()
                                     ->description('Alpha = IBKR Net Liquidation. Risicopie op Available Funds; inleg begrensd op min(AF, Settled/Cash).')
@@ -153,7 +175,7 @@ class EditUserProfile extends EditProfile
                                             ->minValue(0)
                                             ->helperText('Risicopie voor Order Plan / Smart Sizing. Activity Flex levert dit veld vaak niet (alleen Cash) — sync overschrijft je AF dan niet. Inleg wordt begrensd op min(Available Funds, Settled/Cash).')
                                             ->visible(fn (): bool => $this->getUser()->ibkr_last_success_at !== null
-                                                || (string) config('vestix.ibkr.reader', 'stub') === 'flex'
+                                                || $this->getUser()->hasIbkrFlexConnection()
                                                 || $this->getUser()->primary_broker === Broker::Ibkr),
                                         Placeholder::make('ibkr_deployable')
                                             ->label('Deployable')
@@ -769,15 +791,183 @@ class EditUserProfile extends EditProfile
             });
     }
 
+    protected function saveIbkrFlexAction(): Action
+    {
+        return Action::make('save_ibkr_flex')
+            ->label(fn (): string => $this->getUser()->hasIbkrFlexConnection()
+                ? 'Werk koppeling bij'
+                : 'Opslaan koppeling')
+            ->icon(Heroicon::OutlinedKey)
+            ->color('primary')
+            ->modalHeading('IBKR Flex-koppeling')
+            ->modalDescription('Token en Query ID worden versleuteld opgeslagen. Het token wordt daarna niet meer getoond.')
+            ->form([
+                TextInput::make('token')
+                    ->label('Flex Web Service token')
+                    ->password()
+                    ->revealable()
+                    ->required(fn (): bool => ! $this->getUser()->hasIbkrFlexConnection())
+                    ->helperText(fn (): ?string => $this->getUser()->hasIbkrFlexConnection()
+                        ? 'Laat leeg om het bestaande token te behouden.'
+                        : null),
+                TextInput::make('query_id')
+                    ->label('Flex Query ID')
+                    ->required()
+                    ->helperText('Het numerieke ID van je Activity Flex Query (Web Service delivery).'),
+            ])
+            ->fillForm(function (): array {
+                $credentials = $this->getUser()->ibkrFlexCredentials();
+
+                return [
+                    'token' => null,
+                    'query_id' => $credentials['query_id'] ?? null,
+                ];
+            })
+            ->action(function (array $data): void {
+                $user = $this->getUser();
+                $existing = $user->ibkrFlexCredentials();
+                $token = filled($data['token'] ?? null)
+                    ? (string) $data['token']
+                    : ($existing['token'] ?? '');
+                $queryId = trim((string) ($data['query_id'] ?? ''));
+
+                if ($token === '' || $queryId === '') {
+                    Notification::make()
+                        ->title('Token en Query ID zijn verplicht')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $user->storeIbkrFlexCredentials($token, $queryId);
+                $user->forceFill(['primary_broker' => Broker::Ibkr])->save();
+
+                Notification::make()
+                    ->title('IBKR Flex-koppeling opgeslagen')
+                    ->body('Gebruik “Test koppeling” om NLV en cash te verversen.')
+                    ->success()
+                    ->send();
+
+                \App\Support\FirstRunChecklist::markCompletedIfReady($user->fresh() ?? $user);
+                $this->fillForm();
+            });
+    }
+
+    protected function testIbkrFlexAction(): Action
+    {
+        return Action::make('test_ibkr_flex')
+            ->label('Test koppeling')
+            ->icon(Heroicon::OutlinedArrowPath)
+            ->color('gray')
+            ->visible(fn (): bool => $this->getUser()->hasIbkrFlexConnection())
+            ->action(function (IbkrSyncService $syncService): void {
+                $user = $this->getUser()->fresh() ?? $this->getUser();
+                $summary = $syncService->sync($user);
+
+                if ($summary['success'] && is_array($summary['snapshot'])) {
+                    $snapshot = $summary['snapshot'];
+
+                    Notification::make()
+                        ->title('IBKR Flex sync geslaagd')
+                        ->body(sprintf(
+                            'NLV $%s · Available Funds $%s · Settled $%s',
+                            number_format((float) ($snapshot['net_liquidation'] ?? 0), 2),
+                            number_format((float) ($snapshot['available_funds'] ?? 0), 2),
+                            number_format((float) ($snapshot['settled_cash'] ?? 0), 2),
+                        ))
+                        ->success()
+                        ->send();
+
+                    \App\Support\FirstRunChecklist::markCompletedIfReady($user->fresh() ?? $user);
+                    $this->fillForm();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('IBKR Flex sync mislukt')
+                    ->body(Str::limit((string) ($summary['error'] ?? 'Onbekende fout'), 240))
+                    ->danger()
+                    ->send();
+
+                $this->fillForm();
+            });
+    }
+
+    protected function disconnectIbkrFlexAction(): Action
+    {
+        return Action::make('disconnect_ibkr_flex')
+            ->label('Ontkoppelen')
+            ->icon(Heroicon::OutlinedXMark)
+            ->color('danger')
+            ->visible(fn (): bool => $this->getUser()->hasIbkrFlexConnection())
+            ->requiresConfirmation()
+            ->modalHeading('IBKR Flex ontkoppelen?')
+            ->modalDescription('Je token wordt verwijderd. Bestaande Prestaties-snapshots blijven staan tot je opnieuw koppelt en sync.')
+            ->action(function (): void {
+                $this->getUser()->clearIbkrFlexCredentials();
+
+                Notification::make()
+                    ->title('IBKR Flex ontkoppeld')
+                    ->success()
+                    ->send();
+
+                $this->fillForm();
+            });
+    }
+
+    protected function ibkrFlexConnectionStatusHtml(): HtmlString
+    {
+        $user = $this->getUser();
+
+        if (! $user->hasIbkrFlexConnection()) {
+            return new HtmlString(
+                '<span class="text-sm text-gray-500 dark:text-gray-400">'
+                .'Nog niet gekoppeld. Vul token + Query ID in via “Opslaan koppeling”.'
+                .'</span>',
+            );
+        }
+
+        $queryId = e((string) ($user->ibkrFlexCredentials()['query_id'] ?? ''));
+
+        return new HtmlString(
+            '<span class="text-sm text-success-600 dark:text-success-400">'
+            ."Gekoppeld — Query ID {$queryId}. Token is versleuteld opgeslagen (niet zichtbaar)."
+            .'</span>',
+        );
+    }
+
+    protected function ibkrFlexInstructionsHtml(): HtmlString
+    {
+        return new HtmlString(
+            '<ol class="list-decimal space-y-1 pl-4 text-sm text-gray-600 dark:text-gray-300">'
+            .'<li>Log in op de IBKR Client Portal → <strong>Performance &amp; Reports</strong> → <strong>Flex Queries</strong>.</li>'
+            .'<li>Maak of open een <strong>Activity Flex Query</strong> in <strong>USD</strong> met o.a. Account Information, Cash Report, Cash Transactions, Open Positions en Equity Summary in Base. Delivery: <strong>Flex Web Service</strong>.</li>'
+            .'<li>Noteer het <strong>Query ID</strong> (cijfers).</li>'
+            .'<li>Ga naar Settings → <strong>Flex Web Service</strong> → genereer een token. IP-restrictie leeg laten of het Vestix-server-IP whitelisten.</li>'
+            .'<li>Plak token + Query ID hieronder en test de koppeling.</li>'
+            .'</ol>',
+        );
+    }
+
     protected function ibkrSyncStatusHtml(): HtmlString
     {
         $user = $this->getUser();
         $health = app(IbkrSyncHealth::class);
 
+        if (! $user->hasIbkrFlexConnection()) {
+            return new HtmlString(
+                '<span class="text-sm text-gray-500 dark:text-gray-400">'
+                .'Geen eigen Flex-koppeling. Smart sizing blijft uit tot je token + Query ID koppelt.'
+                .'</span>',
+            );
+        }
+
         if ($user->ibkr_last_success_at === null) {
             return new HtmlString(
                 '<span class="text-sm text-gray-500 dark:text-gray-400">'
-                .'Nog geen IBKR sync. Vul NLV handmatig in, of configureer Flex en run <code>vestix:sync-ibkr</code>.'
+                .'Koppeling staat, maar nog geen geslaagde sync. Gebruik “Test koppeling” of wacht op de ochtend-sync.'
                 .'</span>',
             );
         }

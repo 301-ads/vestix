@@ -27,6 +27,7 @@ class EditUserProfileTest extends TestCase
             ->assertOk()
             ->assertSee('Algemeen & Beveiliging')
             ->assertSee('Trading Voorkeuren')
+            ->assertSee('IBKR Flex-koppeling')
             ->assertSee('Telegram & Alerts')
             ->assertSee('Beveiliging')
             ->assertSee('Order & Winst Executie')
@@ -243,13 +244,38 @@ class EditUserProfileTest extends TestCase
             'ibkr_data_stale' => false,
             'trading_bankroll' => 10634.60,
         ]);
+        $user->storeIbkrFlexCredentials('token', '1575288');
         $this->actingAs($user);
 
         Livewire::test(EditUserProfile::class)
             ->assertOk()
             ->assertSee('IBKR sync')
             ->assertSee('Synced')
+            ->assertSee('Gekoppeld')
+            ->assertSee('1575288')
+            ->assertDontSee('secret-token')
             ->assertSee('deployable')
             ->assertSee('risicopie op');
+    }
+
+    public function test_profile_can_save_ibkr_flex_credentials_without_exposing_token(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        Livewire::test(EditUserProfile::class)
+            ->callAction('save_ibkr_flex', data: [
+                'token' => 'super-secret-flex-token',
+                'query_id' => '424242',
+            ])
+            ->assertHasNoActionErrors()
+            ->assertSee('Gekoppeld')
+            ->assertSee('424242')
+            ->assertDontSee('super-secret-flex-token');
+
+        $user->refresh();
+        $this->assertTrue($user->hasIbkrFlexConnection());
+        $this->assertSame('super-secret-flex-token', $user->ibkrFlexCredentials()['token']);
+        $this->assertSame(Broker::Ibkr, $user->primary_broker);
     }
 }

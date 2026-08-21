@@ -30,10 +30,9 @@ class IbkrSyncServiceTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-08-04 08:00:00', 'Europe/Amsterdam'));
 
         config([
-            'vestix.ibkr.flex.token' => 'token',
-            'vestix.ibkr.flex.query_id' => '123',
             'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
             'vestix.ibkr.flex.poll_delay_ms' => 1,
+            'vestix.ibkr.flex.inter_user_delay_ms' => 0,
             'vestix.ibkr.client_portal.enabled' => true,
             'vestix.ibkr.client_portal.base_url' => 'https://cp.test',
             'vestix.ibkr.sync_bankroll_snapshot' => true,
@@ -49,6 +48,8 @@ class IbkrSyncServiceTest extends TestCase
             'primary_broker' => Broker::Ibkr,
             'trading_bankroll' => 1000,
         ]);
+        $user->storeIbkrFlexCredentials('token', '123');
+        config(['vestix.ibkr.client_portal.owner_user_id' => $user->id]);
 
         $statement = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_usd.xml'));
 
@@ -115,10 +116,9 @@ class IbkrSyncServiceTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-17 12:00:00'));
 
         config([
-            'vestix.ibkr.flex.token' => 'token',
-            'vestix.ibkr.flex.query_id' => '123',
             'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
             'vestix.ibkr.stale_after_hours' => 48,
+            'vestix.ibkr.flex.inter_user_delay_ms' => 0,
         ]);
 
         $user = User::factory()->create([
@@ -127,6 +127,7 @@ class IbkrSyncServiceTest extends TestCase
             'ibkr_last_success_at' => Carbon::parse('2026-07-14 10:00:00'),
             'ibkr_data_stale' => false,
         ]);
+        $user->storeIbkrFlexCredentials('token', '123');
 
         Http::fake([
             'https://flex.test/AccountManagement/FlexWebService/SendRequest*' => Http::response(
@@ -149,10 +150,9 @@ class IbkrSyncServiceTest extends TestCase
     public function test_activity_flex_without_af_preserves_existing_available_funds(): void
     {
         config([
-            'vestix.ibkr.flex.token' => 'token',
-            'vestix.ibkr.flex.query_id' => '123',
             'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
             'vestix.ibkr.flex.poll_delay_ms' => 1,
+            'vestix.ibkr.flex.inter_user_delay_ms' => 0,
             'vestix.ibkr.client_portal.enabled' => false,
             'vestix.ibkr.sync_bankroll_snapshot' => false,
         ]);
@@ -163,6 +163,7 @@ class IbkrSyncServiceTest extends TestCase
             'ibkr_available_funds' => 7609.08,
             'ibkr_settled_cash' => 5000,
         ]);
+        $user->storeIbkrFlexCredentials('token', '123');
 
         $statement = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_real_structure.xml'));
 
@@ -184,5 +185,123 @@ class IbkrSyncServiceTest extends TestCase
         $this->assertEquals(4555.29, (float) $user->ibkr_net_liquidation);
         $this->assertEquals(2723.73, (float) $user->ibkr_settled_cash);
         $this->assertEquals(7609.08, (float) $user->ibkr_available_funds);
+    }
+
+    public function test_sync_does_not_fan_out_to_users_without_credentials(): void
+    {
+        config([
+            'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
+            'vestix.ibkr.flex.poll_delay_ms' => 1,
+            'vestix.ibkr.flex.inter_user_delay_ms' => 0,
+            'vestix.ibkr.client_portal.enabled' => false,
+            'vestix.ibkr.sync_bankroll_snapshot' => false,
+            // Env must not be used as a shared fallback.
+            'vestix.ibkr.flex.token' => 'env-token',
+            'vestix.ibkr.flex.query_id' => '999',
+        ]);
+
+        $connected = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+        $connected->storeIbkrFlexCredentials('user-token', '111');
+
+        $leakedCandidate = User::factory()->create([
+            'primary_broker' => Broker::Ibkr,
+            'trading_bankroll' => 5000,
+            'ibkr_net_liquidation' => 5000,
+        ]);
+
+        $statement = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_usd.xml'));
+
+        Http::fake([
+            'https://flex.test/AccountManagement/FlexWebService/SendRequest*' => Http::response(
+                '<?xml version="1.0"?><FlexStatementResponse><Status>Success</Status><ReferenceCode>999</ReferenceCode></FlexStatementResponse>',
+                200,
+            ),
+            'https://flex.test/AccountManagement/FlexWebService/GetStatement*' => Http::response($statement, 200),
+        ]);
+
+        $summary = app(IbkrSyncService::class)->sync();
+
+        $this->assertTrue($summary['success']);
+        $this->assertSame(1, $summary['users']);
+        $this->assertSame(1, $summary['synced']);
+
+        $connected->refresh();
+        $leakedCandidate->refresh();
+
+        $this->assertEquals(10634.60, (float) $connected->ibkr_net_liquidation);
+        $this->assertEquals(5000.0, (float) $leakedCandidate->ibkr_net_liquidation);
+        $this->assertNull($leakedCandidate->ibkr_last_success_at);
+    }
+
+    public function test_two_users_sync_with_own_credentials_and_isolated_failures(): void
+    {
+        config([
+            'vestix.ibkr.flex.base_url' => 'https://flex.test/AccountManagement/FlexWebService',
+            'vestix.ibkr.flex.poll_delay_ms' => 1,
+            'vestix.ibkr.flex.inter_user_delay_ms' => 0,
+            'vestix.ibkr.client_portal.enabled' => false,
+            'vestix.ibkr.sync_bankroll_snapshot' => false,
+        ]);
+
+        $userA = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+        $userA->storeIbkrFlexCredentials('token-a', '100');
+
+        $userB = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+        $userB->storeIbkrFlexCredentials('token-b', '200');
+
+        $statementA = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_usd.xml'));
+        $statementB = file_get_contents(base_path('tests/Fixtures/ibkr/flex_statement_real_structure.xml'));
+
+        Http::fake(function ($request) use ($statementA, $statementB) {
+            $url = $request->url();
+
+            if (str_contains($url, 'SendRequest')) {
+                $query = $request['q'] ?? '';
+
+                return Http::response(
+                    '<?xml version="1.0"?><FlexStatementResponse><Status>Success</Status><ReferenceCode>ref-'.$query.'</ReferenceCode></FlexStatementResponse>',
+                    200,
+                );
+            }
+
+            if (str_contains($url, 'GetStatement')) {
+                $ref = $request['q'] ?? '';
+
+                if (str_contains($ref, '100')) {
+                    return Http::response($statementA, 200);
+                }
+
+                if (str_contains($ref, '200')) {
+                    return Http::response($statementB, 200);
+                }
+            }
+
+            return Http::response('unexpected', 500);
+        });
+
+        $summary = app(IbkrSyncService::class)->sync();
+
+        $this->assertTrue($summary['success']);
+        $this->assertSame(2, $summary['synced']);
+
+        $userA->refresh();
+        $userB->refresh();
+
+        $this->assertEquals(10634.60, (float) $userA->ibkr_net_liquidation);
+        $this->assertEquals(4555.29, (float) $userB->ibkr_net_liquidation);
+    }
+
+    public function test_sync_skips_user_without_credentials(): void
+    {
+        $user = User::factory()->create(['primary_broker' => Broker::Ibkr]);
+
+        Http::fake();
+
+        $summary = app(IbkrSyncService::class)->sync($user);
+
+        $this->assertFalse($summary['success']);
+        $this->assertSame(0, $summary['users']);
+        $this->assertStringContainsString('no IBKR Flex credentials', (string) $summary['error']);
+        Http::assertNothingSent();
     }
 }

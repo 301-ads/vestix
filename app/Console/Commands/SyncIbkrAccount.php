@@ -14,7 +14,7 @@ class SyncIbkrAccount extends Command
         {--details : Show Flex statement dates, balances and cashflow skip reasons}
         {--file= : Import a portal-downloaded Flex XML file instead of calling the Web Service}';
 
-    protected $description = 'Sync read-only IBKR Flex balances/cashflows and optional Client Portal open orders.';
+    protected $description = 'Sync read-only IBKR Flex balances/cashflows per user (own Flex credentials only).';
 
     public function handle(IbkrSyncService $syncService): int
     {
@@ -29,6 +29,15 @@ class SyncIbkrAccount extends Command
 
                 return self::FAILURE;
             }
+
+            if (! $user->hasIbkrFlexConnection()) {
+                $this->error(
+                    "User [{$userId}] has no IBKR Flex credentials. "
+                    .'Connect token + query ID in Trading Voorkeuren, or run vestix:migrate-ibkr-flex-owner.',
+                );
+
+                return self::FAILURE;
+            }
         }
 
         $statementXml = null;
@@ -37,6 +46,12 @@ class SyncIbkrAccount extends Command
         if (filled($file)) {
             if (! is_string($file) || ! is_file($file) || ! is_readable($file)) {
                 $this->error("Flex XML file not readable: {$file}");
+
+                return self::FAILURE;
+            }
+
+            if ($user === null) {
+                $this->error('File import requires --user= (user must have IBKR Flex credentials).');
 
                 return self::FAILURE;
             }
@@ -59,6 +74,8 @@ class SyncIbkrAccount extends Command
             [
                 ['Success', $summary['success'] ? 'yes' : 'no'],
                 ['Users', $summary['users']],
+                ['Synced', $summary['synced'] ?? '—'],
+                ['Failed', $summary['failed'] ?? '—'],
                 ['Cashflows imported', $summary['cashflows_imported']],
                 ['Cashflows skipped', $summary['cashflows_skipped']],
                 ['Error', $summary['error'] ?? '—'],
@@ -72,6 +89,8 @@ class SyncIbkrAccount extends Command
         Log::info('IBKR sync completed.', [
             'success' => $summary['success'],
             'users' => $summary['users'],
+            'synced' => $summary['synced'] ?? null,
+            'failed' => $summary['failed'] ?? null,
             'cashflows_imported' => $summary['cashflows_imported'],
             'cashflows_skipped' => $summary['cashflows_skipped'],
             'error' => $summary['error'],
@@ -111,7 +130,8 @@ class SyncIbkrAccount extends Command
         if (preg_match('/\((1012|1013|1015)\)/', $error) === 1) {
             $this->newLine();
             $this->warn(
-                'IBKR Flex configuration error. Check IBKR_FLEX_TOKEN and IBKR_FLEX_QUERY_ID on Forge match an active Flex token + query.',
+                'IBKR Flex configuration error. Check the user Flex token + query ID in Trading Voorkeuren '
+                .'(or migrate env credentials with vestix:migrate-ibkr-flex-owner).',
             );
         }
     }
